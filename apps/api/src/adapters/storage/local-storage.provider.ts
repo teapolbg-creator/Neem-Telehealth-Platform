@@ -1,7 +1,22 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mkdir, readFile, writeFile, unlink, access } from 'node:fs/promises';
 import { getEnv } from '../../config/env.ts';
 import type { StorageProvider } from './storage.provider.ts';
+
+/**
+ * The repository root, derived from this file rather than the process's
+ * working directory.
+ *
+ * `STORAGE_LOCAL_PATH` is written relative to the repository root, matching
+ * how it reads in `.env` and how `.gitignore` refers to it — but Node runs
+ * this package with `apps/api` as its working directory, so resolving against
+ * the cwd produced `apps/api/apps/api/uploads`. That path is outside the
+ * ignore rule, so uploaded credential documents were sitting untracked in a
+ * directory git would happily have committed.
+ */
+// adapters/storage → adapters → src → apps/api → apps → repository root
+const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), '../../../../../..');
 
 /**
  * Local-disk storage for development.
@@ -13,7 +28,9 @@ export class LocalStorageProvider implements StorageProvider {
   private readonly root: string;
 
   constructor(root?: string) {
-    this.root = path.resolve(root ?? getEnv().STORAGE_LOCAL_PATH);
+    // An absolute path is honoured as given; a relative one is repository-root
+    // relative, which is how it is written in `.env`.
+    this.root = path.resolve(REPO_ROOT, root ?? getEnv().STORAGE_LOCAL_PATH);
   }
 
   /**

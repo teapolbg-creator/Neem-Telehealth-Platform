@@ -85,6 +85,9 @@ export async function registerDoctor(
           yearsExperience: input.yearsExperience,
           specialty: input.specialty ?? null,
           bio: input.bio ?? null,
+          // Needed to bridge a Call Me consultation (spec §33). Encrypted, and
+          // never read back to any client — only handed to the voice provider.
+          phoneEnc: encryptField(input.phone),
           // Applications begin at PENDING. Only an admin decision moves them on.
           status: 'PENDING',
           languages: {

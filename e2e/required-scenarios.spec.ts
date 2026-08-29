@@ -12,8 +12,11 @@ import { test } from './support/fixtures.ts';
  * As each phase lands, the corresponding `test.fixme` becomes a real test in
  * its own spec file, and the placeholder here is deleted.
  *
- * Progress: 3 of 16 implemented. Scenarios 3, 4 and 5 now live in
- * queue.spec.ts; the rest await Phases 5–7.
+ * Progress: 3 of 16 implemented. Scenarios 3, 4 and 5 live in queue.spec.ts.
+ * Phase 5 added media.spec.ts, which is not one of the 16 but covers the
+ * no-recording and no-phone-number guarantees end to end. The rest await
+ * Phases 6–7 — most of them need a doctor to be able to COMPLETE a
+ * consultation, which is Phase 6.
  */
 
 test.describe('required scenarios (spec §80)', () => {

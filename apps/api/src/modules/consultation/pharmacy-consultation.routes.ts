@@ -234,7 +234,9 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
       const consultation = await getConsultationByPublicId(publicId);
       if (consultation.pharmacyId !== pharmacyId) throw errors.notFound('Consultation not found.');
 
-      const patient = await readPatientPanel(consultation.id);
+      // The pharmacy captured this number with the patient in front of them,
+      // so it is theirs to see. The doctor's panel deliberately omits it.
+      const patient = await readPatientPanel(consultation.id, undefined, { includePhone: true });
 
       return reply.send({
         data: {

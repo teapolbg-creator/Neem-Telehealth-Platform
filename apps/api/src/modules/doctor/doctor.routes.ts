@@ -182,7 +182,13 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.query);
 
     const now = systemClock.now();
-    const from = query.from ? new Date(`${query.from}T00:00:00.000Z`) : now;
+    // Start of today in UTC, NOT `now`. `serviceDate` is a date at midnight
+    // UTC, so a `from` of the current instant excludes today's own shift for
+    // every hour but the first — a doctor signing in at 09:00 could not see,
+    // let alone confirm, the shift they were about to work.
+    const from = query.from
+      ? new Date(`${query.from}T00:00:00.000Z`)
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const to = query.to
       ? new Date(`${query.to}T00:00:00.000Z`)
       : new Date(now.getTime() + 28 * 86_400_000);

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { assignShift } from '../../src/modules/scheduling/scheduling.service.ts';
-import { closeTestApp } from '../helpers/app.ts';
+import { closeTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestDoctor, resetDatabase } from '../helpers/database.ts';
 
 /**
@@ -239,5 +239,42 @@ describe('shift cancellation', () => {
       { adminId: ADMIN_ID },
     );
     expect(result.weeklyMinutesScheduled).toBe(36 * 60);
+  });
+});
+
+/**
+ * What a doctor sees on their own shift screen.
+ *
+ * `serviceDate` is a date at midnight UTC, so a range starting at the current
+ * instant excludes today's own shift for all but the first hour of the day. A
+ * doctor signing in at 09:00 could not see, let alone confirm, the shift they
+ * were about to work — and unconfirmed means ineligible for allocation.
+ */
+describe('a doctor’s own shift list', () => {
+  it('includes today’s shift when read part-way through the day', async () => {
+    const { user, doctor } = await createTestDoctor('Dr. Today', 'ACTIVE');
+
+    const today = new Date();
+    const serviceDate = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    )
+      .toISOString()
+      .slice(0, 10);
+
+    await assignShift(
+      { doctorPublicId: doctor.publicId, shiftCode: 'MORNING', serviceDate },
+      { adminId: ADMIN_ID },
+    );
+
+    const cookies = await signIn(user.email, 'TestPassword123!');
+    const response = await request<{ shifts: Array<{ serviceDate: string }> }>('/doctor/shifts', {
+      cookies,
+    });
+
+    expect(response.status).toBe(200);
+    expect(
+      response.body.data?.shifts.map((shift) => shift.serviceDate),
+      'today’s shift must be visible so the doctor can confirm it',
+    ).toContain(serviceDate);
   });
 });

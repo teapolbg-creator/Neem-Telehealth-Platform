@@ -47,7 +47,28 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        /**
+         * The consultation screens use the real `getUserMedia`, so the browser
+         * needs a camera and a granted permission. Chromium's fake device
+         * provides both without hardware, and the permission is granted up
+         * front because a modal prompt would hang the run.
+         *
+         * A build agent has no webcam; this is what makes the media path
+         * genuinely exercised rather than skipped.
+         */
+        permissions: ['camera', 'microphone'],
+        launchOptions: {
+          args: [
+            '--use-fake-device-for-media-stream',
+            '--use-fake-ui-for-media-stream',
+          ],
+        },
+      },
+    },
   ],
 
   /**

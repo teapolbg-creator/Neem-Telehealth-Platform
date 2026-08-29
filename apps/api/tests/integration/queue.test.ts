@@ -7,11 +7,13 @@ import {
   setPaymentProviderForTesting,
 } from '../../src/adapters/payment/index.ts';
 import {
+  acceptOffer,
   enforceResponseWindow,
   offerNextDoctor,
   processWaitingQueue,
 } from '../../src/modules/queue/allocation.service.ts';
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
+import { transition } from '../../src/modules/consultation/consultation.service.ts';
 import { fixedClock } from '../../src/lib/clock.ts';
 import { generatePublicId, hashPassword } from '../../src/lib/crypto.ts';
 
@@ -507,5 +509,66 @@ describe('what the doctor is shown', () => {
     const response = await request<{ blockedBy: string | null }>('/doctor/presence', { cookies });
 
     expect(response.body.data?.blockedBy).toMatch(/no confirmed shift/i);
+  });
+});
+
+/**
+ * Capacity accounting (spec §30).
+ *
+ * A doctor takes one consultation at a time. Acceptance increments their load;
+ * nothing released it until this was fixed, so every doctor silently stopped
+ * receiving work after their first consultation and the queue stalled with no
+ * error anywhere.
+ */
+describe('doctor capacity', () => {
+  it('is taken on acceptance and returned when the consultation ends', async () => {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Load', languageCodes: ['en'] });
+    const first = await queuedConsultation('en');
+
+    await offerNextDoctor(first.id);
+    await acceptOffer(first.publicId, doctor.doctorId);
+
+    const busy = await getPrisma().doctorPresence.findUniqueOrThrow({
+      where: { doctorId: doctor.doctorId },
+    });
+    expect(busy.currentLoad).toBe(1);
+
+    // A doctor at capacity is not offered a second consultation.
+    const second = await queuedConsultation('en');
+    const blocked = await offerNextDoctor(second.id);
+    expect(blocked.offered).toBe(false);
+
+    await transition(first.id, 'ABANDONED', { actorType: 'ADMIN', reason: 'test' });
+
+    const free = await getPrisma().doctorPresence.findUniqueOrThrow({
+      where: { doctorId: doctor.doctorId },
+    });
+    expect(free.currentLoad).toBe(0);
+
+    // And the queue starts routing to them again.
+    const resumed = await offerNextDoctor(second.id);
+    expect(resumed.offered).toBe(true);
+    expect(resumed.doctorId).toBe(doctor.doctorId);
+  });
+
+  it('never drops below zero, however many terminal transitions arrive', async () => {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Zero', languageCodes: ['en'] });
+    const consultation = await queuedConsultation('en');
+
+    await offerNextDoctor(consultation.id);
+    await acceptOffer(consultation.publicId, doctor.doctorId);
+
+    await transition(consultation.id, 'ABANDONED', { actorType: 'ADMIN', reason: 'test' });
+
+    // A second attempt is refused by the state machine — ABANDONED is terminal
+    // — so no second release happens; the SQL floors at zero regardless.
+    await expect(
+      transition(consultation.id, 'ABANDONED', { actorType: 'ADMIN', reason: 'again' }),
+    ).rejects.toThrow();
+
+    const presence = await getPrisma().doctorPresence.findUniqueOrThrow({
+      where: { doctorId: doctor.doctorId },
+    });
+    expect(presence.currentLoad).toBe(0);
   });
 });

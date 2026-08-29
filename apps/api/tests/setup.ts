@@ -20,3 +20,4 @@ process.env.SEED_DEMO_DATA = 'false';
 process.env.RATE_LIMIT_AUTH_MAX = '10000';
 process.env.RATE_LIMIT_MAX_PER_MINUTE = '10000';
 process.env.RATE_LIMIT_ONBOARDING_MAX = '10000';
+process.env.RATE_LIMIT_QR_EXCHANGE_MAX = '10000';

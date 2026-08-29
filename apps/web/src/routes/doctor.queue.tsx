@@ -202,7 +202,11 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
         disabled={accept.isPending || lapsed}
         onClick={() =>
           accept.mutate(offer.consultationPublicId, {
-            onSuccess: () => void navigate({ to: "/doctor" }),
+            onSuccess: () =>
+              void navigate({
+                to: "/doctor/consultations/$publicId",
+                params: { publicId: offer.consultationPublicId },
+              }),
           })
         }
         className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-lg font-bold text-white shadow-lg shadow-brand/20 hover:brightness-110 disabled:opacity-40"

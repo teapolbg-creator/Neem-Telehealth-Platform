@@ -4,3 +4,4 @@ export * from './auth.ts';
 export * from './permissions.ts';
 export * from './onboarding.ts';
 export * from './consultation.ts';
+export * from './media.ts';

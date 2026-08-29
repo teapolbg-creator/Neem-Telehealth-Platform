@@ -9,6 +9,7 @@ import {
 } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
+import { emitTimerWarnings } from '../modules/media/media.service.ts';
 
 /**
  * Scheduled work (docs/architecture.md §6).
@@ -64,6 +65,15 @@ const JOBS: JobDefinition[] = [
     intervalMs: 10 * SECOND,
     run: processWaitingQueue,
     describe: (count) => `offered ${count} waiting consultation(s)`,
+  },
+  {
+    // Timer warnings only. This job emits events; it does NOT end a
+    // consultation, and there is deliberately no job that does — only the
+    // doctor completes a consultation (spec §15, §16).
+    name: 'emit-timer-warnings',
+    intervalMs: 10 * SECOND,
+    run: emitTimerWarnings,
+    describe: (count) => `sent a timer notice for ${count} live consultation(s)`,
   },
   {
     name: 'reap-stale-presence',

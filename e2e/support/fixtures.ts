@@ -43,10 +43,16 @@ export interface AdminSession {
  * as a real authenticator app would. A file rather than a module variable,
  * because Playwright may spread spec files across worker processes.
  *
+ * NOT under `test-results/`: Playwright empties that directory at the start of
+ * every run, so the secret would be discarded while the database stayed
+ * enrolled — every run after the first would then fail with "already enrolled
+ * and this run does not hold its secret". It has to outlive the output
+ * directory to survive across runs.
+ *
  * This holds a test secret for a demo account on a development machine, and is
- * git-ignored along with the rest of `test-results/`.
+ * git-ignored.
  */
-const ADMIN_SECRET_FILE = path.join(process.cwd(), 'test-results', '.admin-totp');
+const ADMIN_SECRET_FILE = path.join(process.cwd(), '.playwright-admin-totp');
 
 export function rememberAdminSecret(secret: string): void {
   mkdirSync(path.dirname(ADMIN_SECRET_FILE), { recursive: true });
@@ -222,6 +228,15 @@ export async function signInThroughUi(
 export async function signInAdminOnPage(page: Page): Promise<void> {
   await signInThroughUi(page, DEMO.admin);
 
+  // Wait for the second-factor step to render before deciding which one it is.
+  // `isVisible()` does not wait, so on a cold browser context it returned false
+  // simply because React had not painted yet — and the run then failed claiming
+  // the admin was already enrolled when it was in fact mid-enrolment.
+  await page
+    .getByLabel(/code/i)
+    .waitFor({ state: 'visible', timeout: 20_000 })
+    .catch(() => undefined);
+
   const enrolling = await page
     .getByRole('heading', { name: /set up two-factor/i })
     .isVisible()
@@ -246,12 +261,19 @@ export async function signInAdminOnPage(page: Page): Promise<void> {
   await page.getByRole('button', { name: /confirm and sign in|verify/i }).click();
 
   // Enrolment interposes the one-time recovery-code screen.
-  const recoveryVisible = await page
-    .getByRole('heading', { name: /recovery codes/i })
-    .isVisible({ timeout: 10_000 })
+  //
+  // `waitFor`, not `isVisible`: the latter returns immediately and ignores a
+  // timeout, so this step was silently skipped whenever the screen had not
+  // painted yet, leaving the run stuck on an unchecked acknowledgement box.
+  const recovery = page.getByRole('heading', { name: /recovery codes/i });
+  const recoveryVisible = await recovery
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
     .catch(() => false);
 
   if (recoveryVisible) {
+    // The codes are shown once and cannot be retrieved later, so the button
+    // stays disabled until the acknowledgement is ticked.
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: /continue to neem/i }).click();
   }
@@ -266,3 +288,124 @@ export const test = base.extend<{ run: string }>({
 });
 
 export { expect };
+
+/**
+ * Opens a second signed-out browser context.
+ *
+ * Some scenarios need two roles live at once — a doctor and an admin, say.
+ * `page.context().newPage()` shares one cookie jar, so the second sign-in
+ * would evict the first; `browser.newPage()` avoids that but inherits none of
+ * the project's `use` options, leaving the page with no `baseURL` and no
+ * camera permission, so relative navigation silently fails. This supplies
+ * both explicitly.
+ *
+ * Close the returned page when done; its context closes with it.
+ */
+export async function openSecondPage(page: Page): Promise<Page> {
+  const context = await page.context().browser()!.newContext({
+    baseURL: process.env.E2E_WEB_URL ?? 'http://localhost:8080',
+    permissions: ['camera', 'microphone'],
+  });
+
+  return context.newPage();
+}
+
+/** A 1×1 PNG, real enough to pass the upload's magic-byte check. */
+export function minimalPng(): Buffer {
+  return Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+}
+
+export interface ActiveDoctor {
+  email: string;
+  password: string;
+  publicId: string;
+}
+
+/**
+ * Registers a doctor and walks them all the way to ACTIVE.
+ *
+ * Each run gets its own doctor rather than sharing the seeded demo account,
+ * because a doctor's capacity is one consultation at a time and is released
+ * only when the consultation reaches a terminal state. Until a doctor can
+ * complete a consultation (Phase 6), a spec that borrowed the demo doctor
+ * would leave them at capacity and quietly starve every later run.
+ *
+ * The whole approval path is walked for real — documents uploaded, each one
+ * verified, then PENDING → UNDER_REVIEW → APPROVED → ACTIVE. There is no
+ * shortcut, by design (spec §83).
+ */
+export async function createActiveDoctor(
+  request: APIRequestContext,
+  options: { run: string; languageCodes?: string[]; phone?: string },
+): Promise<ActiveDoctor> {
+  const email = `e2e.media.${options.run}@doctor.test`;
+  const password = 'DoctorPassword2026!';
+  const mdcNumber = `MDC-E2E-M-${options.run}`;
+
+  const application = await request.post(`${API}/onboarding/doctor`, {
+    data: {
+      email,
+      password,
+      fullName: `Dr. Media ${options.run}`,
+      mdcNumber,
+      mdcExpiresAt: '2029-12-31',
+      qualifiedAt: '2013-01-15',
+      yearsExperience: 12,
+      phone: options.phone ?? '0244000199',
+      languageCodes: options.languageCodes ?? ['en'],
+    },
+  });
+  expect(application.status(), await application.text()).toBe(201);
+
+  const doctorCsrf = await signIn(request, { email, password });
+  const png = minimalPng();
+
+  for (const documentType of ['MDC_LICENCE', 'GOVERNMENT_ID', 'PRACTICE_EVIDENCE']) {
+    const upload = await request.post(`${API}/doctor/documents`, {
+      headers: csrfHeaders(doctorCsrf),
+      multipart: {
+        documentType,
+        file: { name: 'doc.png', mimeType: 'image/png', buffer: png },
+      },
+    });
+    expect(upload.status(), `${documentType} upload`).toBe(201);
+  }
+
+  await request.post(`${API}/doctor/signature`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: { signatureDataUrl: `data:image/png;base64,${png.toString('base64')}` },
+  });
+
+  await request.post(`${API}/auth/logout`, { headers: csrfHeaders(doctorCsrf) });
+
+  const { csrf: adminCsrf } = await signInAdmin(request);
+
+  const list = await request.get(`${API}/admin/doctors?search=${mdcNumber}`);
+  const applicant = (await list.json()).data.find(
+    (entry: { mdcNumber: string }) => entry.mdcNumber === mdcNumber,
+  );
+  expect(applicant, 'the new applicant should be in the review queue').toBeTruthy();
+
+  const detail = await (await request.get(`${API}/doctors/${applicant.publicId}`)).json();
+  for (const document of detail.data.documents) {
+    await request.post(`${API}/admin/doctors/documents/${document.id}/verify`, {
+      headers: csrfHeaders(adminCsrf),
+      data: { verified: true },
+    });
+  }
+
+  for (const status of ['UNDER_REVIEW', 'APPROVED', 'ACTIVE']) {
+    const response = await request.post(`${API}/admin/doctors/${applicant.publicId}/status`, {
+      headers: csrfHeaders(adminCsrf),
+      data: { status },
+    });
+    expect(response.ok(), `transition to ${status}: ${await response.text()}`).toBeTruthy();
+  }
+
+  await request.post(`${API}/auth/logout`, { headers: csrfHeaders(adminCsrf) });
+
+  return { email, password, publicId: applicant.publicId };
+}

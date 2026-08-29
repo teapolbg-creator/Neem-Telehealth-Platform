@@ -519,6 +519,10 @@ model Doctor {
   specialty         String?      @db.VarChar(160)
   bio               String?      @db.Text
   photoStorageKey   String?      @db.VarChar(400)
+  /// Contact number the platform dials for a Call Me bridge (spec §33).
+  /// Encrypted at rest and NEVER returned to a patient or a pharmacy — the
+  /// provider dials both legs so neither party learns the other's number.
+  phoneEnc          String?      @db.Text
   status            DoctorStatus @default(PENDING)
   statusReason      String?      @db.VarChar(500)
   approvedAt        DateTime?

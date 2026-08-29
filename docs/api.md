@@ -55,8 +55,9 @@ POST   /patient/session/identity          { fullName, age, sex, phone, paymentPh
 POST   /patient/session/language          { languageCode }
 POST   /patient/session/mode              { type: AUDIO|VIDEO|CALL_ME }
 GET    /patient/session                   status, doctor presence, timer
-POST   /patient/session/join              → media credentials
-POST   /patient/session/leave
+POST   /patient/consultation/media/join   → room + join credential (idempotent; rejoin after a drop)
+POST   /patient/consultation/media/leave
+GET    /patient/consultation/timer        elapsed / remaining / warning / overrun — advisory only
 GET    /patient/session/prescription      → metadata + PDF download
 GET    /patient/session/referral
 POST   /patient/session/feedback          { doctorRating, neemRating, category, comment? }
@@ -108,8 +109,10 @@ GET    /doctor/queue                                 current offer + countdown
 POST   /doctor/consultations/:id/accept              (no decline endpoint exists)
 GET    /doctor/consultations/:id                     demographics, vitals, tests
 PUT    /doctor/consultations/:id/notes               temporary clinical workspace
-POST   /doctor/consultations/:id/join                → media credentials
-POST   /doctor/consultations/:id/call-me             bridged Twilio Voice call
+POST   /doctor/consultations/:id/media/join          → room + join credential (joining starts the consultation)
+POST   /doctor/consultations/:id/media/leave
+GET    /doctor/consultations/:id/timer               advisory; nothing here can end a consultation
+POST   /doctor/consultations/:id/call                bridged voice call — response carries no phone number
 POST   /doctor/consultations/:id/complete            { outcome, … } — triggers purge
 POST   /doctor/prescriptions
 POST   /doctor/prescriptions/:id/revoke              blocked once DISPENSED
@@ -182,3 +185,47 @@ admin.alert   (no_language_match · queue_delay · payment_anomaly ·
                refund_requested · complaint · licence_expiry ·
                subscription_expiry · system)
 ```
+
+---
+
+## 10. Media (spec §32, §33)
+
+**There is no recording endpoint, and there never will be one.** The absence is
+structural rather than a matter of configuration: `VideoProvider` and
+`VoiceProvider` expose no method that could start a recording, so no adapter
+can be written against one, and `media_sessions.recordingEnabled` is written
+only as `false`. An integration test greps the whole of `src/` for any call
+that would ask a provider to record, and E2E asserts that the plausible route
+names all 404 (decision D8).
+
+### Joining
+
+`POST /patient/consultation/media/join` and
+`POST /doctor/consultations/:id/media/join` return:
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | `VIDEO`, `AUDIO`, or `VOICE_BRIDGE` |
+| `providerRoomRef` | The provider's room handle |
+| `joinToken` | Credential for the provider's SDK; expires |
+| `isMockProvider` | **True today.** Surfaced on screen — the remote pane says media is simulated (decision D18) |
+| `recordingEnabled` | Always `false` |
+
+Both are **idempotent**: rejoining after a reload or a dropped connection
+returns the same room with a fresh credential, so a patient does not lose their
+place. A doctor joining moves the consultation `DOCTOR_ACCEPTED → IN_PROGRESS`.
+
+### The timer
+
+`GET .../timer` reports `elapsedSeconds`, `remainingSeconds`, `warning`, and
+`overrun`. It is **advisory in both directions**: there is no scheduled job and
+no route that ends a consultation on time. Only the doctor completes one
+(spec §15, §16). The `emit-timer-warnings` job emits notices and nothing else.
+
+### Call Me
+
+`POST /doctor/consultations/:id/call` bridges the two parties. Both numbers are
+read server-side and handed to the provider; the response carries only
+`callerIdShown`. Neither party's number appears in any payload either party can
+reach — including the doctor's own clinical panel, which omits the patient's
+number for exactly this reason (decision D19).

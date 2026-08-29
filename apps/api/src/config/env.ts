@@ -73,6 +73,11 @@ const envSchema = z
     // Account creation, limited per source.
     RATE_LIMIT_ONBOARDING_MAX: z.coerce.number().int().min(1).default(5),
     RATE_LIMIT_ONBOARDING_WINDOW: z.string().default('1 hour'),
+    // QR token exchange. A busy pharmacy shares one public IP, so this has to
+    // accommodate a genuine queue of patients scanning in quick succession
+    // while still blocking a script guessing tokens.
+    RATE_LIMIT_QR_EXCHANGE_MAX: z.coerce.number().int().min(1).default(20),
+    RATE_LIMIT_QR_EXCHANGE_WINDOW: z.string().default('5 minutes'),
 
     PAYMENT_PROVIDER: z.enum(PROVIDER_MODES.payment).default('mock'),
     VIDEO_PROVIDER: z.enum(PROVIDER_MODES.video).default('mock'),

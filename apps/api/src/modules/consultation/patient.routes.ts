@@ -66,7 +66,14 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/s/exchange',
-    { config: { rateLimit: { max: 20, timeWindow: '5 minutes' } } },
+    {
+      config: {
+        rateLimit: {
+          max: getEnv().RATE_LIMIT_QR_EXCHANGE_MAX,
+          timeWindow: getEnv().RATE_LIMIT_QR_EXCHANGE_WINDOW,
+        },
+      },
+    },
     async (request, reply) => {
       const { token } = z
         .object({ token: z.string().min(20).max(200) })

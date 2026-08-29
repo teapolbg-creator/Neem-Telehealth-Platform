@@ -170,3 +170,38 @@ export function useReallocate() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'queue'] }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// The accepted consultation
+// ---------------------------------------------------------------------------
+
+/**
+ * The doctor's clinical context for one consultation (spec §24).
+ *
+ * There is no history here and no patient phone number: past clinical data no
+ * longer exists, and Call Me exists so the doctor never learns the number
+ * (spec §13, §33).
+ */
+export interface DoctorConsultation {
+  publicId: string;
+  state: string;
+  type: 'AUDIO' | 'VIDEO' | 'CALL_ME' | null;
+  language: { code: string; label: string } | null;
+  pharmacy: { name: string; city: string };
+  patient: { fullName: string; age: number; sex: string } | null;
+  vitals: Record<string, unknown> | null;
+  tests: Array<{ code: string; label: string; result: string; recordedAt: string }>;
+  startedAt: string | null;
+  durationSeconds: number;
+}
+
+export const doctorConsultationKey = (publicId: string) =>
+  ['doctor', 'consultation', publicId] as const;
+
+export function useDoctorConsultation(publicId: string) {
+  return useQuery({
+    queryKey: doctorConsultationKey(publicId),
+    queryFn: ({ signal }) => api.get<DoctorConsultation>(`/doctor/consultations/${publicId}`, signal),
+    retry: false,
+  });
+}

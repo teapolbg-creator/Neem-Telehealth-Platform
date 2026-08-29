@@ -22,6 +22,7 @@ import { Route as PatientIndexRouteImport } from './routes/patient.index'
 import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
 import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
 import { Route as STokenRouteImport } from './routes/s.$token'
+import { Route as DoctorConsultationsPublicIdRouteImport } from './routes/doctor.consultations.$publicId'
 import { Route as PharmacyConsultationsPublicIdRouteImport } from './routes/pharmacy.consultations.$publicId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,12 @@ const STokenRoute = STokenRouteImport.update({
   path: '/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DoctorConsultationsPublicIdRoute =
+  DoctorConsultationsPublicIdRouteImport.update({
+    id: '/doctor/consultations/$publicId',
+    path: '/doctor/consultations/$publicId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const PharmacyConsultationsPublicIdRoute =
   PharmacyConsultationsPublicIdRouteImport.update({
     id: '/pharmacy/consultations/$publicId',
@@ -110,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/doctor/': typeof DoctorIndexRoute
   '/patient/': typeof PatientIndexRoute
   '/pharmacy/': typeof PharmacyIndexRoute
+  '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
 }
 export interface FileRoutesByTo {
@@ -126,6 +134,7 @@ export interface FileRoutesByTo {
   '/doctor': typeof DoctorIndexRoute
   '/patient': typeof PatientIndexRoute
   '/pharmacy': typeof PharmacyIndexRoute
+  '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
 }
 export interface FileRoutesById {
@@ -143,6 +152,7 @@ export interface FileRoutesById {
   '/doctor/': typeof DoctorIndexRoute
   '/patient/': typeof PatientIndexRoute
   '/pharmacy/': typeof PharmacyIndexRoute
+  '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
 }
 export interface FileRouteTypes {
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/doctor/'
     | '/patient/'
     | '/pharmacy/'
+    | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/doctor'
     | '/patient'
     | '/pharmacy'
+    | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
   id:
     | '__root__'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
     | '/doctor/'
     | '/patient/'
     | '/pharmacy/'
+    | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
   fileRoutesById: FileRoutesById
 }
@@ -210,6 +223,7 @@ export interface RootRouteChildren {
   DoctorIndexRoute: typeof DoctorIndexRoute
   PatientIndexRoute: typeof PatientIndexRoute
   PharmacyIndexRoute: typeof PharmacyIndexRoute
+  DoctorConsultationsPublicIdRoute: typeof DoctorConsultationsPublicIdRoute
   PharmacyConsultationsPublicIdRoute: typeof PharmacyConsultationsPublicIdRoute
 }
 
@@ -306,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/doctor/consultations/$publicId': {
+      id: '/doctor/consultations/$publicId'
+      path: '/doctor/consultations/$publicId'
+      fullPath: '/doctor/consultations/$publicId'
+      preLoaderRoute: typeof DoctorConsultationsPublicIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pharmacy/consultations/$publicId': {
       id: '/pharmacy/consultations/$publicId'
       path: '/pharmacy/consultations/$publicId'
@@ -330,6 +351,7 @@ const rootRouteChildren: RootRouteChildren = {
   DoctorIndexRoute: DoctorIndexRoute,
   PatientIndexRoute: PatientIndexRoute,
   PharmacyIndexRoute: PharmacyIndexRoute,
+  DoctorConsultationsPublicIdRoute: DoctorConsultationsPublicIdRoute,
   PharmacyConsultationsPublicIdRoute: PharmacyConsultationsPublicIdRoute,
 }
 export const routeTree = rootRouteImport

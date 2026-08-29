@@ -13,8 +13,10 @@ import {
   canPharmacyCancel,
   InvalidConsultationTransition,
   isPaid,
+  isTerminal,
 } from '../../domain/consultation-state.ts';
 import { pharmacyCanInitiateConsultations } from '../../domain/account-state.ts';
+import { releaseCapacity } from '../queue/presence.service.ts';
 
 /**
  * Consultation lifecycle (spec §10, §16, §81).
@@ -48,7 +50,7 @@ export async function transition(
 ): Promise<ConsultationState> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, doctorId: true },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -105,6 +107,22 @@ export async function transition(
       occurredAt: now,
     },
   });
+
+  /**
+   * Give the doctor their capacity back once the consultation is over.
+   *
+   * Acceptance increments `currentLoad`; without this, it is never decremented
+   * and every doctor is permanently at capacity after their first
+   * consultation, so the queue quietly stops routing to anyone. Done here
+   * rather than at each terminal call site precisely so no future path can
+   * forget it.
+   *
+   * `GREATEST(currentLoad - 1, 0)` inside `releaseCapacity` makes a repeat
+   * harmless, so a retried transition cannot drive the count negative.
+   */
+  if (consultation.doctorId && !isTerminal(from) && isTerminal(to)) {
+    await releaseCapacity(consultation.doctorId, db);
+  }
 
   return to;
 }

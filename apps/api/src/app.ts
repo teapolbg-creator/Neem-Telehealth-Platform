@@ -17,6 +17,7 @@ import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
 import { webhookRoutes } from './modules/payment/webhook.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
+import { mediaRoutes } from './modules/media/media.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 
 /**
@@ -94,6 +95,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(patientRoutes);
       await api.register(pharmacyConsultationRoutes);
       await api.register(queueRoutes);
+      await api.register(mediaRoutes);
     },
     { prefix: '/api/v1' },
   );

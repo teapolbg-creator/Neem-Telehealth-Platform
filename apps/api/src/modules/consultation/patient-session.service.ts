@@ -206,7 +206,8 @@ export async function buildSessionView(
 export async function readPatientPanel(
   consultationId: string,
   db: Db = getPrisma(),
-): Promise<{ fullName: string; age: number; sex: string; phone: string } | null> {
+  options: { includePhone?: boolean } = {},
+): Promise<{ fullName: string; age: number; sex: string; phone?: string } | null> {
   const session = await db.patientSession.findUnique({ where: { consultationId } });
 
   // Hard-deleted at completion, so absence is the signal — see the note in
@@ -219,6 +220,10 @@ export async function readPatientPanel(
     fullName: decryptNullable(session.fullNameEnc) ?? '',
     age: session.age,
     sex: session.sex,
-    phone: decryptNullable(session.phoneEnc) ?? '',
+    // Off by default, and NOT included for the doctor. Call Me exists so that
+    // neither party learns the other's number (spec §33); handing the doctor
+    // the patient's number in a side panel would defeat it entirely. The
+    // pharmacy is the exception — they captured it, with the patient present.
+    ...(options.includePhone ? { phone: decryptNullable(session.phoneEnc) ?? '' } : {}),
   };
 }

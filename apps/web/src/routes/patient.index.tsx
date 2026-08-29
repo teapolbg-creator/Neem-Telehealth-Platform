@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PatientSessionView } from "@neem/contracts";
 import {
   AlertCircle,
@@ -11,7 +11,13 @@ import {
   Video,
 } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
+import { CallStage } from "@/components/neem/CallStage";
 import { ApiError } from "@/lib/api-client";
+import {
+  useJoinPatientMedia,
+  useLeavePatientMedia,
+  usePatientTimer,
+} from "@/features/media/api";
 import {
   usePatientLanguages,
   usePatientSession,
@@ -397,21 +403,99 @@ function WaitingStep({ session }: { session: PatientSessionView }) {
   );
 }
 
+/**
+ * The consultation itself (spec §14, §32, §33).
+ *
+ * A Call Me consultation has no room to join — the doctor places a telephone
+ * call — so that case gets its own screen rather than an empty video stage.
+ */
 function InConsultationStep({ session }: { session: PatientSessionView }) {
-  return (
-    <div className="flex flex-1 flex-col p-8 text-center">
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="grid size-20 place-items-center rounded-full bg-brand/10">
-          <Check className="size-10 text-brand" />
-        </div>
-        <h2 className="mt-6 text-2xl font-bold">
-          {session.doctor?.fullName ?? "Your doctor"} is ready
-        </h2>
-        <p className="mt-2 max-w-xs text-pretty text-slate-500">
-          The audio and video connection is built in the next phase. Your consultation is otherwise
-          ready to begin.
+  const doctorName = session.doctor?.fullName ?? "Your doctor";
+
+  if (session.type === "CALL_ME") {
+    return <AwaitingCallStep doctorName={doctorName} />;
+  }
+
+  return <PatientCallStep session={session} doctorName={doctorName} />;
+}
+
+function PatientCallStep({
+  session,
+  doctorName,
+}: {
+  session: PatientSessionView;
+  doctorName: string;
+}) {
+  const join = useJoinPatientMedia();
+  const leave = useLeavePatientMedia();
+  const { data: timer } = usePatientTimer(true);
+  const [left, setLeft] = useState(false);
+
+  // Guarded against React's double-invoke in development and against a
+  // re-render mid-request: joining twice would mint a second credential and
+  // leave the first one dangling.
+  const requested = useRef(false);
+  useEffect(() => {
+    if (requested.current) return;
+    requested.current = true;
+    join.mutate();
+  }, [join]);
+
+  if (left) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+        <h2 className="text-xl font-bold">You have left the consultation</h2>
+        <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
+          Please speak to the pharmacist if you still need to see the doctor.
         </p>
       </div>
+    );
+  }
+
+  return (
+    <CallStage
+      session={join.data ?? null}
+      timer={timer ?? null}
+      role="PATIENT"
+      remoteName={doctorName}
+      joining={join.isPending}
+      error={
+        join.isError
+          ? join.error instanceof ApiError
+            ? join.error.message
+            : "The connection could not be started."
+          : null
+      }
+      onRetryJoin={() => join.mutate()}
+      leaveLabel="Leave"
+      onLeave={() => {
+        leave.mutate();
+        setLeft(true);
+      }}
+    />
+  );
+}
+
+/**
+ * Call Me: the patient waits for the phone to ring.
+ *
+ * No number is shown here, because the patient is never given the doctor's
+ * (spec §33).
+ */
+function AwaitingCallStep({ doctorName }: { doctorName: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+      <div className="grid size-20 place-items-center rounded-full bg-brand/10">
+        <PhoneOutgoing className="size-10 text-brand" />
+      </div>
+      <h2 className="mt-6 text-2xl font-bold">{doctorName} will call you</h2>
+      <p className="mt-2 max-w-xs text-pretty text-slate-500">
+        Keep your phone nearby. The call will show as coming from Neem.
+      </p>
+      <p className="mt-6 max-w-xs text-xs leading-relaxed text-slate-400">
+        Your number is never shared with the doctor, and theirs is never shared
+        with you.
+      </p>
     </div>
   );
 }
