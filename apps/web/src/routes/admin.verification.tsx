@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AlertCircle, Building2, Check, FileText, Loader2, Stethoscope, X } from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  Check,
+  FileText,
+  Loader2,
+  Search,
+  Stethoscope,
+  X,
+} from "lucide-react";
 import type { DoctorSummary, PharmacySummary } from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
@@ -36,6 +45,7 @@ const REQUIRES_REASON = new Set(["SUSPENDED", "REJECTED", "EXPIRED"]);
 function AdminVerification() {
   const [tab, setTab] = useState<"doctors" | "pharmacies">("doctors");
   const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   return (
     <AppShell active="admin">
@@ -75,10 +85,38 @@ function AdminVerification() {
         ))}
       </div>
 
+      {/*
+        Lists are paginated server-side, so a growing network quickly pushes an
+        individual application off the first page. Search is how an admin
+        reaches a specific doctor or pharmacy rather than scrolling for it.
+      */}
+      <label className="block max-w-md">
+        <span className="sr-only">
+          Search {tab === "doctors" ? "doctors" : "pharmacies"}
+        </span>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setSelected(null);
+            }}
+            placeholder={
+              tab === "doctors"
+                ? "Search by name, MDC number or specialty"
+                : "Search by name, city or Pharmacy Council number"
+            }
+            className="w-full rounded-xl border border-border bg-white py-2.5 pl-10 pr-4 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
+          />
+        </div>
+      </label>
+
       {tab === "doctors" ? (
-        <DoctorQueue selected={selected} onSelect={setSelected} />
+        <DoctorQueue search={search} selected={selected} onSelect={setSelected} />
       ) : (
-        <PharmacyQueue selected={selected} onSelect={setSelected} />
+        <PharmacyQueue search={search} selected={selected} onSelect={setSelected} />
       )}
     </AppShell>
   );
@@ -111,16 +149,24 @@ function ExpiringLicences() {
 }
 
 function DoctorQueue({
+  search,
   selected,
   onSelect,
 }: {
+  search: string;
   selected: string | null;
   onSelect: (publicId: string | null) => void;
 }) {
-  const { data: doctors, isLoading } = useAdminDoctors();
+  const { data: doctors, isLoading } = useAdminDoctors({ search });
 
   if (isLoading) return <LoadingCard />;
-  if (!doctors?.length) return <EmptyCard message="No doctor applications yet." />;
+  if (!doctors?.length) {
+    return (
+      <EmptyCard
+        message={search ? `No doctors match "${search}".` : "No doctor applications yet."}
+      />
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -315,16 +361,24 @@ function DoctorDetail({ publicId }: { publicId: string }) {
 }
 
 function PharmacyQueue({
+  search,
   selected,
   onSelect,
 }: {
+  search: string;
   selected: string | null;
   onSelect: (publicId: string | null) => void;
 }) {
-  const { data: pharmacies, isLoading } = useAdminPharmacies();
+  const { data: pharmacies, isLoading } = useAdminPharmacies({ search });
 
   if (isLoading) return <LoadingCard />;
-  if (!pharmacies?.length) return <EmptyCard message="No pharmacy applications yet." />;
+  if (!pharmacies?.length) {
+    return (
+      <EmptyCard
+        message={search ? `No pharmacies match "${search}".` : "No pharmacy applications yet."}
+      />
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">

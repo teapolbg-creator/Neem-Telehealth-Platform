@@ -196,25 +196,37 @@ export function useConfirmShift() {
 // Admin
 // ---------------------------------------------------------------------------
 
-export function useAdminDoctors(filters: { awaitingReview?: boolean; status?: string } = {}) {
+export interface DirectoryFilters {
+  awaitingReview?: boolean;
+  status?: string;
+  search?: string;
+}
+
+function directoryParams(filters: DirectoryFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.awaitingReview) params.set('awaitingReview', 'true');
   if (filters.status) params.set('status', filters.status);
+  if (filters.search?.trim()) params.set('search', filters.search.trim());
+  return params;
+}
 
+export function useAdminDoctors(filters: DirectoryFilters = {}) {
   return useQuery({
     queryKey: ['admin', 'doctors', filters],
-    queryFn: ({ signal }) => api.get<DoctorSummary[]>(`/admin/doctors?${params}`, signal),
+    queryFn: ({ signal }) =>
+      api.get<DoctorSummary[]>(`/admin/doctors?${directoryParams(filters)}`, signal),
+    // Keeps the previous list on screen while a search refines, instead of
+    // flashing an empty state on every keystroke.
+    placeholderData: (previous) => previous,
   });
 }
 
-export function useAdminPharmacies(filters: { awaitingReview?: boolean; status?: string } = {}) {
-  const params = new URLSearchParams();
-  if (filters.awaitingReview) params.set('awaitingReview', 'true');
-  if (filters.status) params.set('status', filters.status);
-
+export function useAdminPharmacies(filters: DirectoryFilters = {}) {
   return useQuery({
     queryKey: ['admin', 'pharmacies', filters],
-    queryFn: ({ signal }) => api.get<PharmacySummary[]>(`/admin/pharmacies?${params}`, signal),
+    queryFn: ({ signal }) =>
+      api.get<PharmacySummary[]>(`/admin/pharmacies?${directoryParams(filters)}`, signal),
+    placeholderData: (previous) => previous,
   });
 }
 

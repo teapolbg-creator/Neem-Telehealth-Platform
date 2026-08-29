@@ -55,3 +55,5 @@ npm-install.log
 dev-server.log
 dev-server.err.log
 apps/api/uploads/
+test-results/
+playwright-report/

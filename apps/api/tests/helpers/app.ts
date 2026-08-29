@@ -24,7 +24,16 @@ export async function closeTestApp(): Promise<void> {
 
 export interface ApiResponse<T = unknown> {
   status: number;
-  body: { data?: T; error?: { code: string; message: string }; meta?: { requestId: string } };
+  body: {
+    data?: T;
+    error?: {
+      code: string;
+      message: string;
+      // Present on validation failures; tests assert against specific fields.
+      details?: Array<{ field?: string; issue: string }>;
+    };
+    meta?: { requestId: string };
+  };
   cookies: Record<string, string>;
   raw: Awaited<ReturnType<FastifyInstance['inject']>>;
 }
