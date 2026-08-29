@@ -44,3 +44,11 @@ coverage/
 playwright-report/
 test-results/
 apps/api/uploads/
+
+# Build output
+.output/
+.wrangler/
+dist/
+
+# Local logs
+npm-install.log

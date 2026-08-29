@@ -1,0 +1,1532 @@
+// =============================================================================
+// Neem — database schema
+//
+// Authority: docs/database.md. Retention classification: docs/data-retention.md.
+//
+// Conventions enforced throughout:
+//   - `id`       UUIDv7 primary key (time-ordered, index-friendly)
+//   - `publicId` short opaque identifier used in URLs and printed documents;
+//                internal ids never cross the API boundary (spec §65)
+//   - money      Int in minor units (pesewas) + explicit currency. No floats.
+//   - percentages basis points (3000 = 30.00%)
+//   - `...Enc`   encrypted at rest with AES-256-GCM (docs/security.md §5)
+//
+// Every model carries a retention tag: PERMANENT | TEMPORARY | OPERATIONAL.
+// TEMPORARY models are hard-deleted inside the consultation completion
+// transaction — not hidden, not nulled (spec §62).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS  — mirror packages/contracts/src/enums.ts exactly.
+// A test asserts the two have not drifted apart.
+// =============================================================================
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  PHARMACY
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum DoctorStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  REJECTED
+}
+
+enum PharmacyStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ConsultationState {
+  PENDING_PAYMENT
+  PAYMENT_PROCESSING
+  PAYMENT_FAILED
+  PAID
+  ACTIVATED
+  WAITING_FOR_PATIENT
+  PATIENT_JOINED
+  WAITING_FOR_DOCTOR
+  ASSIGNED
+  REASSIGNING
+  DOCTOR_ACCEPTED
+  IN_PROGRESS
+  COMPLETING
+  COMPLETED
+  EXPIRED
+  CANCELLED
+  ABANDONED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum ConsultationType {
+  AUDIO
+  VIDEO
+  CALL_ME
+}
+
+enum ConsultationOutcome {
+  ADVICE_ONLY
+  PRESCRIPTION
+  REFERRAL
+  EMERGENCY_REFERRAL
+  OTHER
+}
+
+enum PrescriptionState {
+  DRAFT
+  ISSUED
+  ACTIVE
+  PENDING_SUBSTITUTION
+  SUBSTITUTION_APPROVED
+  SUBSTITUTION_REJECTED
+  DISPENSED
+  REVOKED
+}
+
+enum SubstitutionState {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  ABANDONED
+  REVERSED
+}
+
+enum RefundState {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  RECONCILED
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  GRACE
+  EXPIRED
+  CANCELLED
+}
+
+enum FeedbackCategory {
+  COMPLAINT
+  COMPLIMENT
+  SUGGESTION
+}
+
+enum PatientSex {
+  FEMALE
+  MALE
+  OTHER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum NotificationChannel {
+  IN_APP
+  BROWSER
+  SMS
+  EMAIL
+  WHATSAPP
+  PUSH
+}
+
+enum DoctorDocumentType {
+  MDC_LICENCE
+  GOVERNMENT_ID
+  EMPLOYMENT_VERIFICATION
+  PRACTICE_EVIDENCE
+  OTHER
+}
+
+enum PharmacyCapabilityKind {
+  SERVICE
+  TEST
+  EQUIPMENT
+}
+
+enum ShiftAssignmentStatus {
+  ASSIGNED
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
+enum QueueEntryState {
+  WAITING
+  OFFERING
+  ASSIGNED
+  RESOLVED
+  ABANDONED
+}
+
+enum AssignmentResult {
+  PENDING
+  ACCEPTED
+  MISSED
+  WITHDRAWN
+  REASSIGNED
+}
+
+enum PerformanceEventType {
+  RATING
+  COMPLAINT
+  MISSED_RESPONSE
+  COMPLETED
+  ABANDONED
+  AUDIT
+  RX_ISSUE
+}
+
+enum ComplaintState {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum PromotionType {
+  PERCENT
+  FIXED
+}
+
+enum ActorType {
+  ADMIN
+  DOCTOR
+  PHARMACY
+  PATIENT
+  SYSTEM
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  SUPPRESSED
+}
+
+enum RetentionJobStatus {
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum MediaSessionKind {
+  VIDEO
+  AUDIO
+  VOICE_BRIDGE
+}
+
+// =============================================================================
+// IDENTITY & ACCESS  — OPERATIONAL
+// There is no patient row here. Patients have no account (spec §8.1).
+// =============================================================================
+
+model User {
+  id                 String     @id @default(uuid(7))
+  publicId           String     @unique @db.VarChar(32)
+  email              String     @unique @db.VarChar(255)
+  passwordHash       String     @db.VarChar(255)
+  role               UserRole
+  status             UserStatus @default(ACTIVE)
+  // TOTP. Mandatory for ADMIN (spec §9); the secret is encrypted at rest.
+  twoFactorSecretEnc String?    @db.Text
+  twoFactorEnabledAt DateTime?
+  failedLoginCount   Int        @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  passwordChangedAt  DateTime   @default(now())
+  isDemo             Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  admin               Admin?
+  doctor              Doctor?
+  pharmacyMembership  PharmacyUser?
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  recoveryCodes       TwoFactorRecoveryCode[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+/// Opaque server-side sessions, chosen over JWT so that suspending a doctor or
+/// pharmacy ends their live session immediately (decision D4).
+model Session {
+  id                String    @id @default(uuid(7))
+  userId            String
+  /// SHA-256 of the token. The raw value exists only in the cookie.
+  tokenHash         String    @unique @db.VarChar(64)
+  csrfTokenHash     String    @db.VarChar(64)
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  ipHash            String?   @db.VarChar(64)
+  userAgent         String?   @db.VarChar(512)
+  revokedAt         DateTime?
+  revokedReason     String?   @db.VarChar(120)
+  lastSeenAt        DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Short-lived state between password verification and TOTP verification, so a
+/// half-authenticated request never carries a real session cookie.
+model TwoFactorChallenge {
+  id          String    @id @default(uuid(7))
+  challengeId String    @unique @db.VarChar(64)
+  userId      String
+  /// True when the admin has not yet enrolled and must complete setup first.
+  enrollment  Boolean   @default(false)
+  /// Pending secret during enrolment; promoted to User.twoFactorSecretEnc on success.
+  pendingSecretEnc String? @db.Text
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  ipHash      String?   @db.VarChar(64)
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("two_factor_challenges")
+}
+
+model TwoFactorRecoveryCode {
+  id       String    @id @default(uuid(7))
+  userId   String
+  codeHash String    @db.VarChar(255)
+  usedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("two_factor_recovery_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid(7))
+  userId    String
+  tokenHash String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Admin {
+  userId   String  @id
+  fullName String  @db.VarChar(160)
+  title    String? @db.VarChar(120)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+// =============================================================================
+// PHARMACIES  — OPERATIONAL
+// =============================================================================
+
+model Pharmacy {
+  id                             String         @id @default(uuid(7))
+  publicId                       String         @unique @db.VarChar(32)
+  name                           String         @db.VarChar(200)
+  councilRegistrationNo          String         @unique @db.VarChar(80)
+  ownerName                      String         @db.VarChar(160)
+  responsiblePharmacistName      String         @db.VarChar(160)
+  responsiblePharmacistLicenceNo String?        @db.VarChar(80)
+  addressLine1                   String         @db.VarChar(200)
+  addressLine2                   String?        @db.VarChar(200)
+  city                           String         @db.VarChar(120)
+  region                         String         @db.VarChar(120)
+  latitude                       Decimal?       @db.Decimal(10, 7)
+  longitude                      Decimal?       @db.Decimal(10, 7)
+  phone                          String         @db.VarChar(32)
+  email                          String         @db.VarChar(255)
+  status                         PharmacyStatus @default(PENDING)
+  statusReason                   String?        @db.VarChar(500)
+  approvedAt                     DateTime?
+  approvedByAdminId              String?
+  isDemo                         Boolean        @default(false)
+  createdAt                      DateTime       @default(now())
+  updatedAt                      DateTime       @updatedAt
+
+  users         PharmacyUser[]
+  hours         PharmacyHours[]
+  capabilities  PharmacyCapability[]
+  documents     PharmacyDocument[]
+  payoutDetails PharmacyPayoutDetail?
+  consultations Consultation[]
+  prescriptions Prescription[]
+  referrals     Referral[]
+  payouts       PharmacyPayout[]
+  substitutions SubstitutionRequest[]
+  promotions    Promotion[]
+
+  @@index([status])
+  @@map("pharmacies")
+}
+
+/// One account per pharmacy in the MVP — there are no pharmacy sub-roles
+/// (answers doc Q30). The join table exists so multiple accounts need no
+/// migration later.
+model PharmacyUser {
+  pharmacyId String
+  userId     String @unique
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([pharmacyId, userId])
+  @@map("pharmacy_users")
+}
+
+model PharmacyHours {
+  id         String @id @default(uuid(7))
+  pharmacyId String
+  dayOfWeek  Int    @db.TinyInt
+  opensAt    String @db.VarChar(5)
+  closesAt   String @db.VarChar(5)
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([pharmacyId, dayOfWeek])
+  @@map("pharmacy_hours")
+}
+
+/// Drives which point-of-care tests the pharmacy consultation screen offers.
+model PharmacyCapability {
+  id         String                 @id @default(uuid(7))
+  pharmacyId String
+  kind       PharmacyCapabilityKind
+  code       String                 @db.VarChar(60)
+  label      String                 @db.VarChar(160)
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([pharmacyId, kind, code])
+  @@map("pharmacy_capabilities")
+}
+
+model PharmacyDocument {
+  id                String    @id @default(uuid(7))
+  pharmacyId        String
+  type              String    @db.VarChar(60)
+  storageKey        String    @db.VarChar(400)
+  mimeType          String    @db.VarChar(120)
+  sizeBytes         Int
+  uploadedAt        DateTime  @default(now())
+  verifiedAt        DateTime?
+  verifiedByAdminId String?
+  note              String?   @db.VarChar(500)
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+  @@map("pharmacy_documents")
+}
+
+/// Encrypted; never returned in full over the API.
+model PharmacyPayoutDetail {
+  pharmacyId       String    @id
+  method           String    @db.VarChar(40)
+  accountNameEnc   String    @db.Text
+  accountNumberEnc String    @db.Text
+  bankOrNetwork    String    @db.VarChar(120)
+  verifiedAt       DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_payout_details")
+}
+
+// =============================================================================
+// DOCTORS  — OPERATIONAL
+// =============================================================================
+
+model Doctor {
+  id                String       @id @default(uuid(7))
+  publicId          String       @unique @db.VarChar(32)
+  userId            String       @unique
+  fullName          String       @db.VarChar(160)
+  mdcNumber         String       @unique @db.VarChar(60)
+  mdcIssuedAt       DateTime?
+  /// Drives the daily expiry-warning job. NO automated MDC verification exists
+  /// and the UI must not imply otherwise (spec §22).
+  mdcExpiresAt      DateTime?
+  qualifiedAt       DateTime?
+  yearsExperience   Int?
+  specialty         String?      @db.VarChar(160)
+  bio               String?      @db.Text
+  photoStorageKey   String?      @db.VarChar(400)
+  status            DoctorStatus @default(PENDING)
+  statusReason      String?      @db.VarChar(500)
+  approvedAt        DateTime?
+  approvedByAdminId String?
+
+  // Compensation is configurable and nullable — the part-time formula is
+  // undecided, so nothing computes salary automatically (spec §26).
+  employmentType        EmploymentType?
+  contractedHoursPerWeek Int?
+  hourlyRateMinor       Int?
+  monthlySalaryMinor    Int?
+
+  isDemo    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents         DoctorDocument[]
+  languages         DoctorLanguage[]
+  signatures        DoctorSignature[]
+  subscriptions     DoctorSubscription[]
+  shiftAssignments  DoctorShiftAssignment[]
+  serviceHours      DoctorServiceHours[]
+  presence          DoctorPresence?
+  consultations     Consultation[]
+  assignments       ConsultationAssignment[]
+  prescriptions     Prescription[]
+  referrals         Referral[]
+  performanceEvents DoctorPerformanceEvent[]
+  qualityScores     DoctorQualityScore[]
+  substitutions     SubstitutionRequest[]
+
+  @@index([status])
+  @@index([mdcExpiresAt])
+  @@map("doctors")
+}
+
+model DoctorDocument {
+  id                String             @id @default(uuid(7))
+  doctorId          String
+  type              DoctorDocumentType
+  storageKey        String             @db.VarChar(400)
+  mimeType          String             @db.VarChar(120)
+  sizeBytes         Int
+  uploadedAt        DateTime           @default(now())
+  verifiedAt        DateTime?
+  verifiedByAdminId String?
+  note              String?            @db.VarChar(500)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, type])
+  @@map("doctor_documents")
+}
+
+model DoctorLanguage {
+  doctorId   String
+  languageId String
+  /// Primary languages score higher in the allocation engine, but any listed
+  /// language satisfies the hard eligibility gate (docs/queue-engine.md).
+  isPrimary  Boolean @default(false)
+
+  doctor   Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageId], references: [id], onDelete: Restrict)
+
+  @@id([doctorId, languageId])
+  @@index([languageId])
+  @@map("doctor_languages")
+}
+
+/// Drawn during onboarding (spec §23). Encrypted, never exposed at a public
+/// URL. The PDF generator reads it in-process only after confirming the
+/// requesting doctor is the authenticated, ACTIVE, verified owner.
+model DoctorSignature {
+  id              String   @id @default(uuid(7))
+  doctorId        String
+  signatureDataEnc String  @db.LongText
+  capturedAt      DateTime @default(now())
+  capturedIpHash  String?  @db.VarChar(64)
+  isActive        Boolean  @default(true)
+
+  doctor        Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  prescriptions Prescription[]
+  referrals     Referral[]
+
+  @@index([doctorId, isActive])
+  @@map("doctor_signatures")
+}
+
+model DoctorSubscription {
+  id             String             @id @default(uuid(7))
+  doctorId       String
+  periodStart    DateTime
+  periodEnd      DateTime
+  amountMinor    Int
+  currency       String             @default("GHS") @db.Char(3)
+  status         SubscriptionStatus @default(PENDING)
+  graceEndsAt    DateTime?
+  renewedFromId  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  doctor   Doctor    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@index([doctorId, status])
+  @@index([periodEnd])
+  @@map("doctor_subscriptions")
+}
+
+/// Raw material for the quality score. Carries no clinical content (spec §52).
+model DoctorPerformanceEvent {
+  id             String               @id @default(uuid(7))
+  doctorId       String
+  type           PerformanceEventType
+  consultationId String?
+  numericValue   Decimal?             @db.Decimal(10, 4)
+  occurredAt     DateTime             @default(now())
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, type, occurredAt])
+  @@map("doctor_performance_events")
+}
+
+/// Never exposed to doctors (spec §24, §52) — no API route returns it to a
+/// doctor principal, and an authorization test asserts that.
+model DoctorQualityScore {
+  id          String   @id @default(uuid(7))
+  doctorId    String
+  periodStart DateTime
+  periodEnd   DateTime
+  score       Decimal  @db.Decimal(6, 4)
+  breakdown   Json
+  computedAt  DateTime @default(now())
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, periodStart, periodEnd])
+  @@map("doctor_quality_scores")
+}
+
+// =============================================================================
+// SCHEDULING  — OPERATIONAL
+// =============================================================================
+
+model ShiftDefinition {
+  id              String   @id @default(uuid(7))
+  code            String   @unique @db.VarChar(40)
+  label           String   @db.VarChar(120)
+  startsAt        String   @db.VarChar(5)
+  endsAt          String   @db.VarChar(5)
+  crossesMidnight Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  assignments DoctorShiftAssignment[]
+
+  @@map("shift_definitions")
+}
+
+model DoctorShiftAssignment {
+  id                String                @id @default(uuid(7))
+  doctorId          String
+  shiftDefinitionId String
+  serviceDate       DateTime              @db.Date
+  status            ShiftAssignmentStatus @default(ASSIGNED)
+  assignedByAdminId String?
+  confirmedAt       DateTime?
+  minutesPlanned    Int
+  createdAt         DateTime              @default(now())
+
+  doctor          Doctor          @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  shiftDefinition ShiftDefinition @relation(fields: [shiftDefinitionId], references: [id], onDelete: Restrict)
+
+  @@unique([doctorId, serviceDate, shiftDefinitionId])
+  @@index([serviceDate, status])
+  @@map("doctor_shift_assignments")
+}
+
+/// The 40-hour ceiling is checked inside the assignment transaction against
+/// this row, so concurrent assignment cannot exceed it (spec §25).
+model DoctorServiceHours {
+  id               String   @id @default(uuid(7))
+  doctorId         String
+  isoYear          Int
+  isoWeek          Int
+  minutesScheduled Int      @default(0)
+  minutesServed    Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, isoYear, isoWeek])
+  @@map("doctor_service_hours")
+}
+
+/// Live availability, distinct from scheduled shifts.
+model DoctorPresence {
+  doctorId        String   @id
+  onlineSince     DateTime?
+  lastHeartbeatAt DateTime?
+  currentLoad     Int      @default(0)
+  maxLoad         Int      @default(1)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([lastHeartbeatAt])
+  @@map("doctor_presence")
+}
+
+/// Seeded with all six languages from the business document; only English,
+/// Twi and Ga are active in the MVP. Admin toggles the rest (decision D9).
+model Language {
+  id        String   @id @default(uuid(7))
+  code      String   @unique @db.VarChar(12)
+  label     String   @db.VarChar(80)
+  subtitle  String?  @db.VarChar(80)
+  isActive  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  doctorLanguages DoctorLanguage[]
+  consultations   Consultation[]
+  queueEntries    ConsultationQueueEntry[]
+
+  @@map("languages")
+}
+
+// =============================================================================
+// CONSULTATIONS
+// =============================================================================
+
+/// PERMANENT — operational fields only. No clinical column lives here, so
+/// after the purge this row is a complete and honest record of what happened
+/// without being a medical record (spec §12).
+model Consultation {
+  id                String               @id @default(uuid(7))
+  publicId          String               @unique @db.VarChar(32)
+  pharmacyId        String
+  doctorId          String?
+  state             ConsultationState    @default(PENDING_PAYMENT)
+  type              ConsultationType?
+  languageId        String?
+
+  priceMinor    Int
+  discountMinor Int    @default(0)
+  netMinor      Int
+  currency      String @default("GHS") @db.Char(3)
+  promotionId   String?
+
+  createdAt         DateTime  @default(now())
+  paymentDeadlineAt DateTime?
+  activatedAt       DateTime?
+  patientJoinedAt   DateTime?
+  queuedAt          DateTime?
+  assignedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  durationSeconds   Int?
+
+  outcome            ConsultationOutcome?
+  hasPrescription    Boolean              @default(false)
+  hasReferral        Boolean              @default(false)
+  cancellationReason String?              @db.VarChar(500)
+
+  isDemo    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  pharmacy Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  doctor   Doctor?    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  language Language?  @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+
+  stateEvents    ConsultationStateEvent[]
+  accessTokens   ConsultationAccessToken[]
+  patientSession PatientSession?
+  clinicalNotes  ConsultationClinicalNotes?
+  vitals         ConsultationVitals[]
+  tests          ConsultationTest[]
+  queueEntry     ConsultationQueueEntry?
+  assignments    ConsultationAssignment[]
+  mediaSessions  MediaSession[]
+  prescriptions  Prescription[]
+  referrals      Referral[]
+  payments       Payment[]
+  refunds        Refund[]
+  revenue        RevenueAllocation?
+  feedback       Feedback?
+  complaints     Complaint[]
+  retentionJobs  RetentionJob[]
+  promotionRedemption PromotionRedemption?
+
+  @@index([pharmacyId, createdAt])
+  @@index([doctorId, createdAt])
+  @@index([state])
+  @@index([completedAt])
+  @@map("consultations")
+}
+
+/// PERMANENT, append-only. Every transition, including rejected attempts.
+model ConsultationStateEvent {
+  id             String             @id @default(uuid(7))
+  consultationId String
+  fromState      ConsultationState?
+  toState        ConsultationState
+  actorType      ActorType
+  actorId        String?
+  reason         String?            @db.VarChar(500)
+  accepted       Boolean            @default(true)
+  occurredAt     DateTime           @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+
+  @@index([consultationId, occurredAt])
+  @@map("consultation_state_events")
+}
+
+/// TEMPORARY. The raw token exists only inside the QR image — never stored,
+/// never logged, never returned twice. Single use, expiring, invalidated on
+/// completion (spec §10, decision D6).
+model ConsultationAccessToken {
+  id             String    @id @default(uuid(7))
+  consultationId String
+  tokenHash      String    @unique @db.VarChar(64)
+  sequence       Int       @default(1)
+  issuedByUserId String?
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  revokedAt      DateTime?
+  revokedReason  String?   @db.VarChar(200)
+  createdAt      DateTime  @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@unique([consultationId, sequence])
+  @@index([expiresAt])
+  @@map("consultation_access_tokens")
+}
+
+/// TEMPORARY — deleted at completion, except that name/age/sex are copied BY
+/// VALUE onto any prescription or referral issued. That is the sole permitted
+/// exception (spec §11).
+model PatientSession {
+  id                     String    @id @default(uuid(7))
+  consultationId         String    @unique
+  fullNameEnc            String?   @db.Text
+  age                    Int?
+  sex                    PatientSex?
+  phoneEnc               String?   @db.Text
+  /// Recorded when the patient pays from a different number (spec §36).
+  paymentPhoneEnc        String?   @db.Text
+  deviceSessionTokenHash String?   @unique @db.VarChar(64)
+  deviceBoundAt          DateTime?
+  expiresAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@map("patient_sessions")
+}
+
+/// TEMPORARY — hard-deleted the instant the doctor completes (spec §16).
+model ConsultationClinicalNotes {
+  id             String   @id @default(uuid(7))
+  consultationId String   @unique
+  notesEnc       String?  @db.LongText
+  diagnosisEnc   String?  @db.Text
+  treatmentEnc   String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@map("consultation_clinical_notes")
+}
+
+/// TEMPORARY. Manually entered by the pharmacy; no device integration (spec §50).
+model ConsultationVitals {
+  id               String   @id @default(uuid(7))
+  consultationId   String
+  bpSystolic       Int?
+  bpDiastolic      Int?
+  pulseBpm         Int?
+  temperatureC     Decimal? @db.Decimal(4, 1)
+  weightKg         Decimal? @db.Decimal(5, 2)
+  spo2Percent      Int?
+  recordedByUserId String
+  recordedAt       DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("consultation_vitals")
+}
+
+/// TEMPORARY. Free-typed results (answers doc Q29: "simply type results").
+model ConsultationTest {
+  id               String   @id @default(uuid(7))
+  consultationId   String
+  testCode         String   @db.VarChar(60)
+  testLabel        String   @db.VarChar(160)
+  resultText       String   @db.VarChar(500)
+  recordedByUserId String
+  recordedAt       DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("consultation_tests")
+}
+
+/// OPERATIONAL. Connection metadata only — content is never touched.
+/// `recordingEnabled` is pinned false; the adapter has no code path that can
+/// enable it and a test asserts this (spec §32, decision D8).
+model MediaSession {
+  id              String           @id @default(uuid(7))
+  consultationId  String
+  provider        String           @db.VarChar(40)
+  kind            MediaSessionKind
+  providerRoomRef String?          @db.VarChar(120)
+  providerCallRef String?          @db.VarChar(120)
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+  endReason       String?          @db.VarChar(120)
+  recordingEnabled Boolean         @default(false)
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("media_sessions")
+}
+
+// =============================================================================
+// QUEUE  — OPERATIONAL
+// =============================================================================
+
+model ConsultationQueueEntry {
+  id              String          @id @default(uuid(7))
+  consultationId  String          @unique
+  languageId      String
+  state           QueueEntryState @default(WAITING)
+  enqueuedAt      DateTime        @default(now())
+  resolvedAt      DateTime?
+  offerAttempts   Int             @default(0)
+  noMatchAlertedAt DateTime?
+  delayAlertedAt  DateTime?
+  priority        Int             @default(0)
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  language     Language     @relation(fields: [languageId], references: [id], onDelete: Restrict)
+
+  @@index([state, enqueuedAt])
+  @@map("consultation_queue_entries")
+}
+
+/// Retains why a doctor was chosen, which is what makes fair distribution
+/// auditable and weight changes measurable (docs/queue-engine.md §2).
+model ConsultationAssignment {
+  id             String           @id @default(uuid(7))
+  consultationId String
+  doctorId       String
+  offeredAt      DateTime         @default(now())
+  respondByAt    DateTime
+  acceptedAt     DateTime?
+  missedAt       DateTime?
+  result         AssignmentResult @default(PENDING)
+  score          Decimal?         @db.Decimal(6, 4)
+  scoreBreakdown Json?
+  attemptNumber  Int              @default(1)
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+
+  @@unique([consultationId, doctorId, attemptNumber])
+  @@index([doctorId, offeredAt])
+  @@index([result, respondByAt])
+  @@map("consultation_assignments")
+}
+
+// =============================================================================
+// PRESCRIPTIONS  — PERMANENT
+// =============================================================================
+
+/// Patient identity is stored BY VALUE — the source PatientSession row is gone
+/// by the time this is read. Service-layer guards plus the state machine
+/// prevent DISPENSED → REVOKED (spec §46, §82).
+model Prescription {
+  id               String            @id @default(uuid(7))
+  publicId         String            @unique @db.VarChar(32)
+  /// High-entropy random string behind the public verification page. Not a
+  /// sequence — the page must not be enumerable (spec §44).
+  verificationCode String            @unique @db.VarChar(40)
+  consultationId   String
+  doctorId         String
+  pharmacyId       String
+  state            PrescriptionState @default(DRAFT)
+
+  patientName String     @db.VarChar(160)
+  patientAge  Int
+  patientSex  PatientSex
+
+  issuedAt          DateTime?
+  dispensedAt       DateTime?
+  dispensedByUserId String?
+  revokedAt         DateTime?
+  revokedReason     String?   @db.VarChar(500)
+  revokedByDoctorId String?
+
+  signatureId    String?
+  pdfStorageKey  String? @db.VarChar(400)
+  currentVersion Int     @default(1)
+
+  isDemo    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
+
+  items         PrescriptionItem[]
+  versions      PrescriptionVersion[]
+  substitutions SubstitutionRequest[]
+
+  @@index([pharmacyId, issuedAt])
+  @@index([doctorId, issuedAt])
+  @@index([state])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id                String  @id @default(uuid(7))
+  prescriptionId    String
+  version           Int     @default(1)
+  medication        String  @db.VarChar(200)
+  strength          String? @db.VarChar(80)
+  form              String? @db.VarChar(80)
+  dose              String  @db.VarChar(120)
+  frequency         String  @db.VarChar(120)
+  durationText      String  @db.VarChar(120)
+  quantity          String  @db.VarChar(80)
+  instructions      String? @db.VarChar(500)
+  sortOrder         Int     @default(0)
+  isActive          Boolean @default(true)
+  supersededByItemId String?
+
+  prescription  Prescription          @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  substitutions SubstitutionRequest[]
+
+  @@index([prescriptionId, isActive])
+  @@map("prescription_items")
+}
+
+/// Append-only. Nothing overwrites prescription history (spec §47).
+model PrescriptionVersion {
+  id             String            @id @default(uuid(7))
+  prescriptionId String
+  version        Int
+  state          PrescriptionState
+  changedByType  ActorType
+  changedById    String?
+  reason         String?           @db.VarChar(500)
+  snapshot       Json
+  createdAt      DateTime          @default(now())
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([prescriptionId, version])
+  @@map("prescription_versions")
+}
+
+/// The pharmacy proposes; only a doctor decides. The pharmacy can never mutate
+/// PrescriptionItem directly (spec §48, §104).
+model SubstitutionRequest {
+  id                 String            @id @default(uuid(7))
+  prescriptionId     String
+  prescriptionItemId String
+  pharmacyId         String
+  requestedByUserId  String
+  proposedMedication String            @db.VarChar(200)
+  proposedStrength   String?           @db.VarChar(80)
+  proposedForm       String?           @db.VarChar(80)
+  reason             String            @db.VarChar(500)
+  state              SubstitutionState @default(PENDING)
+  decidedByDoctorId  String?
+  decidedAt          DateTime?
+  decisionNote       String?           @db.VarChar(500)
+  createdAt          DateTime          @default(now())
+
+  prescription     Prescription     @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  prescriptionItem PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  pharmacy         Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  decidedByDoctor  Doctor?          @relation(fields: [decidedByDoctorId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionId, state])
+  @@index([state, createdAt])
+  @@map("substitution_requests")
+}
+
+// =============================================================================
+// REFERRALS  — PERMANENT
+// `reasonText` is clinical information the doctor deliberately commits to a
+// permanent, patient-carried document — an explicit exception, exactly as the
+// prescription is (docs/data-retention.md §2).
+// =============================================================================
+
+model Referral {
+  id             String     @id @default(uuid(7))
+  publicId       String     @unique @db.VarChar(32)
+  consultationId String
+  doctorId       String
+  pharmacyId     String
+  hospitalName   String     @db.VarChar(200)
+  department     String     @db.VarChar(160)
+  reasonText     String     @db.Text
+  urgency        String?    @db.VarChar(40)
+  patientName    String     @db.VarChar(160)
+  patientAge     Int
+  patientSex     PatientSex
+  signatureId    String?
+  pdfStorageKey  String?    @db.VarChar(400)
+  issuedAt       DateTime   @default(now())
+  isDemo         Boolean    @default(false)
+
+  consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, issuedAt])
+  @@map("referrals")
+}
+
+// =============================================================================
+// FINANCIAL  — PERMANENT
+// Four database-level uniqueness constraints provide idempotency, so
+// concurrency cannot defeat them (docs/payment-flow.md §3).
+// =============================================================================
+
+model Payment {
+  id                   String        @id @default(uuid(7))
+  publicId             String        @unique @db.VarChar(32)
+  consultationId       String?
+  doctorSubscriptionId String?
+  provider             String        @db.VarChar(40)
+  /// Idempotency #2 — one provider transaction, at most one payment row.
+  providerReference    String        @unique @db.VarChar(200)
+  amountMinor          Int
+  currency             String        @default("GHS") @db.Char(3)
+  status               PaymentStatus @default(PENDING)
+  channel              String?       @db.VarChar(60)
+  paidAt               DateTime?
+  verifiedAt           DateTime?
+  /// Idempotency #1b — guards against duplicate initiation.
+  idempotencyKey       String        @unique @db.VarChar(120)
+  failureReason        String?       @db.VarChar(300)
+  isDemo               Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  consultation       Consultation?       @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctorSubscription DoctorSubscription? @relation(fields: [doctorSubscriptionId], references: [id], onDelete: Restrict)
+  revenue            RevenueAllocation?
+  refunds            Refund[]
+
+  @@index([status, paidAt])
+  @@index([consultationId])
+  @@map("payments")
+}
+
+/// Idempotency #1 — a replayed webhook fails to insert, is logged, and is
+/// acknowledged 200 without re-processing (spec §68, §103).
+model PaymentWebhookEvent {
+  id               String    @id @default(uuid(7))
+  provider         String    @db.VarChar(40)
+  providerEventId  String    @db.VarChar(200)
+  eventType        String    @db.VarChar(80)
+  signatureValid   Boolean
+  payloadHash      String    @db.VarChar(64)
+  receivedAt       DateTime  @default(now())
+  processedAt      DateTime?
+  processingResult String?   @db.VarChar(80)
+  error            String?   @db.VarChar(500)
+
+  @@unique([provider, providerEventId])
+  @@index([receivedAt])
+  @@map("payment_webhook_events")
+}
+
+/// Idempotency #3 — UNIQUE on paymentId makes double-counting structurally
+/// impossible. The rate in force at calculation time is stored, so historical
+/// splits stay reproducible after an admin changes the setting.
+model RevenueAllocation {
+  id                 String   @id @default(uuid(7))
+  consultationId     String   @unique
+  paymentId          String   @unique
+  grossMinor         Int
+  discountMinor      Int      @default(0)
+  netMinor           Int
+  pharmacySharePctBp Int
+  pharmacyShareMinor Int
+  neemShareMinor     Int
+  currency           String   @default("GHS") @db.Char(3)
+  calculatedAt       DateTime @default(now())
+  reversedAt         DateTime?
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@map("revenue_allocations")
+}
+
+/// Never auto-approved (spec §41).
+model Refund {
+  id                String      @id @default(uuid(7))
+  publicId          String      @unique @db.VarChar(32)
+  consultationId    String
+  paymentId         String
+  requestedByType   ActorType
+  requestedByRef    String?     @db.VarChar(64)
+  reason            String      @db.VarChar(500)
+  amountMinor       Int
+  currency          String      @default("GHS") @db.Char(3)
+  state             RefundState @default(REQUESTED)
+  reviewedByAdminId String?
+  decidedAt         DateTime?
+  decisionNote      String?     @db.VarChar(500)
+  /// Idempotency #4.
+  providerRefundRef String?     @unique @db.VarChar(200)
+  completedAt       DateTime?
+  createdAt         DateTime    @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([state, createdAt])
+  @@map("refunds")
+}
+
+/// Calculated automatically, paid manually during the MVP (spec §40).
+model PharmacyPayout {
+  id               String       @id @default(uuid(7))
+  publicId         String       @unique @db.VarChar(32)
+  pharmacyId       String
+  periodStart      DateTime     @db.Date
+  periodEnd        DateTime     @db.Date
+  amountDueMinor   Int
+  amountPaidMinor  Int          @default(0)
+  currency         String       @default("GHS") @db.Char(3)
+  status           PayoutStatus @default(PENDING)
+  paidAt           DateTime?
+  paymentReference String?      @db.VarChar(200)
+  markedByAdminId  String?
+  reconciledAt     DateTime?
+  note             String?      @db.VarChar(500)
+  createdAt        DateTime     @default(now())
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+
+  @@unique([pharmacyId, periodStart, periodEnd])
+  @@index([status])
+  @@map("pharmacy_payouts")
+}
+
+model Promotion {
+  id             String        @id @default(uuid(7))
+  code           String        @unique @db.VarChar(40)
+  type           PromotionType
+  valueBp        Int?
+  valueMinor     Int?
+  startsAt       DateTime
+  endsAt         DateTime
+  maxUses        Int?
+  usedCount      Int           @default(0)
+  pharmacyId     String?
+  campaign       String?       @db.VarChar(120)
+  minAmountMinor Int           @default(0)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+
+  pharmacy      Pharmacy?             @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  redemptions   PromotionRedemption[]
+  consultations Consultation[]
+
+  @@index([isActive, startsAt, endsAt])
+  @@map("promotions")
+}
+
+model PromotionRedemption {
+  id             String   @id @default(uuid(7))
+  promotionId    String
+  consultationId String   @unique
+  discountMinor  Int
+  redeemedAt     DateTime @default(now())
+
+  promotion    Promotion    @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@map("promotion_redemptions")
+}
+
+// =============================================================================
+// FEEDBACK & QUALITY  — PERMANENT
+// Immutable once written. No pharmacy or doctor write path exists (spec §51).
+// =============================================================================
+
+model Feedback {
+  id             String           @id @default(uuid(7))
+  consultationId String           @unique
+  doctorRating   Int              @db.TinyInt
+  neemRating     Int              @db.TinyInt
+  category       FeedbackCategory
+  comment        String?          @db.Text
+  submittedAt    DateTime         @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  complaints   Complaint[]
+
+  @@map("feedback")
+}
+
+model ComplaintCategory {
+  id        String   @id @default(uuid(7))
+  code      String   @unique @db.VarChar(60)
+  label     String   @db.VarChar(160)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  complaints Complaint[]
+
+  @@map("complaint_categories")
+}
+
+model Complaint {
+  id              String         @id @default(uuid(7))
+  publicId        String         @unique @db.VarChar(32)
+  feedbackId      String?
+  consultationId  String?
+  categoryId      String
+  description     String         @db.Text
+  state           ComplaintState @default(OPEN)
+  assignedAdminId String?
+  resolutionNote  String?        @db.Text
+  resolvedAt      DateTime?
+  createdAt       DateTime       @default(now())
+
+  feedback     Feedback?         @relation(fields: [feedbackId], references: [id], onDelete: SetNull)
+  consultation Consultation?     @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  category     ComplaintCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([state, createdAt])
+  @@map("complaints")
+}
+
+// =============================================================================
+// PLATFORM  — OPERATIONAL
+// =============================================================================
+
+/// Business configuration lives here, never in source code (spec §56).
+model SystemSetting {
+  key             String   @id @db.VarChar(120)
+  value           Json
+  valueType       String   @db.VarChar(40)
+  description     String   @db.VarChar(500)
+  category        String   @db.VarChar(60)
+  /// Sensitive keys require UI confirmation with an impact description before
+  /// they can be changed (spec §96).
+  requiresConfirm Boolean  @default(false)
+  updatedByAdminId String?
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@map("system_settings")
+}
+
+/// Append-only.
+model SystemSettingHistory {
+  id        String   @id @default(uuid(7))
+  key       String   @db.VarChar(120)
+  oldValue  Json?
+  newValue  Json
+  adminId   String?
+  reason    String?  @db.VarChar(500)
+  changedAt DateTime @default(now())
+
+  @@index([key, changedAt])
+  @@map("system_setting_history")
+}
+
+model NotificationTemplate {
+  id               String              @id @default(uuid(7))
+  code             String              @db.VarChar(80)
+  channel          NotificationChannel
+  locale           String              @default("en") @db.VarChar(12)
+  subject          String?             @db.VarChar(200)
+  body             String              @db.Text
+  isActive         Boolean             @default(true)
+  updatedByAdminId String?
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([code, channel, locale])
+  @@map("notification_templates")
+}
+
+/// Stores a HASH of the rendered body, not the body itself, so notification
+/// history never becomes a shadow copy of clinical or personal data (spec §60).
+model Notification {
+  id                 String              @id @default(uuid(7))
+  recipientType      ActorType
+  recipientRef       String              @db.VarChar(64)
+  channel            NotificationChannel
+  templateCode       String              @db.VarChar(80)
+  renderedPayloadHash String             @db.VarChar(64)
+  status             NotificationStatus  @default(QUEUED)
+  providerRef        String?             @db.VarChar(200)
+  attempts           Int                 @default(0)
+  lastError          String?             @db.VarChar(500)
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  readAt             DateTime?
+  createdAt          DateTime            @default(now())
+
+  @@index([recipientType, recipientRef, createdAt])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+/// Append-only, written by a least-privilege database account that holds only
+/// INSERT and SELECT on this table. `metadata` is schema-restricted to
+/// non-clinical fields — the audit log must not become a back-door medical
+/// history, and a test asserts that (spec §61).
+model AuditLog {
+  id            String    @id @default(uuid(7))
+  occurredAt    DateTime  @default(now())
+  correlationId String?   @db.VarChar(64)
+  actorType     ActorType
+  actorId       String?   @db.VarChar(64)
+  action        String    @db.VarChar(80)
+  entityType    String?   @db.VarChar(60)
+  entityId      String?   @db.VarChar(64)
+  ipHash        String?   @db.VarChar(64)
+  userAgent     String?   @db.VarChar(512)
+  outcome       String    @default("SUCCESS") @db.VarChar(20)
+  metadata      Json?
+
+  @@index([occurredAt])
+  @@index([entityType, entityId])
+  @@index([actorType, actorId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("audit_logs")
+}
+
+/// Proves deletion happened, which is what makes the spec §101 critical data
+/// test demonstrable rather than merely asserted.
+model RetentionJob {
+  id             String             @id @default(uuid(7))
+  consultationId String
+  scheduledFor   DateTime
+  startedAt      DateTime?
+  completedAt    DateTime?
+  status         RetentionJobStatus @default(SCHEDULED)
+  rowsPurged     Json?
+  verifiedAt     DateTime?
+  error          String?            @db.VarChar(500)
+  createdAt      DateTime           @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledFor])
+  @@map("retention_jobs")
+}
+
+// =============================================================================
+// CONSENT & DISCLOSURE  — shaped now, unused in V1 (decision D13).
+//
+// Prescription access in the MVP is limited to four parties: the patient, the
+// issuing doctor, the dispensing pharmacy, and Neem Admin. The business
+// document contemplates third-party institutional sharing with permission;
+// that is explicitly out of scope for V1. These tables exist so adding it
+// later is a feature rather than a migration rewrite. NOTHING WRITES TO THEM.
+// =============================================================================
+
+model Consent {
+  id             String    @id @default(uuid(7))
+  consultationId String?
+  subjectRef     String?   @db.VarChar(64)
+  purpose        String    @db.VarChar(120)
+  granted        Boolean
+  grantedAt      DateTime?
+  revokedAt      DateTime?
+  evidence       Json?
+  createdAt      DateTime  @default(now())
+
+  @@index([consultationId])
+  @@map("consents")
+}
+
+model DisclosureLog {
+  id            String   @id @default(uuid(7))
+  entityType    String   @db.VarChar(60)
+  entityId      String   @db.VarChar(64)
+  recipientKind String   @db.VarChar(60)
+  recipientRef  String   @db.VarChar(200)
+  consentId     String?
+  lawfulBasis   String?  @db.VarChar(160)
+  disclosedAt   DateTime @default(now())
+  disclosedBy   String?  @db.VarChar(64)
+
+  @@index([entityType, entityId])
+  @@map("disclosure_logs")
+}

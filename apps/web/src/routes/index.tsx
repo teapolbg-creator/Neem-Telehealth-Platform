@@ -92,7 +92,13 @@ function Landing() {
 
       <footer className="border-t border-border bg-white">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-wrap gap-4 justify-between items-center text-xs text-slate-500">
-          <span>&copy; 2026 Neem Health · Approved by the Ghana Medical & Dental Council</span>
+          {/*
+            No regulatory approval or endorsement is claimed here. Neem's
+            standing with Ghanaian regulators is unverified and is tracked in
+            docs/compliance/ — nothing ships as fact without a document behind
+            it (spec §78, decision D10).
+          */}
+          <span>&copy; 2026 Neem Health · Accra, Ghana</span>
           <div className="flex gap-6">
             <span>Privacy-first · Session-only</span>
             <span>WCAG AA</span>

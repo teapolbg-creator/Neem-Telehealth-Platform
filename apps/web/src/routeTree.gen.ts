@@ -10,25 +10,16 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
-import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
+import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as PatientSessionIdRouteImport } from './routes/patient.$sessionId'
+import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
+import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PharmacyIndexRoute = PharmacyIndexRouteImport.update({
-  id: '/pharmacy/',
-  path: '/pharmacy/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DoctorIndexRoute = DoctorIndexRouteImport.update({
-  id: '/doctor/',
-  path: '/doctor/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -36,9 +27,14 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PharmacyNewRoute = PharmacyNewRouteImport.update({
-  id: '/pharmacy/new',
-  path: '/pharmacy/new',
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/auth/login',
+  path: '/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorIndexRoute = DoctorIndexRouteImport.update({
+  id: '/doctor/',
+  path: '/doctor/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PatientSessionIdRoute = PatientSessionIdRouteImport.update({
@@ -46,9 +42,20 @@ const PatientSessionIdRoute = PatientSessionIdRouteImport.update({
   path: '/patient/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PharmacyIndexRoute = PharmacyIndexRouteImport.update({
+  id: '/pharmacy/',
+  path: '/pharmacy/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PharmacyNewRoute = PharmacyNewRouteImport.update({
+  id: '/pharmacy/new',
+  path: '/pharmacy/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth/login': typeof AuthLoginRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth/login': typeof AuthLoginRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin': typeof AdminIndexRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth/login': typeof AuthLoginRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth/login'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin/'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth/login'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth/login'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin/'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthLoginRoute: typeof AuthLoginRoute
   PatientSessionIdRoute: typeof PatientSessionIdRoute
   PharmacyNewRoute: typeof PharmacyNewRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -117,11 +130,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pharmacy/': {
-      id: '/pharmacy/'
-      path: '/pharmacy'
-      fullPath: '/pharmacy/'
-      preLoaderRoute: typeof PharmacyIndexRouteImport
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/': {
@@ -131,11 +151,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DoctorIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/': {
-      id: '/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AdminIndexRouteImport
+    '/patient/$sessionId': {
+      id: '/patient/$sessionId'
+      path: '/patient/$sessionId'
+      fullPath: '/patient/$sessionId'
+      preLoaderRoute: typeof PatientSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pharmacy/': {
+      id: '/pharmacy/'
+      path: '/pharmacy'
+      fullPath: '/pharmacy/'
+      preLoaderRoute: typeof PharmacyIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pharmacy/new': {
@@ -145,18 +172,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PharmacyNewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/patient/$sessionId': {
-      id: '/patient/$sessionId'
-      path: '/patient/$sessionId'
-      fullPath: '/patient/$sessionId'
-      preLoaderRoute: typeof PatientSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthLoginRoute: AuthLoginRoute,
   PatientSessionIdRoute: PatientSessionIdRoute,
   PharmacyNewRoute: PharmacyNewRoute,
   AdminIndexRoute: AdminIndexRoute,
