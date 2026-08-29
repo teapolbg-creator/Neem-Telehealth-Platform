@@ -70,6 +70,9 @@ const envSchema = z
     // caps attempts from one source across many accounts.
     RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
     RATE_LIMIT_AUTH_WINDOW: z.string().default('15 minutes'),
+    // Account creation, limited per source.
+    RATE_LIMIT_ONBOARDING_MAX: z.coerce.number().int().min(1).default(5),
+    RATE_LIMIT_ONBOARDING_WINDOW: z.string().default('1 hour'),
 
     PAYMENT_PROVIDER: z.enum(PROVIDER_MODES.payment).default('mock'),
     VIDEO_PROVIDER: z.enum(PROVIDER_MODES.video).default('mock'),

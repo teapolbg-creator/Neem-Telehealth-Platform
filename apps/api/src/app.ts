@@ -8,7 +8,11 @@ import { getLogger } from './lib/logger.ts';
 import { contextPlugin } from './middleware/context.ts';
 import { authPlugin } from './middleware/auth.ts';
 import { errorHandlerPlugin } from './middleware/error-handler.ts';
+import multipart from '@fastify/multipart';
 import { authRoutes } from './modules/auth/auth.routes.ts';
+import { onboardingRoutes } from './modules/onboarding/onboarding.routes.ts';
+import { doctorRoutes } from './modules/doctor/doctor.routes.ts';
+import { adminRoutes } from './modules/admin/admin.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 
 /**
@@ -68,12 +72,21 @@ export async function buildApp(): Promise<FastifyInstance> {
     keyGenerator: (request) => request.principal?.userId ?? request.ip,
   });
 
+  // Credential document uploads. The size cap is configurable and enforced
+  // again in the document service against the decoded buffer.
+  await app.register(multipart, {
+    limits: { fileSize: env.UPLOAD_MAX_BYTES, files: 1, fields: 10 },
+  });
+
   await app.register(authPlugin);
 
   await app.register(
     async (api) => {
       await api.register(healthRoutes);
       await api.register(authRoutes);
+      await api.register(onboardingRoutes);
+      await api.register(doctorRoutes);
+      await api.register(adminRoutes);
     },
     { prefix: '/api/v1' },
   );

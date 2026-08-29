@@ -90,6 +90,31 @@ function Landing() {
         })}
       </section>
 
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <div className="card-soft flex flex-wrap items-center justify-between gap-4 p-6">
+          <div>
+            <h2 className="font-bold">Join the Neem network</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Applications are verified by a Neem administrator before activation.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="/onboarding/doctor"
+              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Apply as a doctor
+            </a>
+            <a
+              href="/auth/login"
+              className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold hover:bg-slate-50"
+            >
+              Sign in
+            </a>
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-border bg-white">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-wrap gap-4 justify-between items-center text-xs text-slate-500">
           {/*

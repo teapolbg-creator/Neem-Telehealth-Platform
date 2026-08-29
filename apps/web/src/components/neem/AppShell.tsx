@@ -23,8 +23,14 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Dashboard", to: "/pharmacy" },
     { label: "New consultation", to: "/pharmacy/new" },
   ],
-  doctor: [{ label: "Dashboard", to: "/doctor" }],
-  admin: [{ label: "Overview", to: "/admin" }],
+  doctor: [
+    { label: "Dashboard", to: "/doctor" },
+    { label: "Onboarding", to: "/doctor/onboarding" },
+  ],
+  admin: [
+    { label: "Overview", to: "/admin" },
+    { label: "Verification", to: "/admin/verification" },
+  ],
 };
 
 const ROLE_TO_APP: Record<string, AppKey> = {

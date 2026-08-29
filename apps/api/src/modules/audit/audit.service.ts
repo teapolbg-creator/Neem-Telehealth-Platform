@@ -28,11 +28,32 @@ export const AUDIT_ACTIONS = {
   PASSWORD_CHANGED: 'auth.password.changed',
   SESSION_REVOKED: 'auth.session.revoked',
 
+  DOCTOR_REGISTERED: 'doctor.registered',
+  DOCTOR_STATUS_CHANGED: 'doctor.status-changed',
   DOCTOR_APPROVED: 'doctor.approved',
   DOCTOR_SUSPENDED: 'doctor.suspended',
   DOCTOR_REJECTED: 'doctor.rejected',
+  DOCTOR_SIGNATURE_CAPTURED: 'doctor.signature.captured',
+  DOCTOR_COMPENSATION_CHANGED: 'doctor.compensation.changed',
+  DOCTOR_LICENCE_EXPIRING: 'doctor.licence.expiring',
+
+  PHARMACY_REGISTERED: 'pharmacy.registered',
+  PHARMACY_STATUS_CHANGED: 'pharmacy.status-changed',
   PHARMACY_APPROVED: 'pharmacy.approved',
   PHARMACY_SUSPENDED: 'pharmacy.suspended',
+
+  DOCUMENT_UPLOADED: 'document.uploaded',
+  DOCUMENT_VERIFIED: 'document.verified',
+  DOCUMENT_DOWNLOADED: 'document.downloaded',
+
+  SHIFT_ASSIGNED: 'shift.assigned',
+  SHIFT_CONFIRMED: 'shift.confirmed',
+  SHIFT_CANCELLED: 'shift.cancelled',
+  SHIFT_LIMIT_BLOCKED: 'shift.limit-blocked',
+
+  SUBSCRIPTION_CREATED: 'subscription.created',
+  SUBSCRIPTION_EXPIRED: 'subscription.expired',
+  SUBSCRIPTION_RENEWED: 'subscription.renewed',
 
   CONSULTATION_CREATED: 'consultation.created',
   CONSULTATION_STATE_CHANGED: 'consultation.state-changed',

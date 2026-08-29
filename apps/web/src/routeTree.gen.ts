@@ -11,8 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
+import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
+import { Route as OnboardingDoctorRouteImport } from './routes/onboarding.doctor'
 import { Route as PatientSessionIdRouteImport } from './routes/patient.$sessionId'
 import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
 import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
@@ -27,6 +30,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminVerificationRoute = AdminVerificationRouteImport.update({
+  id: '/admin/verification',
+  path: '/admin/verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
@@ -35,6 +43,16 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
   id: '/doctor/',
   path: '/doctor/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorOnboardingRoute = DoctorOnboardingRouteImport.update({
+  id: '/doctor/onboarding',
+  path: '/doctor/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingDoctorRoute = OnboardingDoctorRouteImport.update({
+  id: '/onboarding/doctor',
+  path: '/onboarding/doctor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PatientSessionIdRoute = PatientSessionIdRouteImport.update({
@@ -55,7 +73,10 @@ const PharmacyNewRoute = PharmacyNewRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -64,7 +85,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin': typeof AdminIndexRoute
@@ -74,7 +98,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/patient/$sessionId': typeof PatientSessionIdRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/admin/': typeof AdminIndexRoute
@@ -85,7 +112,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin/verification'
     | '/auth/login'
+    | '/doctor/onboarding'
+    | '/onboarding/doctor'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin/'
@@ -94,7 +124,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/verification'
     | '/auth/login'
+    | '/doctor/onboarding'
+    | '/onboarding/doctor'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin'
@@ -103,7 +136,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin/verification'
     | '/auth/login'
+    | '/doctor/onboarding'
+    | '/onboarding/doctor'
     | '/patient/$sessionId'
     | '/pharmacy/new'
     | '/admin/'
@@ -113,7 +149,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminVerificationRoute: typeof AdminVerificationRoute
   AuthLoginRoute: typeof AuthLoginRoute
+  DoctorOnboardingRoute: typeof DoctorOnboardingRoute
+  OnboardingDoctorRoute: typeof OnboardingDoctorRoute
   PatientSessionIdRoute: typeof PatientSessionIdRoute
   PharmacyNewRoute: typeof PharmacyNewRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -137,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/verification': {
+      id: '/admin/verification'
+      path: '/admin/verification'
+      fullPath: '/admin/verification'
+      preLoaderRoute: typeof AdminVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/login': {
       id: '/auth/login'
       path: '/auth/login'
@@ -149,6 +195,20 @@ declare module '@tanstack/react-router' {
       path: '/doctor'
       fullPath: '/doctor/'
       preLoaderRoute: typeof DoctorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doctor/onboarding': {
+      id: '/doctor/onboarding'
+      path: '/doctor/onboarding'
+      fullPath: '/doctor/onboarding'
+      preLoaderRoute: typeof DoctorOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding/doctor': {
+      id: '/onboarding/doctor'
+      path: '/onboarding/doctor'
+      fullPath: '/onboarding/doctor'
+      preLoaderRoute: typeof OnboardingDoctorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/patient/$sessionId': {
@@ -177,7 +237,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminVerificationRoute: AdminVerificationRoute,
   AuthLoginRoute: AuthLoginRoute,
+  DoctorOnboardingRoute: DoctorOnboardingRoute,
+  OnboardingDoctorRoute: OnboardingDoctorRoute,
   PatientSessionIdRoute: PatientSessionIdRoute,
   PharmacyNewRoute: PharmacyNewRoute,
   AdminIndexRoute: AdminIndexRoute,
