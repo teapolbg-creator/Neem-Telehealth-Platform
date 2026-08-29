@@ -12,10 +12,13 @@ import { test } from './support/fixtures.ts';
  * As each phase lands, the corresponding `test.fixme` becomes a real test in
  * its own spec file, and the placeholder here is deleted.
  *
- * Progress: 0 of 16 implemented — Phases 3–7 build the flows they exercise.
+ * Progress: 3 of 16 implemented. Scenarios 3, 4 and 5 now live in
+ * queue.spec.ts; the rest await Phases 5–7.
  */
 
 test.describe('required scenarios (spec §80)', () => {
+  // Scenarios 3, 4 and 5 are implemented in queue.spec.ts (Phase 4).
+
   test.fixme(
     'Scenario 1 — pharmacy → payment → QR → patient → doctor → consultation → completion',
     async () => {
@@ -25,18 +28,6 @@ test.describe('required scenarios (spec §80)', () => {
 
   test.fixme('Scenario 2 — payment fails, patient retries, payment succeeds', async () => {
     // Needs: Phase 3 payment orchestration; Phase 7 for the real provider.
-  });
-
-  test.fixme('Scenario 3 — payment succeeds but no doctor is available; patient waits', async () => {
-    // Needs: Phase 4 queue, including the no-doctor-available path.
-  });
-
-  test.fixme('Scenario 4 — doctor misses the 90-second window and the case is reassigned', async () => {
-    // Needs: Phase 4 offer cycle and response-window enforcement.
-  });
-
-  test.fixme('Scenario 5 — no language match raises an admin alert', async () => {
-    // Needs: Phase 4 eligibility gate and admin alerting.
   });
 
   test.fixme('Scenario 6 — doctor issues a prescription and the pharmacy receives it', async () => {

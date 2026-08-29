@@ -24,11 +24,13 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "New consultation", to: "/pharmacy/new" },
   ],
   doctor: [
+    { label: "Queue", to: "/doctor/queue" },
     { label: "Dashboard", to: "/doctor" },
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
   admin: [
     { label: "Overview", to: "/admin" },
+    { label: "Live queue", to: "/admin/queue" },
     { label: "Verification", to: "/admin/verification" },
   ],
 };

@@ -12,6 +12,13 @@ export default defineConfig({
     // this — a `poolOptions.threads` setting is ignored under Vitest's default
     // `forks` pool, which is exactly the trap this comment exists to prevent.
     fileParallelism: false,
+
+    // Integration cases build real fixtures — argon2 password hashing is
+    // deliberately slow, and a case that creates two doctors plus a full
+    // consultation comfortably exceeds the 5s default. Raised so a slow
+    // machine reports a real failure rather than a timeout that hides one.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',

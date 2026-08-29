@@ -3,6 +3,12 @@ import { getEnv } from '../config/env.ts';
 import { expirePendingPayments } from '../modules/payment/payment.service.ts';
 import { expireStaleTokens } from '../modules/consultation/access-token.service.ts';
 import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
+import {
+  enforceResponseWindow,
+  processWaitingQueue,
+} from '../modules/queue/allocation.service.ts';
+import { reapStalePresence } from '../modules/queue/presence.service.ts';
+import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 
 /**
  * Scheduled work (docs/architecture.md §6).
@@ -41,6 +47,35 @@ const JOBS: JobDefinition[] = [
     intervalMs: MINUTE,
     run: expireStaleTokens,
     describe: (count) => `revoked ${count} unused access token(s)`,
+  },
+  {
+    // The 90-second response window, enforced server-side. Swept every 5s so a
+    // lapsed offer is reassigned promptly rather than leaving a patient
+    // waiting on a doctor who is not coming (spec §30).
+    name: 'enforce-response-window',
+    intervalMs: 5 * SECOND,
+    run: async () => (await enforceResponseWindow()).missed,
+    describe: (count) => `reassigned ${count} consultation(s) after a missed response`,
+  },
+  {
+    // Picks up consultations that had no eligible doctor when they were
+    // enqueued and have been waiting for one to come online.
+    name: 'process-waiting-queue',
+    intervalMs: 10 * SECOND,
+    run: processWaitingQueue,
+    describe: (count) => `offered ${count} waiting consultation(s)`,
+  },
+  {
+    name: 'reap-stale-presence',
+    intervalMs: 60 * SECOND,
+    run: reapStalePresence,
+    describe: (count) => `marked ${count} doctor(s) offline after a stale heartbeat`,
+  },
+  {
+    name: 'recompute-quality-scores',
+    intervalMs: 60 * MINUTE,
+    run: async () => (await recomputeQualityScores()).scored,
+    describe: (count) => `recomputed ${count} doctor quality score(s)`,
   },
   {
     name: 'purge-expired-sessions',

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -384,12 +384,22 @@ function QrStep({
   const [copied, setCopied] = useState(false);
   const [confirmingReissue, setConfirmingReissue] = useState(false);
 
-  // The code can be rendered exactly once, at issue, because only its hash is
-  // stored. So it is minted on arrival here and held in memory.
+  /**
+   * The code can be rendered exactly once, at issue, because only its hash is
+   * stored. So it is minted on arrival here and held in memory.
+   *
+   * Guarded by a ref rather than `isIdle`: the mutation is asynchronous, so
+   * `isIdle` is still true when React re-runs this effect. A second call would
+   * mint a new token AND revoke the one already on screen — handing the
+   * patient a QR code that stopped working the instant it appeared.
+   */
+  const issueStarted = useRef(false);
+
   useEffect(() => {
-    if (!qr && issue.isIdle) {
-      issue.mutate(consultation.publicId, { onSuccess: onIssued });
-    }
+    if (qr || issueStarted.current) return;
+
+    issueStarted.current = true;
+    issue.mutate(consultation.publicId, { onSuccess: onIssued });
   }, [qr, issue, consultation.publicId, onIssued]);
 
   if (!qr) {

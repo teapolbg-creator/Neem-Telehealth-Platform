@@ -4,6 +4,7 @@ import { getEnv } from './config/env.ts';
 import { getLogger } from './lib/logger.ts';
 import { disconnectPrisma } from './db/prisma.ts';
 import { startScheduler, stopScheduler } from './jobs/scheduler.ts';
+import { closeRealtime, initialiseRealtime } from './modules/realtime/realtime.service.ts';
 
 /**
  * Process entry point.
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
     log.info({ signal }, 'shutting down');
     try {
       stopScheduler();
+      await closeRealtime();
       await app.close();
       await disconnectPrisma();
       process.exit(0);
@@ -45,9 +47,11 @@ async function main(): Promise<void> {
     process.exit(1);
   });
 
-  startScheduler();
-
   await app.listen({ port: env.API_PORT, host: '0.0.0.0' });
+
+  // Attached after listen so the underlying HTTP server exists (spec §31).
+  initialiseRealtime(app.server);
+  startScheduler();
   log.info(
     { port: env.API_PORT, env: env.NODE_ENV },
     `Neem API listening on http://localhost:${env.API_PORT}`,

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
 import { ApiError } from "@/lib/api-client";
@@ -173,12 +173,22 @@ function CodeStep({
   const verify = useVerifyTwoFactor();
   const [code, setCode] = useState("");
 
-  // An admin who has not enrolled cannot proceed to a code prompt — there is
-  // nothing to enter a code from yet. Fetch the secret first (spec §9).
+  /**
+   * An admin who has not enrolled cannot proceed to a code prompt — there is
+   * nothing to generate a code from yet. Fetch the secret first (spec §9).
+   *
+   * Guarded by a ref, not by `isIdle`. The mutation is asynchronous, so
+   * `isIdle` is still true when React re-runs this effect, and a second
+   * enrolment call would mint a NEW secret server-side while the screen still
+   * displays the first — leaving the admin typing codes that can never verify.
+   */
+  const enrolmentStarted = useRef(false);
+
   useEffect(() => {
-    if (enrolling && beginEnrollment.isIdle) {
-      beginEnrollment.mutate(challengeId, { onSuccess: onEnrollmentReady });
-    }
+    if (!enrolling || enrolmentStarted.current) return;
+
+    enrolmentStarted.current = true;
+    beginEnrollment.mutate(challengeId, { onSuccess: onEnrollmentReady });
   }, [enrolling, challengeId, beginEnrollment, onEnrollmentReady]);
 
   if (enrolling) {

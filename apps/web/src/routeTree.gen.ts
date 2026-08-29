@@ -11,10 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
+import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
 import { Route as OnboardingDoctorRouteImport } from './routes/onboarding.doctor'
 import { Route as PatientIndexRouteImport } from './routes/patient.index'
 import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
@@ -30,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminQueueRoute = AdminQueueRouteImport.update({
+  id: '/admin/queue',
+  path: '/admin/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminVerificationRoute = AdminVerificationRouteImport.update({
@@ -50,6 +57,11 @@ const DoctorIndexRoute = DoctorIndexRouteImport.update({
 const DoctorOnboardingRoute = DoctorOnboardingRouteImport.update({
   id: '/doctor/onboarding',
   path: '/doctor/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorQueueRoute = DoctorQueueRouteImport.update({
+  id: '/doctor/queue',
+  path: '/doctor/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingDoctorRoute = OnboardingDoctorRouteImport.update({
@@ -86,9 +98,11 @@ const PharmacyConsultationsPublicIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/s/$token': typeof STokenRoute
@@ -100,9 +114,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/s/$token': typeof STokenRoute
@@ -115,9 +131,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
+  '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/s/$token': typeof STokenRoute
@@ -131,9 +149,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin/queue'
     | '/admin/verification'
     | '/auth/login'
     | '/doctor/onboarding'
+    | '/doctor/queue'
     | '/onboarding/doctor'
     | '/pharmacy/new'
     | '/s/$token'
@@ -145,9 +165,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/queue'
     | '/admin/verification'
     | '/auth/login'
     | '/doctor/onboarding'
+    | '/doctor/queue'
     | '/onboarding/doctor'
     | '/pharmacy/new'
     | '/s/$token'
@@ -159,9 +181,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin/queue'
     | '/admin/verification'
     | '/auth/login'
     | '/doctor/onboarding'
+    | '/doctor/queue'
     | '/onboarding/doctor'
     | '/pharmacy/new'
     | '/s/$token'
@@ -174,9 +198,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminQueueRoute: typeof AdminQueueRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthLoginRoute: typeof AuthLoginRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
+  DoctorQueueRoute: typeof DoctorQueueRoute
   OnboardingDoctorRoute: typeof OnboardingDoctorRoute
   PharmacyNewRoute: typeof PharmacyNewRoute
   STokenRoute: typeof STokenRoute
@@ -201,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/queue': {
+      id: '/admin/queue'
+      path: '/admin/queue'
+      fullPath: '/admin/queue'
+      preLoaderRoute: typeof AdminQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/verification': {
@@ -229,6 +262,13 @@ declare module '@tanstack/react-router' {
       path: '/doctor/onboarding'
       fullPath: '/doctor/onboarding'
       preLoaderRoute: typeof DoctorOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doctor/queue': {
+      id: '/doctor/queue'
+      path: '/doctor/queue'
+      fullPath: '/doctor/queue'
+      preLoaderRoute: typeof DoctorQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding/doctor': {
@@ -278,9 +318,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminQueueRoute: AdminQueueRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthLoginRoute: AuthLoginRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
+  DoctorQueueRoute: DoctorQueueRoute,
   OnboardingDoctorRoute: OnboardingDoctorRoute,
   PharmacyNewRoute: PharmacyNewRoute,
   STokenRoute: STokenRoute,

@@ -51,6 +51,9 @@ export const AUDIT_ACTIONS = {
   SHIFT_CANCELLED: 'shift.cancelled',
   SHIFT_LIMIT_BLOCKED: 'shift.limit-blocked',
 
+  QUEUE_NO_LANGUAGE_MATCH: 'queue.no-language-match',
+  QUEUE_DELAY: 'queue.delay',
+
   SUBSCRIPTION_CREATED: 'subscription.created',
   SUBSCRIPTION_EXPIRED: 'subscription.expired',
   SUBSCRIPTION_RENEWED: 'subscription.renewed',

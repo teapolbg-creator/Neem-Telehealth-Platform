@@ -208,7 +208,11 @@ test.describe('admin verification', () => {
     // Now act as the administrator.
     const { csrf: adminCsrf } = await signInAdmin(request);
 
-    const list = await request.get(`${API}/admin/doctors?awaitingReview=true`);
+    // Search rather than scan the first page: the directory accumulates
+    // applicants across runs and the list is paginated.
+    const list = await request.get(
+      `${API}/admin/doctors?search=MDC-E2E-V-${run}`,
+    );
     const applicant = (await list.json()).data.find(
       (entry: { mdcNumber: string }) => entry.mdcNumber === `MDC-E2E-V-${run}`,
     );
