@@ -304,6 +304,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  /**
+   * Streams a pharmacy document to the reviewing administrator.
+   *
+   * Verification means a human looked at the file. Without this route the
+   * verify endpoint below was a decision made blind.
+   */
+  app.get('/admin/pharmacies/documents/:id', { preHandler: pharmacyAdmin }, async (request, reply) => {
+    const principal = requireAuth(request);
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+
+    const file = await readDocument(
+      'pharmacy',
+      id,
+      { type: 'ADMIN', id: principal.userId },
+      request.correlationId,
+    );
+
+    return reply
+      .header('content-type', file.mimeType)
+      .header('content-disposition', 'inline')
+      .header('cache-control', 'private, no-store')
+      .send(file.body);
+  });
+
   app.post('/admin/pharmacies/documents/:id/verify', { preHandler: pharmacyAdmin }, async (request, reply) => {
     const principal = requireAuth(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);

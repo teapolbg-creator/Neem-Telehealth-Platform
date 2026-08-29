@@ -112,3 +112,73 @@ export async function signIn(
 
   return response.cookies;
 }
+
+/** A 1×1 PNG, real enough to pass the upload's magic-byte check. */
+export function minimalPng(): Buffer {
+  return Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+}
+
+export interface UploadOptions {
+  cookies?: Record<string, string>;
+  fields?: Record<string, string>;
+  file: { name: string; mimeType: string; body: Buffer };
+}
+
+/**
+ * Posts a `multipart/form-data` upload.
+ *
+ * Built by hand rather than with a form library: the upload path validates
+ * magic bytes and the declared content type, so the test has to produce a
+ * genuinely well-formed multipart body for that check to mean anything.
+ */
+export async function upload<T = unknown>(
+  path: string,
+  options: UploadOptions,
+): Promise<ApiResponse<T>> {
+  const instance = await getTestApp();
+  const boundary = `----neemtest${Math.random().toString(16).slice(2)}`;
+  const parts: Buffer[] = [];
+
+  for (const [name, value] of Object.entries(options.fields ?? {})) {
+    parts.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+      ),
+    );
+  }
+
+  parts.push(
+    Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${options.file.name}"\r\n` +
+        `Content-Type: ${options.file.mimeType}\r\n\r\n`,
+    ),
+    options.file.body,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  );
+
+  const headers: Record<string, string> = {
+    'content-type': `multipart/form-data; boundary=${boundary}`,
+  };
+  if (options.cookies?.neem_csrf) headers['x-neem-csrf'] = options.cookies.neem_csrf;
+
+  const response = await instance.inject({
+    method: 'POST',
+    url: `/api/v1${path}`,
+    payload: Buffer.concat(parts),
+    cookies: options.cookies,
+    headers,
+  });
+
+  let body: ApiResponse<T>['body'] = {};
+  try {
+    body = response.json();
+  } catch {
+    // Some responses legitimately have no JSON body.
+  }
+
+  return { status: response.statusCode, body, cookies: parseCookies(response), raw: response };
+}

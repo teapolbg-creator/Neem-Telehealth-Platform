@@ -12,6 +12,7 @@ import multipart from '@fastify/multipart';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes.ts';
 import { doctorRoutes } from './modules/doctor/doctor.routes.ts';
+import { pharmacyRoutes } from './modules/pharmacy/pharmacy.routes.ts';
 import { adminRoutes } from './modules/admin/admin.routes.ts';
 import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
@@ -91,6 +92,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(authRoutes);
       await api.register(onboardingRoutes);
       await api.register(doctorRoutes);
+      await api.register(pharmacyRoutes);
       await api.register(adminRoutes);
       await api.register(patientRoutes);
       await api.register(pharmacyConsultationRoutes);

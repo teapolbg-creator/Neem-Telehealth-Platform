@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { authenticator } from 'otplib';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { encryptTotpSecret } from '../../src/modules/auth/totp.service.ts';
-import { closeTestApp, request, signIn } from '../helpers/app.ts';
+import { closeTestApp, minimalPng, request, signIn, upload } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/database.ts';
 
 /**
@@ -374,5 +374,195 @@ describe('authorization isolation', () => {
     const serialised = JSON.stringify(profile.body.data);
     expect(serialised).not.toMatch(/qualityScore/i);
     expect(serialised).not.toMatch(/rating/i);
+  });
+});
+
+/**
+ * Pharmacy verification (spec §20, §83).
+ *
+ * This existed for doctors and not for pharmacies. There was no pharmacy
+ * document upload route at all, so `verifiedDocumentCount` was structurally
+ * always zero and every pharmacy that had ever gone ACTIVE did so without a
+ * single document being looked at. An active pharmacy dispenses prescriptions.
+ */
+describe('pharmacy document verification', () => {
+  async function applyAndSignIn() {
+    await request('/onboarding/pharmacy', { method: 'POST', payload: validPharmacy() });
+    const pharmacy = await getPrisma().pharmacy.findFirstOrThrow();
+    const cookies = await signIn('newpharmacy@test.local', 'PharmacyPassword123!');
+    return { pharmacy, cookies };
+  }
+
+  async function uploadCertificate(cookies: Record<string, string>) {
+    return upload<{ id: string }>('/pharmacy/documents', {
+      cookies,
+      fields: { documentType: 'COUNCIL_REGISTRATION' },
+      file: { name: 'cert.png', mimeType: 'image/png', body: minimalPng() },
+    });
+  }
+
+  it('refuses to activate a pharmacy with no verified documents', async () => {
+    const adminCookies = await signInAdmin();
+    const { pharmacy } = await applyAndSignIn();
+
+    await getPrisma().pharmacy.update({
+      where: { id: pharmacy.id },
+      data: { status: 'APPROVED' },
+    });
+
+    const activate = await request(`/admin/pharmacies/${pharmacy.publicId}/status`, {
+      method: 'POST',
+      cookies: adminCookies,
+      payload: { status: 'ACTIVE' },
+    });
+
+    expect(activate.status).toBe(422);
+    expect(activate.body.error?.message).toMatch(/no verified documents/i);
+  });
+
+  it('still refuses when documents are uploaded but not yet verified', async () => {
+    const adminCookies = await signInAdmin();
+    const { pharmacy, cookies } = await applyAndSignIn();
+
+    expect((await uploadCertificate(cookies)).status).toBe(201);
+
+    await getPrisma().pharmacy.update({
+      where: { id: pharmacy.id },
+      data: { status: 'APPROVED' },
+    });
+
+    // Uploading is not verifying. A human must look at the file.
+    const activate = await request(`/admin/pharmacies/${pharmacy.publicId}/status`, {
+      method: 'POST',
+      cookies: adminCookies,
+      payload: { status: 'ACTIVE' },
+    });
+
+    expect(activate.status).toBe(422);
+  });
+
+  it('activates once an admin has verified a document', async () => {
+    const adminCookies = await signInAdmin();
+    const { pharmacy, cookies } = await applyAndSignIn();
+
+    const uploaded = await uploadCertificate(cookies);
+
+    const verified = await request(
+      `/admin/pharmacies/documents/${uploaded.body.data!.id}/verify`,
+      { method: 'POST', cookies: adminCookies, payload: { verified: true } },
+    );
+    expect(verified.status).toBe(200);
+
+    for (const status of ['UNDER_REVIEW', 'APPROVED', 'ACTIVE']) {
+      const response = await request(`/admin/pharmacies/${pharmacy.publicId}/status`, {
+        method: 'POST',
+        cookies: adminCookies,
+        payload: { status },
+      });
+      expect(response.status, `transition to ${status}`).toBe(200);
+    }
+
+    const fresh = await getPrisma().pharmacy.findUniqueOrThrow({ where: { id: pharmacy.id } });
+    expect(fresh.status).toBe('ACTIVE');
+  });
+
+  it('lets the admin open the document before deciding on it', async () => {
+    const adminCookies = await signInAdmin();
+    const { cookies } = await applyAndSignIn();
+
+    const uploaded = await uploadCertificate(cookies);
+
+    // Without this route, verification was a decision made blind.
+    const file = await request(`/admin/pharmacies/documents/${uploaded.body.data!.id}`, {
+      cookies: adminCookies,
+    });
+
+    expect(file.status).toBe(200);
+    expect(file.raw.headers['content-type']).toBe('image/png');
+    expect(file.raw.headers['cache-control']).toBe('private, no-store');
+  });
+
+  it('refuses a file whose contents do not match its declared type', async () => {
+    const { cookies } = await applyAndSignIn();
+
+    const response = await upload('/pharmacy/documents', {
+      cookies,
+      fields: { documentType: 'COUNCIL_REGISTRATION' },
+      file: { name: 'fake.png', mimeType: 'image/png', body: Buffer.from('this is not a png') },
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(response.body)).toMatch(/do not match its file type/i);
+  });
+
+  it('refuses a document type belonging to the doctor workflow', async () => {
+    const { cookies } = await applyAndSignIn();
+
+    const response = await upload('/pharmacy/documents', {
+      cookies,
+      fields: { documentType: 'MDC_LICENCE' },
+      file: { name: 'cert.png', mimeType: 'image/png', body: minimalPng() },
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('will not let one pharmacy read another pharmacy’s document', async () => {
+    const { cookies } = await applyAndSignIn();
+    const uploaded = await uploadCertificate(cookies);
+
+    await request('/onboarding/pharmacy', {
+      method: 'POST',
+      payload: validPharmacy({
+        email: 'other@pharmacy.test',
+        name: 'Other Pharmacy',
+        councilRegistrationNo: 'PCG-TEST-99002',
+      }),
+    });
+    const otherCookies = await signIn('other@pharmacy.test', 'PharmacyPassword123!');
+
+    const response = await request(`/pharmacy/documents/${uploaded.body.data!.id}`, {
+      cookies: otherCookies,
+    });
+
+    // 404, not 403: confirming another pharmacy's document exists would itself
+    // be a disclosure (spec §102).
+    expect(response.status).toBe(404);
+  });
+
+  it('shows the applicant what is still outstanding', async () => {
+    const adminCookies = await signInAdmin();
+    const { cookies } = await applyAndSignIn();
+
+    const before = await request<{ outstanding: string[]; verifiedDocumentCount: number }>(
+      '/pharmacy/profile',
+      { cookies },
+    );
+    expect(before.status).toBe(200);
+    expect(before.body.data!.verifiedDocumentCount).toBe(0);
+    expect(before.body.data!.outstanding.join(' ')).toMatch(/upload/i);
+
+    const uploaded = await uploadCertificate(cookies);
+    await request(`/admin/pharmacies/documents/${uploaded.body.data!.id}/verify`, {
+      method: 'POST',
+      cookies: adminCookies,
+      payload: { verified: true },
+    });
+
+    const after = await request<{ outstanding: string[]; verifiedDocumentCount: number }>(
+      '/pharmacy/profile',
+      { cookies },
+    );
+    expect(after.body.data!.verifiedDocumentCount).toBe(1);
+    // The upload prompt is gone; the wait-for-review line remains.
+    expect(after.body.data!.outstanding.join(' ')).not.toMatch(/upload/i);
+  });
+
+  it('refuses the pharmacy profile to an account that is not a pharmacy', async () => {
+    const adminCookies = await signInAdmin();
+    await applyAndSignIn();
+
+    const response = await request('/pharmacy/profile', { cookies: adminCookies });
+    expect(response.status).toBe(403);
   });
 });

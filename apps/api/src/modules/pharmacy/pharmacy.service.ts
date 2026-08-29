@@ -139,7 +139,10 @@ export async function changePharmacyStatus(
 ): Promise<{ from: PharmacyStatus; to: PharmacyStatus }> {
   const pharmacy = await db.pharmacy.findUnique({
     where: { publicId },
-    include: { users: { select: { userId: true } } },
+    include: {
+      users: { select: { userId: true } },
+      documents: { select: { verifiedAt: true } },
+    },
   });
   if (!pharmacy) throw errors.notFound('Pharmacy not found.');
 
@@ -153,6 +156,28 @@ export async function changePharmacyStatus(
   }
   if (transitionRequiresReason(next) && !context.reason) {
     throw errors.businessRule(`A reason is required when moving a pharmacy to ${next}.`);
+  }
+
+  /**
+   * A pharmacy cannot go ACTIVE on trust (spec §20, §83).
+   *
+   * This mirrors the identical rule on doctors. Its absence was not a
+   * bypassable control but a missing one: there was no pharmacy document
+   * upload route at all, so `verifiedDocumentCount` was structurally always
+   * zero and every activation necessarily happened without any document being
+   * looked at. An active pharmacy dispenses prescriptions.
+   *
+   * As with doctors, the requirement is that a human verified *something* —
+   * Neem does not assert which documents Ghanaian law demands (spec §78).
+   */
+  if (next === 'ACTIVE') {
+    const verifiedDocuments = pharmacy.documents.filter((document) => document.verifiedAt !== null);
+
+    if (verifiedDocuments.length === 0) {
+      throw errors.businessRule(
+        'This pharmacy has no verified documents. Verify its Pharmacy Council registration and supporting documents before activating it.',
+      );
+    }
   }
 
   const now = clock.now();

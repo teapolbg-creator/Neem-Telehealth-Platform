@@ -121,6 +121,12 @@ function Landing() {
               Apply as a doctor
             </a>
             <a
+              href="/onboarding/pharmacy"
+              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Register a pharmacy
+            </a>
+            <a
               href="/auth/login"
               className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold hover:bg-slate-50"
             >

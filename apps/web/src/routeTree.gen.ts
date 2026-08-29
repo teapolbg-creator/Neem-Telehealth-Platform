@@ -18,9 +18,11 @@ import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
 import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
 import { Route as OnboardingDoctorRouteImport } from './routes/onboarding.doctor'
+import { Route as OnboardingPharmacyRouteImport } from './routes/onboarding.pharmacy'
 import { Route as PatientIndexRouteImport } from './routes/patient.index'
 import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
 import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
+import { Route as PharmacyOnboardingRouteImport } from './routes/pharmacy.onboarding'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as DoctorConsultationsPublicIdRouteImport } from './routes/doctor.consultations.$publicId'
 import { Route as PharmacyConsultationsPublicIdRouteImport } from './routes/pharmacy.consultations.$publicId'
@@ -70,6 +72,11 @@ const OnboardingDoctorRoute = OnboardingDoctorRouteImport.update({
   path: '/onboarding/doctor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardingPharmacyRoute = OnboardingPharmacyRouteImport.update({
+  id: '/onboarding/pharmacy',
+  path: '/onboarding/pharmacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PatientIndexRoute = PatientIndexRouteImport.update({
   id: '/patient/',
   path: '/patient/',
@@ -83,6 +90,11 @@ const PharmacyIndexRoute = PharmacyIndexRouteImport.update({
 const PharmacyNewRoute = PharmacyNewRouteImport.update({
   id: '/pharmacy/new',
   path: '/pharmacy/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PharmacyOnboardingRoute = PharmacyOnboardingRouteImport.update({
+  id: '/pharmacy/onboarding',
+  path: '/pharmacy/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
@@ -111,7 +123,9 @@ export interface FileRoutesByFullPath {
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
+  '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
+  '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/s/$token': typeof STokenRoute
   '/admin/': typeof AdminIndexRoute
   '/doctor/': typeof DoctorIndexRoute
@@ -128,7 +142,9 @@ export interface FileRoutesByTo {
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
+  '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
+  '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/s/$token': typeof STokenRoute
   '/admin': typeof AdminIndexRoute
   '/doctor': typeof DoctorIndexRoute
@@ -146,7 +162,9 @@ export interface FileRoutesById {
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
+  '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
+  '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/s/$token': typeof STokenRoute
   '/admin/': typeof AdminIndexRoute
   '/doctor/': typeof DoctorIndexRoute
@@ -165,7 +183,9 @@ export interface FileRouteTypes {
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/onboarding/doctor'
+    | '/onboarding/pharmacy'
     | '/pharmacy/new'
+    | '/pharmacy/onboarding'
     | '/s/$token'
     | '/admin/'
     | '/doctor/'
@@ -182,7 +202,9 @@ export interface FileRouteTypes {
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/onboarding/doctor'
+    | '/onboarding/pharmacy'
     | '/pharmacy/new'
+    | '/pharmacy/onboarding'
     | '/s/$token'
     | '/admin'
     | '/doctor'
@@ -199,7 +221,9 @@ export interface FileRouteTypes {
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/onboarding/doctor'
+    | '/onboarding/pharmacy'
     | '/pharmacy/new'
+    | '/pharmacy/onboarding'
     | '/s/$token'
     | '/admin/'
     | '/doctor/'
@@ -217,7 +241,9 @@ export interface RootRouteChildren {
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
   DoctorQueueRoute: typeof DoctorQueueRoute
   OnboardingDoctorRoute: typeof OnboardingDoctorRoute
+  OnboardingPharmacyRoute: typeof OnboardingPharmacyRoute
   PharmacyNewRoute: typeof PharmacyNewRoute
+  PharmacyOnboardingRoute: typeof PharmacyOnboardingRoute
   STokenRoute: typeof STokenRoute
   AdminIndexRoute: typeof AdminIndexRoute
   DoctorIndexRoute: typeof DoctorIndexRoute
@@ -292,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingDoctorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/onboarding/pharmacy': {
+      id: '/onboarding/pharmacy'
+      path: '/onboarding/pharmacy'
+      fullPath: '/onboarding/pharmacy'
+      preLoaderRoute: typeof OnboardingPharmacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/patient/': {
       id: '/patient/'
       path: '/patient'
@@ -311,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/pharmacy/new'
       fullPath: '/pharmacy/new'
       preLoaderRoute: typeof PharmacyNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pharmacy/onboarding': {
+      id: '/pharmacy/onboarding'
+      path: '/pharmacy/onboarding'
+      fullPath: '/pharmacy/onboarding'
+      preLoaderRoute: typeof PharmacyOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s/$token': {
@@ -345,7 +385,9 @@ const rootRouteChildren: RootRouteChildren = {
   DoctorOnboardingRoute: DoctorOnboardingRoute,
   DoctorQueueRoute: DoctorQueueRoute,
   OnboardingDoctorRoute: OnboardingDoctorRoute,
+  OnboardingPharmacyRoute: OnboardingPharmacyRoute,
   PharmacyNewRoute: PharmacyNewRoute,
+  PharmacyOnboardingRoute: PharmacyOnboardingRoute,
   STokenRoute: STokenRoute,
   AdminIndexRoute: AdminIndexRoute,
   DoctorIndexRoute: DoctorIndexRoute,

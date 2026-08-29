@@ -70,6 +70,19 @@ Every route is scoped to the single consultation bound to the session. No route 
 
 ## 4. Pharmacy
 
+### Self-service and verification (spec §20)
+
+```
+GET    /pharmacy/profile                   status, documents, and what is still outstanding
+POST   /pharmacy/documents                 multipart upload; magic-byte checked
+GET    /pharmacy/documents/:id             streams the pharmacy own document
+```
+
+A pharmacy **cannot be activated with nothing verified** — the same rule that has always applied to doctors. `POST /admin/pharmacies/:publicId/status` refuses `ACTIVE` with 422 unless at least one document carries an administrator verification. `GET /admin/pharmacies/documents/:id` lets that administrator open the file first; without it the decision was made blind.
+
+Neem performs no automated registration lookup, and no response here asserts a document is genuine (spec §78).
+
+
 ```
 POST   /pharmacy/consultations                       create → PENDING_PAYMENT
 POST   /pharmacy/consultations/:id/payment           initiate

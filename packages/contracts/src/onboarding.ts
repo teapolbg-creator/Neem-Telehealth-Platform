@@ -178,6 +178,33 @@ export const DOCTOR_DOCUMENT_TYPES = [
   'OTHER',
 ] as const;
 
+/**
+ * Documents a pharmacy is asked to supply.
+ *
+ * These are the categories the verification workflow offers — **not** a claim
+ * about what Ghanaian law requires. Neem performs no automated check against
+ * any registry; an administrator looks at each file and decides (spec §20,
+ * §78). Which documents are sufficient is an operational policy for Neem to
+ * set, and the register of open regulatory questions covers whether a formal
+ * list exists.
+ */
+export const PHARMACY_DOCUMENT_TYPES = [
+  'COUNCIL_REGISTRATION',
+  'SUPERINTENDENT_LICENCE',
+  'BUSINESS_REGISTRATION',
+  'PREMISES_EVIDENCE',
+  'OTHER',
+] as const;
+export type PharmacyDocumentType = (typeof PHARMACY_DOCUMENT_TYPES)[number];
+
+export const PHARMACY_DOCUMENT_LABELS: Record<PharmacyDocumentType, string> = {
+  COUNCIL_REGISTRATION: 'Pharmacy Council registration certificate',
+  SUPERINTENDENT_LICENCE: 'Superintendent pharmacist’s practising licence',
+  BUSINESS_REGISTRATION: 'Business registration certificate',
+  PREMISES_EVIDENCE: 'Evidence of premises',
+  OTHER: 'Other supporting document',
+};
+
 export const documentVerificationSchema = z.object({
   verified: z.boolean(),
   note: z.string().trim().max(500).optional(),

@@ -16,6 +16,7 @@ import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import {
   useAdminDoctorDetail,
+  useAdminPharmacyDetail,
   useAdminDoctors,
   useAdminPharmacies,
   useAllowedTransitions,
@@ -291,72 +292,118 @@ function DoctorDetail({ publicId }: { publicId: string }) {
         <Detail label="Signature" value={doctor.hasSignature ? "Captured" : "Not captured"} />
       </dl>
 
-      <section className="mt-6">
-        <h3 className="mb-1 text-sm font-bold">Credential documents</h3>
-        <p className="mb-3 text-xs text-slate-500">
-          Opening a document is recorded in the audit log.
-        </p>
-
-        {doctor.documents.length === 0 ? (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-            No documents uploaded yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {doctor.documents.map((document) => (
-              <div key={document.id} className="rounded-xl border border-border p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">
-                      {document.type.replace(/_/g, " ").toLowerCase()}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(document.uploadedAt).toLocaleDateString()} ·{" "}
-                      {Math.round(document.sizeBytes / 1024)} KB
-                    </p>
-                  </div>
-                  <Chip tone={document.verified ? "brand" : "warning"}>
-                    {document.verified ? "Verified" : "Unverified"}
-                  </Chip>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <a
-                    href={`${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}/api/v1/admin/doctors/documents/${document.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
-                  >
-                    Open document
-                  </a>
-                  {!document.verified ? (
-                    <button
-                      type="button"
-                      onClick={() => verify.mutate({ id: document.id, verified: true })}
-                      disabled={verify.isPending}
-                      className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                    >
-                      Mark verified
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => verify.mutate({ id: document.id, verified: false })}
-                      disabled={verify.isPending}
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Withdraw verification
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <DocumentReview
+        kind="doctors"
+        heading="Credential documents"
+        documents={doctor.documents}
+      />
 
       <StatusActions kind="doctors" publicId={publicId} />
     </div>
+  );
+}
+
+export interface ReviewableDocument {
+  id: string;
+  type: string;
+  uploadedAt: string;
+  verified: boolean;
+  note: string | null;
+  sizeBytes?: number;
+}
+
+/**
+ * The document review list, shared by the doctor and pharmacy queues.
+ *
+ * Neither account can be activated until at least one document here is marked
+ * verified — the server enforces that, and this is where an administrator does
+ * it. "Verified" means a person opened the file and accepted it; Neem asserts
+ * nothing automatically (spec §20, §22).
+ */
+function DocumentReview({
+  kind,
+  heading,
+  documents,
+}: {
+  kind: "doctors" | "pharmacies";
+  heading: string;
+  documents: ReviewableDocument[];
+}) {
+  const verify = useVerifyDocument(kind);
+  const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+  return (
+    <section className="mt-6">
+      <h3 className="mb-1 text-sm font-bold">{heading}</h3>
+      <p className="mb-3 text-xs text-slate-500">
+        Opening a document is recorded in the audit log. This account cannot be activated until at
+        least one document is verified.
+      </p>
+
+      {documents.length === 0 ? (
+        <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+          No documents uploaded yet.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {documents.map((document) => (
+            <div key={document.id} className="rounded-xl border border-border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {document.type.replace(/_/g, " ").toLowerCase()}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {new Date(document.uploadedAt).toLocaleDateString()}
+                    {document.sizeBytes !== undefined &&
+                      ` · ${Math.round(document.sizeBytes / 1024)} KB`}
+                  </p>
+                </div>
+                <Chip tone={document.verified ? "brand" : "warning"}>
+                  {document.verified ? "Verified" : "Unverified"}
+                </Chip>
+              </div>
+
+              {document.note && (
+                <p className="mt-2 text-xs text-slate-600">
+                  <span className="font-semibold">Note:</span> {document.note}
+                </p>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={`${apiUrl}/api/v1/admin/${kind}/documents/${document.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+                >
+                  Open document
+                </a>
+                {!document.verified ? (
+                  <button
+                    type="button"
+                    onClick={() => verify.mutate({ id: document.id, verified: true })}
+                    disabled={verify.isPending}
+                    className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                  >
+                    Mark verified
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => verify.mutate({ id: document.id, verified: false })}
+                    disabled={verify.isPending}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Withdraw verification
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -407,24 +454,91 @@ function PharmacyQueue({
             <p className="mt-2 font-mono text-[11px] text-slate-500">
               {pharmacy.councilRegistrationNo}
             </p>
+
+            {/*
+              Visible at a glance, as it is for doctors. A pharmacy showing
+              0 verified cannot be activated — the server refuses it.
+            */}
+            <div className="mt-3 flex items-center gap-1 text-[11px] text-slate-500">
+              <FileText className="size-3" />
+              {pharmacy.verifiedDocumentCount}/{pharmacy.documentCount} verified
+            </div>
           </button>
         ))}
       </div>
 
       <div className="lg:col-span-3">
         {selected ? (
-          <div className="card-soft p-6">
-            <h2 className="mb-1 text-xl font-bold">Pharmacy review</h2>
-            <p className="mb-5 text-xs text-slate-500">
-              Verify the Pharmacy Council registration with the Council directly before approving.
-              Neem does not check it automatically.
-            </p>
-            <StatusActions kind="pharmacies" publicId={selected} />
-          </div>
+          <PharmacyDetail publicId={selected} />
         ) : (
           <EmptyCard message="Select a pharmacy to review its registration." />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The pharmacy review panel.
+ *
+ * This previously showed the status buttons alone — no documents, because
+ * there was no way for a pharmacy to upload any. An administrator was
+ * therefore activating pharmacies without ever seeing a registration
+ * certificate, which the server now refuses.
+ */
+function PharmacyDetail({ publicId }: { publicId: string }) {
+  const { data, isLoading } = useAdminPharmacyDetail(publicId);
+
+  if (isLoading || !data) return <LoadingCard />;
+
+  const pharmacy = data as {
+    name: string;
+    councilRegistrationNo: string;
+    ownerName: string;
+    responsiblePharmacistName: string;
+    responsiblePharmacistLicenceNo: string | null;
+    addressLine1: string;
+    city: string;
+    region: string;
+    phone: string;
+    email: string;
+    status: string;
+    documents: ReviewableDocument[];
+  };
+
+  return (
+    <div className="card-soft p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">{pharmacy.name}</h2>
+          <p className="text-sm text-slate-500">{pharmacy.email}</p>
+        </div>
+        <Chip tone={STATUS_TONE[pharmacy.status] ?? "muted"}>
+          {pharmacy.status.replace("_", " ")}
+        </Chip>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+        <Detail label="Council registration" value={pharmacy.councilRegistrationNo} mono />
+        <Detail label="Owner" value={pharmacy.ownerName} />
+        <Detail label="Responsible pharmacist" value={pharmacy.responsiblePharmacistName} />
+        <Detail label="Pharmacist licence" value={pharmacy.responsiblePharmacistLicenceNo ?? "—"} />
+        <Detail label="Location" value={`${pharmacy.city}, ${pharmacy.region}`} />
+        <Detail label="Phone" value={pharmacy.phone} />
+      </dl>
+
+      <p className="mt-5 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+        Confirm the registration with the Pharmacy Council directly before approving. Neem does not
+        check it automatically, and nothing on this screen asserts a document is genuine.
+      </p>
+
+      <DocumentReview
+        kind="pharmacies"
+        heading="Registration documents"
+        documents={pharmacy.documents}
+      />
+
+      <StatusActions kind="pharmacies" publicId={publicId} />
     </div>
   );
 }

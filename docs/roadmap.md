@@ -24,6 +24,8 @@ Pharmacy onboarding with document upload and the pharmacy state machine · docto
 
 **Exit:** a doctor and a pharmacy can be onboarded end to end and approved by an admin; the 40-hour rule refuses an over-assignment; suspension ends a live session.
 
+**Completed late, 2026-08-29.** The pharmacy half of this phase shipped without its verification path: no registration screen, no document upload route, and no check on activation — so `verifiedDocumentCount` was structurally always zero, and every pharmacy that reached ACTIVE did so without a document being looked at. Now closed: `/onboarding/pharmacy` (apply), `/pharmacy/onboarding` (upload and track), `POST /pharmacy/documents`, `GET /admin/pharmacies/documents/:id` so the reviewer can open the file, and the same activation check doctors have always had.
+
 ---
 
 ## Phase 3 — Patient consultation engine
@@ -66,7 +68,7 @@ Clinical records reclassified from delete-at-completion to retain-then-expire ·
 
 Vitals and point-of-care test entry by the pharmacy · the doctor's clinical workspace · outcome capture · prescription creation, items, and the prescription state machine · digital signature binding to the verified doctor · prescription PDF · public QR verification page · revocation before dispensing · dispensing and immutability · the pharmacy substitution workflow with doctor approval · referral creation and PDF · **the consultation summary** — doctor-authored, mandatory for advice-only outcomes, permanent, with its own verification page (D25) · **the completion transaction, which now seals and schedules rather than purges** (D23).
 
-Also folded in, from the outstanding-items review: **pharmacy document upload and the activation check** — the table exists but no route does, so every pharmacy to date was activated without document verification, and Phase 6 is where pharmacies gain dispensing powers.
+~~Also folded in: pharmacy document upload and the activation check.~~ **Done ahead of Phase 6** on 2026-08-29, while the G7 follow-up questions sit with counsel — see the Phase 2 note below.
 
 **Exit:** scenarios 6–13 pass; the §101 critical test is demonstrated in its revised form — clinical data present during, present but unreadable after, gone after expiry.
 

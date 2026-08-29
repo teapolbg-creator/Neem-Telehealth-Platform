@@ -123,35 +123,42 @@ export function useDoctorProfile() {
 }
 
 /**
- * Uploads a credential document.
+ * Posts a document upload.
  *
  * Uses fetch directly rather than the JSON client because the body is
  * multipart; the CSRF header is still attached, as it is for any mutation.
  */
+async function postDocument(
+  path: string,
+  input: { file: File; documentType: string },
+): Promise<{ id: string; uploadedAt: string }> {
+  const form = new FormData();
+  form.append('documentType', input.documentType);
+  form.append('file', input.file);
+
+  const csrf = document.cookie.match(/(?:^|;\s*)neem_csrf=([^;]*)/)?.[1];
+
+  const response = await fetch(`${API_BASE_URL}/api/v1${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: csrf ? { 'x-neem-csrf': decodeURIComponent(csrf) } : {},
+    body: form,
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error?.message ?? 'Upload failed.');
+  }
+  return payload.data as { id: string; uploadedAt: string };
+}
+
+/** Uploads a doctor credential document. */
 export function useUploadDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { file: File; documentType: string }) => {
-      const form = new FormData();
-      form.append('documentType', input.documentType);
-      form.append('file', input.file);
-
-      const csrf = document.cookie.match(/(?:^|;\s*)neem_csrf=([^;]*)/)?.[1];
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/doctor/documents`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: csrf ? { 'x-neem-csrf': decodeURIComponent(csrf) } : {},
-        body: form,
-      });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error?.message ?? 'Upload failed.');
-      }
-      return payload.data as { id: string; uploadedAt: string };
-    },
+    mutationFn: (input: { file: File; documentType: string }) =>
+      postDocument('/doctor/documents', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: doctorProfileKey }),
   });
 }
@@ -234,6 +241,15 @@ export function useAdminDoctorDetail(publicId: string | null) {
   return useQuery({
     queryKey: ['admin', 'doctor', publicId],
     queryFn: ({ signal }) => api.get<Record<string, unknown>>(`/doctors/${publicId}`, signal),
+    enabled: Boolean(publicId),
+  });
+}
+
+export function useAdminPharmacyDetail(publicId: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'pharmacy', publicId],
+    queryFn: ({ signal }) =>
+      api.get<Record<string, unknown>>(`/admin/pharmacies/${publicId}`, signal),
     enabled: Boolean(publicId),
   });
 }
@@ -327,5 +343,58 @@ export function useExpiringLicences() {
           daysRemaining: number;
         }>
       >('/admin/doctors/licences/expiring', signal),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pharmacy self-service
+// ---------------------------------------------------------------------------
+
+export interface PharmacyDocument {
+  id: string;
+  type: string;
+  uploadedAt: string;
+  verified: boolean;
+  note: string | null;
+}
+
+export interface PharmacyProfile {
+  publicId: string;
+  name: string;
+  councilRegistrationNo: string;
+  ownerName: string;
+  responsiblePharmacistName: string;
+  city: string;
+  region: string;
+  phone: string;
+  email: string;
+  status: string;
+  statusReason: string | null;
+  documents: PharmacyDocument[];
+  documentCount: number;
+  verifiedDocumentCount: number;
+  /** Computed server-side from the same rule the activation check enforces. */
+  outstanding: string[];
+  createdAt: string;
+  approvedAt: string | null;
+  isDemo: boolean;
+}
+
+export const pharmacyProfileKey = ['pharmacy', 'profile'] as const;
+
+export function usePharmacyProfile() {
+  return useQuery({
+    queryKey: pharmacyProfileKey,
+    queryFn: ({ signal }) => api.get<PharmacyProfile>('/pharmacy/profile', signal),
+  });
+}
+
+export function useUploadPharmacyDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { file: File; documentType: string }) =>
+      postDocument('/pharmacy/documents', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pharmacyProfileKey }),
   });
 }
