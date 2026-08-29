@@ -17,7 +17,7 @@ Two obligations sit behind this, and they are not the same:
 | **Record-keeping** | Health Professions Regulatory Bodies Act, 2013 (Act 857); MDC ethical code; the 3-year civil-action window for medical negligence | The records must **exist** and be producible |
 | **Continuity of care** | Clinical practice standards | A future clinician should be able to **read** them |
 
-**Neem satisfies the first and declines the second** (decision D23). The record exists; no clinician can reach it. That is the most protective position that still discharges the statutory duty.
+**Neem satisfies the first and declines the second** (decision D23). The record exists; no clinician can reach it. That is the most protective position that still counts as complying with the record-keeping duty.
 
 Destruction still means `DELETE` from the primary tables — not hiding a row, not setting a flag (spec §62). What changed is *when*, not *how*.
 
@@ -47,7 +47,7 @@ Encrypted at rest. **No product surface reads these.** Default period: **3 years
 | Patient phone number | `patient_sessions` |
 | Payment phone number (when different) | `patient_sessions` |
 
-Patient identity is retained because a clinical record nobody can attribute to a patient discharges no duty at all — it could not be produced for an MDC inquiry, a negligence claim, or the patient's own access request.
+Patient identity is retained **inside** each sealed record, so the record identifies itself when it is opened. It is not retained as an index — nothing outside the record is keyed on it, and it is not how a record is found. Retrieval is by consultation reference (§3, D24).
 
 ### Retained permanently
 
@@ -57,6 +57,7 @@ Patient identity is retained because a clinical record nobody can attribute to a
 | `hasPrescription` / `hasReferral` flags and status | Operational record |
 | Prescription: id, doctor, patient **name, age, sex**, medications, dates, state, versions | Explicit exception (spec §11) |
 | Referral: id, doctor, destination, doctor-authored reason, patient name/age/sex | Doctor-issued permanent document |
+| Consultation summary: doctor-authored assessment, advice, safety-netting, patient name/age/sex | Doctor-issued permanent document, mandatory for advice-only outcomes (D25) |
 | Payment id, provider reference, amount, currency, status, timestamps | Financial record (spec §63) |
 | Revenue allocation, refunds, payouts | Financial record |
 | Patient feedback and ratings | Permanent, immutable (spec §51) |
@@ -75,34 +76,44 @@ Referral `reasonText` is clinical text the doctor chose to commit to a permanent
 
 The specification says a medical history must never appear — "whether as a feature, a convenience cache, an analytics table, or an over-broad audit log."
 
-**That can no longer be a guarantee about the data.** If records persist for three years, and must be producible for a named patient on request, then a patient index has to exist. There is no way to service a subject-access request, an MDC inquiry, or a negligence claim against per-consultation islands with no way to find them.
+**It survives, because records are found by reference and not by person** (decision D24).
 
-So §13 is preserved as an **access** guarantee instead:
+Every consultation carries an opaque reference — `consultations.publicId` — which the patient is given and which is printed on every document they receive. That reference is how a record is located later. The analogy is a shop receipt: no account is needed to buy something, and the receipt is how the transaction is found again.
 
-- No doctor sees any consultation but the one in front of them. There is no route, no query, and no screen that returns a patient's prior records to a clinician.
-- No pharmacy sees clinical data at all beyond the active consultation.
+So there is no patient profile and no patient index:
+
+- **No table is keyed by person.** No query returns "every consultation for this phone number." There is nothing that could grow into a history feature by accident.
+- No doctor sees any consultation but the one in front of them. No route, query, or screen returns a patient's prior records to a clinician.
+- No pharmacy sees clinical data beyond the active consultation.
 - The audit log remains schema-restricted against clinical content, with a test enforcing it. It is not a back-door history, and that matters more now, not less.
-- Retained records are reachable only by an **audited break-glass action** (§4).
+- Retained records are reachable only by an **audited, reference-scoped break-glass action** (§4).
 
-This is a real reduction in the original promise, and it is stated here rather than glossed.
+**This works because of what Neem is.** It is an episodic point-of-care safety check, not longitudinal care: a patient about to buy medication gets a doctor's read on whether that is safe, and a push toward in-person care when it is not. Records exist so that one episode can be examined later — not so a future clinician can assemble a picture. Continuity of care is deliberately not the value proposition, so declining it costs nothing clinically.
+
+### One caveat, stated accurately
+
+`prescriptions` permanently stores `patientName`, `patientAge` and `patientSex` by value, following spec §11 and predating these decisions. A name search against that table is therefore technically possible for anyone with direct database access.
+
+What this design removes is the **feature**: no product surface indexes by patient, and clinical notes are reachable only by consultation reference. Nobody should tell a regulator that Neem *cannot* search by patient — only that it does not, and offers no way to.
 
 ---
 
 ## 4. Break-glass access
 
-The only path to a retained clinical record.
+The only path to a retained clinical record. **Scoped to one consultation reference at a time** — there is no "show me everything about this patient" path, by design (D24).
 
 **Permitted purposes, and no others:**
 1. A Medical & Dental Council inquiry.
 2. A medical negligence claim or the credible threat of one.
-3. A patient's own subject-access request under the Data Protection Act, 2012 (Act 843).
+3. A patient's own subject-access request under the Data Protection Act, 2012 (Act 843) — serviced as "quote your reference and we will produce that record."
 4. A lawful order compelling production.
 
 **Controls:**
+- **The reference identifies; it does not authorise.** Quoting a consultation reference says *which* sealed record is meant. Opening it still requires everything below. Without this separation, a discarded prescription slip would be a key to someone's clinical record.
 - Two-person authorisation — a single admin cannot unseal a record alone.
-- A stated purpose and reference, recorded before access, not after.
+- A stated purpose and case reference, recorded before access, not after.
 - Every access written to `clinical_record_access_log` with actor, purpose, reference, and the exact records reached. That log is append-only and is itself never purged.
-- Access produces an export, not a browsable screen. There is deliberately no UI that renders a patient's clinical past.
+- Access produces an export, not a browsable screen. There is deliberately no UI that renders clinical history.
 
 ---
 
@@ -114,9 +125,11 @@ Completion no longer purges clinical data. It **schedules** its destruction:
 POST /doctor/consultations/:id/complete
   BEGIN
     validate outcome present and state = IN_PROGRESS
+    if outcome = ADVICE_ONLY: require a consultation summary   -- D25
     write consultation operational fields (duration, outcome, timestamps)
     if prescription: copy patientName/Age/Sex by value onto the prescription
     if referral:     copy patientName/Age/Sex by value onto the referral
+    if summary:      copy patientName/Age/Sex by value onto the summary
     seal clinical record   (encrypt any field not already encrypted)
     DELETE consultation_access_tokens WHERE consultationId = ?   -- credential, goes now
     end media session (no recording ever existed)
@@ -126,9 +139,11 @@ POST /doctor/consultations/:id/complete
   COMMIT
 ```
 
+**The patient is then given the consultation reference** — on the completion screen, on every document issued, and by SMS once Phase 8 lands. Without it they cannot later identify their own record, and under D24 there is no other way to find it. This is why D25 makes a summary mandatory for `ADVICE_ONLY`: that outcome otherwise produces no document at all, and it is the case most likely to generate a complaint.
+
 A `purge-expired-clinical-records` job then runs on schedule, deleting records whose `retention_jobs.scheduledFor` has passed and recording the row counts destroyed.
 
-If any step fails, the whole transaction rolls back. **A consultation is never reported complete while its record is unsealed or its destruction unscheduled.**
+If any step fails, the whole transaction rolls back. **A consultation is never reported complete while its record is unsealed, its destruction unscheduled, or its required document unissued.**
 
 ---
 
@@ -181,7 +196,8 @@ If epidemiological reporting later becomes a business requirement, it needs a se
 | --- | --- | --- |
 | G7a | The exact retention period. The source range is 3–6 years; 3 is configured | Three years leaves no margin if a negligence clock starts later than the consultation date |
 | G7b | Whether paediatric records carry a longer rule — typically to majority plus N years | Neem captures patient age and pharmacies serve children. Nothing in the current design treats them differently |
-| G7c | Whether "sealed archive, no clinician access" discharges the duty, given that the continuity-of-care argument is declined | If counsel says no, D23 reopens and a consented read path is added |
+| G7c | Whether a sealed archive with no clinician access **counts as complying** with the record-keeping duty, given that continuity of care is declined. Put the episodic argument to them directly: Neem is a point-of-care safety check before a medicine purchase, not longitudinal care, so the duty is served by the episode being examinable rather than by a future clinician reading it | If counsel says no, D23/D24 reopen and a consented read path is added on top of records that already exist |
+| G7g | Whether a doctor-authored consultation summary issued to a patient after a remote assessment carries any mandated form or content (D25) | Field requirements on a new permanent document |
 | G7d | The lawful basis and the required form of patient notice at capture | The product currently states no basis anywhere |
 | G7e | How a patient exercises access and erasure rights, and how erasure interacts with a statutory retention duty | These usually conflict; the resolution has to be written down |
 | G7f | An acceptable backup window against a 3-year retention period | §7 |

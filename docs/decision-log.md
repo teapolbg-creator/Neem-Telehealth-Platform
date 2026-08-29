@@ -114,7 +114,9 @@ Status is **Proposed** until you approve Phase 0.
 
 ---
 
-### D14 — Patient keeps the prescription/referral PDF only · 2026-08-29 · **DECIDED**
+### D14 — Patient keeps the prescription/referral PDF only · 2026-08-29 · **PREMISE VOIDED by D23 — see D25**
+
+> **Superseded, and worth reading for why.** This decision rested entirely on preserving the claim that clinical notes are deleted at completion. D23 established that Ghanaian law does not permit that deletion, so the guarantee this protected no longer exists. D14 was not wrong on its merits; its justification ceased to apply. D25 reinstates a patient-facing doctor-authored document on the changed footing. Left here unedited below, because a decision log that quietly rewrites itself is worthless.
 
 **Issue.** The Lovable patient portal renders a clinical summary after completion, which would be a retained clinical record and contradicts spec §16/§101.
 **Options.** (A) PDF only. (B) PDF plus a short doctor-authored patient-facing remark stored on the prescription.
@@ -230,7 +232,7 @@ Status is **Proposed** until you approve Phase 0.
 
 **Selected.** Records retained **3 years from completion**, encrypted at rest, **readable through no product surface** — the "sealed archive" option. Configurable via `retention.clinicalRecordYears`.
 
-**Rationale.** The most protective position that still discharges the statutory duty. The continuity-of-care argument is deliberately declined: no clinician sees a patient's past. This is reversible in the safe direction — the records will exist, so opening a consented read path later is an added feature, not a migration. The reverse would not have been true.
+**Rationale.** The most protective position that still counts as complying with the record-keeping duty. The continuity-of-care argument is deliberately declined: no clinician sees a patient's past. This is reversible in the safe direction — the records will exist, so opening a consented read path later is an added feature, not a migration. The reverse would not have been true.
 
 **Consequences — the honest list.**
 
@@ -246,4 +248,47 @@ Status is **Proposed** until you approve Phase 0.
 10. **D13 (four-party prescription access) stands.** Retention governs keeping; D13 governs sharing. They do not interact.
 11. **Scope.** This is not a bolt-on to Phase 6. It is roughly half a phase again, or a phase of its own ahead of it.
 
-**Still open with counsel.** The exact period within the 3–6 year range; whether paediatric records carry a longer rule; whether the sealed-archive reading discharges the duty given that continuity of care is declined; the lawful basis and required notice; the access/erasure mechanism; and an acceptable backup window. Tracked in `data-retention.md` §10 as G7a–G7f.
+**Still open with counsel.** The exact period within the 3–6 year range; whether paediatric records carry a longer rule; whether a sealed archive counts as complying given that continuity of care is declined; the lawful basis and required notice; the access/erasure mechanism; and an acceptable backup window. Tracked in `data-retention.md` §10 as G7a–G7f.
+
+---
+
+### D24 — Records are retrieved by consultation reference, not by patient · 2026-08-29 · **DECIDED**
+
+**Issue.** D23 retained clinical records for three years. My initial reading was that a patient identity index therefore became unavoidable, because a subject-access request, an MDC inquiry, and a negligence claim all require producing a named patient's records — and per-consultation islands cannot be searched. That reading was wrong, and the product owner corrected it on 2026-08-29.
+
+**Selected.** No patient profile and no patient index. Every consultation carries an opaque reference (`consultations.publicId`), which is given to the patient and printed on every document they receive. **That reference is how a record is located** — for the patient, for counsel, for the Council.
+
+**Rationale.** The analogy is a shop receipt: you do not need an account to buy something, and the receipt is how the transaction is found again. It satisfies the retrieval requirement without building the thing spec §13 forbids. No table is keyed by person; no query returns "every consultation for this phone number"; there is nothing that could grow into a history feature by accident.
+
+The clinical model supports this and is the stronger argument. Neem is an **episodic point-of-care safety check**, not longitudinal care: a patient about to buy medication gets a doctor's assessment of whether that is safe, plus a push toward in-person care when it is not. Records exist so that one episode can be examined later, not so a future clinician can assemble a picture. Continuity of care is deliberately not the value proposition, which is why declining it costs nothing clinically.
+
+**Consequences.**
+
+1. **The reference identifies; it does not authorise.** Quoting a number tells Neem *which* sealed record is meant. Opening it still requires the two-person break-glass authorisation and a stated purpose from D23. Otherwise a discarded prescription slip becomes a key to someone's clinical record.
+2. **Break-glass is reference-scoped**, not person-scoped. There is no "show me everything about this patient" path, by design.
+3. **Subject access becomes "quote your reference"** — a recognised privacy-preserving pattern, not an evasion.
+4. **Every consultation must put the reference in the patient's hands**, whatever the outcome. Advice-only consultations previously produced no artefact at all; D25 resolves that.
+5. **One caveat that must be stated accurately to counsel.** `prescriptions` permanently stores `patientName`, `patientAge` and `patientSex` by value, following spec §11 and predating this decision. A name search against that table is therefore technically possible for anyone with database access. What this decision removes is the **feature**: no product surface indexes by patient, and clinical notes are reachable only by consultation reference. Nobody should tell a regulator that Neem *cannot* search by patient.
+6. Phase 5.5 shrinks — the patient identity index and the person-scoped subject-access search both come out.
+
+---
+
+### D25 — Advice-only consultations issue a consultation summary · 2026-08-29 · **DECIDED — supersedes the premise of D14**
+
+**Issue.** Under D24 the patient must leave holding their reference. Prescription and referral patients get a document that carries it; `ADVICE_ONLY` patients get nothing. That is the outcome where a document is most valuable and where its absence is most conspicuous.
+
+**Relationship to D14.** D14 ruled out patient-facing doctor-authored text on a single ground: that it was "the only option that keeps 'clinical notes are deleted at completion' true without qualification." **D23 voided that premise** — the guarantee D14 protected no longer exists. D14 is not overturned on its merits; its justification ceased to apply. It is retained in this log with that noted, rather than rewritten.
+
+**Selected.** A short, doctor-authored **consultation summary**, carrying the consultation reference. **Mandatory for `ADVICE_ONLY`, optional for every other outcome** (those already produce a document bearing the reference). **Permanent, with its own verification page**, on the same logic as a referral.
+
+**Rationale.** Advice-only is Neem's strongest clinical story and currently its weakest artefact: a patient is talked out of medication they came in for and leaves with nothing to show a doctor was ever involved. Written advice survives the walk home; verbal advice at a counter does not. It also backs the pharmacist, who has just declined a sale, and it makes the referral-to-hospital push — the safety-critical part of the model — durable.
+
+Permanence and a verification page follow from use: a patient may present this at a hospital, and that hospital must be able to confirm it is genuine. A verification page that expires after three years would be worse than none.
+
+**Constraints, all of them load-bearing.**
+
+1. **The doctor writes it. It is never generated.** A document carrying a practitioner's name and signature saying "you do not need medication" is a clinical opinion, and the first thing a lawyer reads if the patient deteriorates. Composing it automatically from the notes would put words in a doctor's mouth on a document they answer for. Structured fields with pick-lists and one or two short free-text boxes keep it inside the five-minute consultation.
+2. **Safety-netting is a required field.** "What to watch for" and "when to seek care urgently" must be present before the document can be issued. A summary that says only "no medication needed" reads as an all-clear from a remote five-minute assessment, and would be worse than issuing nothing.
+3. **It is not called a medical report.** In Ghana that phrase is used for employment, insurance and court purposes; naming it so invites it being presented as something it is not. It is a *consultation summary*. For the same reason it documents what the doctor found and advised — it does not justify the fee.
+
+**Consequences.** A new document type alongside prescriptions and referrals in Phase 6: model, doctor-facing composer, PDF, verification page. Its clinical text is permanent and patient-held, which is a deliberate change from D14 — sitting in the same category as referral `reasonText`, which D14 already accepted as a legitimate permanent carry-forward because a doctor deliberately issues it as a document.

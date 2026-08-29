@@ -54,15 +54,17 @@ Doctor presence and availability · eligibility filter with language as a hard g
 
 The G7 answer reversed the deletion model, so this lands before the clinical workflow that depends on it.
 
-Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · patient identity index, needed to produce a named patient's records · break-glass access with two-person authorisation and an append-only `clinical_record_access_log` · scheduled destruction job · patient-facing notice stating the lawful basis, replacing the deletion promise · subject access and erasure mechanism.
+Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · **reference-scoped** break-glass access with two-person authorisation and an append-only `clinical_record_access_log` · scheduled destruction job · the consultation reference surfaced to the patient at completion · patient-facing notice stating the lawful basis, replacing the deletion promise.
 
-**Exit:** clinical data survives completion, **no authenticated role can read it through any route**, break-glass is audited, and a record whose period has elapsed is provably gone.
+**No patient index and no profile** (D24). Records are located by consultation reference, so subject access is serviced by reference rather than by a person-scoped search. That is smaller than first scoped.
+
+**Exit:** clinical data survives completion, **no authenticated role can read it through any route**, break-glass is reference-scoped and audited, and a record whose period has elapsed is provably gone.
 
 ---
 
 ## Phase 6 — Clinical workflow
 
-Vitals and point-of-care test entry by the pharmacy · the doctor's clinical workspace · outcome capture · prescription creation, items, and the prescription state machine · digital signature binding to the verified doctor · prescription PDF · public QR verification page · revocation before dispensing · dispensing and immutability · the pharmacy substitution workflow with doctor approval · referral creation and PDF · **the completion transaction, which now seals and schedules rather than purges** (D23).
+Vitals and point-of-care test entry by the pharmacy · the doctor's clinical workspace · outcome capture · prescription creation, items, and the prescription state machine · digital signature binding to the verified doctor · prescription PDF · public QR verification page · revocation before dispensing · dispensing and immutability · the pharmacy substitution workflow with doctor approval · referral creation and PDF · **the consultation summary** — doctor-authored, mandatory for advice-only outcomes, permanent, with its own verification page (D25) · **the completion transaction, which now seals and schedules rather than purges** (D23).
 
 Also folded in, from the outstanding-items review: **pharmacy document upload and the activation check** — the table exists but no route does, so every pharmacy to date was activated without document verification, and Phase 6 is where pharmacies gain dispensing powers.
 
