@@ -220,12 +220,17 @@ function IdentityStep() {
       <ErrorNotice error={submit.error} />
 
       {/*
-        The retention promise, in the patient's own words. This is the one
-        place they learn what happens to what they just typed (spec §11).
+        What happens to what the patient just typed, in their own words. This
+        is the one place they are told, before they type it.
+
+        Rewritten for decision D23: this promised deletion at the end of the
+        consultation, which Ghanaian record-keeping law does not permit. The
+        wording below claims only what the code does. The full notice, naming
+        the lawful basis and the retention period, is with counsel (G7d).
       */}
       <p className="mt-5 rounded-2xl bg-brand-soft p-3 text-xs leading-relaxed text-brand/90">
-        Your details and everything you discuss are deleted when the consultation ends. Only a
-        prescription, if the doctor issues one, is kept.
+        Your record is kept private and sealed — no doctor or pharmacy can open it after this
+        consultation. Only a prescription, if the doctor issues one, is shared.
       </p>
 
       <button
@@ -510,8 +515,19 @@ function CompleteStep() {
       <p className="mt-3 max-w-xs text-pretty text-slate-500">
         Please return to the pharmacist. Get well soon.
       </p>
-      <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        Your details and everything discussed have been deleted.
+      {/*
+        This said "your details and everything discussed have been deleted"
+        until decision D23. That is no longer true and must not be shown: a
+        record is now kept, sealed, for a legally required period.
+
+        The wording below states only what the system does, which is verifiable
+        in the code. The final notice — naming the lawful basis and the
+        retention period — is still with counsel (G7d) and belongs here once it
+        comes back.
+      */}
+      <p className="mt-6 max-w-xs text-pretty text-xs leading-relaxed text-slate-400">
+        Your consultation record is stored securely. No doctor or pharmacy can open it, now or at a
+        future visit.
       </p>
     </div>
   );

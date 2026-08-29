@@ -235,7 +235,7 @@ function ConsultationMonitor() {
               <p className="text-xs leading-relaxed text-slate-600">
                 <span className="font-bold text-medical">The consultation is private.</span> You will
                 receive a prescription or referral if the doctor issues one. Clinical notes and
-                diagnoses are never shared with the pharmacy, and are deleted when the consultation
+                diagnoses are never shared with the pharmacy, and are sealed when the consultation
                 ends.
               </p>
             </div>

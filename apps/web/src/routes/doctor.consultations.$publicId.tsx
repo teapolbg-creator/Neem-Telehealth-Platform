@@ -294,9 +294,15 @@ function PatientPanel({
         </>
       )}
 
+      {/*
+        Rewritten for D23. This said the data was deleted at completion; it is
+        now retained under seal for a legally required period. What has not
+        changed is what matters to the doctor reading this screen: they see
+        this consultation and no other, ever.
+      */}
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        This consultation only. Neem keeps no medical history, and everything above is deleted when
-        it completes.
+        This consultation only. Neem shows you no past consultations for this patient, and this
+        record is sealed once you complete it.
       </p>
     </aside>
   );

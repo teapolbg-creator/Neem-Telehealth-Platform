@@ -154,8 +154,8 @@ Status is **Proposed** until you approve Phase 0.
 
 | Ref | Item | Blocking |
 | --- | --- | --- |
-| C9 | Twilio Programmable Video roadmap — verify with Twilio directly | Phase 5 provider choice |
-| G7 | Minimum legal retention period for clinical records in Ghana | Would be architectural if one exists — see `compliance/` Q7 |
+| C9 | Twilio Programmable Video roadmap — verify with Twilio directly | The real media adapter. Phase 5 shipped on mocks (D18) |
+| ~~G7~~ | ~~Minimum legal retention period for clinical records in Ghana~~ | **CLOSED 2026-08-29 — a minimum exists. See D23.** Six follow-on questions remain with counsel, tracked as G7a–G7f in `data-retention.md` §10 |
 | — | Node.js 22 + Docker Desktop installation | Any running code |
 
 ---
@@ -217,3 +217,33 @@ Status is **Proposed** until you approve Phase 0.
 **Selected.** `LocalStorageProvider` resolves a relative root against the repository root, derived from the module's own location rather than the process's working directory. `**/uploads/` added to `.gitignore` as a second line of defence, and the committed files removed from tracking.
 
 **What was actually in them.** Two distinct blobs: a 1×1 PNG from the E2E fixtures and a generated placeholder licence image from the demo seed. **No real credential document was ever committed** — but the mechanism was live, and against real applicant data it would have committed identity documents to git. History is not rewritten, because the content is synthetic.
+
+---
+
+### D23 — Clinical records are retained for 3 years under seal, not deleted at completion · 2026-08-29 · **DECIDED — reverses a core design assumption**
+
+**Issue.** G7, flagged in Phase 0 as *"would be architectural if a minimum retention period exists"*, was answered by the product owner on 2026-08-29 from Medical & Dental Council sources. A minimum does exist. Deleting consultation notes at completion breaches the record-keeping duty on registered practitioners under the Health Professions Regulatory Bodies Act, 2013 (Act 857), and destroys the evidence both parties need during the 3-year civil window for a negligence claim. The Data Protection Act, 2012 (Act 843) permits — and where another law mandates, requires — retention of health data.
+
+**What this reverses.** Phases 0–5 were built on "clinical information exists only for the duration of the consultation" (spec §16, §62, §101). That is now wrong. The completion purge, which was the headline deliverable of Phase 6, does not survive in that form.
+
+**The distinction that decided the rest.** The finding contains two obligations that are routinely conflated: *record-keeping* (the records must exist) and *continuity of care* (a future clinician should read them). Only the second collides with spec §13. The first is satisfied by an archive nobody reads.
+
+**Selected.** Records retained **3 years from completion**, encrypted at rest, **readable through no product surface** — the "sealed archive" option. Configurable via `retention.clinicalRecordYears`.
+
+**Rationale.** The most protective position that still discharges the statutory duty. The continuity-of-care argument is deliberately declined: no clinician sees a patient's past. This is reversible in the safe direction — the records will exist, so opening a consented read path later is an added feature, not a migration. The reverse would not have been true.
+
+**Consequences — the honest list.**
+
+1. **Spec §13's "no medical history" ceases to be a guarantee about the data and becomes one about access.** A patient index must exist, because a subject-access request, an MDC inquiry, and a negligence claim all require producing a named patient's records. Per-consultation islands cannot service any of them. Restated in `data-retention.md` §3.
+2. **Vitals and point-of-care results are stored in plaintext.** Defensible when they lived for minutes; not over three years. They need field encryption like the notes already have.
+3. **Key management becomes load-bearing.** One `ENCRYPTION_KEY` with no rotation path is thin for data with a multi-year life.
+4. **The patient-facing deletion promise is now false.** *"Your details and everything discussed have been deleted"* must be replaced, and a notice stating the lawful basis added at capture — the product currently states no basis anywhere.
+5. **Subject access and erasure need a mechanism.** Neither exists, and erasure conflicts with a statutory retention duty in a way counsel must resolve.
+6. **Break-glass access must be built**: two-person authorisation, stated purpose recorded before access, append-only `clinical_record_access_log`, export rather than a browsable screen.
+7. **The spec §101 critical test changes shape** — from "absent after completion" to "still present, unreadable by every role, and gone after expiry."
+8. **The backup window must be materially shorter than the retention period** for destruction to be effective within a bounded time.
+9. **D8 (no recording) is unaffected and independently endorsed** by the finding, which explicitly supports purging transient audio and video.
+10. **D13 (four-party prescription access) stands.** Retention governs keeping; D13 governs sharing. They do not interact.
+11. **Scope.** This is not a bolt-on to Phase 6. It is roughly half a phase again, or a phase of its own ahead of it.
+
+**Still open with counsel.** The exact period within the 3–6 year range; whether paediatric records carry a longer rule; whether the sealed-archive reading discharges the duty given that continuity of care is declined; the lawful basis and required notice; the access/erasure mechanism; and an acceptable backup window. Tracked in `data-retention.md` §10 as G7a–G7f.

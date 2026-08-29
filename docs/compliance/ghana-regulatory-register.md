@@ -2,7 +2,7 @@
 
 > **Read `README.md` first.** Every entry below is a *candidate* identified from general background knowledge, not from an official source. Titles, numbers, current amendments, and applicability are all unconfirmed. This is not legal advice.
 
-**Verification status: NONE. No official source consulted. No live research performed.**
+**Verification status: one question answered, the rest NONE.** Open question 7 (clinical-record retention) was answered on 2026-08-29 by the product owner citing Medical & Dental Council sources, and the product design was changed to match (decision D23). That answer has **not** been confirmed by a qualified lawyer, and six follow-on questions it raises remain open. Everything else below is unverified background, not legal advice.
 
 ---
 
@@ -16,7 +16,7 @@
 | G4 | Electronic Transactions Act, 2008 (Act 772) | Legal effect of electronic records and electronic signatures — directly relevant to e-prescriptions | Moderate | UNVERIFIED |
 | G5 | Cybersecurity Act, 2020 (Act 1038) — Cyber Security Authority | Critical information infrastructure designation; incident reporting | Moderate | UNVERIFIED |
 | G6 | Payment Systems and Services Act, 2019 (Act 987) — Bank of Ghana | Payment aggregation and mobile money; whether Neem's flow needs its own licence or is covered by Paystack's | Moderate | UNVERIFIED |
-| G7 | Public Health Act, 2012 (Act 851) | Medicines control; possible notifiable-disease reporting obligations | Moderate | UNVERIFIED |
+| G12 | Public Health Act, 2012 (Act 851) | Medicines control; possible notifiable-disease reporting obligations | Moderate | UNVERIFIED |
 | G8 | MDC telemedicine practice guidelines (if any) | Standards for remote consultation, remote prescribing, identity verification, record-keeping | Low — existence unknown | UNVERIFIED |
 | G9 | Pharmacy Council dispensing rules for electronic prescriptions | Whether an e-prescription is dispensable, what it must contain, substitution rules | Low — existence unknown | UNVERIFIED |
 | G10 | National Communications Authority / consumer protection rules on SMS and WhatsApp messaging | Consent for transactional and marketing messages | Low | UNVERIFIED |
@@ -37,7 +37,7 @@
 **Data protection**
 
 6. Must Neem register as a data controller? What is the process and timeline?
-7. What is the **minimum** legally required retention period for medical consultation records? *This is the single highest-impact question* — the entire product design deletes clinical notes at completion. If a minimum retention obligation exists, that design must change, and the change is architectural.
+7. ~~What is the **minimum** legally required retention period for medical consultation records?~~ **ANSWERED 2026-08-29 by the product owner from MDC sources: a minimum does exist.** Deleting notes at completion breaches the record-keeping duty on registered practitioners under Act 857 and destroys evidence needed during the 3-year civil window for negligence. The design was changed accordingly — see decision D23 and `data-retention.md`. **Still unconfirmed by counsel, and tracked as G7a–G7f in `data-retention.md` §10:** the exact period within the stated 3–6 year range; whether paediatric records carry a longer rule; whether a sealed archive with no clinician access discharges the duty when continuity of care is declined; the lawful basis and required form of patient notice; the access/erasure mechanism; and an acceptable backup window.
 8. Is there a **maximum** retention limit for the prescription data Neem does keep?
 9. What consent is required, and how must it be captured, for a patient whose consultation is initiated by a pharmacy?
 10. Is the temporary patient session (no account, deleted after) compatible with data-subject access and erasure rights? How does a patient exercise those rights against a record that no longer exists?
