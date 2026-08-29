@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/neem/AppShell";
+import { PrototypeDataNotice } from "@/components/neem/PrototypeDataNotice";
 import { Chip } from "@/components/neem/Chip";
 import doctorAma from "@/assets/doctor-ama.jpg";
 import patientVideo from "@/assets/patient-video.jpg";
@@ -33,6 +34,7 @@ function DoctorDashboard() {
 
   return (
     <AppShell active="doctor">
+      <PrototypeDataNotice phase="Phases 4-6 (queue, telemedicine, clinical workflow)" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Doctor profile / status */}
         <div className="lg:col-span-1 space-y-6">

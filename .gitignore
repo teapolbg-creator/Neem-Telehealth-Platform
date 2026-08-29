@@ -52,3 +52,5 @@ dist/
 
 # Local logs
 npm-install.log
+dev-server.log
+dev-server.err.log

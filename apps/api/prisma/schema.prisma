@@ -23,6 +23,9 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  // Explicit shadow database so the application user needs no server-wide
+  // CREATE DATABASE privilege (docs/security.md §6).
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // =============================================================================

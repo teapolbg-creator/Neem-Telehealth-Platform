@@ -66,12 +66,20 @@ function clearSessionCookies(reply: FastifyReply) {
   reply.clearCookie(CSRF_COOKIE, { path: '/' });
 }
 
-const strictLimit = { max: 10, timeWindow: '15 minutes' };
+/**
+ * Per-IP limits on the endpoints an attacker hammers. Configurable so a
+ * deployment can tighten them, and so tests can exercise both the limiter and
+ * the flows it protects (docs/security.md §6).
+ */
+function authRateLimit() {
+  const env = getEnv();
+  return { max: env.RATE_LIMIT_AUTH_MAX, timeWindow: env.RATE_LIMIT_AUTH_WINDOW };
+}
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/auth/login',
-    { config: { rateLimit: strictLimit } },
+    { config: { rateLimit: authRateLimit() } },
     async (request, reply) => {
       const input = loginRequestSchema.parse(request.body);
       const outcome = await login(input, requestContext(request));
@@ -94,7 +102,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/auth/2fa/enroll',
-    { config: { rateLimit: strictLimit } },
+    { config: { rateLimit: authRateLimit() } },
     async (request, reply) => {
       const { challengeId } = twoFactorVerifyRequestSchema
         .pick({ challengeId: true })
@@ -125,7 +133,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/auth/2fa/verify',
-    { config: { rateLimit: strictLimit } },
+    { config: { rateLimit: authRateLimit() } },
     async (request, reply) => {
       const input = twoFactorVerifyRequestSchema.parse(request.body);
       const result = await verifyTwoFactor(input, requestContext(request));
@@ -210,7 +218,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/auth/password-reset/request',
-    { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } },
+    { config: { rateLimit: authRateLimit() } },
     async (request, reply) => {
       const input = passwordResetRequestSchema.parse(request.body);
       const issued = await requestPasswordReset(input.email, requestContext(request));
@@ -235,7 +243,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/auth/password-reset/confirm',
-    { config: { rateLimit: strictLimit } },
+    { config: { rateLimit: authRateLimit() } },
     async (request, reply) => {
       const input = passwordResetConfirmSchema.parse(request.body);
       await confirmPasswordReset(input, requestContext(request));

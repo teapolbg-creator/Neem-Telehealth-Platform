@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/neem/AppShell";
+import { PrototypeDataNotice } from "@/components/neem/PrototypeDataNotice";
 import { Chip } from "@/components/neem/Chip";
 import { todaySessions, statusMeta } from "@/lib/neem-data";
 import {
@@ -136,6 +137,8 @@ function PharmacyDashboard() {
           <Plus className="size-4" /> Start New Consultation
         </Link>
       </header>
+
+      <PrototypeDataNotice phase="Phases 3-7 (consultations, clinical workflow, finance)" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Users} label="Consultations Initiated" value="18" delta="+4" />

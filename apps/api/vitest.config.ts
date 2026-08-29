@@ -6,8 +6,12 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    // Integration tests share one MySQL database, so they must not race.
-    poolOptions: { threads: { singleThread: true } },
+    // Integration tests share one MySQL database and truncate it between
+    // cases, so two files running concurrently would wipe each other's
+    // fixtures mid-test. `fileParallelism: false` is what actually enforces
+    // this — a `poolOptions.threads` setting is ignored under Vitest's default
+    // `forks` pool, which is exactly the trap this comment exists to prevent.
+    fileParallelism: false,
     setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',

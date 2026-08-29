@@ -64,6 +64,12 @@ const envSchema = z
     LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
     LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
     RATE_LIMIT_MAX_PER_MINUTE: z.coerce.number().int().min(1).default(120),
+    // Stricter per-IP limits on the endpoints an attacker actually hammers:
+    // login, 2FA verification and password reset (docs/security.md §6).
+    // Separate from LOGIN_MAX_ATTEMPTS, which locks a single account; this
+    // caps attempts from one source across many accounts.
+    RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(10),
+    RATE_LIMIT_AUTH_WINDOW: z.string().default('15 minutes'),
 
     PAYMENT_PROVIDER: z.enum(PROVIDER_MODES.payment).default('mock'),
     VIDEO_PROVIDER: z.enum(PROVIDER_MODES.video).default('mock'),

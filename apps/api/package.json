@@ -19,9 +19,6 @@
     "db:seed": "tsx prisma/seed/index.ts",
     "db:studio": "prisma studio"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed/index.ts"
-  },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^10.0.2",

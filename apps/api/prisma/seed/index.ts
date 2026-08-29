@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../../src/config/load-dotenv.ts';
 import { PrismaClient } from '@prisma/client';
 import { getEnv } from '../../src/config/env.ts';
 import { seedReferenceData } from './reference-data.ts';

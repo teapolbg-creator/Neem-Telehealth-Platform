@@ -29,7 +29,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Only trust proxy headers behind a real proxy. Left false in development
     // so a client cannot spoof its IP past the rate limiter.
     trustProxy: env.NODE_ENV === 'production',
-    disableRequestLogging: env.NODE_ENV === 'test',
+    // Request logging is silenced in tests by LOG_LEVEL=silent on the logger
+    // itself, rather than by Fastify's deprecated disableRequestLogging flag.
     bodyLimit: 1024 * 1024,
     ajv: { customOptions: { removeAdditional: false } },
   });

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/neem/AppShell";
+import { PrototypeDataNotice } from "@/components/neem/PrototypeDataNotice";
 import { Chip } from "@/components/neem/Chip";
 import { doctors, pharmacies } from "@/lib/neem-data";
 import {
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/admin/")({
 function AdminDashboard() {
   return (
     <AppShell active="admin">
+      <PrototypeDataNotice phase="Phase 9 (Admin & Analytics)" />
       <header className="flex flex-wrap justify-between items-end gap-4">
         <div>
           <p className="text-sm text-brand font-semibold mb-1">Neem Administration</p>

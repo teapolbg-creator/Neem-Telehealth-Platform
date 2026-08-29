@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './config/load-dotenv.ts';
 import { buildApp } from './app.ts';
 import { getEnv } from './config/env.ts';
 import { getLogger } from './lib/logger.ts';
