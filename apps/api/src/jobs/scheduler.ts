@@ -1,0 +1,108 @@
+import { getLogger } from '../lib/logger.ts';
+import { getEnv } from '../config/env.ts';
+import { expirePendingPayments } from '../modules/payment/payment.service.ts';
+import { expireStaleTokens } from '../modules/consultation/access-token.service.ts';
+import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
+
+/**
+ * Scheduled work (docs/architecture.md §6).
+ *
+ * A plain interval scheduler in the API process. That is right for a
+ * five-pharmacy pilot; the interface is small enough that moving these to a
+ * dedicated worker later changes only where they are started.
+ *
+ * Each job is wrapped so that a failure is logged and the schedule continues —
+ * one bad sweep must not stop every subsequent one. Overlapping runs are
+ * prevented per job, because a slow purge should not stack up behind itself.
+ */
+
+interface JobDefinition {
+  name: string;
+  intervalMs: number;
+  run: () => Promise<number | void>;
+  /** Logged when the job did something, so quiet jobs stay quiet. */
+  describe?: (result: number) => string;
+}
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+
+const JOBS: JobDefinition[] = [
+  {
+    name: 'expire-pending-payments',
+    // The payment window is 5 minutes; sweeping every 30s keeps the pharmacy's
+    // countdown honest without hammering the database (spec §35).
+    intervalMs: 30 * SECOND,
+    run: expirePendingPayments,
+    describe: (count) => `expired ${count} consultation(s) whose payment window closed`,
+  },
+  {
+    name: 'expire-consultation-tokens',
+    intervalMs: MINUTE,
+    run: expireStaleTokens,
+    describe: (count) => `revoked ${count} unused access token(s)`,
+  },
+  {
+    name: 'purge-expired-sessions',
+    intervalMs: 15 * MINUTE,
+    run: purgeExpiredSessions,
+    describe: (count) => `removed ${count} expired session(s)`,
+  },
+];
+
+const running = new Set<string>();
+const timers: NodeJS.Timeout[] = [];
+
+async function runJob(job: JobDefinition): Promise<void> {
+  if (running.has(job.name)) {
+    getLogger().debug({ job: job.name }, 'skipping run — previous one still in progress');
+    return;
+  }
+
+  running.add(job.name);
+  const startedAt = Date.now();
+
+  try {
+    const result = await job.run();
+
+    if (typeof result === 'number' && result > 0) {
+      getLogger().info(
+        { job: job.name, durationMs: Date.now() - startedAt },
+        job.describe?.(result) ?? `${job.name} affected ${result} record(s)`,
+      );
+    }
+  } catch (error) {
+    // Logged, never rethrown: an unhandled rejection here would take the
+    // process down and stop every other job with it.
+    getLogger().error({ err: error, job: job.name }, `scheduled job ${job.name} failed`);
+  } finally {
+    running.delete(job.name);
+  }
+}
+
+export function startScheduler(): void {
+  // Tests drive the jobs directly; background timers would make them
+  // non-deterministic and leak between cases.
+  if (getEnv().NODE_ENV === 'test') return;
+
+  for (const job of JOBS) {
+    const timer = setInterval(() => void runJob(job), job.intervalMs);
+    // Do not hold the process open on account of a timer.
+    timer.unref();
+    timers.push(timer);
+  }
+
+  getLogger().info({ jobs: JOBS.map((job) => job.name) }, 'scheduled jobs started');
+}
+
+export function stopScheduler(): void {
+  for (const timer of timers) clearInterval(timer);
+  timers.length = 0;
+}
+
+/** Exposed so tests and an admin health screen can run a sweep on demand. */
+export async function runJobNow(name: string): Promise<void> {
+  const job = JOBS.find((candidate) => candidate.name === name);
+  if (!job) throw new Error(`Unknown job: ${name}`);
+  await runJob(job);
+}

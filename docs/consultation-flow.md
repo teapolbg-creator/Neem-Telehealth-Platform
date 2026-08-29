@@ -51,7 +51,7 @@ mark dispensed                                     patient leaves feedback
 | `PENDING_PAYMENT` | Consultation created; payment window open (default 300s) |
 | `PAYMENT_PROCESSING` | Payment initiated with the provider; awaiting confirmation |
 | `PAID` | Payment verified **server-side**. Never entered on a client claim |
-| `ACTIVATED` | Access token and QR issued; awaiting patient |
+| `ACTIVATED` | Paid and ready; the pharmacy may now issue the QR. The token is minted when the QR is requested, because only a hash is stored and the code can be rendered exactly once |
 | `WAITING_FOR_PATIENT` | Token issued, not yet consumed |
 | `PATIENT_JOINED` | Token consumed, identity captured, language and mode chosen |
 | `WAITING_FOR_DOCTOR` | In the allocation queue |
@@ -74,7 +74,7 @@ PENDING_PAYMENT      → PAYMENT_PROCESSING | EXPIRED | CANCELLED
 PAYMENT_PROCESSING   → PAID | PAYMENT_FAILED | EXPIRED
 PAYMENT_FAILED       → PAYMENT_PROCESSING (retry) | EXPIRED | CANCELLED
 PAID                 → ACTIVATED
-ACTIVATED            → WAITING_FOR_PATIENT
+ACTIVATED            → WAITING_FOR_PATIENT | CANCELLED | EXPIRED | REFUND_REQUESTED
 WAITING_FOR_PATIENT  → PATIENT_JOINED | EXPIRED | CANCELLED | REFUND_REQUESTED
 PATIENT_JOINED       → WAITING_FOR_DOCTOR | CANCELLED | REFUND_REQUESTED
 WAITING_FOR_DOCTOR   → ASSIGNED | CANCELLED | REFUND_REQUESTED | ABANDONED
@@ -83,7 +83,9 @@ REASSIGNING          → ASSIGNED | WAITING_FOR_DOCTOR | CANCELLED
 DOCTOR_ACCEPTED      → IN_PROGRESS | REASSIGNING | ABANDONED
 IN_PROGRESS          → COMPLETING | ABANDONED
 COMPLETING           → COMPLETED
-REFUND_REQUESTED     → REFUNDED | (returns to prior state on admin rejection)
+REFUND_REQUESTED     → REFUNDED | ACTIVATED | WAITING_FOR_PATIENT | PATIENT_JOINED
+                       | WAITING_FOR_DOCTOR | COMPLETED
+                       (returns to its prior state when an admin rejects)
 COMPLETED            → (terminal)
 EXPIRED / CANCELLED / REFUNDED / ABANDONED → (terminal)
 ```

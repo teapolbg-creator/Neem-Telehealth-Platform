@@ -3,6 +3,7 @@ import { buildApp } from './app.ts';
 import { getEnv } from './config/env.ts';
 import { getLogger } from './lib/logger.ts';
 import { disconnectPrisma } from './db/prisma.ts';
+import { startScheduler, stopScheduler } from './jobs/scheduler.ts';
 
 /**
  * Process entry point.
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     log.info({ signal }, 'shutting down');
     try {
+      stopScheduler();
       await app.close();
       await disconnectPrisma();
       process.exit(0);
@@ -42,6 +44,8 @@ async function main(): Promise<void> {
     log.fatal({ err: reason }, 'unhandled rejection');
     process.exit(1);
   });
+
+  startScheduler();
 
   await app.listen({ port: env.API_PORT, host: '0.0.0.0' });
   log.info(

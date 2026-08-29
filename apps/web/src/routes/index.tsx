@@ -15,11 +15,12 @@ const apps = [
     tone: "brand" as const,
   },
   {
-    to: "/patient/$sessionId",
-    params: { sessionId: "NM-99281" },
+    // No link: the patient portal is unreachable without a one-time code from
+    // a pharmacy. Offering a way in from a public page would contradict that.
+    to: null,
     icon: User,
     title: "Patient Consultation Portal",
-    desc: "QR-launched, browser-based, no account. Session-only, privacy-first experience.",
+    desc: "Opened by scanning the one-time code a pharmacy provides. No account, no download, session-only.",
     tone: "medical" as const,
   },
   {
@@ -67,12 +68,9 @@ function Landing() {
       <section className="max-w-6xl mx-auto px-6 pb-24 grid grid-cols-1 md:grid-cols-2 gap-5">
         {apps.map((app) => {
           const Icon = app.icon;
-          return (
-            <a
-              key={app.to}
-              href={app.to === "/patient/$sessionId" ? "/patient/NM-99281" : app.to}
-              className="group card-soft p-8 hover:-translate-y-0.5 hover:shadow-lg transition-all"
-            >
+
+          const body = (
+            <>
               <div className="flex items-start justify-between mb-6">
                 <div
                   className={`size-14 rounded-2xl grid place-items-center ${
@@ -81,11 +79,28 @@ function Landing() {
                 >
                   <Icon className="size-6" />
                 </div>
-                <ArrowRight className="size-5 text-slate-300 group-hover:text-brand group-hover:translate-x-1 transition-all" />
+                {app.to && (
+                  <ArrowRight className="size-5 text-slate-300 group-hover:text-brand group-hover:translate-x-1 transition-all" />
+                )}
               </div>
               <h2 className="text-xl font-bold mb-2">{app.title}</h2>
               <p className="text-sm text-slate-500 leading-relaxed">{app.desc}</p>
+            </>
+          );
+
+          // The patient portal has no entry point here by design.
+          return app.to ? (
+            <a
+              key={app.title}
+              href={app.to}
+              className="group card-soft p-8 hover:-translate-y-0.5 hover:shadow-lg transition-all"
+            >
+              {body}
             </a>
+          ) : (
+            <div key={app.title} className="card-soft p-8">
+              {body}
+            </div>
           );
         })}
       </section>

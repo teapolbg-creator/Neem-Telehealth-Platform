@@ -3,3 +3,4 @@ export * from './common.ts';
 export * from './auth.ts';
 export * from './permissions.ts';
 export * from './onboarding.ts';
+export * from './consultation.ts';

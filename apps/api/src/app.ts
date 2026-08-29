@@ -13,6 +13,9 @@ import { authRoutes } from './modules/auth/auth.routes.ts';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes.ts';
 import { doctorRoutes } from './modules/doctor/doctor.routes.ts';
 import { adminRoutes } from './modules/admin/admin.routes.ts';
+import { patientRoutes } from './modules/consultation/patient.routes.ts';
+import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
+import { webhookRoutes } from './modules/payment/webhook.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 
 /**
@@ -87,6 +90,17 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(onboardingRoutes);
       await api.register(doctorRoutes);
       await api.register(adminRoutes);
+      await api.register(patientRoutes);
+      await api.register(pharmacyConsultationRoutes);
+    },
+    { prefix: '/api/v1' },
+  );
+
+  // Webhooks live in their own scope: they need the raw body for signature
+  // verification, which must not affect JSON parsing for every other route.
+  await app.register(
+    async (hooks) => {
+      await hooks.register(webhookRoutes);
     },
     { prefix: '/api/v1' },
   );
