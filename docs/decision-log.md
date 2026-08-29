@@ -141,6 +141,15 @@ Status is **Proposed** until you approve Phase 0.
 
 ---
 
+### D17 — npm workspaces instead of bun · 2026-08-29 · **DECIDED (Category C)**
+
+**Issue.** The project shipped with `bun.lock` and `bunfig.toml`; bun is not installed on the development machine, and Node.js 22+ with npm is (decision D16).
+**Selected.** npm workspaces with `package-lock.json`. `bun.lock` and `bunfig.toml` removed.
+**Rationale.** Requiring a second package manager to run the project adds a setup step for no gain, and the Prisma and Playwright toolchains are best-supported on npm.
+**Consequences — worth stating plainly.** `bunfig.toml` carried a supply-chain guard (`minimumReleaseAge = 86400`) that skipped any package version published in the previous 24 hours. **npm has no equivalent, so that protection is gone.** Mitigations: `package-lock.json` pins exact resolved versions, and new dependencies are reviewed rather than added casually. Restoring the guard is a reason to reconsider bun later.
+
+---
+
 ## Open items carried into Phase 1
 
 | Ref | Item | Blocking |
