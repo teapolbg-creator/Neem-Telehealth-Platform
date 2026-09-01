@@ -52,15 +52,31 @@ Doctor presence and availability · eligibility filter with language as a hard g
 
 ---
 
-## Phase 5.5 — Retention rebuild *(new; created by decision D23)*
+## Phase 5.5 — Retention rebuild ✅ built 2026-09-01, except break-glass
 
 The G7 answer reversed the deletion model, so this lands before the clinical workflow that depends on it.
 
-Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · **reference-scoped** break-glass access with two-person authorisation and an append-only `clinical_record_access_log` · scheduled destruction job · the consultation reference surfaced to the patient at completion · patient-facing notice stating the lawful basis, replacing the deletion promise.
+Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · scheduled destruction job · the consultation reference surfaced to the patient at completion · patient-facing notice replacing the deletion promise · ~~reference-scoped break-glass access~~ **deferred pending counsel on G7c**.
 
 **No patient index and no profile** (D24). Records are located by consultation reference, so subject access is serviced by reference rather than by a person-scoped search. That is smaller than first scoped.
 
-**Exit:** clinical data survives completion, **no authenticated role can read it through any route**, break-glass is reference-scoped and audited, and a record whose period has elapsed is provably gone.
+**Exit — met, with one part deliberately unbuilt.**
+
+Done: clinical records survive the end of a consultation; sealing happens
+inside `transition()` on any terminal state so no completion path can forget
+it; vitals and point-of-care results are encrypted where they were plaintext;
+`readClinicalRecord` refuses a sealed record and an integration test greps
+`src/` to prove no other module can route around it; destruction runs hourly
+and is a real DELETE with provable counts; the encryption key can be rotated
+without a flag day; and the patient is given their consultation reference at
+completion.
+
+**Not done, deliberately: break-glass access.** The `clinical_record_access_log`
+table exists so that adding it is routes-only, but no route writes to it and
+nothing can open a sealed record. Held pending counsel on G7c — whether a
+sealed archive counts as complying when continuity of care is declined. If the
+answer is no, the read path changes shape, and building it twice would be
+worse than waiting. Until then the correct contents of that table is zero rows.
 
 ---
 

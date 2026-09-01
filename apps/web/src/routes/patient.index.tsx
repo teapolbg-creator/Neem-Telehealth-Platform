@@ -77,7 +77,7 @@ function PatientPortal() {
       {session.step === "MODE" && <ModeStep />}
       {session.step === "WAITING" && <WaitingStep session={session} />}
       {session.step === "IN_CONSULTATION" && <InConsultationStep session={session} />}
-      {session.step === "COMPLETE" && <CompleteStep />}
+      {session.step === "COMPLETE" && <CompleteStep session={session} />}
       {session.step === "CLOSED" && <ClosedStep session={session} />}
     </PhoneFrame>
   );
@@ -505,7 +505,7 @@ function AwaitingCallStep({ doctorName }: { doctorName: string }) {
   );
 }
 
-function CompleteStep() {
+function CompleteStep({ session }: { session: PatientSessionView }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
       <div className="grid size-20 place-items-center rounded-full bg-brand/10">
@@ -515,6 +515,31 @@ function CompleteStep() {
       <p className="mt-3 max-w-xs text-pretty text-slate-500">
         Please return to the pharmacist. Get well soon.
       </p>
+
+      {/*
+        The consultation reference (decision D24).
+
+        This is the patient's only route back to their own record: Neem keeps
+        no patient profile, so nothing can be found by name or phone number.
+        It works like a shop receipt — you need no account to buy something,
+        and the receipt is how the purchase is found again.
+
+        Prominent rather than tucked away, because a patient who loses it has
+        no other way to identify their record.
+      */}
+      <div className="mt-8 w-full max-w-xs rounded-2xl border border-border bg-slate-50 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Your consultation reference
+        </p>
+        <p className="mt-1.5 select-all break-all font-mono text-sm font-bold text-slate-900">
+          {session.consultationPublicId}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          Keep this. It is printed on any prescription you receive, and it is how your record is
+          found if you ever need it.
+        </p>
+      </div>
+
       {/*
         This said "your details and everything discussed have been deleted"
         until decision D23. That is no longer true and must not be shown: a

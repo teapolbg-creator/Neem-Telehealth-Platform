@@ -60,6 +60,15 @@ const envSchema = z
     SESSION_SECRET: secret('SESSION_SECRET'),
     CSRF_SECRET: secret('CSRF_SECRET'),
     ENCRYPTION_KEY: secret('ENCRYPTION_KEY'),
+    /**
+     * Retired keys, comma-separated. Decrypt-only — never used to encrypt.
+     *
+     * Clinical records are held for years (D23), so the key that wrote them
+     * will outlive its own sensible lifetime. This lets a rotation happen
+     * without a flag day: the new key encrypts, the old one still decrypts,
+     * and re-encryption proceeds at leisure. See src/lib/crypto.ts.
+     */
+    ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
 
     SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(1).default(30),
     SESSION_ABSOLUTE_TIMEOUT_HOURS: z.coerce.number().int().min(1).default(12),

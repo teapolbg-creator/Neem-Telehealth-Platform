@@ -10,6 +10,7 @@ import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { acceptOffer, offerNextDoctor, processWaitingQueue } from './allocation.service.ts';
 import { getPresence, goOffline, goOnline, heartbeat } from './presence.service.ts';
 import { readPatientPanel } from '../consultation/patient-session.service.ts';
+import { readClinicalRecord } from '../retention/clinical-record.service.ts';
 
 /**
  * Doctor queue routes (spec §24, §30).
@@ -182,8 +183,6 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
         include: {
           pharmacy: { select: { name: true, city: true } },
           language: { select: { code: true, label: true } },
-          vitals: { orderBy: { recordedAt: 'desc' } },
-          tests: { orderBy: { recordedAt: 'desc' } },
         },
       });
 
@@ -195,6 +194,14 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
 
       const patient = await readPatientPanel(consultation.id);
 
+      /**
+       * Clinical data comes through the guarded service, never from a join
+       * (decision D23). Once the consultation reaches a terminal state the
+       * record is sealed and this refuses — which is what stops a doctor
+       * re-opening a finished consultation and reading it again.
+       */
+      const clinical = await readClinicalRecord(consultation.id);
+
       return reply.send({
         data: {
           publicId: consultation.publicId,
@@ -203,13 +210,8 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           language: consultation.language,
           pharmacy: consultation.pharmacy,
           patient,
-          vitals: consultation.vitals[0] ?? null,
-          tests: consultation.tests.map((test) => ({
-            code: test.testCode,
-            label: test.testLabel,
-            result: test.resultText,
-            recordedAt: test.recordedAt.toISOString(),
-          })),
+          vitals: clinical.vitals,
+          tests: clinical.tests,
           startedAt: consultation.startedAt?.toISOString() ?? null,
           durationSeconds: await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS),
         },

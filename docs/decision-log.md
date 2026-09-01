@@ -292,3 +292,19 @@ Permanence and a verification page follow from use: a patient may present this a
 3. **It is not called a medical report.** In Ghana that phrase is used for employment, insurance and court purposes; naming it so invites it being presented as something it is not. It is a *consultation summary*. For the same reason it documents what the doctor found and advised — it does not justify the fee.
 
 **Consequences.** A new document type alongside prescriptions and referrals in Phase 6: model, doctor-facing composer, PDF, verification page. Its clinical text is permanent and patient-held, which is a deliberate change from D14 — sitting in the same category as referral `reasonText`, which D14 already accepted as a legitimate permanent carry-forward because a doctor deliberately issues it as a document.
+
+---
+
+### D26 — Encryption keys rotate by trying each, not by versioning ciphertext · 2026-09-01 · **DECIDED (Category C)**
+
+**Issue.** D23 made clinical records live for years, so the key that encrypted them will outlive its own sensible lifetime. There was one `ENCRYPTION_KEY` and no rotation path at all: changing it would have made every stored field permanently unreadable.
+
+**Options.** (A) Version the ciphertext with a key id and look up the key by id. (B) Keep a decrypt-only list of retired keys and try each in turn.
+
+**Selected.** B. `ENCRYPTION_KEY` encrypts; `ENCRYPTION_KEY_PREVIOUS` is a comma-separated list that only ever decrypts.
+
+**Rationale.** AES-GCM authenticates, so a wrong key throws rather than returning plausible rubbish — which is what makes trying keys in turn safe rather than reckless. Option A stores a key id beside every field and needs a registry to resolve it; B needs neither, and the cost is one extra decrypt attempt per retired key on the rare field written before the last rotation. The current key is tried first, so the common path is unchanged.
+
+The property that matters is that rotation needs **no flag day**: move the old key to the retired list, put a new one in place, restart. Everything written from then on uses the new key and everything already written still decrypts. Re-encryption proceeds at leisure.
+
+**Consequences.** The retired key must stay in the list until re-encryption finishes — dropping it early is indistinguishable from losing the data, and the error message says exactly that. A re-encryption job is not built; it is not needed until a first rotation is actually performed, and writing it before the operational procedure exists would be guesswork. Rotation is covered by unit tests across three key generations, because an untested rotation path is a data-loss incident waiting to happen.

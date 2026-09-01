@@ -10,6 +10,7 @@ import {
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 import { emitTimerWarnings } from '../modules/media/media.service.ts';
+import { purgeExpiredClinicalRecords } from '../modules/retention/clinical-record.service.ts';
 
 /**
  * Scheduled work (docs/architecture.md §6).
@@ -86,6 +87,15 @@ const JOBS: JobDefinition[] = [
     intervalMs: 60 * MINUTE,
     run: async () => (await recomputeQualityScores()).scored,
     describe: (count) => `recomputed ${count} doctor quality score(s)`,
+  },
+  {
+    // Lawful destruction of clinical records whose retention period has
+    // elapsed (decision D23). Hourly is ample for a boundary measured in
+    // years, and keeps the sweep small.
+    name: 'purge-expired-clinical-records',
+    intervalMs: 60 * MINUTE,
+    run: purgeExpiredClinicalRecords,
+    describe: (count) => `destroyed ${count} clinical record(s) past their retention period`,
   },
   {
     name: 'purge-expired-sessions',

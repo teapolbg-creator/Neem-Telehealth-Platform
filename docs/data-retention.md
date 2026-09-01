@@ -100,6 +100,8 @@ What this design removes is the **feature**: no product surface indexes by patie
 
 ## 4. Break-glass access
 
+> **NOT BUILT — deferred pending counsel on G7c.** The `clinical_record_access_log` table exists so that adding this is routes-only rather than a migration, but no route writes to it and **nothing can open a sealed record today**. If counsel says a sealed archive does not count as complying when continuity of care is declined, the read path changes shape, and building it twice would be worse than waiting. Until then the correct contents of that table is zero rows. The design below is what will be built.
+
 The only path to a retained clinical record. **Scoped to one consultation reference at a time** — there is no "show me everything about this patient" path, by design (D24).
 
 **Permitted purposes, and no others:**
@@ -118,6 +120,16 @@ The only path to a retained clinical record. **Scoped to one consultation refere
 ---
 
 ## 5. Mechanism
+
+**Built in Phase 5.5**, except break-glass (§4), which awaits counsel on G7c.
+
+Sealing happens inside `transition()` whenever a consultation moves from a
+non-terminal state to a terminal one — completion, cancellation, expiry,
+abandonment, refund. Putting it there rather than in the completion handler
+means the next path added cannot forget it, and an unsealed record is one a
+doctor can still read. It is idempotent: a record already sealed keeps its
+original destruction date, because re-sealing would silently extend how long
+patient data is held.
 
 Completion no longer purges clinical data. It **schedules** its destruction:
 
@@ -156,6 +168,20 @@ The spec §101 critical test changes shape. It is no longer "clinical data prese
 1. After completion, clinical data **still exists** and is encrypted.
 2. After completion, **no authenticated role can read it** through any route — doctor, pharmacy, admin, or patient. This is the assertion that now carries the privacy guarantee.
 3. After the retention period elapses and the job runs, the rows are **gone**.
+
+---
+
+## 6a. Where the rule is enforced
+
+`src/modules/retention/clinical-record.service.ts` is the only module
+permitted to touch `consultation_clinical_notes`, `consultation_vitals` and
+`consultation_tests`. Every read goes through `readClinicalRecord`, which
+refuses once the record is sealed.
+
+An integration test greps the rest of `src/` for direct access to those
+tables and fails if it finds any. A guard that any module can route around is
+not a guard, and the alternative — relying on everyone remembering — is how
+this kind of rule quietly stops holding.
 
 ---
 

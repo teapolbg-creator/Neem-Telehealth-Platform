@@ -118,19 +118,52 @@ export function generateVerificationCode(): string {
 
 const ENCRYPTION_VERSION = 'v1';
 
+/**
+ * Key rotation (decision D23).
+ *
+ * Clinical records are now held for years, so the key that encrypted them will
+ * outlive its own sensible lifetime. Rotation has to be possible without a
+ * flag day where every ciphertext must be rewritten before anything can start.
+ *
+ * The scheme: `ENCRYPTION_KEY` encrypts, and `ENCRYPTION_KEY_PREVIOUS` — a
+ * comma-separated list of retired keys — only ever decrypts. To rotate:
+ *
+ *   1. Move the current `ENCRYPTION_KEY` into `ENCRYPTION_KEY_PREVIOUS`.
+ *   2. Put the new key in `ENCRYPTION_KEY` and restart.
+ *      Everything written from now on uses the new key; everything already
+ *      written still decrypts. There is no outage and no migration window.
+ *   3. Re-encrypt at leisure, then drop the retired key from the list. Until
+ *      that is finished, the old key is still needed — removing it early is
+ *      indistinguishable from losing the data.
+ *
+ * Keys are hashed to 32 bytes so an operator need not supply exactly 32 raw
+ * bytes, which is a footgun when someone pastes a 31-character secret.
+ */
 function encryptionKey(): Buffer {
-  const raw = getEnv().ENCRYPTION_KEY;
-  // Derive a fixed 32-byte key from the configured secret so operators are not
-  // required to supply exactly 32 raw bytes.
-  return createHash('sha256').update(raw).digest();
+  return createHash('sha256').update(getEnv().ENCRYPTION_KEY).digest();
+}
+
+function decryptionKeys(): Buffer[] {
+  const retired = (getEnv().ENCRYPTION_KEY_PREVIOUS ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .map((key) => createHash('sha256').update(key).digest());
+
+  // Current key first: almost every field was written with it, so the common
+  // path costs one attempt.
+  return [encryptionKey(), ...retired];
 }
 
 /**
- * Encrypts a sensitive field at rest: patient name and phone, doctor
- * signatures, pharmacy payout details, TOTP secrets (docs/security.md §5).
+ * Encrypts a sensitive field at rest: patient name and phone, clinical notes,
+ * vitals, doctor signatures, pharmacy payout details, TOTP secrets
+ * (docs/security.md §5).
  *
  * Output: `v1.<iv>.<authTag>.<ciphertext>`, all base64url. The version prefix
- * makes key rotation and algorithm change possible without ambiguity.
+ * makes an algorithm change possible without ambiguity; key rotation is
+ * handled by trying each configured key rather than by versioning, so that a
+ * rotation needs no rewrite of stored data.
  */
 export function encryptField(plaintext: string): string {
   const iv = randomBytes(12);
@@ -153,17 +186,28 @@ export function decryptField(payload: string): string {
     throw new Error('Encrypted field is malformed or uses an unsupported version');
   }
 
-  const decipher = createDecipheriv(
-    'aes-256-gcm',
-    encryptionKey(),
-    Buffer.from(ivPart, 'base64url'),
-  );
-  decipher.setAuthTag(Buffer.from(tagPart, 'base64url'));
+  const iv = Buffer.from(ivPart, 'base64url');
+  const authTag = Buffer.from(tagPart, 'base64url');
+  const data = Buffer.from(dataPart, 'base64url');
 
-  return Buffer.concat([
-    decipher.update(Buffer.from(dataPart, 'base64url')),
-    decipher.final(),
-  ]).toString('utf8');
+  for (const key of decryptionKeys()) {
+    try {
+      const decipher = createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(authTag);
+
+      return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+    } catch {
+      // GCM authentication failed: this key did not write this field. Try the
+      // next. A wrong key is indistinguishable from tampering, which is the
+      // property that makes this safe to iterate.
+    }
+  }
+
+  throw new Error(
+    'Encrypted field could not be decrypted with any configured key. If the encryption key ' +
+      'was rotated, the retired key must stay in ENCRYPTION_KEY_PREVIOUS until every field ' +
+      'has been re-encrypted.',
+  );
 }
 
 /** Convenience for nullable columns. */

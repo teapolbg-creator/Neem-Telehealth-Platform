@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   decryptField,
   decryptNullable,
@@ -12,6 +12,7 @@ import {
   safeEqual,
   verifyPassword,
 } from '../../src/lib/crypto.ts';
+import { loadEnv, setEnvForTesting } from '../../src/config/env.ts';
 
 describe('password hashing', () => {
   it('verifies a correct password', async () => {
@@ -148,5 +149,89 @@ describe('field encryption', () => {
     expect(encryptNullable(undefined)).toBeNull();
     expect(encryptNullable('')).toBeNull();
     expect(decryptNullable(null)).toBeNull();
+  });
+});
+
+/**
+ * Key rotation (decision D23).
+ *
+ * Clinical records are now held for years, so the key that wrote them will
+ * outlive its own sensible lifetime. Rotation must be possible without a flag
+ * day, and an untested rotation path is a data-loss incident waiting to
+ * happen.
+ */
+describe('encryption key rotation', () => {
+  const OLD_KEY = 'the-retired-encryption-key-value-00000001';
+  const NEW_KEY = 'the-current-encryption-key-value-00000001';
+
+  function useKeys(current: string, previous?: string): void {
+    setEnvForTesting(
+      loadEnv({
+        ...process.env,
+        ENCRYPTION_KEY: current,
+        ...(previous ? { ENCRYPTION_KEY_PREVIOUS: previous } : {}),
+      }),
+    );
+  }
+
+  afterEach(() => setEnvForTesting(undefined));
+
+  it('still reads a field written by a retired key', () => {
+    useKeys(OLD_KEY);
+    const written = encryptField('Fever for three days.');
+
+    // Rotate: the old key moves to the retired list, a new key takes over.
+    useKeys(NEW_KEY, OLD_KEY);
+
+    expect(decryptField(written)).toBe('Fever for three days.');
+  });
+
+  it('writes new fields with the current key only', () => {
+    useKeys(NEW_KEY, OLD_KEY);
+    const written = encryptField('written after rotation');
+
+    // Drop the retired key, as an operator does once re-encryption finishes.
+    useKeys(NEW_KEY);
+
+    expect(decryptField(written)).toBe('written after rotation');
+  });
+
+  it('reads through several rotations, so a key can be retired each year', () => {
+    useKeys('key-one-value-000000000000000000000000001');
+    const first = encryptField('oldest');
+
+    useKeys('key-two-value-000000000000000000000000001', 'key-one-value-000000000000000000000000001');
+    const second = encryptField('middle');
+
+    useKeys(
+      'key-three-value-00000000000000000000000001',
+      'key-two-value-000000000000000000000000001,key-one-value-000000000000000000000000001',
+    );
+
+    expect(decryptField(first)).toBe('oldest');
+    expect(decryptField(second)).toBe('middle');
+    expect(decryptField(encryptField('newest'))).toBe('newest');
+  });
+
+  it('fails loudly when the key that wrote a field is gone', () => {
+    useKeys(OLD_KEY);
+    const written = encryptField('unreachable once the key is dropped');
+
+    // The retired key was removed before re-encryption finished — the mistake
+    // this message exists to name.
+    useKeys(NEW_KEY);
+
+    expect(() => decryptField(written)).toThrow(/ENCRYPTION_KEY_PREVIOUS/);
+  });
+
+  it('does not treat a wrong key as a successful decryption', () => {
+    useKeys(OLD_KEY);
+    const written = encryptField('authentic');
+
+    useKeys(NEW_KEY);
+
+    // GCM authentication is what makes trying each key in turn safe: a wrong
+    // key throws rather than returning plausible rubbish.
+    expect(() => decryptField(written)).toThrow();
   });
 });

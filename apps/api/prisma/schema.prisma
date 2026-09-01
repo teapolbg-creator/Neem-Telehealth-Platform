@@ -788,6 +788,11 @@ model Consultation {
   startedAt         DateTime?
   completedAt       DateTime?
   durationSeconds   Int?
+  /// When the clinical record was sealed (decision D23). Set on the first
+  /// terminal transition. While null, the record is live and the treating
+  /// doctor may read it; once set, no product surface reads it at all and it
+  /// awaits destruction at retention_jobs.scheduledFor.
+  clinicalSealedAt  DateTime?
 
   outcome            ConsultationOutcome?
   hasPrescription    Boolean              @default(false)
@@ -819,6 +824,7 @@ model Consultation {
   feedback       Feedback?
   complaints     Complaint[]
   retentionJobs  RetentionJob[]
+  clinicalAccessLog ClinicalRecordAccessLog[]
   promotionRedemption PromotionRedemption?
 
   @@index([pharmacyId, createdAt])
@@ -914,12 +920,18 @@ model ConsultationClinicalNotes {
 model ConsultationVitals {
   id               String   @id @default(uuid(7))
   consultationId   String
-  bpSystolic       Int?
-  bpDiastolic      Int?
-  pulseBpm         Int?
-  temperatureC     Decimal? @db.Decimal(4, 1)
-  weightKg         Decimal? @db.Decimal(5, 2)
-  spo2Percent      Int?
+  /// All readings as one encrypted JSON object (D23).
+  ///
+  /// One column rather than six because vitals are a single clinical
+  /// observation: recorded together, read together, and never queried
+  /// individually. Retained records are not an analytics source
+  /// (docs/data-retention.md §9), so storing them unqueryable is the point
+  /// rather than a cost. Shape: { bpSystolic, bpDiastolic, pulseBpm,
+  /// temperatureC, weightKg, spo2Percent } — see contracts/consultation.ts.
+  ///
+  /// These were plaintext, which was defensible when the row lived for
+  /// minutes and is not over a multi-year retention period.
+  readingsEnc      String   @db.Text
   recordedByUserId String
   recordedAt       DateTime @default(now())
 
@@ -935,7 +947,10 @@ model ConsultationTest {
   consultationId   String
   testCode         String   @db.VarChar(60)
   testLabel        String   @db.VarChar(160)
-  resultText       String   @db.VarChar(500)
+  /// The finding, encrypted (D23). The code and label stay legible because
+  /// which test a pharmacy performed is an operational record — it is what
+  /// they did and may be billed for. The result is the clinical content.
+  resultEnc        String   @db.Text
   recordedByUserId String
   recordedAt       DateTime @default(now())
 
@@ -1505,6 +1520,42 @@ model RetentionJob {
 
   @@index([status, scheduledFor])
   @@map("retention_jobs")
+}
+
+/// Every occasion a sealed clinical record was opened (decision D23).
+///
+/// Append-only, and never purged — it outlives the records it describes,
+/// because "who looked at this and why" is the question a regulator asks after
+/// the record itself is lawfully gone.
+///
+/// **No route writes to this yet.** Break-glass access is deliberately unbuilt
+/// pending counsel's answer on G7c (whether a sealed archive counts as
+/// complying when continuity of care is declined). The table is shaped now so
+/// that adding it later is routes only, not a migration. Until then the
+/// clinical record service refuses every read of a sealed record, so the
+/// correct contents of this table is zero rows.
+model ClinicalRecordAccessLog {
+  id             String   @id @default(uuid(7))
+  /// The consultation reference quoted to locate the record (D24). Retrieval
+  /// is never by patient — there is no index to search.
+  consultationId String
+  /// Which administrator opened it, and who authorised them. Two people are
+  /// required; one admin cannot unseal a record alone.
+  actorUserId    String
+  authorisedByUserId String
+  /// Why, from the closed list in docs/data-retention.md §4, plus the case or
+  /// inquiry reference. Recorded before access, not after.
+  purpose        String   @db.VarChar(60)
+  reference      String   @db.VarChar(200)
+  /// What was actually reached, so the scope of a disclosure is provable.
+  recordsAccessed Json
+  accessedAt     DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+
+  @@index([consultationId])
+  @@index([accessedAt])
+  @@map("clinical_record_access_log")
 }
 
 // =============================================================================

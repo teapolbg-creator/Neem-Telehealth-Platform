@@ -83,6 +83,11 @@ export const AUDIT_ACTIONS = {
   SETTING_CHANGED: 'settings.changed',
   SENSITIVE_RECORD_ACCESSED: 'access.sensitive-record',
   RETENTION_PURGE_EXECUTED: 'retention.purge.executed',
+  // Decision D23. Both carry counts and dates only — an audit log that
+  // recorded what a clinical record said would become the medical history
+  // spec §13 forbids.
+  CLINICAL_RECORD_SEALED: 'retention.clinical-record.sealed',
+  CLINICAL_RECORD_DESTROYED: 'retention.clinical-record.destroyed',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

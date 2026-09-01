@@ -17,6 +17,7 @@ import {
 } from '../../domain/consultation-state.ts';
 import { pharmacyCanInitiateConsultations } from '../../domain/account-state.ts';
 import { releaseCapacity } from '../queue/presence.service.ts';
+import { sealClinicalRecord } from '../retention/clinical-record.service.ts';
 
 /**
  * Consultation lifecycle (spec §10, §16, §81).
@@ -122,6 +123,22 @@ export async function transition(
    */
   if (consultation.doctorId && !isTerminal(from) && isTerminal(to)) {
     await releaseCapacity(consultation.doctorId, db);
+  }
+
+  /**
+   * Seal the clinical record and schedule its destruction (decision D23).
+   *
+   * Here, for the same reason capacity is released here: a consultation can
+   * reach a terminal state down several paths — completion, cancellation,
+   * expiry, abandonment, refund — and every one of them must seal. Doing it at
+   * each call site means the next path added forgets, and a record left
+   * unsealed is one a doctor can still read.
+   *
+   * Idempotent, so a record already sealed keeps its original destruction
+   * date. Re-sealing would quietly extend how long patient data is held.
+   */
+  if (!isTerminal(from) && isTerminal(to)) {
+    await sealClinicalRecord(consultationId, db, clock);
   }
 
   return to;

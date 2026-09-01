@@ -48,6 +48,7 @@ export const SETTING_KEYS = {
   DOCTOR_MAX_CONCURRENT: 'doctor.maxConcurrentConsultations',
 
   RETENTION_BACKUP_WINDOW_DAYS: 'retention.backupWindowDays',
+  RETENTION_CLINICAL_RECORD_YEARS: 'retention.clinicalRecordYears',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -198,6 +199,19 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   { key: K.DOCTOR_MAX_CONCURRENT, value: 1, valueType: 'number', description: 'Maximum concurrent consultations per doctor.', category: 'workforce' },
 
   // --- Retention ----------------------------------------------------------
+  {
+    key: K.RETENTION_CLINICAL_RECORD_YEARS,
+    value: 3,
+    valueType: 'number',
+    description:
+      'Years a sealed clinical record is retained before destruction (decision D23). ' +
+      'Ghanaian record-keeping law does not permit deleting notes at completion; three ' +
+      'years matches the civil window for a negligence claim. Raising this holds patient ' +
+      'data longer; lowering it may destroy evidence a claim needs. Confirm with counsel ' +
+      'before changing (G7a).',
+    category: 'retention',
+    requiresConfirm: true,
+  },
   {
     key: K.RETENTION_BACKUP_WINDOW_DAYS,
     value: 30,
