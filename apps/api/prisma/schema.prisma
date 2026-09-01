@@ -1522,26 +1522,28 @@ model RetentionJob {
   @@map("retention_jobs")
 }
 
-/// Every occasion a sealed clinical record was opened (decision D23).
+/// Every retrieval of a sealed clinical record (decision D23, D27).
 ///
 /// Append-only, and never purged — it outlives the records it describes,
 /// because "who looked at this and why" is the question a regulator asks after
-/// the record itself is lawfully gone.
+/// the record itself is lawfully gone. Nothing in the application updates or
+/// deletes a row here.
 ///
-/// **No route writes to this yet.** Break-glass access is deliberately unbuilt
-/// pending counsel's answer on G7c (whether a sealed archive counts as
-/// complying when continuity of care is declined). The table is shaped now so
-/// that adding it later is routes only, not a migration. Until then the
-/// clinical record service refuses every read of a sealed record, so the
-/// correct contents of this table is zero rows.
+/// The fields are counsel's minimum list (D27): consultation, requester, their
+/// role, reason, when it started, who approved it, what was reached, and when
+/// access ended.
 model ClinicalRecordAccessLog {
   id             String   @id @default(uuid(7))
   /// The consultation reference quoted to locate the record (D24). Retrieval
   /// is never by patient — there is no index to search.
   consultationId String
-  /// Which administrator opened it, and who authorised them. Two people are
-  /// required; one admin cannot unseal a record alone.
+  /// Who opened it, and in what capacity. Role is recorded separately from the
+  /// user because an account's role can change afterwards, and the log must
+  /// say what they were at the time.
   actorUserId    String
+  actorRole      String   @db.VarChar(40)
+  /// Who authorised them. Two people are required; one administrator cannot
+  /// unseal a record alone.
   authorisedByUserId String
   /// Why, from the closed list in docs/data-retention.md §4, plus the case or
   /// inquiry reference. Recorded before access, not after.
@@ -1550,6 +1552,9 @@ model ClinicalRecordAccessLog {
   /// What was actually reached, so the scope of a disclosure is provable.
   recordsAccessed Json
   accessedAt     DateTime @default(now())
+  /// When the retrieval session ended. Null means it is still open — which is
+  /// itself worth seeing on an oversight screen.
+  accessEndedAt  DateTime?
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
 

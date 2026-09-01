@@ -86,7 +86,7 @@ So there is no patient profile and no patient index:
 - No doctor sees any consultation but the one in front of them. No route, query, or screen returns a patient's prior records to a clinician.
 - No pharmacy sees clinical data beyond the active consultation.
 - The audit log remains schema-restricted against clinical content, with a test enforcing it. It is not a back-door history, and that matters more now, not less.
-- Retained records are reachable only by an **audited, reference-scoped break-glass action** (§4).
+- Retained records are reachable only by an **audited, reference-scoped Archived Consultation Retrieval** (§4).
 
 **This works because of what Neem is.** It is an episodic point-of-care safety check, not longitudinal care: a patient about to buy medication gets a doctor's read on whether that is safe, and a push toward in-person care when it is not. Records exist so that one episode can be examined later — not so a future clinician can assemble a picture. Continuity of care is deliberately not the value proposition, so declining it costs nothing clinically.
 
@@ -98,22 +98,28 @@ What this design removes is the **feature**: no product surface indexes by patie
 
 ---
 
-## 4. Break-glass access
+## 4. Archived Consultation Retrieval
 
-> **NOT BUILT — deferred pending counsel on G7c.** The `clinical_record_access_log` table exists so that adding this is routes-only rather than a migration, but no route writes to it and **nothing can open a sealed record today**. If counsel says a sealed archive does not count as complying when continuity of care is declined, the read path changes shape, and building it twice would be worse than waiting. Until then the correct contents of that table is zero rows. The design below is what will be built.
+**Built 2026-09-01**, following counsel's answer on G7c (decision D27).
 
-The only path to a retained clinical record. **Scoped to one consultation reference at a time** — there is no "show me everything about this patient" path, by design (D24).
+Counsel was explicit that this must **not** be a conventional patient-history feature, and the name follows: *break-glass* implies a treating clinician reaching past a barrier in an emergency, which is exactly what this is not. This is controlled administrative retrieval of one archived encounter, by people who are not treating the patient.
 
-**Permitted purposes, and no others:**
-1. A Medical & Dental Council inquiry.
-2. A medical negligence claim or the credible threat of one.
-3. A patient's own subject-access request under the Data Protection Act, 2012 (Act 843) — serviced as "quote your reference and we will produce that record."
-4. A lawful order compelling production.
+**Scoped to one consultation reference at a time.** There is no "show me everything about this patient" path, because there is no patient to search by (D24).
+
+**Permitted purposes, and no others** — counsel's closed list:
+1. A legal or regulatory proceeding.
+2. A patient's own data-access request — serviced as "quote your reference and we will produce that record."
+3. An authorised clinical-record request where legitimately necessary.
+4. An approved quality or safety investigation.
+5. An authorised internal investigation or audit.
+
+**Research is deliberately absent.** Counsel permits an approved research purpose, preferably de-identified. It is not built and has no purpose code, because research over a sealed archive is the likeliest route by which this design quietly becomes the longitudinal history it exists to avoid — and it needs a lawful basis and consent mechanism that do not yet exist (G7d). When it comes, it will be a separate de-identifying aggregate export, not a purpose code bolted onto a mechanism that returns one identifiable patient's record. A test asserts no research code exists.
 
 **Controls:**
 - **The reference identifies; it does not authorise.** Quoting a consultation reference says *which* sealed record is meant. Opening it still requires everything below. Without this separation, a discarded prescription slip would be a key to someone's clinical record.
-- Two-person authorisation — a single admin cannot unseal a record alone.
-- A stated purpose and case reference, recorded before access, not after.
+- Two-person authorisation — a single admin cannot unseal a record alone, and **cannot authorise their own retrieval**. The authoriser must be a separate, active administrator.
+- A stated purpose and case reference, recorded before access, not after. If writing the log fails, the retrieval does not happen: an unlogged disclosure is worse than a refused one.
+- Only sealed records. A live consultation is the treating doctor's business, not an archivist's.
 - Every access written to `clinical_record_access_log` with actor, purpose, reference, and the exact records reached. That log is append-only and is itself never purged.
 - Access produces an export, not a browsable screen. There is deliberately no UI that renders clinical history.
 
@@ -121,7 +127,7 @@ The only path to a retained clinical record. **Scoped to one consultation refere
 
 ## 5. Mechanism
 
-**Built in Phase 5.5**, except break-glass (§4), which awaits counsel on G7c.
+**Built in Phase 5.5**, retrieval (§4) included following counsel on G7c.
 
 Sealing happens inside `transition()` whenever a consultation moves from a
 non-terminal state to a terminal one — completion, cancellation, expiry,

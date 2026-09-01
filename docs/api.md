@@ -242,3 +242,35 @@ read server-side and handed to the provider; the response carries only
 `callerIdShown`. Neither party's number appears in any payload either party can
 reach — including the doctor's own clinical panel, which omits the patient's
 number for exactly this reason (decision D19).
+
+
+---
+
+## 11. Archived Consultation Retrieval (spec §13, decisions D23, D24, D27)
+
+**Admin only. There is no other door**, and nothing here accepts a patient name
+or phone number.
+
+```
+POST /admin/archived-consultations/retrieve            one reference, one record
+POST /admin/archived-consultations/retrievals/:id/end  records when access ended
+GET  /admin/archived-consultations/retrievals          who opened what, and why
+GET  /admin/retention/health                           records overdue for destruction
+```
+
+`retrieve` requires a consultation reference, a purpose from the closed list, a
+case reference, and a **second active administrator** to authorise it — who may
+not be the caller. The access log entry is written before the record is
+returned; if that write fails, the retrieval does not happen.
+
+POST rather than GET, because this constitutes a disclosure. It is an action,
+not a lookup, and must never be something a browser performs by following a
+link or prefetching.
+
+**Deliberately absent:** any search, any list by patient, any endpoint
+returning more than one consultation, any doctor or pharmacy route, and any
+research purpose code (`data-retention.md` §4).
+
+The retrievals listing returns who opened what and why — **never what it
+said**. A screen rendering the records alongside would be the longitudinal
+history by another route.

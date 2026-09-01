@@ -18,8 +18,13 @@ import {
   recordVitals,
   sealClinicalRecord,
 } from '../../src/modules/retention/clinical-record.service.ts';
+import {
+  RETRIEVAL_PURPOSES,
+  endRetrieval,
+  retrieveArchivedConsultation,
+} from '../../src/modules/retention/archived-retrieval.service.ts';
 import { fixedClock } from '../../src/lib/clock.ts';
-import { generatePublicId } from '../../src/lib/crypto.ts';
+import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
 
 /**
  * Clinical record retention (decision D23, D24).
@@ -58,8 +63,24 @@ async function liveConsultation(): Promise<{ id: string; publicId: string; userI
   return { id: consultation.id, publicId, userId: user.id };
 }
 
-/** Puts a full clinical record on a live consultation. */
+/**
+ * Puts a full clinical record on a live consultation — identity included.
+ *
+ * Identity matters here: a sealed record that cannot be attributed to a patient
+ * discharges no record-keeping duty, so retrieval must return it and the access
+ * log must record that it was reached.
+ */
 async function writeRecord(consultationId: string, userId: string): Promise<void> {
+  await getPrisma().patientSession.create({
+    data: {
+      consultationId,
+      fullNameEnc: encryptField('Adwoa Mensah'),
+      age: 34,
+      sex: 'FEMALE',
+      phoneEnc: encryptField('0245551234'),
+    },
+  });
+
   await recordVitals(
     consultationId,
     { bpSystolic: 128, bpDiastolic: 84, pulseBpm: 92, temperatureC: 38.2, spo2Percent: 97 },
@@ -71,10 +92,7 @@ async function writeRecord(consultationId: string, userId: string): Promise<void
     userId,
   );
   await getPrisma().consultationClinicalNotes.create({
-    data: {
-      consultationId,
-      notesEnc: (await import('../../src/lib/crypto.ts')).encryptField('Fever for three days.'),
-    },
+    data: { consultationId, notesEnc: encryptField('Fever for three days.') },
   });
 }
 
@@ -403,5 +421,224 @@ describe('the clinical tables are reachable from one module only', () => {
       'Clinical data must be read through clinical-record.service.ts, which refuses ' +
         'once a record is sealed. A direct query bypasses that (decision D23).',
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Archived Consultation Retrieval (decision D27)
+// ---------------------------------------------------------------------------
+
+/**
+ * Counsel's instruction was to build controlled retrieval of one archived
+ * encounter — explicitly NOT a patient-history feature. Most of what follows
+ * asserts refusals, because the refusals are the design.
+ */
+describe('archived consultation retrieval', () => {
+  async function sealedConsultation() {
+    const consultation = await liveConsultation();
+    await writeRecord(consultation.id, consultation.userId);
+    await transition(consultation.id, 'EXPIRED', { actorType: 'SYSTEM', reason: 'test' });
+    return consultation;
+  }
+
+  async function twoAdmins() {
+    const actor = await createTestUser({
+      email: `retriever.${generatePublicId('x').slice(-8)}@neem.test`,
+      password: 'AdminPassword123!',
+      role: 'ADMIN',
+    });
+    const authoriser = await createTestUser({
+      email: `authoriser.${generatePublicId('x').slice(-8)}@neem.test`,
+      password: 'AdminPassword123!',
+      role: 'ADMIN',
+    });
+    return { actor, authoriser };
+  }
+
+  it('returns the sealed record when two administrators and a reason are supplied', async () => {
+    const consultation = await sealedConsultation();
+    const { actor, authoriser } = await twoAdmins();
+
+    const record = await retrieveArchivedConsultation({
+      consultationPublicId: consultation.publicId,
+      purpose: 'LEGAL_OR_REGULATORY_PROCEEDING',
+      reference: 'MDC/2029/0117',
+      actor: { userId: actor.id, role: 'ADMIN' },
+      authorisedByUserId: authoriser.id,
+    });
+
+    expect(record.clinical.notes).toBe('Fever for three days.');
+    expect(record.clinical.vitals).toMatchObject({ bpSystolic: 128 });
+    expect(record.clinical.tests[0]).toMatchObject({ result: 'Positive' });
+    expect(record.patient?.fullName).toBeTruthy();
+    // The operational context comes with it, so the encounter is intelligible.
+    expect(record.encounter.pharmacyName).toBeTruthy();
+  });
+
+  it('writes an access log entry carrying everything counsel requires', async () => {
+    const consultation = await sealedConsultation();
+    const { actor, authoriser } = await twoAdmins();
+
+    const record = await retrieveArchivedConsultation({
+      consultationPublicId: consultation.publicId,
+      purpose: 'PATIENT_DATA_ACCESS_REQUEST',
+      reference: 'SAR-2029-004',
+      actor: { userId: actor.id, role: 'ADMIN' },
+      authorisedByUserId: authoriser.id,
+    });
+
+    const entry = await getPrisma().clinicalRecordAccessLog.findUniqueOrThrow({
+      where: { id: record.accessLogId },
+    });
+
+    expect(entry.actorUserId).toBe(actor.id);
+    expect(entry.actorRole).toBe('ADMIN');
+    expect(entry.authorisedByUserId).toBe(authoriser.id);
+    expect(entry.purpose).toBe('PATIENT_DATA_ACCESS_REQUEST');
+    expect(entry.reference).toBe('SAR-2029-004');
+    expect(entry.recordsAccessed).toEqual(
+      expect.arrayContaining(['clinical_notes', 'vitals', 'tests', 'patient_identity']),
+    );
+    // Open until explicitly closed, which is itself visible on oversight.
+    expect(entry.accessEndedAt).toBeNull();
+
+    await endRetrieval(record.accessLogId);
+    const closed = await getPrisma().clinicalRecordAccessLog.findUniqueOrThrow({
+      where: { id: record.accessLogId },
+    });
+    expect(closed.accessEndedAt).not.toBeNull();
+  });
+
+  it('refuses when one administrator authorises their own retrieval', async () => {
+    const consultation = await sealedConsultation();
+    const { actor } = await twoAdmins();
+
+    // A single person wearing two hats defeats the control entirely.
+    await expect(
+      retrieveArchivedConsultation({
+        consultationPublicId: consultation.publicId,
+        purpose: 'INTERNAL_INVESTIGATION_OR_AUDIT',
+        reference: 'INT-1',
+        actor: { userId: actor.id, role: 'ADMIN' },
+        authorisedByUserId: actor.id,
+      }),
+    ).rejects.toThrow(/cannot authorise your own/i);
+  });
+
+  it('refuses an authoriser who is not an active administrator', async () => {
+    const consultation = await sealedConsultation();
+    const { actor } = await twoAdmins();
+
+    const pharmacist = await createTestUser({
+      email: `pharm.${generatePublicId('x').slice(-8)}@pharmacy.test`,
+      password: 'PharmacyPassword123!',
+      role: 'PHARMACY',
+    });
+
+    await expect(
+      retrieveArchivedConsultation({
+        consultationPublicId: consultation.publicId,
+        purpose: 'INTERNAL_INVESTIGATION_OR_AUDIT',
+        reference: 'INT-2',
+        actor: { userId: actor.id, role: 'ADMIN' },
+        authorisedByUserId: pharmacist.id,
+      }),
+    ).rejects.toThrow(/active administrator/i);
+  });
+
+  it('refuses without a case reference', async () => {
+    const consultation = await sealedConsultation();
+    const { actor, authoriser } = await twoAdmins();
+
+    await expect(
+      retrieveArchivedConsultation({
+        consultationPublicId: consultation.publicId,
+        purpose: 'QUALITY_OR_SAFETY_INVESTIGATION',
+        reference: '   ',
+        actor: { userId: actor.id, role: 'ADMIN' },
+        authorisedByUserId: authoriser.id,
+      }),
+    ).rejects.toThrow(/reference is required/i);
+  });
+
+  it('refuses a live consultation — retrieval is for sealed records', async () => {
+    const consultation = await liveConsultation();
+    const { actor, authoriser } = await twoAdmins();
+
+    await expect(
+      retrieveArchivedConsultation({
+        consultationPublicId: consultation.publicId,
+        purpose: 'INTERNAL_INVESTIGATION_OR_AUDIT',
+        reference: 'INT-3',
+        actor: { userId: actor.id, role: 'ADMIN' },
+        authorisedByUserId: authoriser.id,
+      }),
+    ).rejects.toThrow(/still in progress/i);
+  });
+
+  it('has no purpose code for research', () => {
+    // Counsel permits an approved research purpose, but it is deliberately
+    // unbuilt: research over a sealed archive is the likeliest route by which
+    // this becomes the longitudinal history it exists to avoid, and it needs a
+    // lawful basis that does not yet exist (G7d, D27).
+    expect(RETRIEVAL_PURPOSES.some((purpose) => /RESEARCH/i.test(purpose))).toBe(false);
+  });
+
+  it('leaves no trace of clinical content in the audit log', async () => {
+    const consultation = await sealedConsultation();
+    const { actor, authoriser } = await twoAdmins();
+
+    await retrieveArchivedConsultation({
+      consultationPublicId: consultation.publicId,
+      purpose: 'LEGAL_OR_REGULATORY_PROCEEDING',
+      reference: 'MDC/2029/0118',
+      actor: { userId: actor.id, role: 'ADMIN' },
+      authorisedByUserId: authoriser.id,
+    });
+
+    const entry = await getPrisma().auditLog.findFirstOrThrow({
+      where: { action: 'retention.clinical-record.retrieved', entityId: consultation.id },
+    });
+
+    const serialised = JSON.stringify(entry);
+    expect(serialised).toContain('LEGAL_OR_REGULATORY_PROCEEDING');
+    expect(serialised).not.toMatch(/Fever|Positive|MALARIA/);
+  });
+});
+
+describe('retrieval is admin-only, and takes one reference', () => {
+  it('refuses a pharmacy at the route', async () => {
+    const consultation = await liveConsultation();
+    await transition(consultation.id, 'EXPIRED', { actorType: 'SYSTEM', reason: 'test' });
+
+    const pharmacyCookies = await signIn(
+      (await getPrisma().user.findUniqueOrThrow({ where: { id: consultation.userId } })).email,
+      PHARMACY_PASSWORD,
+    );
+
+    const response = await request('/admin/archived-consultations/retrieve', {
+      method: 'POST',
+      cookies: pharmacyCookies,
+      payload: {
+        consultationPublicId: consultation.publicId,
+        purpose: 'INTERNAL_INVESTIGATION_OR_AUDIT',
+        reference: 'X-1',
+        authorisedByUserPublicId: 'usr_anything',
+      },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('offers no route that searches by patient', async () => {
+    // The shapes someone would reach for if they wanted a history feature.
+    for (const path of [
+      '/admin/archived-consultations/by-patient/0240000000',
+      '/admin/patients',
+      '/admin/patients/0240000000/consultations',
+    ]) {
+      const response = await request(path);
+      expect([401, 403, 404], path).toContain(response.status);
+    }
   });
 });

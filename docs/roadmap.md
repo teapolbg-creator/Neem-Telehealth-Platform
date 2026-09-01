@@ -52,11 +52,11 @@ Doctor presence and availability · eligibility filter with language as a hard g
 
 ---
 
-## Phase 5.5 — Retention rebuild ✅ built 2026-09-01, except break-glass
+## Phase 5.5 — Retention rebuild ✅ complete 2026-09-01
 
 The G7 answer reversed the deletion model, so this lands before the clinical workflow that depends on it.
 
-Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · scheduled destruction job · the consultation reference surfaced to the patient at completion · patient-facing notice replacing the deletion promise · ~~reference-scoped break-glass access~~ **deferred pending counsel on G7c**.
+Clinical records reclassified from delete-at-completion to retain-then-expire · `retention.clinicalRecordYears` setting, defaulting to 3 · field encryption for vitals and point-of-care results, which were plaintext because they were about to be destroyed · encryption key rotation path · scheduled destruction job · the consultation reference surfaced to the patient at completion · patient-facing notice replacing the deletion promise · Archived Consultation Retrieval, two-person authorised and fully logged (D27).
 
 **No patient index and no profile** (D24). Records are located by consultation reference, so subject access is serviced by reference rather than by a person-scoped search. That is smaller than first scoped.
 
@@ -71,12 +71,15 @@ and is a real DELETE with provable counts; the encryption key can be rotated
 without a flag day; and the patient is given their consultation reference at
 completion.
 
-**Not done, deliberately: break-glass access.** The `clinical_record_access_log`
-table exists so that adding it is routes-only, but no route writes to it and
-nothing can open a sealed record. Held pending counsel on G7c — whether a
-sealed archive counts as complying when continuity of care is declined. If the
-answer is no, the read path changes shape, and building it twice would be
-worse than waiting. Until then the correct contents of that table is zero rows.
+**Retrieval landed after counsel answered G7c** (D27). Renamed from break-glass
+to Archived Consultation Retrieval on counsel's instruction — the old name
+implies emergency clinical access, which this is not. Admin only, one
+consultation reference at a time, two different administrators required, a
+stated purpose from a closed list, and an append-only log written before the
+record is returned.
+
+**Research access is deliberately unbuilt** although counsel permits it, for
+the reason in `data-retention.md` §4.
 
 ---
 

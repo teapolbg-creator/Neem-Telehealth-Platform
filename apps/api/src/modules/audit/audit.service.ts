@@ -88,6 +88,9 @@ export const AUDIT_ACTIONS = {
   // spec §13 forbids.
   CLINICAL_RECORD_SEALED: 'retention.clinical-record.sealed',
   CLINICAL_RECORD_DESTROYED: 'retention.clinical-record.destroyed',
+  // Purpose and scope only. The audit log must not become a second copy of
+  // the archive (decision D27).
+  CLINICAL_RECORD_RETRIEVED: 'retention.clinical-record.retrieved',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

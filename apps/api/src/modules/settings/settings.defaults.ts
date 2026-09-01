@@ -40,6 +40,7 @@ export const SETTING_KEYS = {
   QUALITY_WEIGHT_RX_ISSUES: 'quality.weights.prescriptionIssues',
 
   DOCTOR_MAX_HOURS_PER_WEEK: 'doctor.maxServiceHoursPerWeek',
+  DOCTOR_FULL_TIME_MONTHLY_MINOR: 'doctor.fullTimeMonthlySalaryMinor',
   DOCTOR_MEMBERSHIP_FEE_MINOR: 'doctor.membershipFeeMinor',
   DOCTOR_MEMBERSHIP_MONTHS: 'doctor.membershipPeriodMonths',
   DOCTOR_MEMBERSHIP_GRACE_DAYS: 'doctor.membershipGraceDays',
@@ -181,6 +182,18 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'number',
     description:
       'Maximum service hours per doctor per week. Enforced inside the shift-assignment transaction, not merely displayed (spec §25).',
+    category: 'workforce',
+    requiresConfirm: true,
+  },
+  {
+    key: K.DOCTOR_FULL_TIME_MONTHLY_MINOR,
+    value: 800000,
+    valueType: 'number',
+    description:
+      'Monthly pay for a doctor working a full contracted week, in minor units. ' +
+      '800000 = GH₵ 8,000.00. Part-time pay is this figure scaled by contracted ' +
+      'hours over a full week (decision D28). Neem computes compensation and never ' +
+      'transfers it (spec §26).',
     category: 'workforce',
     requiresConfirm: true,
   },

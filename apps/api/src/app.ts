@@ -19,6 +19,7 @@ import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-cons
 import { webhookRoutes } from './modules/payment/webhook.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
 import { mediaRoutes } from './modules/media/media.routes.ts';
+import { retentionRoutes } from './modules/retention/retention.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 
 /**
@@ -98,6 +99,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(pharmacyConsultationRoutes);
       await api.register(queueRoutes);
       await api.register(mediaRoutes);
+      await api.register(retentionRoutes);
     },
     { prefix: '/api/v1' },
   );

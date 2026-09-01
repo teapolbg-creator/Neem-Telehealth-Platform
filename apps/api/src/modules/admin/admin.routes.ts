@@ -120,12 +120,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
     const body = doctorCompensationSchema.parse(request.body);
 
-    await setDoctorCompensation(publicId, body, {
+    const compensation = await setDoctorCompensation(publicId, body, {
       adminId: principal.userId,
       correlationId: request.correlationId,
     });
 
-    return reply.send({ data: { publicId }, meta: { requestId: request.correlationId } });
+    // Returned so the admin sees what the formula produced, rather than saving
+    // a figure they never saw (decision D28).
+    return reply.send({
+      data: { publicId, compensation },
+      meta: { requestId: request.correlationId },
+    });
   });
 
   /** Reads a doctor's credential document. Every read is audited. */

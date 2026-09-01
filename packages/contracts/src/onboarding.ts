@@ -232,12 +232,32 @@ export type AccountStatusChange = z.infer<typeof accountStatusChangeSchema>;
  * an admin configures and calculates from it; it never derives a rate itself,
  * and it never transfers a salary payment.
  */
+/**
+ * A doctor's employment terms (spec §26, decision D28).
+ *
+ * Pay is **derived, never entered**. The rate and the monthly figure used to be
+ * free inputs here, from when no part-time formula had been settled. Now that
+ * one has — full-time monthly pay scaled by contracted hours over a full week —
+ * accepting a typed salary alongside it would make the formula decorative and
+ * let two doctors on identical terms be paid differently.
+ */
 export const doctorCompensationSchema = z.object({
-  employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
-  contractedHoursPerWeek: z.number().int().min(0).max(168).optional(),
-  hourlyRateMinor: z.number().int().min(0).optional(),
-  monthlySalaryMinor: z.number().int().min(0).optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPES),
+  contractedHoursPerWeek: z.number().int().min(0).max(168),
 });
+
+/** What the formula produced, returned so an admin sees it before saving. */
+export const compensationResultSchema = z.object({
+  monthlyMinor: z.number().int(),
+  currency: z.string(),
+  fraction: z.number(),
+  isFullTime: z.boolean(),
+  /** Fortieths of a pesewa lost to rounding — zero at the seeded values. */
+  remainderNumerator: z.number().int(),
+  fullTimeMonthlyMinor: z.number().int(),
+  fullTimeHoursPerWeek: z.number().int(),
+});
+export type CompensationResult = z.infer<typeof compensationResultSchema>;
 
 // ---------------------------------------------------------------------------
 // Scheduling

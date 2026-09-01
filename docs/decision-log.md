@@ -264,8 +264,8 @@ The clinical model supports this and is the stronger argument. Neem is an **epis
 
 **Consequences.**
 
-1. **The reference identifies; it does not authorise.** Quoting a number tells Neem *which* sealed record is meant. Opening it still requires the two-person break-glass authorisation and a stated purpose from D23. Otherwise a discarded prescription slip becomes a key to someone's clinical record.
-2. **Break-glass is reference-scoped**, not person-scoped. There is no "show me everything about this patient" path, by design.
+1. **The reference identifies; it does not authorise.** Quoting a number tells Neem *which* sealed record is meant. Opening it still requires the two-person authorisation and stated purpose of Archived Consultation Retrieval (D27, renamed from break-glass on counsel's instruction). Otherwise a discarded prescription slip becomes a key to someone's clinical record.
+2. **Retrieval is reference-scoped**, not person-scoped. There is no "show me everything about this patient" path, by design.
 3. **Subject access becomes "quote your reference"** — a recognised privacy-preserving pattern, not an evasion.
 4. **Every consultation must put the reference in the patient's hands**, whatever the outcome. Advice-only consultations previously produced no artefact at all; D25 resolves that.
 5. **One caveat that must be stated accurately to counsel.** `prescriptions` permanently stores `patientName`, `patientAge` and `patientSex` by value, following spec §11 and predating this decision. A name search against that table is therefore technically possible for anyone with database access. What this decision removes is the **feature**: no product surface indexes by patient, and clinical notes are reachable only by consultation reference. Nobody should tell a regulator that Neem *cannot* search by patient.
@@ -308,3 +308,43 @@ Permanence and a verification page follow from use: a patient may present this a
 The property that matters is that rotation needs **no flag day**: move the old key to the retired list, put a new one in place, restart. Everything written from then on uses the new key and everything already written still decrypts. Re-encryption proceeds at leisure.
 
 **Consequences.** The retired key must stay in the list until re-encryption finishes — dropping it early is indistinguishable from losing the data, and the error message says exactly that. A re-encryption job is not built; it is not needed until a first rotation is actually performed, and writing it before the operational procedure exists would be guesswork. Rotation is covered by unit tests across three key generations, because an untested rotation path is a data-loss incident waiting to happen.
+
+---
+
+### D27 — G7c answered: the sealed archive counts as complying · 2026-09-01 · **DECIDED**
+
+**Answer.** Counsel confirms that retaining an encrypted, access-controlled clinical record without exposing it to subsequent doctors satisfies the record-keeping duty, on the basis that Neem is a pharmacy-initiated point-of-care consultation platform and not a longitudinal medical record. D23 and D24 stand as built.
+
+**The product statement this rests on**, in the product owner's words: Neem fulfils its clinical role at the point of consultation, retains an auditable record of that encounter, protects it afterwards, and makes it retrievable through controlled access when legitimately required — **without creating an automatically accessible longitudinal patient medical history**. The retention architecture is therefore built around **encounter-level records, not patient profiles**.
+
+**What this confirms, already built in Phase 5.5.** Encounter-level records; no patient profile or index; consultation reference as the retrieval key; sealed at completion; encrypted; excluded from any doctor-facing history; destroyed at the end of the retention period; the reference is an identifier and never an authentication credential.
+
+**What it changes.**
+
+1. **Retrieval is unblocked and is renamed.** Counsel is explicit: *"Do NOT build a conventional patient history feature. Instead, build an Archived Consultation Retrieval mechanism."* The term **break-glass is dropped** — it implies emergency clinical access by a treating clinician, which is precisely what this is not. This is controlled administrative retrieval. The architecture must stay open to a formal clinical break-glass workflow being added later *without redesign*, should counsel require one.
+
+2. **Six permitted purposes, not four.** Counsel's list is wider than mine: legal or regulatory proceeding; a valid patient data-access request; an authorised clinical-record request where legitimately necessary; an approved quality or safety investigation; an approved research purpose, preferably de-identified; an authorised internal investigation or audit.
+
+3. **The audit record needs more fields than I shaped.** Counsel requires the requester's **role** and the **date/time access ended**, neither of which the table had. Both added.
+
+4. **"Protected against unauthorised modification/deletion"** is now an explicit requirement, and it is only partly satisfiable in the application. See the limitation below.
+
+**Research access — permitted in principle, still not built.** Counsel allows an approved research purpose. It remains **out of V1**, consistent with D13, and needs a lawful basis and a consent mechanism that do not exist (G7d is still open). A research export over a sealed archive is the single most likely route by which this design quietly becomes the thing it was built to avoid, so it will not be added as a by-product of building retrieval. It is a deliberate feature with its own decision, or it is absent.
+
+**A limitation stated plainly.** "Protected against unauthorised modification/deletion" is enforced in the application: sealed records reject writes, and only the retention job deletes. It is **not** enforced at the database level — the application's MySQL user necessarily holds DELETE on those tables in order to run the lawful destruction job, so anyone with those credentials can bypass the application. Genuine tamper-resistance needs a separate database role, or append-only storage, and is an operational change rather than a code one. Recorded here rather than left as an implied guarantee.
+
+---
+
+### D28 — Doctor compensation: pro-rata against a full-time baseline · 2026-09-01 · **DECIDED**
+
+**Issue.** Open since Phase 0. `hourlyRateMinor`, `monthlySalaryMinor` and `contractedHoursPerWeek` existed and were nullable precisely because no formula had ever been settled, so nothing computed pay.
+
+**Selected**, from the product owner:
+
+> A full-time doctor working 40 hours is paid GHS 8,000 monthly. For part-time doctors, monthly compensation = GHS 8,000 × (contracted weekly hours ÷ 40).
+
+**How it is held.** `doctor.fullTimeMonthlySalaryMinor` (800000 pesewas) and the 40-hour week are **settings**, not literals — the specification forbids hard-coding business values, and both will change. The formula is a pure domain function beside `splitRevenue`, with the same discipline: integer pesewas throughout, and an explicit rule for the remainder rather than a silent rounding.
+
+**Rounding.** At the seeded values the arithmetic is exact — GHS 8,000 over 40 hours is exactly 20,000 pesewas an hour, so any whole number of hours divides cleanly. That will not survive the first change to either setting, so the remainder is resolved deliberately: compensation rounds **down** to the pesewa, and the function reports the remainder rather than discarding it silently. A doctor is never paid a fraction of a pesewa more than the formula yields, and the shortfall is visible to whoever runs payroll.
+
+**Consequences.** Neem **still never transfers doctor salary** (spec §26). This computes an amount and shows it; payment is a manual, external act. That boundary is unchanged and deliberate — it is the difference between a reporting feature and a payroll system, and Neem is not a payroll system.

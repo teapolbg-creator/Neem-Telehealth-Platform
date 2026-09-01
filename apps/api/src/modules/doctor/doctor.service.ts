@@ -7,6 +7,10 @@ import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { revokeAllSessionsForUser } from '../auth/session.service.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
+import {
+  computeMonthlyCompensation,
+  type Compensation,
+} from '../../domain/compensation.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import {
   canDoctorTransition,
@@ -369,30 +373,49 @@ export async function listDoctors(filters: DoctorListFilters, db: Db = getPrisma
 }
 
 /**
- * Sets compensation parameters (spec §26).
+ * Sets a doctor's employment terms and derives their pay (spec §26, D28).
  *
- * The system stores what an admin configures and can calculate payroll from
- * it. It does NOT derive a part-time formula — that decision has not been made
- * — and it never transfers a salary payment.
+ * The monthly figure is **computed, never entered**. Employment type and
+ * contracted hours are the inputs; the formula does the rest. Accepting a
+ * typed salary alongside a formula would make the formula decorative and let
+ * two doctors on identical terms be paid differently.
+ *
+ * Neem calculates compensation and never transfers it.
  */
 export async function setDoctorCompensation(
   publicId: string,
   input: {
-    employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
-    contractedHoursPerWeek?: number;
-    hourlyRateMinor?: number;
-    monthlySalaryMinor?: number;
+    employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
+    contractedHoursPerWeek: number;
   },
   context: { adminId: string; correlationId?: string },
   db: Db = getPrisma(),
-): Promise<void> {
+): Promise<Compensation> {
   const doctor = await db.doctor.findUnique({ where: { publicId }, select: { id: true } });
   if (!doctor) throw errors.notFound('Doctor not found.');
 
-  const maxHours = await getIntSetting(SETTING_KEYS.DOCTOR_MAX_HOURS_PER_WEEK, db);
-  if (input.contractedHoursPerWeek !== undefined && input.contractedHoursPerWeek > maxHours) {
+  const fullTimeHoursPerWeek = await getIntSetting(SETTING_KEYS.DOCTOR_MAX_HOURS_PER_WEEK, db);
+  const fullTimeMonthlyMinor = await getIntSetting(
+    SETTING_KEYS.DOCTOR_FULL_TIME_MONTHLY_MINOR,
+    db,
+  );
+
+  if (input.contractedHoursPerWeek > fullTimeHoursPerWeek) {
     throw errors.businessRule(
-      `Contracted hours cannot exceed the ${maxHours}-hour weekly limit.`,
+      `Contracted hours cannot exceed the ${fullTimeHoursPerWeek}-hour weekly limit.`,
+    );
+  }
+
+  let compensation: Compensation;
+  try {
+    compensation = computeMonthlyCompensation({
+      fullTimeMonthlyMinor,
+      fullTimeHoursPerWeek,
+      contractedHoursPerWeek: input.contractedHoursPerWeek,
+    });
+  } catch (error) {
+    throw errors.businessRule(
+      error instanceof Error ? error.message : 'Those employment terms are not valid.',
     );
   }
 
@@ -401,8 +424,13 @@ export async function setDoctorCompensation(
     data: {
       employmentType: input.employmentType,
       contractedHoursPerWeek: input.contractedHoursPerWeek,
-      hourlyRateMinor: input.hourlyRateMinor,
-      monthlySalaryMinor: input.monthlySalaryMinor,
+      monthlySalaryMinor: compensation.monthlyMinor,
+      // Derived for reporting. Null when a full week is zero hours, which the
+      // domain function has already refused, but the guard costs nothing.
+      hourlyRateMinor:
+        fullTimeHoursPerWeek > 0
+          ? Math.floor(fullTimeMonthlyMinor / fullTimeHoursPerWeek)
+          : null,
     },
   });
 
@@ -417,8 +445,11 @@ export async function setDoctorCompensation(
       metadata: {
         employmentType: input.employmentType,
         contractedHoursPerWeek: input.contractedHoursPerWeek,
+        monthlyMinor: compensation.monthlyMinor,
       },
     },
     db,
   );
+
+  return compensation;
 }

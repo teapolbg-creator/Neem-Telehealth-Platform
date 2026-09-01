@@ -566,3 +566,122 @@ describe('pharmacy document verification', () => {
     expect(response.status).toBe(403);
   });
 });
+
+/**
+ * Doctor compensation through the admin route (spec §26, decision D28).
+ *
+ * The formula was undecided from Phase 0 until 2026-09-01, so nothing computed
+ * pay and the fields sat nullable. These cover the part that matters: an admin
+ * sets terms, and the amount is derived rather than typed.
+ */
+describe('doctor compensation', () => {
+  async function applicant() {
+    await request('/onboarding/doctor', { method: 'POST', payload: validDoctor() });
+    return getPrisma().doctor.findFirstOrThrow();
+  }
+
+  it('derives full-time pay from the configured baseline', async () => {
+    const cookies = await signInAdmin();
+    const doctor = await applicant();
+
+    const response = await request<{ compensation: { monthlyMinor: number; isFullTime: boolean } }>(
+      `/admin/doctors/${doctor.publicId}/compensation`,
+      {
+        method: 'PATCH',
+        cookies,
+        payload: { employmentType: 'FULL_TIME', contractedHoursPerWeek: 40 },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    // GH₵ 8,000.00 in pesewas.
+    expect(response.body.data!.compensation.monthlyMinor).toBe(800_000);
+    expect(response.body.data!.compensation.isFullTime).toBe(true);
+  });
+
+  it('scales part-time pay by contracted hours', async () => {
+    const cookies = await signInAdmin();
+    const doctor = await applicant();
+
+    const response = await request<{ compensation: { monthlyMinor: number } }>(
+      `/admin/doctors/${doctor.publicId}/compensation`,
+      {
+        method: 'PATCH',
+        cookies,
+        payload: { employmentType: 'PART_TIME', contractedHoursPerWeek: 20 },
+      },
+    );
+
+    expect(response.body.data!.compensation.monthlyMinor).toBe(400_000);
+
+    // And it is stored, so payroll reads the derived figure rather than
+    // recomputing it from terms that may since have changed.
+    const stored = await getPrisma().doctor.findUniqueOrThrow({ where: { id: doctor.id } });
+    expect(stored.monthlySalaryMinor).toBe(400_000);
+    expect(stored.contractedHoursPerWeek).toBe(20);
+  });
+
+  it('offers no way to type a salary directly', async () => {
+    const cookies = await signInAdmin();
+    const doctor = await applicant();
+
+    // Pay is derived (D28). A typed figure must not override the formula, or
+    // two doctors on identical terms could be paid differently.
+    await request(`/admin/doctors/${doctor.publicId}/compensation`, {
+      method: 'PATCH',
+      cookies,
+      payload: {
+        employmentType: 'PART_TIME',
+        contractedHoursPerWeek: 20,
+        monthlySalaryMinor: 999_999,
+      },
+    });
+
+    const stored = await getPrisma().doctor.findUniqueOrThrow({ where: { id: doctor.id } });
+    expect(stored.monthlySalaryMinor).toBe(400_000);
+  });
+
+  it('refuses hours above the weekly ceiling', async () => {
+    const cookies = await signInAdmin();
+    const doctor = await applicant();
+
+    const response = await request(`/admin/doctors/${doctor.publicId}/compensation`, {
+      method: 'PATCH',
+      cookies,
+      payload: { employmentType: 'FULL_TIME', contractedHoursPerWeek: 45 },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error?.message).toMatch(/40-hour weekly limit/i);
+  });
+
+  it('records the change in the audit log', async () => {
+    const cookies = await signInAdmin();
+    const doctor = await applicant();
+
+    await request(`/admin/doctors/${doctor.publicId}/compensation`, {
+      method: 'PATCH',
+      cookies,
+      payload: { employmentType: 'PART_TIME', contractedHoursPerWeek: 16 },
+    });
+
+    const entry = await getPrisma().auditLog.findFirstOrThrow({
+      where: { action: 'doctor.compensation.changed', entityId: doctor.id },
+    });
+
+    expect(JSON.stringify(entry)).toContain('320000');
+  });
+
+  it('refuses a doctor account, however senior', async () => {
+    const doctor = await applicant();
+    const cookies = await signIn('newdoctor@test.local', 'DoctorPassword123!');
+
+    const response = await request(`/admin/doctors/${doctor.publicId}/compensation`, {
+      method: 'PATCH',
+      cookies,
+      payload: { employmentType: 'FULL_TIME', contractedHoursPerWeek: 40 },
+    });
+
+    expect(response.status).toBe(403);
+  });
+});
