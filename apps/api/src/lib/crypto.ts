@@ -105,6 +105,77 @@ export function generatePublicId(prefix: string): string {
 }
 
 /**
+ * The consultation reference (decisions D24, D27).
+ *
+ * Every other public id is machine-handled and base64url is fine for them.
+ * This one is different: under D24 it is the patient's **only** route back to
+ * their own record, because Neem keeps no patient profile and nothing can be
+ * found by name or number. They keep it, and may have to read it down a
+ * telephone or copy it onto paper.
+ *
+ * base64url is a poor alphabet for that job — case-sensitive, and full of
+ * confusable pairs. So this uses Crockford's Base32, which omits I, L, O and U
+ * precisely because they are misread as 1, 1, 0 and V. Grouped in fours the
+ * way people already transcribe card and licence numbers.
+ *
+ *     NEEM-A3F7-K92M-PXQR
+ *
+ * Twelve characters of a 32-symbol alphabet is 60 bits. That is far below the
+ * 72 bits of a base64url id and deliberately so — this is an **identifier, not
+ * an authentication credential** (counsel, D27). Quoting it says which record
+ * is meant; opening one still needs two administrators and a stated purpose,
+ * and every other route that takes it checks ownership and answers 404. What
+ * 60 bits does buy is collision safety: the birthday bound sits near a billion
+ * consultations, so uniqueness is not resting on the retry below alone.
+ */
+const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const REFERENCE_CHARACTERS = 12;
+const REFERENCE_GROUP = 4;
+
+export function generateConsultationReference(): string {
+  // Rejection sampling: 256 is not a multiple of 32... it is, so a plain
+  // modulo is unbiased here. Stated because a modulo over a non-multiple
+  // alphabet is the classic silent bias in this kind of code.
+  const bytes = randomBytes(REFERENCE_CHARACTERS);
+  let body = '';
+
+  for (let index = 0; index < REFERENCE_CHARACTERS; index += 1) {
+    body += CROCKFORD_ALPHABET[bytes[index]! % CROCKFORD_ALPHABET.length];
+  }
+
+  const groups = body.match(new RegExp(`.{1,${REFERENCE_GROUP}}`, 'g')) ?? [body];
+  return `NEEM-${groups.join('-')}`;
+}
+
+/**
+ * Normalises a reference a human typed.
+ *
+ * Someone reading a slip aloud, or copying it in a hurry, will lower-case it,
+ * drop the hyphens, and write O for 0 or I for 1. All of those should find the
+ * record rather than produce "no consultation exists with that reference",
+ * which is indistinguishable from the record having been destroyed.
+ *
+ * Returns the input unchanged when it does not look like a reference at all,
+ * so that an older `cons_...` id still resolves.
+ */
+export function normaliseConsultationReference(input: string): string {
+  const cleaned = input.trim().toUpperCase().replace(/[^0-9A-Z]/g, '');
+
+  const withoutPrefix = cleaned.startsWith('NEEM') ? cleaned.slice(4) : cleaned;
+  if (withoutPrefix.length !== REFERENCE_CHARACTERS) return input.trim();
+
+  // Crockford's confusable mapping, applied on the way in only.
+  const body = withoutPrefix.replace(/[ILOU]/g, (character) =>
+    character === 'O' ? '0' : character === 'U' ? 'V' : '1',
+  );
+
+  if (!/^[0-9A-Z]+$/.test(body)) return input.trim();
+
+  const groups = body.match(new RegExp(`.{1,${REFERENCE_GROUP}}`, 'g')) ?? [body];
+  return `NEEM-${groups.join('-')}`;
+}
+
+/**
  * Prescription verification code. Longer than a public id because it is the
  * sole guard on a public, unauthenticated page (spec §44).
  */

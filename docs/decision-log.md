@@ -348,3 +348,21 @@ The property that matters is that rotation needs **no flag day**: move the old k
 **Rounding.** At the seeded values the arithmetic is exact — GHS 8,000 over 40 hours is exactly 20,000 pesewas an hour, so any whole number of hours divides cleanly. That will not survive the first change to either setting, so the remainder is resolved deliberately: compensation rounds **down** to the pesewa, and the function reports the remainder rather than discarding it silently. A doctor is never paid a fraction of a pesewa more than the formula yields, and the shortfall is visible to whoever runs payroll.
 
 **Consequences.** Neem **still never transfers doctor salary** (spec §26). This computes an amount and shows it; payment is a manual, external act. That boundary is unchanged and deliberate — it is the difference between a reporting feature and a payroll system, and Neem is not a payroll system.
+
+---
+
+### D29 — The consultation reference is human-transcribable · 2026-09-01 · **DECIDED (Category B)**
+
+**Issue.** D24 made the consultation reference the patient's only route back to their own record — Neem holds no patient profile, so nothing can be found by name or number. But the format was `generatePublicId('cons')`, which yields base64url: `cons_iEZh0HnqGo7q`. Case-sensitive, containing `-` and `_`, and full of the confusable pairs O/0, I/l/1. Counsel's own illustration was `NEEM-XXXXXXXX`.
+
+That alphabet is fine for a machine-handled identifier and poor for one a patient keeps, reads down a telephone, or copies onto paper. Transcribability became a functional requirement the moment the reference became the retrieval key.
+
+**Selected.** `NEEM-XXXX-XXXX-XXXX` — twelve characters of **Crockford's Base32**, grouped in fours.
+
+**Rationale.** Crockford's alphabet omits I, L, O and U precisely because they are misread as 1, 1, 0 and V. Grouping in fours matches how people already transcribe card and licence numbers. Input is normalised on the way in: lower case, missing hyphens, a missing `NEEM` prefix and the confusable substitutions all resolve to the same record. "No consultation exists with that reference" is indistinguishable from the record having been destroyed, and turning someone away on a typo would be a poor way to service a data-access request.
+
+**On the entropy, since it went down.** Twelve characters of a 32-symbol alphabet is 60 bits, against 72 for a base64url id. That is deliberate and safe here because counsel is explicit that this is **an identifier, not an authentication credential**: quoting it says which record is meant, and opening one still requires two administrators and a stated purpose. Every other route taking it checks ownership and answers 404. What 60 bits buys is collision safety — the birthday bound sits near a billion consultations, so uniqueness does not rest on retry alone.
+
+**Scope.** Consultations only. Every other `publicId` stays base64url, because no human transcribes a user or doctor id. Older `cons_...` references still resolve; normalisation returns unrecognised input unchanged rather than padding it into a plausible reference, so a truncated reference fails the lookup instead of silently matching someone else's record.
+
+**Consequences.** Changed while all data is synthetic. Once real references are printed on prescriptions and referrals this would have been expensive and disruptive, which is why it was raised before Phase 6 rather than after.

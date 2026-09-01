@@ -2,7 +2,7 @@ import type { ConsultationState, PrismaClient } from '@prisma/client';
 import type { ActorType } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { generatePublicId } from '../../lib/crypto.ts';
+import { generateConsultationReference } from '../../lib/crypto.ts';
 import { addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { getIntSetting, getSetting } from '../settings/settings.service.ts';
@@ -189,7 +189,9 @@ export async function createConsultation(
   const consultation = await db.$transaction(async (tx) => {
     const created = await tx.consultation.create({
       data: {
-        publicId: generatePublicId('cons'),
+        // Human-transcribable, because under D24 this is the patient's only
+        // route back to their own record (see generateConsultationReference).
+        publicId: generateConsultationReference(),
         pharmacyId: pharmacy.id,
         state: 'PENDING_PAYMENT',
         priceMinor,

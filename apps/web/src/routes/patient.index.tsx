@@ -531,7 +531,12 @@ function CompleteStep({ session }: { session: PatientSessionView }) {
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
           Your consultation reference
         </p>
-        <p className="mt-1.5 select-all break-all font-mono text-sm font-bold text-slate-900">
+        {/*
+          `select-all` so one tap copies the whole thing, and no `break-all`:
+          the groups of four are what make it transcribable, and splitting one
+          across a line is exactly the confusion the format exists to avoid.
+        */}
+        <p className="mt-1.5 select-all font-mono text-base font-bold tracking-wide text-slate-900">
           {session.consultationPublicId}
         </p>
         <p className="mt-2 text-xs leading-relaxed text-slate-500">

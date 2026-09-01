@@ -4,7 +4,9 @@ import {
   decryptNullable,
   encryptField,
   encryptNullable,
+  generateConsultationReference,
   generatePublicId,
+  normaliseConsultationReference,
   generateToken,
   generateVerificationCode,
   hashPassword,
@@ -233,5 +235,102 @@ describe('encryption key rotation', () => {
     // GCM authentication is what makes trying each key in turn safe: a wrong
     // key throws rather than returning plausible rubbish.
     expect(() => decryptField(written)).toThrow();
+  });
+});
+
+/**
+ * The consultation reference (decisions D24, D27).
+ *
+ * Every other public id is machine-handled. This one a patient keeps, and may
+ * read down a telephone or copy onto paper — under D24 it is their only route
+ * back to their own record, because Neem holds no patient profile.
+ */
+describe('the consultation reference', () => {
+  it('reads as NEEM- followed by three groups of four', () => {
+    expect(generateConsultationReference()).toMatch(
+      /^NEEM-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/,
+    );
+  });
+
+  it('omits the characters people misread', () => {
+    // Crockford's Base32 drops I, L, O and U precisely because they are read
+    // as 1, 1, 0 and V. A reference containing them would defeat the point.
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const body = generateConsultationReference().replace(/^NEEM-/, '').replace(/-/g, '');
+      expect(body).not.toMatch(/[ILOU]/);
+    }
+  });
+
+  it('is not sequential, and does not repeat', () => {
+    const seen = new Set<string>();
+    for (let attempt = 0; attempt < 2_000; attempt += 1) {
+      seen.add(generateConsultationReference());
+    }
+    expect(seen.size).toBe(2_000);
+  });
+
+  it('uses the whole alphabet, so entropy is what it claims', () => {
+    // A modulo bug that clipped the alphabet would still look random.
+    const characters = new Set<string>();
+    for (let attempt = 0; attempt < 3_000; attempt += 1) {
+      for (const character of generateConsultationReference().replace(/[^0-9A-Z]/g, '').slice(4)) {
+        characters.add(character);
+      }
+    }
+    expect(characters.size).toBe(32);
+  });
+});
+
+describe('normalising a reference a human typed', () => {
+  const reference = 'NEEM-A3F7-K92M-PXQR';
+
+  it('accepts it exactly as printed', () => {
+    expect(normaliseConsultationReference(reference)).toBe(reference);
+  });
+
+  it('accepts lower case', () => {
+    expect(normaliseConsultationReference('neem-a3f7-k92m-pxqr')).toBe(reference);
+  });
+
+  it('accepts it without hyphens', () => {
+    expect(normaliseConsultationReference('NEEMA3F7K92MPXQR')).toBe(reference);
+  });
+
+  it('accepts it without the NEEM prefix', () => {
+    expect(normaliseConsultationReference('A3F7K92MPXQR')).toBe(reference);
+  });
+
+  it('accepts surrounding whitespace and stray spacing', () => {
+    expect(normaliseConsultationReference('  NEEM A3F7 K92M PXQR  ')).toBe(reference);
+  });
+
+  it('forgives the confusable characters', () => {
+    // Someone writing O for zero, or I/L for one, still finds their record.
+    expect(normaliseConsultationReference('NEEM-O123-4567-89AB')).toBe('NEEM-0123-4567-89AB');
+    expect(normaliseConsultationReference('NEEM-I123-4567-89AB')).toBe('NEEM-1123-4567-89AB');
+    expect(normaliseConsultationReference('NEEM-L123-4567-89AB')).toBe('NEEM-1123-4567-89AB');
+    expect(normaliseConsultationReference('NEEM-U123-4567-89AB')).toBe('NEEM-V123-4567-89AB');
+  });
+
+  it('round-trips anything it generates', () => {
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      const generated = generateConsultationReference();
+      expect(normaliseConsultationReference(generated.toLowerCase().replace(/-/g, ''))).toBe(
+        generated,
+      );
+    }
+  });
+
+  it('leaves an older cons_ identifier alone', () => {
+    // References created before this format still have to resolve.
+    const legacy = 'cons_iEZh0HnqGo7q';
+    expect(normaliseConsultationReference(legacy)).toBe(legacy);
+  });
+
+  it('does not mangle input of the wrong length into a plausible reference', () => {
+    // Better to fail the lookup than to silently resolve to someone else's
+    // record because a truncated reference was padded into shape.
+    expect(normaliseConsultationReference('NEEM-A3F7')).toBe('NEEM-A3F7');
+    expect(normaliseConsultationReference('')).toBe('');
   });
 });

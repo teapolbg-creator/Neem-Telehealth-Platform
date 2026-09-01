@@ -1,7 +1,11 @@
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { decryptField, decryptNullable } from '../../lib/crypto.ts';
+import {
+  decryptField,
+  decryptNullable,
+  normaliseConsultationReference,
+} from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { VitalsReadings } from './clinical-record.service.ts';
@@ -146,8 +150,20 @@ export async function retrieveArchivedConsultation(
     throw errors.businessRule('The authorising account must be an active administrator.');
   }
 
+  /**
+   * The reference as a human typed it.
+   *
+   * This is the one place a patient-quoted reference lands — read off a slip,
+   * dictated down a telephone, or copied by hand. Lower case, missing hyphens
+   * and O-for-0 must all find the record; "no consultation exists with that
+   * reference" is indistinguishable from the record having been destroyed, and
+   * sending someone away on a typo would be a poor way to service a data-access
+   * request.
+   */
+  const reference = normaliseConsultationReference(input.consultationPublicId);
+
   const consultation = await db.consultation.findUnique({
-    where: { publicId: input.consultationPublicId },
+    where: { publicId: reference },
     include: {
       pharmacy: { select: { name: true } },
       doctor: { select: { fullName: true } },
@@ -279,7 +295,7 @@ export async function listRetrievals(
 ) {
   const consultation = filters.consultationPublicId
     ? await db.consultation.findUnique({
-        where: { publicId: filters.consultationPublicId },
+        where: { publicId: normaliseConsultationReference(filters.consultationPublicId) },
         select: { id: true },
       })
     : null;

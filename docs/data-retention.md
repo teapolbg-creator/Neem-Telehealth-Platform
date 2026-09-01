@@ -78,7 +78,9 @@ The specification says a medical history must never appear — "whether as a fea
 
 **It survives, because records are found by reference and not by person** (decision D24).
 
-Every consultation carries an opaque reference — `consultations.publicId` — which the patient is given and which is printed on every document they receive. That reference is how a record is located later. The analogy is a shop receipt: no account is needed to buy something, and the receipt is how the transaction is found again.
+Every consultation carries an opaque reference — `consultations.publicId`, formatted `NEEM-XXXX-XXXX-XXXX` — which the patient is given and which is printed on every document they receive. That reference is how a record is located later. The analogy is a shop receipt: no account is needed to buy something, and the receipt is how the transaction is found again.
+
+The format is deliberately transcribable (D29): Crockford Base32, which omits the characters people misread, grouped in fours. A patient may have to read it down a telephone. Input is normalised, so lower case, missing hyphens and O-for-0 all find the record.
 
 So there is no patient profile and no patient index:
 
