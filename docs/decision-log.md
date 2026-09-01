@@ -291,6 +291,8 @@ Permanence and a verification page follow from use: a patient may present this a
 2. **Safety-netting is a required field.** "What to watch for" and "when to seek care urgently" must be present before the document can be issued. A summary that says only "no medication needed" reads as an all-clear from a remote five-minute assessment, and would be worse than issuing nothing.
 3. **It is not called a medical report.** In Ghana that phrase is used for employment, insurance and court purposes; naming it so invites it being presented as something it is not. It is a *consultation summary*. For the same reason it documents what the doctor found and advised — it does not justify the fee.
 
+**G7g answered 2026-09-01: there is no mandated form or content.** The summary's fields are therefore entirely Neem's design, and the three constraints above are **product policy, not legal requirement**. That distinction is worth keeping straight in both directions. Nothing in the UI or documentation may present them as a regulatory obligation (spec §78) — and equally, "the law does not require it" is not an argument for dropping the safety-netting field, which exists because a remote five-minute assessment that says only "no medication needed" reads as an all-clear it cannot support.
+
 **Consequences.** A new document type alongside prescriptions and referrals in Phase 6: model, doctor-facing composer, PDF, verification page. Its clinical text is permanent and patient-held, which is a deliberate change from D14 — sitting in the same category as referral `reasonText`, which D14 already accepted as a legitimate permanent carry-forward because a doctor deliberately issues it as a document.
 
 ---
