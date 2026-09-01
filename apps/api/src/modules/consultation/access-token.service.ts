@@ -244,7 +244,7 @@ export async function resolvePatientSession(
     include: { consultation: { select: { id: true, publicId: true, state: true } } },
   });
 
-  // There is no `purgedAt` flag by design: temporary rows are hard-deleted at
+  // There is no `purgedAt` flag by design: access tokens are hard-deleted at
   // completion (spec §62), so the row's absence IS the signal. A soft-delete
   // column would invite exactly the "hide it from the UI" pattern the
   // specification forbids.

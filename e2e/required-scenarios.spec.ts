@@ -53,8 +53,31 @@ test.describe('required scenarios (spec §80)', () => {
     // Needs: Phase 6. DISPENSED → REVOKED must be impossible (spec §82).
   });
 
+  /**
+   * PREMISE VOIDED BY DECISION D23 — needs redefining with the product owner.
+   *
+   * This scenario, and spec §101 behind it, assert that clinical notes are
+   * deleted when the consultation completes. Ghanaian record-keeping law does
+   * not permit that: notes are retained sealed for the configured period and
+   * destroyed at expiry.
+   *
+   * As written this test cannot pass without breaking the law it was meant to
+   * demonstrate compliance with. The replacement is three assertions
+   * (docs/data-retention.md §6):
+   *
+   *   1. after completion the clinical record still exists, encrypted;
+   *   2. NO authenticated role — doctor, pharmacy, admin, patient — can read
+   *      it through any route (this is the assertion that now carries the
+   *      privacy guarantee);
+   *   3. after the retention period elapses and the job runs, the rows are
+   *      gone.
+   *
+   * Left as one fixme rather than silently rewritten, because changing a
+   * required acceptance criterion is the product owner's call, not mine.
+   */
   test.fixme('Scenario 11 — clinical notes are deleted after the consultation', async () => {
-    // Needs: Phase 6 completion transaction and purge (spec §101).
+    // Needs: Phase 5.5 (retention) and Phase 6 (completion), and a decision on
+    // the restated criterion above.
   });
 
   test.fixme('Scenario 12 — a prescription stays accessible to authorised parties', async () => {

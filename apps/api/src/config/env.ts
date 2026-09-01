@@ -12,14 +12,18 @@ import { z } from 'zod';
 /** Placeholders shipped in .env.example. Rejected outright in production. */
 const DEV_PLACEHOLDER = /^dev-only-change-me/;
 
+/**
+ * A secret's length is checked here; whether it is still a placeholder is
+ * checked in the production block below.
+ *
+ * The placeholder check used to live on this schema and read
+ * `process.env.NODE_ENV` directly. That meant it ignored the configuration
+ * actually being validated — `loadEnv(source)` takes a source precisely so it
+ * need not depend on ambient process state — which made the guard both
+ * untestable and inconsistent with every other production rule.
+ */
 const secret = (name: string, minLength = 32) =>
-  z
-    .string()
-    .min(minLength, `${name} must be at least ${minLength} characters`)
-    .refine(
-      (v) => process.env.NODE_ENV !== 'production' || !DEV_PLACEHOLDER.test(v),
-      `${name} still holds the development placeholder — generate a real secret before running in production`,
-    );
+  z.string().min(minLength, `${name} must be at least ${minLength} characters`);
 
 const bool = (fallback: boolean) =>
   z
@@ -154,6 +158,22 @@ const envSchema = z
     }
 
     if (env.NODE_ENV === 'production') {
+      // A secret still holding the value shipped in .env.example is a secret
+      // an attacker already has.
+      for (const [key, value] of [
+        ['SESSION_SECRET', env.SESSION_SECRET],
+        ['CSRF_SECRET', env.CSRF_SECRET],
+        ['ENCRYPTION_KEY', env.ENCRYPTION_KEY],
+      ] as const) {
+        if (DEV_PLACEHOLDER.test(value)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} still holds the development placeholder — generate a real secret before running in production`,
+          });
+        }
+      }
+
       // Mock adapters must never run in production — they would report
       // payments and messages that never happened (spec §93).
       const mocked = (
@@ -181,8 +201,83 @@ const envSchema = z
           message: 'SEED_DEMO_DATA must be false in production (spec §76)',
         });
       }
+
+      /**
+       * Rate limits raised for local development must never reach production.
+       *
+       * The end-to-end suite throttles itself against production-shaped
+       * limits, so `.env` carries deliberately loose values. Copying that file
+       * to a server would ship a login endpoint that permits hundreds of
+       * attempts per IP per window — the single most plausible way this
+       * repository ends up with an open front door, and nothing checked for it
+       * (docs/security.md §6).
+       *
+       * These are ceilings, not the recommended values. `.env.example` holds
+       * those, and they sit far below these limits.
+       */
+      for (const [key, value, ceiling, note] of PRODUCTION_RATE_LIMIT_CEILINGS(env)) {
+        if (value > ceiling) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message:
+              `${key}=${value} is too permissive for production (ceiling ${ceiling}). ` +
+              `${note} This value is raised in the development .env so the test suite is not ` +
+              `throttled; see .env.example for the production value.`,
+          });
+        }
+      }
     }
   });
+
+/**
+ * Upper bounds on the per-IP rate limits, enforced only in production.
+ *
+ * Chosen to catch a development configuration that has been copied to a
+ * server, not to dictate policy — each ceiling sits well above the value in
+ * `.env.example` and well below the loosened development one.
+ */
+const PRODUCTION_RATE_LIMIT_CEILINGS = (env: {
+  RATE_LIMIT_MAX_PER_MINUTE: number;
+  RATE_LIMIT_AUTH_MAX: number;
+  RATE_LIMIT_ONBOARDING_MAX: number;
+  RATE_LIMIT_QR_EXCHANGE_MAX: number;
+  LOGIN_MAX_ATTEMPTS: number;
+}): Array<[string, number, number, string]> => [
+  [
+    'RATE_LIMIT_AUTH_MAX',
+    env.RATE_LIMIT_AUTH_MAX,
+    50,
+    'This caps password, two-factor and reset attempts from one source across every account.',
+  ],
+  [
+    'RATE_LIMIT_ONBOARDING_MAX',
+    env.RATE_LIMIT_ONBOARDING_MAX,
+    50,
+    'This caps account creation from one source.',
+  ],
+  [
+    // A busy pharmacy shares one public IP and a queue of patients scan in
+    // quick succession, so this legitimately needs more headroom than the
+    // others — but not hundreds.
+    'RATE_LIMIT_QR_EXCHANGE_MAX',
+    env.RATE_LIMIT_QR_EXCHANGE_MAX,
+    200,
+    'This caps QR token exchange attempts, which is what stops a script guessing tokens.',
+  ],
+  [
+    'RATE_LIMIT_MAX_PER_MINUTE',
+    env.RATE_LIMIT_MAX_PER_MINUTE,
+    1_000,
+    'This is the global per-principal ceiling.',
+  ],
+  [
+    'LOGIN_MAX_ATTEMPTS',
+    env.LOGIN_MAX_ATTEMPTS,
+    20,
+    'This is the per-account lockout threshold, distinct from the per-IP limit.',
+  ],
+];
 
 export type Env = z.infer<typeof envSchema>;
 

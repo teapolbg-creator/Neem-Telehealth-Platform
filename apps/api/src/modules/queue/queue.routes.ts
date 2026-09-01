@@ -165,7 +165,9 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
    * The accepted consultation's clinical context.
    *
    * Demographics, vitals and point-of-care results for THIS consultation only.
-   * There is no history: past clinical data no longer exists, and consultation
+   * There is no history. Past clinical records are retained under legal
+   * obligation (D23) but are reachable through no product surface and never by
+   * patient (D24) — no route here returns them. Consultation
    * history is operational, never medical (spec §13, §24).
    */
   app.get(

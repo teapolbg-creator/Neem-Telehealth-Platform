@@ -10,16 +10,22 @@ import { transition } from './consultation.service.ts';
 import type { PatientPrincipal } from './access-token.service.ts';
 
 /**
- * The temporary patient session (spec §10, §11).
+ * The patient session (spec §10, §11).
  *
- * Everything here is TEMPORARY. Name and phone are encrypted at rest, and the
- * whole row is hard-deleted when the doctor completes the consultation — the
- * only carry-forward being name, age and sex copied by value onto a
- * prescription or referral (docs/data-retention.md §2).
+ * Name and phone are encrypted at rest. Name, age and sex are copied by value
+ * onto any prescription or referral issued — the only permitted carry-forward
+ * (docs/data-retention.md §2).
  *
- * The purge itself lands with the completion transaction in Phase 6; this
- * module is built so that purging is a single `DELETE` of one row rather than
- * a sweep across several tables.
+ * **Changed by decision D23.** This row was to be hard-deleted the moment the
+ * doctor completed. Ghanaian record-keeping law does not permit that, so it is
+ * instead sealed at completion and destroyed when the retention period
+ * expires. Identity is kept *inside* the record so the record identifies
+ * itself when opened; it is not an index, and nothing finds a record by
+ * person — retrieval is by consultation reference (D24).
+ *
+ * Phase 5.5 implements the sealing and the expiry job. This module stays built
+ * so that destruction is a single `DELETE` of one row rather than a sweep
+ * across several tables.
  */
 
 export async function captureIdentity(
@@ -199,9 +205,11 @@ export async function buildSessionView(
  * The four fields a pharmacy may see about the patient, and only while the
  * consultation is live (spec §18, §73).
  *
- * Returns null once the consultation has ended — the row is gone by then, and
- * this returning null rather than throwing is what lets the pharmacy screen
- * degrade gracefully after completion.
+ * Returns null when the details are not available — today because the row was
+ * purged, and after Phase 5.5 because a sealed record is not readable through
+ * any product surface (D23). Returning null rather than throwing is what lets
+ * the pharmacy screen degrade gracefully once the consultation ends, and it
+ * stays correct under both models.
  */
 export async function readPatientPanel(
   consultationId: string,
@@ -210,7 +218,9 @@ export async function readPatientPanel(
 ): Promise<{ fullName: string; age: number; sex: string; phone?: string } | null> {
   const session = await db.patientSession.findUnique({ where: { consultationId } });
 
-  // Hard-deleted at completion, so absence is the signal — see the note in
+  // Pre-D23: hard-deleted at completion, so absence was the signal. Phase 5.5
+  // changes this to a sealed retained row; the null-check stays correct either
+  // way, because a purged expired record is still absent. See the note in
   // access-token.service.ts on why there is no soft-delete flag.
   if (!session || !session.fullNameEnc || session.age === null || !session.sex) {
     return null;

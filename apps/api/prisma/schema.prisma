@@ -12,8 +12,13 @@
 //   - `...Enc`   encrypted at rest with AES-256-GCM (docs/security.md §5)
 //
 // Every model carries a retention tag: PERMANENT | TEMPORARY | OPERATIONAL.
-// TEMPORARY models are hard-deleted inside the consultation completion
-// transaction — not hidden, not nulled (spec §62).
+//
+// SUPERSEDED BY DECISION D23, implemented in Phase 5.5. TEMPORARY no longer
+// means "deleted at completion": Ghanaian record-keeping law does not permit
+// that. It now means "retained sealed for retention.clinicalRecordYears, then
+// destroyed". Deletion is still a real DELETE, never a flag (spec §62) — what
+// changed is when. The tags below still read as originally written; treat them
+// as the pre-D23 model until Phase 5.5 lands. See docs/data-retention.md.
 // =============================================================================
 
 generator client {
@@ -863,9 +868,11 @@ model ConsultationAccessToken {
   @@map("consultation_access_tokens")
 }
 
-/// TEMPORARY — deleted at completion, except that name/age/sex are copied BY
-/// VALUE onto any prescription or referral issued. That is the sole permitted
-/// exception (spec §11).
+/// TEMPORARY (pre-D23 wording) — name/age/sex are copied BY VALUE onto any
+/// prescription or referral issued (spec §11). Under D23 this row is retained
+/// sealed rather than deleted at completion, because a clinical record nobody
+/// can attribute to a patient discharges nothing. Retrieval is by consultation
+/// reference, never by person (D24). Implemented in Phase 5.5.
 model PatientSession {
   id                     String    @id @default(uuid(7))
   consultationId         String    @unique
@@ -886,7 +893,9 @@ model PatientSession {
   @@map("patient_sessions")
 }
 
-/// TEMPORARY — hard-deleted the instant the doctor completes (spec §16).
+/// TEMPORARY (pre-D23 wording) — under D23 this is the core retained clinical
+/// record: sealed at completion, readable through no product surface, and
+/// destroyed when the retention period expires. Implemented in Phase 5.5.
 model ConsultationClinicalNotes {
   id             String   @id @default(uuid(7))
   consultationId String   @unique
