@@ -83,13 +83,35 @@ the reason in `data-retention.md` §4.
 
 ---
 
-## Phase 6 — Clinical workflow
+## Phase 6 — Clinical workflow ✅ engine and API complete 2026-09-02; UI outstanding
 
 Vitals and point-of-care test entry by the pharmacy · the doctor's clinical workspace · outcome capture · prescription creation, items, and the prescription state machine · digital signature binding to the verified doctor · prescription PDF · public QR verification page · revocation before dispensing · dispensing and immutability · the pharmacy substitution workflow with doctor approval · referral creation and PDF · **the consultation summary** — doctor-authored, mandatory for advice-only outcomes, permanent, with its own verification page (D25) · **the completion transaction, which now seals and schedules rather than purges** (D23).
 
 ~~Also folded in: pharmacy document upload and the activation check.~~ **Done ahead of Phase 6** on 2026-08-29, while the G7 follow-up questions sit with counsel — see the Phase 2 note below.
 
-**Exit:** scenarios 6–13 pass; the §101 critical test is demonstrated in its revised form — clinical data present during, present but unreadable after, gone after expiry.
+**Exit — met at the API layer.** Scenarios 6, 7, 8, 9, 10, 11, 12 and 13 pass
+end to end through the real HTTP surface (`e2e/clinical.spec.ts`), taking the
+required set from 3 of 16 to 11 of 16. The revised §101 test is scenario 11:
+after completion the clinical record still exists, no role can read it, and it
+is destroyed when its retention period elapses.
+
+**Outstanding: the front end.** The doctor's clinical workspace, the pharmacy's
+prescription and dispensing screens, the substitution flows, and the public
+verification page are not built. Every route behind them is, and is tested.
+
+Two things surfaced while building this and were fixed here:
+
+- **The NIGHT shift could never be activated.** The backlog claimed 24-hour
+  operation was "accommodated" by seeding the definition inactive, but no route
+  could turn it on. `PATCH /admin/shifts/definitions/:code` is that switch. It
+  also stopped the end-to-end suite skipping itself outside 08:00–20:00 UTC,
+  which was giving false confidence overnight.
+- **The global rate limiter keys by IP, not by principal.** Its hook is
+  registered before the auth plugin, so `request.principal` is always
+  undefined and the fallback applied. The ordering is correct — limiting before
+  authentication is what stops a flood reaching the session lookup — but the
+  comment claiming per-principal limiting was wrong and is corrected. Whether
+  one budget per NAT suits a busy pharmacy is a Phase 10 question.
 
 ---
 

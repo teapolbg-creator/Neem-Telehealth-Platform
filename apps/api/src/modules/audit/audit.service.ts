@@ -79,6 +79,7 @@ export const AUDIT_ACTIONS = {
   SUBSTITUTION_REQUESTED: 'substitution.requested',
   SUBSTITUTION_DECIDED: 'substitution.decided',
   REFERRAL_GENERATED: 'referral.generated',
+  SUMMARY_ISSUED: 'summary.issued',
 
   SETTING_CHANGED: 'settings.changed',
   SENSITIVE_RECORD_ACCESSED: 'access.sensitive-record',

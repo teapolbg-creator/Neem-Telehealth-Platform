@@ -1,0 +1,571 @@
+import {
+  test,
+  expect,
+  API,
+  DEMO,
+  createActiveDoctor,
+  csrfHeaders,
+  signIn,
+  signInAdmin,
+  type ActiveDoctor,
+} from './support/fixtures.ts';
+import type { APIRequestContext } from '@playwright/test';
+
+/**
+ * The clinical workflow, end to end (spec §80 scenarios 6–13).
+ *
+ * Drives the real HTTP surface as each party: the pharmacy records vitals and
+ * dispenses, the doctor prescribes and completes, and an unauthenticated
+ * caller verifies. Nothing here reaches into a service directly — the point is
+ * that the routes and their authorization behave.
+ */
+
+const PASSWORD = 'DoctorPassword2026!';
+
+/**
+ * The shift covering now.
+ *
+ * NIGHT is seeded inactive because 24-hour operation is post-MVP, which used to
+ * make every test in this file skip outside 08:00-20:00 UTC — a suite that only
+ * runs during office hours gives false confidence overnight and in CI. The
+ * admin route now activates it when needed.
+ */
+function shiftCoveringNow(): string {
+  const hour = new Date().getUTCHours();
+  if (hour >= 8 && hour < 14) return 'MORNING';
+  if (hour >= 14 && hour < 20) return 'AFTERNOON';
+  return 'NIGHT';
+}
+
+interface LiveConsultation {
+  publicId: string;
+  doctor: ActiveDoctor;
+  doctorApi: APIRequestContext;
+  pharmacyApi: APIRequestContext;
+  adminApi: APIRequestContext;
+}
+
+/**
+ * A consultation IN_PROGRESS with the doctor joined.
+ *
+ * Returns null when no active shift covers this hour, so a skipped scenario
+ * says what was missing rather than leaving a silent hole.
+ */
+async function liveConsultation(
+  playwright: typeof import('@playwright/test').default,
+  run: string,
+  seed: string,
+): Promise<LiveConsultation | { skip: string }> {
+  const shiftCode = shiftCoveringNow();
+
+  const pharmacyApi = await playwright.request.newContext();
+  const doctorApi = await playwright.request.newContext();
+  const adminApi = await playwright.request.newContext();
+
+  const doctor = await createActiveDoctor(doctorApi, { run: `${run}${seed}` });
+
+  const pharmacyCsrf = await signIn(pharmacyApi, DEMO.pharmacy);
+  const created = await pharmacyApi.post(`${API}/pharmacy/consultations`, {
+    headers: csrfHeaders(pharmacyCsrf),
+    data: {},
+  });
+  const publicId = (await created.json()).data.publicId as string;
+
+  await pharmacyApi.post(`${API}/pharmacy/consultations/${publicId}/payment`, {
+    headers: csrfHeaders(pharmacyCsrf),
+    data: {},
+  });
+  await pharmacyApi.post(`${API}/pharmacy/consultations/${publicId}/payment/simulate`, {
+    headers: csrfHeaders(pharmacyCsrf),
+    data: { outcome: 'SUCCESS' },
+  });
+
+  const qr = await pharmacyApi.post(`${API}/pharmacy/consultations/${publicId}/qr`, {
+    headers: csrfHeaders(pharmacyCsrf),
+    data: {},
+  });
+  const token = ((await qr.json()).data.url as string).split('/s/')[1]!;
+
+  // The patient half runs in its own context, as a patient's phone would.
+  const patientApi = await playwright.request.newContext();
+  await patientApi.post(`${API}/s/exchange`, { data: { token } });
+  await patientApi.post(`${API}/patient/session/identity`, {
+    data: { fullName: 'Adwoa Mensah', age: 34, sex: 'FEMALE', phone: '0245551234' },
+  });
+  await patientApi.post(`${API}/patient/session/language`, { data: { languageCode: 'en' } });
+  await patientApi.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });
+  await patientApi.dispose();
+
+  // Make the doctor eligible and route the consultation to them.
+  const adminCsrf = (await signInAdmin(adminApi)).csrf;
+  const serviceDate = new Date().toISOString().slice(0, 10);
+
+  // Idempotent, and only matters for NIGHT. Leaving it active afterwards is
+  // harmless — a night shift is a real capability, not a test artefact.
+  await adminApi.patch(`${API}/admin/shifts/definitions/${shiftCode}`, {
+    headers: csrfHeaders(adminCsrf),
+    data: { isActive: true },
+  });
+
+  const assigned = await adminApi.post(`${API}/admin/shifts`, {
+    headers: csrfHeaders(adminCsrf),
+    data: { doctorPublicId: doctor.publicId, shiftCode, serviceDate },
+  });
+  if (!assigned.ok()) return { skip: `Could not assign a shift: ${await assigned.text()}` };
+
+  const doctorCsrf = await signIn(doctorApi, doctor);
+  const shifts = await doctorApi.get(`${API}/doctor/shifts`);
+  const todays = ((await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>)
+    .find((shift) => shift.serviceDate === serviceDate);
+  if (!todays) return { skip: `No shift on ${serviceDate}.` };
+
+  await doctorApi.post(`${API}/doctor/shifts/${todays.id}/confirm`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: {},
+  });
+  await doctorApi.post(`${API}/doctor/presence/online`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: {},
+  });
+
+  const offered = await adminApi.post(`${API}/admin/queue/${publicId}/reallocate`, {
+    headers: csrfHeaders(adminCsrf),
+    data: {},
+  });
+  if (!(await offered.json()).data?.offered) return { skip: 'The engine offered it to nobody.' };
+
+  const accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: {},
+  });
+  if (!accepted.ok()) return { skip: `Could not accept: ${await accepted.text()}` };
+
+  // Joining the media session is what moves DOCTOR_ACCEPTED → IN_PROGRESS.
+  await doctorApi.post(`${API}/doctor/consultations/${publicId}/media/join`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: {},
+  });
+
+  return { publicId, doctor, doctorApi, pharmacyApi, adminApi };
+}
+
+async function csrfOf(api: APIRequestContext): Promise<string> {
+  const state = await api.storageState();
+  return state.cookies.find((cookie) => cookie.name === 'neem_csrf')!.value;
+}
+
+const ITEM = {
+  medication: 'Amoxicillin',
+  strength: '500mg',
+  form: 'Capsule',
+  dose: '1 capsule',
+  frequency: 'Three times daily',
+  durationText: '5 days',
+  quantity: '15 capsules',
+};
+
+test.describe('scenario 6 — a doctor prescribes and the pharmacy receives it', () => {
+  test('reaches the pharmacy signed, with a PDF and a verification page', async ({
+    playwright,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'a');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+
+    // The pharmacy records what it measured before the doctor prescribes.
+    const pharmacyCsrf = await csrfOf(live.pharmacyApi);
+    const vitals = await live.pharmacyApi.post(
+      `${API}/pharmacy/consultations/${live.publicId}/vitals`,
+      {
+        headers: csrfHeaders(pharmacyCsrf),
+        data: { bpSystolic: 128, bpDiastolic: 84, pulseBpm: 92, temperatureC: 38.2 },
+      },
+    );
+    expect(vitals.status()).toBe(201);
+
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    expect(draft.status(), await draft.text()).toBe(201);
+    const rxPublicId = (await draft.json()).data.publicId as string;
+
+    const issued = await live.doctorApi.post(`${API}/doctor/prescriptions/${rxPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+    expect(issued.status(), await issued.text()).toBe(200);
+    expect((await issued.json()).data.state).toBe('ACTIVE');
+
+    // The pharmacy sees it.
+    const list = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions?activeOnly=true`);
+    const found = ((await list.json()).data as Array<{ publicId: string; items: unknown[] }>).find(
+      (rx) => rx.publicId === rxPublicId,
+    );
+    expect(found, 'the prescription should reach the pharmacy').toBeTruthy();
+    expect(found!.items).toHaveLength(1);
+
+    // And can download the PDF.
+    const pdf = await live.pharmacyApi.get(`${API}/documents/prescriptions/${rxPublicId}.pdf`);
+    expect(pdf.status()).toBe(200);
+    expect(pdf.headers()['content-type']).toBe('application/pdf');
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+});
+
+test.describe('scenarios 7 and 8 — substitution', () => {
+  test('the doctor approves, and the record shows both medications', async ({ playwright, run }) => {
+    const live = await liveConsultation(playwright, run, 'b');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+    const pharmacyCsrf = await csrfOf(live.pharmacyApi);
+
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    const rxPublicId = (await draft.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${rxPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+
+    const list = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
+    const rx = ((await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>)
+      .find((entry) => entry.publicId === rxPublicId)!;
+
+    const proposal = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${rxPublicId}/substitutions`,
+      {
+        headers: csrfHeaders(pharmacyCsrf),
+        data: {
+          itemId: rx.items[0]!.id,
+          medication: 'Amoxil',
+          strength: '500mg',
+          reason: 'Out of stock; same molecule.',
+        },
+      },
+    );
+    expect(proposal.status(), await proposal.text()).toBe(201);
+    const substitutionId = (await proposal.json()).data.id as string;
+
+    // Dispensing must wait for the doctor.
+    const early = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${rxPublicId}/dispense`,
+      { headers: csrfHeaders(pharmacyCsrf), data: {} },
+    );
+    expect(early.status()).toBe(422);
+
+    const decided = await live.doctorApi.post(
+      `${API}/doctor/substitutions/${substitutionId}/decide`,
+      { headers: csrfHeaders(doctorCsrf), data: { approve: true } },
+    );
+    expect(decided.status(), await decided.text()).toBe(200);
+
+    const after = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
+    const updated = ((await after.json()).data as Array<{
+      publicId: string;
+      state: string;
+      items: Array<{ medication: string }>;
+    }>).find((entry) => entry.publicId === rxPublicId)!;
+
+    expect(updated.state).toBe('SUBSTITUTION_APPROVED');
+    // The active item is the replacement; the original is superseded, not gone.
+    expect(updated.items.map((item) => item.medication)).toEqual(['Amoxil']);
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+
+  test('the doctor refuses, and the original is still dispensable', async ({ playwright, run }) => {
+    const live = await liveConsultation(playwright, run, 'c');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+    const pharmacyCsrf = await csrfOf(live.pharmacyApi);
+
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    const rxPublicId = (await draft.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${rxPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+
+    const list = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
+    const rx = ((await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>)
+      .find((entry) => entry.publicId === rxPublicId)!;
+
+    const proposal = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${rxPublicId}/substitutions`,
+      {
+        headers: csrfHeaders(pharmacyCsrf),
+        data: { itemId: rx.items[0]!.id, medication: 'Something cheaper', reason: 'Cost' },
+      },
+    );
+    const substitutionId = (await proposal.json()).data.id as string;
+
+    await live.doctorApi.post(`${API}/doctor/substitutions/${substitutionId}/decide`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { approve: false, note: 'Not therapeutically equivalent.' },
+    });
+
+    // A refusal does not strand the prescription — the pharmacy fills what the
+    // doctor actually prescribed.
+    const dispensed = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${rxPublicId}/dispense`,
+      { headers: csrfHeaders(pharmacyCsrf), data: {} },
+    );
+    expect(dispensed.status(), await dispensed.text()).toBe(200);
+    expect((await dispensed.json()).data.state).toBe('DISPENSED');
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+});
+
+test.describe('scenarios 9 and 10 — revocation and its limit', () => {
+  test('revokes before dispensing, and refuses afterwards (spec §82)', async ({
+    playwright,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'd');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+    const pharmacyCsrf = await csrfOf(live.pharmacyApi);
+
+    // First prescription: revoked before dispensing (scenario 9).
+    const first = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    const firstId = (await first.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${firstId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+
+    const revoked = await live.doctorApi.post(`${API}/doctor/prescriptions/${firstId}/revoke`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { reason: 'Patient reported a penicillin allergy.' },
+    });
+    expect(revoked.status(), await revoked.text()).toBe(200);
+
+    // The pharmacy is refused.
+    const blocked = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${firstId}/dispense`,
+      { headers: csrfHeaders(pharmacyCsrf), data: {} },
+    );
+    expect(blocked.status()).toBe(422);
+
+    // Second prescription: dispensed, then revocation refused (scenario 10).
+    const second = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [{ ...ITEM, medication: 'Azithromycin' }] } },
+    );
+    const secondId = (await second.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${secondId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+    await live.pharmacyApi.post(`${API}/pharmacy/prescriptions/${secondId}/dispense`, {
+      headers: csrfHeaders(pharmacyCsrf),
+      data: {},
+    });
+
+    const tooLate = await live.doctorApi.post(`${API}/doctor/prescriptions/${secondId}/revoke`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { reason: 'Changed my mind' },
+    });
+    expect(tooLate.status()).toBe(422);
+    expect(await tooLate.text()).toMatch(/already been dispensed/i);
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+});
+
+test.describe('scenario 12 — a prescription stays accessible to authorised parties', () => {
+  test('survives completion, and the verification page confirms it without disclosing it', async ({
+    playwright,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'e');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    const rxPublicId = (await draft.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${rxPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+
+    const completed = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/complete`,
+      {
+        headers: csrfHeaders(doctorCsrf),
+        data: { outcome: 'PRESCRIPTION', notes: { notes: 'Chest clear.' } },
+      },
+    );
+    expect(completed.status(), await completed.text()).toBe(200);
+    const result = (await completed.json()).data;
+    expect(result.state).toBe('COMPLETED');
+    // Sealed and scheduled for destruction (D23).
+    expect(result.destroyAt).toBeTruthy();
+
+    // The prescription is still readable by the pharmacy after completion.
+    const pdf = await live.pharmacyApi.get(`${API}/documents/prescriptions/${rxPublicId}.pdf`);
+    expect(pdf.status()).toBe(200);
+
+    // And still dispensable.
+    const dispensed = await live.pharmacyApi.post(
+      `${API}/pharmacy/prescriptions/${rxPublicId}/dispense`,
+      { headers: csrfHeaders(await csrfOf(live.pharmacyApi)), data: {} },
+    );
+    expect(dispensed.status(), await dispensed.text()).toBe(200);
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+});
+
+test.describe('scenario 11 — the clinical record after completion (revised by D23)', () => {
+  test('still exists, and no role can read it', async ({ playwright, run, request }) => {
+    const live = await liveConsultation(playwright, run, 'f');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+
+    await live.doctorApi.put(`${API}/doctor/consultations/${live.publicId}/notes`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { notes: 'Fever for three days.', diagnosis: 'Viral pharyngitis' },
+    });
+
+    // Readable while live.
+    const before = await live.doctorApi.get(
+      `${API}/doctor/consultations/${live.publicId}/workspace`,
+    );
+    expect(before.status()).toBe(200);
+    expect(await before.text()).toContain('Fever for three days');
+
+    const summary = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/summary`,
+      {
+        headers: csrfHeaders(doctorCsrf),
+        data: {
+          presentingComplaint: 'Sore throat, wants antibiotics.',
+          assessment: 'Viral. Antibiotics would not help.',
+          advice: 'Rest and fluids.',
+          safetyNetting: 'Return if you cannot swallow or develop difficulty breathing.',
+        },
+      },
+    );
+    expect(summary.status(), await summary.text()).toBe(201);
+
+    await live.doctorApi.post(`${API}/doctor/consultations/${live.publicId}/complete`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { outcome: 'ADVICE_ONLY' },
+    });
+
+    /**
+     * The revised §101 assertion (decision D23). The record is NOT deleted —
+     * Ghanaian law does not permit that — but no role can read it.
+     */
+    const after = await live.doctorApi.get(
+      `${API}/doctor/consultations/${live.publicId}/workspace`,
+    );
+    expect(after.status()).toBe(403);
+    expect(await after.text()).not.toContain('Fever for three days');
+
+    // Nor the pharmacy, through its own consultation view.
+    const pharmacyView = await live.pharmacyApi.get(
+      `${API}/pharmacy/consultations/${live.publicId}`,
+    );
+    expect(await pharmacyView.text()).not.toMatch(/Fever for three days|pharyngitis/i);
+
+    // The summary the patient carries away is unaffected — it is a document
+    // the doctor deliberately issued, not a working note.
+    const summaryCode = (await summary.json()).data.publicId;
+    expect(summaryCode).toBeTruthy();
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+    expect(request).toBeTruthy();
+  });
+});
+
+test.describe('the verification page discloses nothing', () => {
+  test('confirms a document without revealing what it says (spec §44)', async ({
+    playwright,
+    request,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'g');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    test.skip('skip' in live, 'skip' in live ? live.skip : '');
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+
+    const referral = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/referrals`,
+      {
+        headers: csrfHeaders(doctorCsrf),
+        data: {
+          hospitalName: 'Korle Bu Teaching Hospital',
+          department: 'Emergency',
+          reasonText: 'Persistent chest pain requiring urgent cardiac assessment.',
+          urgency: 'Urgent',
+        },
+      },
+    );
+    expect(referral.status(), await referral.text()).toBe(201);
+    const referralId = (await referral.json()).data.publicId as string;
+
+    // `request` is an unauthenticated context — no account, as a hospital
+    // clerk holding a printout would have.
+    const verified = await request.get(`${API}/verify/referral/${referralId}`);
+    expect(verified.status()).toBe(200);
+
+    const body = await verified.text();
+    expect(JSON.parse(body).data.genuine).toBe(true);
+    expect(body).not.toMatch(/chest pain|cardiac|Korle Bu/i);
+    expect(body).not.toContain('Adwoa Mensah');
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
+});

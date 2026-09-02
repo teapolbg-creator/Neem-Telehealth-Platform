@@ -20,6 +20,7 @@ import { webhookRoutes } from './modules/payment/webhook.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
 import { mediaRoutes } from './modules/media/media.routes.ts';
 import { retentionRoutes } from './modules/retention/retention.routes.ts';
+import { clinicalRoutes } from './modules/clinical/clinical.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 
 /**
@@ -74,8 +75,22 @@ export async function buildApp(): Promise<FastifyInstance> {
     global: true,
     max: env.RATE_LIMIT_MAX_PER_MINUTE,
     timeWindow: '1 minute',
-    // Rate limit per authenticated principal where possible, so one pharmacy
-    // behind a shared connection cannot exhaust another's budget.
+    /**
+     * Keyed by IP in practice, not by principal.
+     *
+     * This plugin registers its `onRequest` hook here, before `authPlugin`
+     * below, so `request.principal` is always undefined when this runs and the
+     * fallback is what actually applies. The `??` is kept for the day the
+     * ordering changes, but the comment that used to claim per-principal
+     * limiting was simply wrong.
+     *
+     * The ordering is deliberate and stays: limiting before authentication is
+     * what keeps a flood of requests from reaching the session lookup at all.
+     * The cost is that everyone behind one NAT — a pharmacy's staff, say —
+     * shares a budget. Whether that budget is right for a busy pharmacy with
+     * several patients polling is a real question, and one for the Phase 10
+     * security pass rather than a late change to DoS-relevant ordering.
+     */
     keyGenerator: (request) => request.principal?.userId ?? request.ip,
   });
 
@@ -100,6 +115,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(queueRoutes);
       await api.register(mediaRoutes);
       await api.register(retentionRoutes);
+      await api.register(clinicalRoutes);
     },
     { prefix: '/api/v1' },
   );

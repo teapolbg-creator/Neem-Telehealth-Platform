@@ -28,13 +28,19 @@ import type { APIRequestContext, Page } from '@playwright/test';
  * would leave them permanently at capacity and starve later runs.
  */
 
-/** The shift covering now, or null outside the active shift definitions. */
-function shiftCoveringNow(): string | null {
+/**
+ * The shift covering now.
+ *
+ * NIGHT is seeded inactive because 24-hour operation is post-MVP, which meant
+ * every scenario here skipped outside 08:00-20:00 UTC. A suite that only runs
+ * during office hours gives false confidence overnight and in CI, so the
+ * fixture activates the definition instead.
+ */
+function shiftCoveringNow(): string {
   const hour = new Date().getUTCHours();
   if (hour >= 8 && hour < 14) return 'MORNING';
   if (hour >= 14 && hour < 20) return 'AFTERNOON';
-  // NIGHT is seeded inactive, so no doctor can be eligible overnight.
-  return null;
+  return 'NIGHT';
 }
 
 const PATIENT_PHONE = '0209876543';
@@ -91,14 +97,14 @@ async function makeEligible(
   doctor: ActiveDoctor,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const shiftCode = shiftCoveringNow();
-  if (!shiftCode) {
-    return {
-      ok: false,
-      reason: 'No active shift definition covers this hour (NIGHT is seeded inactive).',
-    };
-  }
-
   const adminCsrf = (await signInAdmin(adminRequest)).csrf;
+
+  // Idempotent, and only matters for NIGHT. Leaving it active afterwards is
+  // harmless — a night shift is a real capability, not a test artefact.
+  await adminRequest.patch(`${API}/admin/shifts/definitions/${shiftCode}`, {
+    headers: csrfHeaders(adminCsrf),
+    data: { isActive: true },
+  });
 
   // The service date is bucketed in UTC, so it is derived in UTC here too.
   const serviceDate = new Date().toISOString().slice(0, 10);

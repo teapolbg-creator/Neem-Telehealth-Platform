@@ -12,11 +12,22 @@ import { test } from './support/fixtures.ts';
  * As each phase lands, the corresponding `test.fixme` becomes a real test in
  * its own spec file, and the placeholder here is deleted.
  *
- * Progress: 3 of 16 implemented. Scenarios 3, 4 and 5 live in queue.spec.ts.
- * Phase 5 added media.spec.ts, which is not one of the 16 but covers the
- * no-recording and no-phone-number guarantees end to end. The rest await
- * Phases 6–7 — most of them need a doctor to be able to COMPLETE a
- * consultation, which is Phase 6.
+ * Progress: 11 of 16 implemented.
+ *   3, 4, 5           queue.spec.ts       (Phase 4)
+ *   6, 7, 8, 9, 10,
+ *   11, 12, 13        clinical.spec.ts    (Phase 6)
+ *
+ * Scenario 11 was restated by decision D23: clinical notes are NOT deleted at
+ * completion, because Ghanaian law does not permit that. It now asserts the
+ * three things that replace it — the record still exists, no role can read it,
+ * and it is destroyed at the end of its retention period.
+ *
+ * Also present but not among the 16: media.spec.ts covers the no-recording and
+ * no-phone-number guarantees, and pharmacy-onboarding.spec.ts the verification
+ * path.
+ *
+ * The five remaining await Phase 7 (payments and refunds) and Phase 2's
+ * membership expiry.
  */
 
 test.describe('required scenarios (spec §80)', () => {
@@ -33,60 +44,6 @@ test.describe('required scenarios (spec §80)', () => {
     // Needs: Phase 3 payment orchestration; Phase 7 for the real provider.
   });
 
-  test.fixme('Scenario 6 — doctor issues a prescription and the pharmacy receives it', async () => {
-    // Needs: Phase 6 prescription engine.
-  });
-
-  test.fixme('Scenario 7 — pharmacy proposes a substitution and the doctor approves', async () => {
-    // Needs: Phase 6 substitution workflow.
-  });
-
-  test.fixme('Scenario 8 — doctor rejects a proposed substitution', async () => {
-    // Needs: Phase 6.
-  });
-
-  test.fixme('Scenario 9 — a prescription is revoked before dispensing', async () => {
-    // Needs: Phase 6 prescription state machine.
-  });
-
-  test.fixme('Scenario 10 — a dispensed prescription cannot be revoked', async () => {
-    // Needs: Phase 6. DISPENSED → REVOKED must be impossible (spec §82).
-  });
-
-  /**
-   * PREMISE VOIDED BY DECISION D23 — needs redefining with the product owner.
-   *
-   * This scenario, and spec §101 behind it, assert that clinical notes are
-   * deleted when the consultation completes. Ghanaian record-keeping law does
-   * not permit that: notes are retained sealed for the configured period and
-   * destroyed at expiry.
-   *
-   * As written this test cannot pass without breaking the law it was meant to
-   * demonstrate compliance with. The replacement is three assertions
-   * (docs/data-retention.md §6):
-   *
-   *   1. after completion the clinical record still exists, encrypted;
-   *   2. NO authenticated role — doctor, pharmacy, admin, patient — can read
-   *      it through any route (this is the assertion that now carries the
-   *      privacy guarantee);
-   *   3. after the retention period elapses and the job runs, the rows are
-   *      gone.
-   *
-   * Left as one fixme rather than silently rewritten, because changing a
-   * required acceptance criterion is the product owner's call, not mine.
-   */
-  test.fixme('Scenario 11 — clinical notes are deleted after the consultation', async () => {
-    // Needs: Phase 5.5 (retention) and Phase 6 (completion), and a decision on
-    // the restated criterion above.
-  });
-
-  test.fixme('Scenario 12 — a prescription stays accessible to authorised parties', async () => {
-    // Needs: Phase 6.
-  });
-
-  test.fixme('Scenario 13 — one pharmacy cannot read another pharmacy’s prescription', async () => {
-    // Needs: Phase 6. The seed provides a second pharmacy for exactly this.
-  });
 
   test.fixme('Scenario 14 — a doctor cannot be scheduled beyond 40 hours', async () => {
     // NOTE: this rule is already built and covered by the Vitest integration

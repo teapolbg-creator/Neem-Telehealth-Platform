@@ -274,3 +274,68 @@ research purpose code (`data-retention.md` §4).
 The retrievals listing returns who opened what and why — **never what it
 said**. A screen rendering the records alongside would be the longitudinal
 history by another route.
+
+
+---
+
+## 12. Clinical workflow (spec §41–§50, §82, decisions D13, D25)
+
+Who may do what is the whole design here.
+
+### Pharmacy — records observations, receives, dispenses
+
+```
+POST /pharmacy/consultations/:publicId/vitals       BP, pulse, temperature, weight, SpO₂
+POST /pharmacy/consultations/:publicId/tests        point-of-care result, free text
+GET  /pharmacy/prescriptions                        never returns a DRAFT
+POST /pharmacy/prescriptions/:publicId/dispense     terminal and irreversible
+POST /pharmacy/prescriptions/:publicId/substitutions  a proposal, not a change
+```
+
+**There is no route by which a pharmacy edits a prescription** (spec §47). It
+proposes a substitution and the issuing doctor decides. Dispensing refuses
+while a proposal is undecided, and refuses a revoked prescription outright.
+
+### Doctor — writes, prescribes, refers, completes
+
+```
+GET  /doctor/consultations/:publicId/workspace      notes, vitals, tests for THIS consultation
+PUT  /doctor/consultations/:publicId/notes
+POST /doctor/consultations/:publicId/prescriptions  creates a DRAFT
+POST /doctor/prescriptions/:publicId/issue          signs it; generates the PDF
+POST /doctor/prescriptions/:publicId/revoke         refused once dispensed (spec §82)
+POST /doctor/substitutions/:id/decide               approve supersedes, never overwrites
+POST /doctor/consultations/:publicId/referrals
+POST /doctor/consultations/:publicId/summary        mandatory for advice-only (D25)
+POST /doctor/consultations/:publicId/complete       the only completion path (spec §16)
+```
+
+**Deliberately absent:** any route that edits a prescription's items after
+issue. A correction is a revocation plus a new prescription, so the trail
+shows what actually happened.
+
+`complete` validates everything before writing anything. It refuses an outcome
+claiming a document that does not exist, refuses to complete over an unsigned
+draft that would be stranded, and refuses `ADVICE_ONLY` without a summary. The
+terminal transition seals the clinical record and schedules its destruction
+(D23) — completion does not call sealing itself, which is the point of putting
+it in `transition()`.
+
+### Documents
+
+```
+GET /documents/prescriptions/:publicId.pdf   four permitted readers only (D13)
+GET /verify/:kind/:code                      public; kind is rx | referral | summary
+```
+
+The PDF is generated **once, at issue**, and stored. Rendering per download
+would let a template change silently alter a document already in a patient's
+hands. Every download is audited.
+
+The verification page is **unauthenticated by design** — a pharmacist or
+hospital clerk holding a printout must be able to check it without an account
+(spec §44). It returns only whether the document is genuine, who signed it, and
+for a prescription whether it has been revoked or dispensed. **Never the
+medication, the reason for referral, or the advice**: anyone who needs the
+content is already holding it. The high-entropy code is the sole guard, so the
+endpoint is rate limited against enumeration, and a DRAFT never verifies.

@@ -56,6 +56,29 @@ export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
       });
     }
 
+    /**
+     * A sealed clinical record (decision D23).
+     *
+     * Mapped centrally rather than at each call site: the sealing rule applies
+     * everywhere clinical data is read, and a route that forgot to catch it
+     * would answer 500 — which reads as a broken server rather than a refusal,
+     * and buries the actual reason in a stack trace.
+     *
+     * 403 with the rule stated, so a doctor reopening a finished consultation
+     * is told why rather than seeing an error page.
+     */
+    if (error.name === 'ClinicalRecordSealed') {
+      request.log.info(
+        { route: request.routeOptions.url, principal: request.principal?.userPublicId },
+        'refused a read of a sealed clinical record',
+      );
+
+      return reply.status(403).send({
+        error: { code: ERROR_CODES.FORBIDDEN, message: error.message },
+        meta,
+      });
+    }
+
     if (error instanceof ZodError) {
       const details = error.issues.map((issue) => ({
         field: issue.path.join('.') || undefined,

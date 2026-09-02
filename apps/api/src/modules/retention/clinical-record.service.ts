@@ -400,6 +400,3 @@ export async function overdueDestructions(
   });
 }
 
-export function errorForSealedRecord(error: unknown): ReturnType<typeof errors.forbidden> | null {
-  return error instanceof ClinicalRecordSealed ? errors.forbidden(error.message) : null;
-}

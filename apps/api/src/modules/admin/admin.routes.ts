@@ -26,6 +26,7 @@ import {
   pharmacyTransitionOptions,
 } from '../pharmacy/pharmacy.service.ts';
 import { readDocument, verifyDocument } from '../documents/documents.service.ts';
+import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { assignShift, cancelShift, listShiftDefinitions } from '../scheduling/scheduling.service.ts';
 import {
   createSubscription,
@@ -374,6 +375,51 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * assignment transaction, so this cannot be bypassed by concurrent requests
    * (spec §25).
    */
+  /**
+   * Activates or deactivates a shift definition.
+   *
+   * The NIGHT shift is seeded inactive because 24-hour operation is post-MVP
+   * (docs/product-backlog.md) — but nothing could ever turn it on, so the
+   * capability the backlog claimed was "accommodated" was in fact unreachable.
+   * This is that switch.
+   *
+   * Deactivating leaves existing assignments alone: a doctor already rostered
+   * on a shift keeps it. `assignShift` refuses new assignments to an inactive
+   * definition, which is the behaviour that matters.
+   */
+  app.patch(
+    '/admin/shifts/definitions/:code',
+    { preHandler: shiftAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { code } = z.object({ code: z.string().min(2).max(40) }).parse(request.params);
+      const { isActive } = z.object({ isActive: z.boolean() }).parse(request.body);
+
+      const definition = await getPrisma().shiftDefinition.findUnique({ where: { code } });
+      if (!definition) throw errors.notFound('Shift definition not found.');
+
+      await getPrisma().shiftDefinition.update({ where: { code }, data: { isActive } });
+
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.SETTING_CHANGED,
+          actorType: 'ADMIN',
+          actorId: principal.userId,
+          entityType: 'shift_definition',
+          entityId: definition.id,
+          correlationId: request.correlationId,
+          metadata: { code, isActive },
+        },
+        getPrisma(),
+      );
+
+      return reply.send({
+        data: { code, isActive },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
+
   app.post('/admin/shifts', { preHandler: shiftAdmin }, async (request, reply) => {
     const principal = requireAuth(request);
     const input = shiftAssignmentSchema.parse(request.body);

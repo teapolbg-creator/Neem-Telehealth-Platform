@@ -16,6 +16,12 @@ import {
   revokePrescription,
 } from '../../src/modules/prescription/prescription.service.ts';
 import { completeConsultation } from '../../src/modules/clinical/clinical.service.ts';
+import {
+  generatePrescriptionPdf,
+  issueReferral,
+  issueSummary,
+  readDocumentPdf,
+} from '../../src/modules/documents/document.service.ts';
 import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
 
 /**
@@ -592,5 +598,318 @@ describe('completing a consultation', () => {
     await expect(
       completeConsultation(fixture.consultationId, other.doctorId, { outcome: 'OTHER' }),
     ).rejects.toThrow(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Documents: PDFs, referrals, summaries and verification
+// ---------------------------------------------------------------------------
+
+describe('the prescription PDF', () => {
+  it('is generated at issue and is a real PDF', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    await generatePrescriptionPdf(prescription.id);
+
+    const stored = await getPrisma().prescription.findUniqueOrThrow({
+      where: { id: prescription.id },
+    });
+    expect(stored.pdfStorageKey).toBeTruthy();
+
+    const pdf = await readDocumentPdf(stored.pdfStorageKey!);
+    // The magic bytes, so this asserts a document rather than an empty buffer.
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBeGreaterThan(2_000);
+  });
+
+  it('is stored once rather than rendered per download', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    await generatePrescriptionPdf(prescription.id);
+
+    const first = await getPrisma().prescription.findUniqueOrThrow({
+      where: { id: prescription.id },
+    });
+    const a = await readDocumentPdf(first.pdfStorageKey!);
+    const b = await readDocumentPdf(first.pdfStorageKey!);
+
+    // Byte-identical: a template change must not silently alter a document
+    // already in a patient's hands.
+    expect(a.equals(b)).toBe(true);
+  });
+});
+
+describe('referrals', () => {
+  it('issues with a PDF and records the destination, not the reason', async () => {
+    const fixture = await liveConsultation();
+
+    const referral = await issueReferral(fixture.consultationId, fixture.doctorId, {
+      hospitalName: 'Korle Bu Teaching Hospital',
+      department: 'Emergency',
+      reasonText: 'Persistent chest pain with exertion; needs ECG and troponin.',
+      urgency: 'Urgent',
+    });
+
+    const stored = await getPrisma().referral.findUniqueOrThrow({ where: { id: referral.id } });
+    expect(stored.pdfStorageKey).toBeTruthy();
+    expect((await readDocumentPdf(stored.pdfStorageKey!)).subarray(0, 5).toString()).toBe('%PDF-');
+
+    // The audit log carries the destination and urgency; the clinical reason
+    // is not audit-log material (spec §61).
+    const entry = await getPrisma().auditLog.findFirstOrThrow({
+      where: { action: 'referral.generated', entityId: referral.id },
+    });
+    const serialised = JSON.stringify(entry);
+    expect(serialised).toContain('Korle Bu');
+    expect(serialised).not.toMatch(/troponin|chest pain/i);
+  });
+
+  it('refuses a referral with no reason — the receiving clinician relies on it', async () => {
+    const fixture = await liveConsultation();
+
+    await expect(
+      issueReferral(fixture.consultationId, fixture.doctorId, {
+        hospitalName: 'Korle Bu',
+        department: 'Emergency',
+        reasonText: '   ',
+      }),
+    ).rejects.toThrow(/needs a reason/i);
+  });
+});
+
+describe('the consultation summary (decision D25)', () => {
+  const VALID = {
+    presentingComplaint: 'Sore throat for two days, wants antibiotics.',
+    assessment: 'Viral pharyngitis. No red flags; antibiotics would not help.',
+    advice: 'Rest, fluids, paracetamol for pain.',
+    safetyNetting:
+      'Return or go to hospital if you cannot swallow fluids, develop difficulty breathing, ' +
+      'or the fever lasts beyond four days.',
+  };
+
+  it('issues with a PDF and unblocks an advice-only completion', async () => {
+    const fixture = await liveConsultation();
+
+    const summary = await issueSummary(fixture.consultationId, fixture.doctorId, VALID);
+    expect(summary.safetyNetting).toMatch(/difficulty breathing/);
+
+    const stored = await getPrisma().consultationSummary.findUniqueOrThrow({
+      where: { id: summary.id },
+    });
+    expect((await readDocumentPdf(stored.pdfStorageKey!)).subarray(0, 5).toString()).toBe('%PDF-');
+
+    const result = await completeConsultation(fixture.consultationId, fixture.doctorId, {
+      outcome: 'ADVICE_ONLY',
+    });
+    expect(result.hasSummary).toBe(true);
+  });
+
+  it('refuses without safety-netting', async () => {
+    const fixture = await liveConsultation();
+
+    // Neem's own rule, not a legal one (G7g) — but it stands on clinical
+    // grounds: "no medication needed" alone reads as an all-clear.
+    await expect(
+      issueSummary(fixture.consultationId, fixture.doctorId, { ...VALID, safetyNetting: '  ' }),
+    ).rejects.toThrow();
+  });
+
+  it('allows only one summary per consultation', async () => {
+    const fixture = await liveConsultation();
+    await issueSummary(fixture.consultationId, fixture.doctorId, VALID);
+
+    await expect(
+      issueSummary(fixture.consultationId, fixture.doctorId, VALID),
+    ).rejects.toThrow(/already has a summary/i);
+  });
+
+  it('keeps no clinical content in the audit log', async () => {
+    const fixture = await liveConsultation();
+    const summary = await issueSummary(fixture.consultationId, fixture.doctorId, VALID);
+
+    const entry = await getPrisma().auditLog.findFirstOrThrow({
+      where: { action: 'summary.issued', entityId: summary.id },
+    });
+    expect(JSON.stringify(entry)).not.toMatch(/pharyngitis|antibiotics|swallow/i);
+  });
+
+  it('survives the sealing of the clinical record', async () => {
+    const fixture = await liveConsultation();
+    const summary = await issueSummary(fixture.consultationId, fixture.doctorId, VALID);
+    await completeConsultation(fixture.consultationId, fixture.doctorId, {
+      outcome: 'ADVICE_ONLY',
+    });
+
+    // A doctor-issued, patient-carried document is permanent, unlike the
+    // working notes it sat beside (docs/data-retention.md §2).
+    const after = await getPrisma().consultationSummary.findUniqueOrThrow({
+      where: { id: summary.id },
+    });
+    expect(after.advice).toBe(VALID.advice);
+  });
+});
+
+describe('the public verification page (spec §44)', () => {
+  it('confirms a prescription is genuine without disclosing what it says', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+
+    const response = await request<Record<string, unknown>>(
+      `/verify/rx/${prescription.verificationCode}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data!.genuine).toBe(true);
+
+    // Whoever needs the content is holding the document. This page proves it
+    // is real; it is not a way to read someone else's prescription.
+    const serialised = JSON.stringify(response.body);
+    expect(serialised).not.toMatch(/Amoxicillin|500mg|Three times daily/i);
+    expect(serialised).not.toContain('Adwoa Mensah');
+  });
+
+  it('needs no account', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+
+    // A pharmacist or hospital clerk holding a printout must be able to check
+    // it. No cookies are sent here.
+    const response = await request(`/verify/rx/${prescription.verificationCode}`);
+    expect(response.status).toBe(200);
+  });
+
+  it('shows a revoked prescription as revoked', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    await revokePrescription(prescription.id, fixture.doctorId, 'Allergy reported');
+
+    const response = await request<{ revoked: boolean; state: string }>(
+      `/verify/rx/${prescription.verificationCode}`,
+    );
+
+    // The pharmacy must be able to see this before dispensing.
+    expect(response.body.data!.revoked).toBe(true);
+    expect(response.body.data!.state).toBe('REVOKED');
+  });
+
+  it('shows a dispensed prescription as dispensed', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    await dispensePrescription(prescription.id, fixture.pharmacyId, fixture.pharmacyUserId);
+
+    const response = await request<{ dispensed: boolean }>(
+      `/verify/rx/${prescription.verificationCode}`,
+    );
+    expect(response.body.data!.dispensed).toBe(true);
+  });
+
+  it('does not verify a draft — a draft is not a document', async () => {
+    const fixture = await liveConsultation();
+    const draft = await createDraft(fixture.consultationId, fixture.doctorId, [ITEM]);
+
+    const response = await request(`/verify/rx/${draft.verificationCode}`);
+    expect(response.status).toBe(404);
+  });
+
+  it('refuses an unknown code without saying why', async () => {
+    const response = await request('/verify/rx/aaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(response.status).toBe(404);
+  });
+
+  it('verifies a referral and a summary too', async () => {
+    const fixture = await liveConsultation();
+
+    const referral = await issueReferral(fixture.consultationId, fixture.doctorId, {
+      hospitalName: 'Korle Bu',
+      department: 'Emergency',
+      reasonText: 'Needs assessment.',
+    });
+    const referralCheck = await request<{ genuine: boolean }>(
+      `/verify/referral/${referral.publicId}`,
+    );
+    expect(referralCheck.body.data!.genuine).toBe(true);
+    // The reason is clinical text and stays on the document.
+    expect(JSON.stringify(referralCheck.body)).not.toMatch(/Needs assessment/i);
+
+    const summary = await issueSummary(fixture.consultationId, fixture.doctorId, {
+      presentingComplaint: 'Sore throat',
+      assessment: 'Viral',
+      advice: 'Rest and fluids',
+      safetyNetting: 'Return if you cannot swallow.',
+    });
+    const summaryCheck = await request<{ genuine: boolean }>(
+      `/verify/summary/${summary.verificationCode}`,
+    );
+    expect(summaryCheck.body.data!.genuine).toBe(true);
+    expect(JSON.stringify(summaryCheck.body)).not.toMatch(/Rest and fluids|swallow/i);
+  });
+});
+
+describe('who may download a prescription PDF (decision D13)', () => {
+  async function issuedWithPdf(fixture: Awaited<ReturnType<typeof liveConsultation>>) {
+    const prescription = await issuedPrescription(fixture);
+    await generatePrescriptionPdf(prescription.id);
+    return prescription;
+  }
+
+  it('gives it to the dispensing pharmacy', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedWithPdf(fixture);
+
+    const user = await getPrisma().user.findUniqueOrThrow({
+      where: { id: fixture.pharmacyUserId },
+    });
+    const cookies = await signIn(user.email, PHARMACY_PASSWORD);
+
+    const response = await request(`/documents/prescriptions/${prescription.publicId}.pdf`, {
+      cookies,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.raw.headers['content-type']).toBe('application/pdf');
+    expect(response.raw.headers['cache-control']).toBe('private, no-store');
+  });
+
+  it('refuses another pharmacy (scenario 13)', async () => {
+    const fixture = await liveConsultation();
+    const other = await liveConsultation();
+    const prescription = await issuedWithPdf(fixture);
+
+    const otherUser = await getPrisma().user.findUniqueOrThrow({
+      where: { id: other.pharmacyUserId },
+    });
+    const cookies = await signIn(otherUser.email, PHARMACY_PASSWORD);
+
+    const response = await request(`/documents/prescriptions/${prescription.publicId}.pdf`, {
+      cookies,
+    });
+
+    // 404, not 403 — the existence of another pharmacy's prescription is not
+    // disclosed (spec §102, D13).
+    expect(response.status).toBe(404);
+  });
+
+  it('refuses an unauthenticated caller', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedWithPdf(fixture);
+
+    const response = await request(`/documents/prescriptions/${prescription.publicId}.pdf`);
+    expect(response.status).toBe(401);
+  });
+
+  it('audits every download', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedWithPdf(fixture);
+
+    const user = await getPrisma().user.findUniqueOrThrow({
+      where: { id: fixture.pharmacyUserId },
+    });
+    const cookies = await signIn(user.email, PHARMACY_PASSWORD);
+    await request(`/documents/prescriptions/${prescription.publicId}.pdf`, { cookies });
+
+    const entry = await getPrisma().auditLog.findFirst({
+      where: { action: 'document.downloaded', entityId: prescription.id },
+    });
+    expect(entry).not.toBeNull();
   });
 });
