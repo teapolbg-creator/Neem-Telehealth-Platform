@@ -192,6 +192,13 @@ export interface DoctorConsultation {
   vitals: Record<string, unknown> | null;
   tests: Array<{ code: string; label: string; result: string; recordedAt: string }>;
   startedAt: string | null;
+  /**
+   * True once the consultation is terminal and the clinical record is sealed
+   * (D23). `vitals` and `tests` then come back empty — not because nothing was
+   * recorded, but because it can no longer be read. The screen must say which.
+   */
+  clinicalSealed: boolean;
+  outcome: string | null;
   durationSeconds: number;
 }
 

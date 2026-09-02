@@ -63,6 +63,26 @@ export const CONSULTATION_STATES = [
 ] as const;
 export type ConsultationState = (typeof CONSULTATION_STATES)[number];
 
+/**
+ * The states a consultation never leaves (spec §81).
+ *
+ * Shared rather than duplicated: the API uses it to decide when to release
+ * doctor capacity and seal the clinical record, and the web uses it to decide
+ * whether to offer a call at all. Two lists would eventually disagree, and the
+ * failure would be a doctor being offered a call into a finished consultation.
+ */
+export const TERMINAL_CONSULTATION_STATES = [
+  'COMPLETED',
+  'EXPIRED',
+  'CANCELLED',
+  'ABANDONED',
+  'REFUNDED',
+] as const satisfies readonly ConsultationState[];
+
+export function isTerminalConsultationState(state: string): boolean {
+  return (TERMINAL_CONSULTATION_STATES as readonly string[]).includes(state);
+}
+
 export const CONSULTATION_TYPES = ['AUDIO', 'VIDEO', 'CALL_ME'] as const;
 export type ConsultationType = (typeof CONSULTATION_TYPES)[number];
 

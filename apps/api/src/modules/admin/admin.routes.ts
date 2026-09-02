@@ -32,6 +32,7 @@ import {
   createSubscription,
   findExpiringLicences,
 } from '../subscription/subscription.service.ts';
+import { queryBoolean } from '../../lib/query.ts';
 
 /**
  * Neem administration routes (spec §55).
@@ -54,7 +55,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const query = paginationQuerySchema
       .extend({
         status: z.enum(DOCTOR_STATUSES).optional(),
-        awaitingReview: z.coerce.boolean().optional(),
+        awaitingReview: queryBoolean.optional(),
         search: z.string().max(120).optional(),
       })
       .parse(request.query);
@@ -216,7 +217,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const query = paginationQuerySchema
       .extend({
         status: z.enum(PHARMACY_STATUSES).optional(),
-        awaitingReview: z.coerce.boolean().optional(),
+        awaitingReview: queryBoolean.optional(),
         search: z.string().max(120).optional(),
       })
       .parse(request.query);

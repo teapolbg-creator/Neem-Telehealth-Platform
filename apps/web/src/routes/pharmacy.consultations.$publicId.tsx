@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, ArrowLeft, Loader2, Lock, User } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
+import { ClinicalIntake } from "@/components/neem/ClinicalIntake";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -119,6 +120,17 @@ function ConsultationMonitor() {
             <h2 className="mb-4 font-bold">Progress</h2>
             <Timeline consultation={consultation} />
           </section>
+
+          {/*
+            Vitals and point-of-care results (spec §50). Placed under Progress
+            rather than in the sidebar because entering them is the pharmacy’s
+            main job while the patient waits, and it is what the doctor will
+            open the consultation expecting to find.
+
+            Only while the consultation is live: afterwards the record is
+            sealed and the panel says so rather than offering empty fields.
+          */}
+          {live && <ClinicalIntake consultationPublicId={consultation.publicId} />}
 
           {live && (
             <section className="card-soft p-6">

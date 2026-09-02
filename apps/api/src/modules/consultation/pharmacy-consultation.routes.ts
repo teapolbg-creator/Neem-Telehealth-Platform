@@ -25,6 +25,7 @@ import {
   secondsRemaining,
   verifyAndSettle,
 } from '../payment/payment.service.ts';
+import { queryBoolean } from '../../lib/query.ts';
 
 /**
  * Pharmacy consultation routes (spec §18, §73).
@@ -183,7 +184,7 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
   app.get('/pharmacy/consultations', { preHandler: pharmacyRead }, async (request, reply) => {
     const { pharmacyId } = requirePharmacy(request);
     const query = paginationQuerySchema
-      .extend({ activeOnly: z.coerce.boolean().optional() })
+      .extend({ activeOnly: queryBoolean.optional() })
       .parse(request.query);
 
     const result = await listConsultations({

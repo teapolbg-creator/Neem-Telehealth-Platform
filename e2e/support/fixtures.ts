@@ -182,6 +182,37 @@ export async function fillField(page: Page, label: string | RegExp, value: strin
 }
 
 /**
+ * Signs the page out through the header control.
+ *
+ * Needed by any test that changes role mid-run. `/auth/login` redirects an
+ * already-authenticated visitor to their portal, so a second `signInThroughUi`
+ * against a live session finds no form and fails on a missing "Email" field —
+ * which reads as a broken sign-in page rather than a session that was never
+ * ended.
+ */
+export async function signOutThroughUi(page: Page): Promise<void> {
+  const control = page.getByRole('button', { name: 'Sign out' });
+  if ((await control.count()) === 0) return;
+
+  await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.url().includes('/auth/logout') && candidate.request().method() === 'POST',
+    ),
+    control.first().click(),
+  ]);
+
+  await page.waitForURL((url) => url.pathname.startsWith('/auth/login'), { timeout: 20_000 });
+
+  // The URL settling is not the end of it. The sign-in page redirects anyone
+  // it still believes is authenticated, so it can bounce away again once the
+  // session query resolves. Waiting for the header control to disappear means
+  // the app itself agrees the session is over.
+  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  await page.getByLabel('Email').waitFor({ state: 'visible' });
+}
+
+/**
  * Signs a browser page in by driving the real form, so the UI path is what is
  * under test rather than a cookie injected behind its back.
  */
@@ -190,6 +221,17 @@ export async function signInThroughUi(
   credentials: { email: string; password: string },
 ): Promise<void> {
   await gotoHydrated(page, '/auth/login');
+
+  // An authenticated visitor is redirected away from this page, so a role
+  // switch has to end the previous session before it can begin the next.
+  if (!page.url().includes('/auth/login')) {
+    await signOutThroughUi(page);
+    // Deliberately NOT re-navigating: signing out lands here already, and a
+    // second goto races the redirect still in flight — the form is torn down
+    // and rebuilt under whatever is being typed into it.
+    await page.getByLabel('Email').waitFor({ state: 'visible' });
+  }
+
   await fillField(page, 'Email', credentials.email);
   await fillField(page, 'Password', credentials.password);
 

@@ -4,6 +4,10 @@ import {
   API,
   DEMO,
   createActiveDoctor,
+  fillField,
+  gotoHydrated,
+  signInThroughUi,
+  openSecondPage,
   csrfHeaders,
   signIn,
   signInAdmin,
@@ -523,6 +527,157 @@ test.describe('scenario 11 — the clinical record after completion (revised by 
     await live.pharmacyApi.dispose();
     await live.adminApi.dispose();
     expect(request).toBeTruthy();
+  });
+});
+
+/**
+ * The substitution loop, through the screens rather than the routes.
+ *
+ * Worth its cost because every part of this passed at the API layer while the
+ * loop was broken in practice: a pharmacy could propose a substitution that no
+ * doctor could ever see, because nothing listed what was awaiting a decision.
+ * A proposal blocks dispensing, so each unanswered one was a patient at a
+ * counter with nothing in their hand — invisible to any test that called
+ * `decideSubstitution` with an id it already held.
+ *
+ * Each role gets its own browser context. One context holds one session, so
+ * swapping roles inside it would mean signing out and in between every step —
+ * slower, and it tests the sign-in page rather than the workflow.
+ */
+test.describe('the substitution loop through the UI', () => {
+  test('pharmacy proposes, doctor decides, pharmacy dispenses', async ({
+    page,
+    playwright,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'ui');
+    if ('skip' in live) test.skip(true, live.skip);
+    if ('skip' in live) return;
+
+    // Prescribe through the API — the prescribing UI is exercised elsewhere,
+    // and what is under test here is what happens to it afterwards.
+    const doctorCsrf = await csrfOf(live.doctorApi);
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    const prescriptionPublicId = (await draft.json()).data.publicId as string;
+    await live.doctorApi.post(`${API}/doctor/prescriptions/${prescriptionPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+
+    const doctorPage = await openSecondPage(page);
+
+    try {
+      // ---- The pharmacy proposes ----------------------------------------
+      await signInThroughUi(page, DEMO.pharmacy);
+      await gotoHydrated(page, '/pharmacy/prescriptions');
+
+      const card = page.locator('section', { hasText: live.publicId }).first();
+      await expect(card).toBeVisible();
+
+      await card.getByRole('button', { name: /propose substitution/i }).click();
+      await fillField(page, 'Medication', 'Amoxil');
+      await fillField(page, 'Strength', '500mg');
+      await fillField(page, 'Form', 'Capsule');
+      await fillField(page, 'Reason', 'Generic out of stock; branded equivalent available.');
+      await page.getByRole('button', { name: /send to the doctor/i }).click();
+
+      await expect(card.getByText(/sent to the doctor/i)).toBeVisible();
+      // Undispensable while it is with the doctor — the point of the flow.
+      await expect(card.getByRole('button', { name: /mark dispensed/i })).toBeDisabled();
+
+      // ---- The doctor decides -------------------------------------------
+      await signInThroughUi(doctorPage, live.doctor);
+      await gotoHydrated(doctorPage, '/doctor/substitutions');
+
+      const proposal = doctorPage.locator('article', { hasText: live.publicId }).first();
+      await expect(proposal).toBeVisible();
+      // Both products, so the decision is made against what it replaces.
+      await expect(proposal.getByText('Amoxicillin · 500mg · Capsule')).toBeVisible();
+      await expect(proposal.getByText('Amoxil · 500mg')).toBeVisible();
+
+      await proposal.getByRole('button', { name: /approve the substitution/i }).click();
+      await expect(doctorPage.getByText(/nothing waiting/i)).toBeVisible();
+
+      // ---- The pharmacy dispenses ---------------------------------------
+      await gotoHydrated(page, '/pharmacy/prescriptions');
+
+      const approved = page.locator('section', { hasText: live.publicId }).first();
+      await expect(approved.getByText(/the doctor approved amoxil/i)).toBeVisible();
+      // The item itself is superseded, not annotated.
+      await expect(approved.getByText('Amoxil · 500mg')).toBeVisible();
+
+      await approved.getByRole('button', { name: /mark dispensed/i }).click();
+
+      // It leaves the to-dispense list entirely, and is still findable under
+      // All — the toggle that used to return the same list either way.
+      await expect(page.locator('section', { hasText: live.publicId })).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'All' }).click();
+      const dispensed = page.locator('section', { hasText: live.publicId }).first();
+      await expect(dispensed.getByText('dispensed', { exact: false }).first()).toBeVisible();
+      await expect(dispensed.getByRole('button', { name: /mark dispensed/i })).toHaveCount(0);
+    } finally {
+      await doctorPage.close();
+      await live.doctorApi.dispose();
+      await live.pharmacyApi.dispose();
+      await live.adminApi.dispose();
+    }
+  });
+});
+
+/**
+ * The pharmacy's observation entry.
+ *
+ * The routes for this existed and were tested from the start of the phase; no
+ * screen called them, so no pharmacy could have recorded a blood pressure. The
+ * doctor's whole clinical picture beyond a name and an age comes from here.
+ */
+test.describe('vitals and point-of-care entry through the UI', () => {
+  test('what the pharmacy records is what the doctor sees', async ({ page, playwright, run }) => {
+    const live = await liveConsultation(playwright, run, 'obs');
+    if ('skip' in live) test.skip(true, live.skip);
+    if ('skip' in live) return;
+
+    const doctorPage = await openSecondPage(page);
+
+    try {
+      await signInThroughUi(page, DEMO.pharmacy);
+      await gotoHydrated(page, `/pharmacy/consultations/${live.publicId}`);
+
+      await fillField(page, /systolic bp/i, '136');
+      await fillField(page, /diastolic bp/i, '88');
+      await fillField(page, /temperature/i, '37.4');
+      await page.getByRole('button', { name: /^record vitals$/i }).click();
+
+      // Read back, so a pharmacist can see the reading went in rather than
+      // entering it a second time.
+      await expect(page.getByText('136 mmHg')).toBeVisible();
+      await expect(page.getByText('37.4 °C')).toBeVisible();
+      // Blank means not measured, never zero — a fabricated reading in front
+      // of a doctor is worse than a missing one.
+      await expect(page.getByText(/\b0 bpm/)).toHaveCount(0);
+
+      await fillField(page, /^test$/i, 'Malaria RDT');
+      await fillField(page, /^result$/i, 'Positive');
+      await page.getByRole('button', { name: /add result/i }).click();
+      await expect(page.getByText('Positive')).toBeVisible();
+
+      // ---- And now the doctor's side ------------------------------------
+      await signInThroughUi(doctorPage, live.doctor);
+      await gotoHydrated(doctorPage, `/doctor/consultations/${live.publicId}`);
+
+      await expect(doctorPage.getByText('136/88 mmHg')).toBeVisible();
+      await expect(doctorPage.getByText('37.4 °C')).toBeVisible();
+      await expect(doctorPage.getByText('Malaria RDT')).toBeVisible();
+    } finally {
+      await doctorPage.close();
+      await live.doctorApi.dispose();
+      await live.pharmacyApi.dispose();
+      await live.adminApi.dispose();
+    }
   });
 });
 

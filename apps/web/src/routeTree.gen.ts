@@ -17,15 +17,18 @@ import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
 import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
+import { Route as DoctorSubstitutionsRouteImport } from './routes/doctor.substitutions'
 import { Route as OnboardingDoctorRouteImport } from './routes/onboarding.doctor'
 import { Route as OnboardingPharmacyRouteImport } from './routes/onboarding.pharmacy'
 import { Route as PatientIndexRouteImport } from './routes/patient.index'
 import { Route as PharmacyIndexRouteImport } from './routes/pharmacy.index'
 import { Route as PharmacyNewRouteImport } from './routes/pharmacy.new'
 import { Route as PharmacyOnboardingRouteImport } from './routes/pharmacy.onboarding'
+import { Route as PharmacyPrescriptionsRouteImport } from './routes/pharmacy.prescriptions'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as DoctorConsultationsPublicIdRouteImport } from './routes/doctor.consultations.$publicId'
 import { Route as PharmacyConsultationsPublicIdRouteImport } from './routes/pharmacy.consultations.$publicId'
+import { Route as VerifyKindCodeRouteImport } from './routes/verify.$kind.$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -67,6 +70,11 @@ const DoctorQueueRoute = DoctorQueueRouteImport.update({
   path: '/doctor/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DoctorSubstitutionsRoute = DoctorSubstitutionsRouteImport.update({
+  id: '/doctor/substitutions',
+  path: '/doctor/substitutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingDoctorRoute = OnboardingDoctorRouteImport.update({
   id: '/onboarding/doctor',
   path: '/onboarding/doctor',
@@ -97,6 +105,11 @@ const PharmacyOnboardingRoute = PharmacyOnboardingRouteImport.update({
   path: '/pharmacy/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PharmacyPrescriptionsRoute = PharmacyPrescriptionsRouteImport.update({
+  id: '/pharmacy/prescriptions',
+  path: '/pharmacy/prescriptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const STokenRoute = STokenRouteImport.update({
   id: '/s/$token',
   path: '/s/$token',
@@ -114,6 +127,11 @@ const PharmacyConsultationsPublicIdRoute =
     path: '/pharmacy/consultations/$publicId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const VerifyKindCodeRoute = VerifyKindCodeRouteImport.update({
+  id: '/verify/$kind/$code',
+  path: '/verify/$kind/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -122,10 +140,12 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
+  '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
+  '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
   '/admin/': typeof AdminIndexRoute
   '/doctor/': typeof DoctorIndexRoute
@@ -133,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/pharmacy/': typeof PharmacyIndexRoute
   '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
+  '/verify/$kind/$code': typeof VerifyKindCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,10 +162,12 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
+  '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
+  '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
   '/admin': typeof AdminIndexRoute
   '/doctor': typeof DoctorIndexRoute
@@ -152,6 +175,7 @@ export interface FileRoutesByTo {
   '/pharmacy': typeof PharmacyIndexRoute
   '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
+  '/verify/$kind/$code': typeof VerifyKindCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,10 +185,12 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
+  '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/new': typeof PharmacyNewRoute
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
+  '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
   '/admin/': typeof AdminIndexRoute
   '/doctor/': typeof DoctorIndexRoute
@@ -172,6 +198,7 @@ export interface FileRoutesById {
   '/pharmacy/': typeof PharmacyIndexRoute
   '/doctor/consultations/$publicId': typeof DoctorConsultationsPublicIdRoute
   '/pharmacy/consultations/$publicId': typeof PharmacyConsultationsPublicIdRoute
+  '/verify/$kind/$code': typeof VerifyKindCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -182,10 +209,12 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/doctor/onboarding'
     | '/doctor/queue'
+    | '/doctor/substitutions'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/new'
     | '/pharmacy/onboarding'
+    | '/pharmacy/prescriptions'
     | '/s/$token'
     | '/admin/'
     | '/doctor/'
@@ -193,6 +222,7 @@ export interface FileRouteTypes {
     | '/pharmacy/'
     | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
+    | '/verify/$kind/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -201,10 +231,12 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/doctor/onboarding'
     | '/doctor/queue'
+    | '/doctor/substitutions'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/new'
     | '/pharmacy/onboarding'
+    | '/pharmacy/prescriptions'
     | '/s/$token'
     | '/admin'
     | '/doctor'
@@ -212,6 +244,7 @@ export interface FileRouteTypes {
     | '/pharmacy'
     | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
+    | '/verify/$kind/$code'
   id:
     | '__root__'
     | '/'
@@ -220,10 +253,12 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/doctor/onboarding'
     | '/doctor/queue'
+    | '/doctor/substitutions'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/new'
     | '/pharmacy/onboarding'
+    | '/pharmacy/prescriptions'
     | '/s/$token'
     | '/admin/'
     | '/doctor/'
@@ -231,6 +266,7 @@ export interface FileRouteTypes {
     | '/pharmacy/'
     | '/doctor/consultations/$publicId'
     | '/pharmacy/consultations/$publicId'
+    | '/verify/$kind/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -240,10 +276,12 @@ export interface RootRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
   DoctorQueueRoute: typeof DoctorQueueRoute
+  DoctorSubstitutionsRoute: typeof DoctorSubstitutionsRoute
   OnboardingDoctorRoute: typeof OnboardingDoctorRoute
   OnboardingPharmacyRoute: typeof OnboardingPharmacyRoute
   PharmacyNewRoute: typeof PharmacyNewRoute
   PharmacyOnboardingRoute: typeof PharmacyOnboardingRoute
+  PharmacyPrescriptionsRoute: typeof PharmacyPrescriptionsRoute
   STokenRoute: typeof STokenRoute
   AdminIndexRoute: typeof AdminIndexRoute
   DoctorIndexRoute: typeof DoctorIndexRoute
@@ -251,6 +289,7 @@ export interface RootRouteChildren {
   PharmacyIndexRoute: typeof PharmacyIndexRoute
   DoctorConsultationsPublicIdRoute: typeof DoctorConsultationsPublicIdRoute
   PharmacyConsultationsPublicIdRoute: typeof PharmacyConsultationsPublicIdRoute
+  VerifyKindCodeRoute: typeof VerifyKindCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -311,6 +350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DoctorQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/doctor/substitutions': {
+      id: '/doctor/substitutions'
+      path: '/doctor/substitutions'
+      fullPath: '/doctor/substitutions'
+      preLoaderRoute: typeof DoctorSubstitutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding/doctor': {
       id: '/onboarding/doctor'
       path: '/onboarding/doctor'
@@ -353,6 +399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PharmacyOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pharmacy/prescriptions': {
+      id: '/pharmacy/prescriptions'
+      path: '/pharmacy/prescriptions'
+      fullPath: '/pharmacy/prescriptions'
+      preLoaderRoute: typeof PharmacyPrescriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/s/$token': {
       id: '/s/$token'
       path: '/s/$token'
@@ -374,6 +427,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PharmacyConsultationsPublicIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify/$kind/$code': {
+      id: '/verify/$kind/$code'
+      path: '/verify/$kind/$code'
+      fullPath: '/verify/$kind/$code'
+      preLoaderRoute: typeof VerifyKindCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -384,10 +444,12 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
   DoctorQueueRoute: DoctorQueueRoute,
+  DoctorSubstitutionsRoute: DoctorSubstitutionsRoute,
   OnboardingDoctorRoute: OnboardingDoctorRoute,
   OnboardingPharmacyRoute: OnboardingPharmacyRoute,
   PharmacyNewRoute: PharmacyNewRoute,
   PharmacyOnboardingRoute: PharmacyOnboardingRoute,
+  PharmacyPrescriptionsRoute: PharmacyPrescriptionsRoute,
   STokenRoute: STokenRoute,
   AdminIndexRoute: AdminIndexRoute,
   DoctorIndexRoute: DoctorIndexRoute,
@@ -395,6 +457,7 @@ const rootRouteChildren: RootRouteChildren = {
   PharmacyIndexRoute: PharmacyIndexRoute,
   DoctorConsultationsPublicIdRoute: DoctorConsultationsPublicIdRoute,
   PharmacyConsultationsPublicIdRoute: PharmacyConsultationsPublicIdRoute,
+  VerifyKindCodeRoute: VerifyKindCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

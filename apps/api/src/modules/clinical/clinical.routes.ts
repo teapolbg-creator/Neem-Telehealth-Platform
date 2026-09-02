@@ -25,8 +25,14 @@ import {
   readDocumentPdf,
   verifyDocument,
 } from '../documents/document.service.ts';
-import { recordTest, recordVitals } from '../retention/clinical-record.service.ts';
+import {
+  isSealed,
+  readClinicalRecord,
+  recordTest,
+  recordVitals,
+} from '../retention/clinical-record.service.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
+import { queryBoolean } from '../../lib/query.ts';
 
 /**
  * The clinical workflow (spec §41–§50).
@@ -104,6 +110,43 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   // Pharmacy: vitals and point-of-care results (spec §50)
   // -------------------------------------------------------------------------
+
+  /**
+   * What this pharmacy has already recorded for this consultation.
+   *
+   * A pharmacist needs to see it: without a read-back they cannot tell whether
+   * the reading went in, and the natural response to that doubt is to enter it
+   * a second time.
+   *
+   * It returns observations only. The doctor's notes, diagnosis and treatment
+   * live in the same guarded record and are deliberately not selected here — a
+   * pharmacy records vitals, it does not read the consultation (spec §50).
+   */
+  app.get(
+    '/pharmacy/consultations/:publicId/observations',
+    { preHandler: pharmacyOnly },
+    async (request, reply) => {
+      const { pharmacyId } = requirePharmacy(request);
+      const { publicId } = publicIdParams.parse(request.params);
+      const consultationId = await pharmacyConsultation(publicId, pharmacyId);
+
+      // Once the consultation is over the record is sealed and nobody reads it
+      // back, the recording pharmacy included (D23).
+      if (await isSealed(consultationId)) {
+        return reply.send({
+          data: { sealed: true, vitals: null, tests: [] },
+          meta: { requestId: request.correlationId },
+        });
+      }
+
+      const record = await readClinicalRecord(consultationId);
+
+      return reply.send({
+        data: { sealed: false, vitals: record.vitals, tests: record.tests },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   app.post(
     '/pharmacy/consultations/:publicId/vitals',
@@ -288,6 +331,83 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
    * so the trail shows what actually happened.
    */
 
+  /**
+   * Substitutions awaiting this doctor's decision.
+   *
+   * Without this the loop does not close. A pharmacy can propose a
+   * substitution, and the prescription then sits in PENDING_SUBSTITUTION —
+   * undispensable — with nothing anywhere telling the doctor a decision is
+   * owed. The realtime event reaches a doctor who happens to be online; this
+   * is what a doctor who was not sees when they come back.
+   *
+   * Scoped to prescriptions this doctor signed. It is not consultation
+   * history: what it returns is the doctor's own prescription and the
+   * pharmacy's proposal against it, which is the minimum needed to answer
+   * responsibly. Nothing clinical from the consultation appears here, and the
+   * sealed record is not read (D23).
+   */
+  app.get('/doctor/substitutions', { preHandler: doctorOnly }, async (request, reply) => {
+    const doctorId = requireDoctor(request);
+
+    const pending = await getPrisma().substitutionRequest.findMany({
+      where: {
+        state: 'PENDING',
+        prescription: { doctorId, state: 'PENDING_SUBSTITUTION' },
+      },
+      include: {
+        prescription: {
+          select: {
+            publicId: true,
+            patientName: true,
+            patientAge: true,
+            patientSex: true,
+            issuedAt: true,
+            pharmacy: { select: { name: true, city: true } },
+            consultation: { select: { publicId: true } },
+          },
+        },
+        prescriptionItem: {
+          select: {
+            id: true,
+            medication: true,
+            strength: true,
+            form: true,
+            dose: true,
+            frequency: true,
+            durationText: true,
+            quantity: true,
+            instructions: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return reply.send({
+      data: pending.map((proposal) => ({
+        id: proposal.id,
+        requestedAt: proposal.createdAt.toISOString(),
+        reason: proposal.reason,
+        proposed: {
+          medication: proposal.proposedMedication,
+          strength: proposal.proposedStrength,
+          form: proposal.proposedForm,
+        },
+        prescribed: proposal.prescriptionItem,
+        prescriptionPublicId: proposal.prescription.publicId,
+        consultationReference: proposal.prescription.consultation.publicId,
+        issuedAt: proposal.prescription.issuedAt?.toISOString() ?? null,
+        pharmacy: proposal.prescription.pharmacy,
+        patient: {
+          fullName: proposal.prescription.patientName,
+          age: proposal.prescription.patientAge,
+          sex: proposal.prescription.patientSex,
+        },
+      })),
+      meta: { requestId: request.correlationId },
+    });
+  });
+
   app.post(
     '/doctor/substitutions/:id/decide',
     { preHandler: doctorOnly },
@@ -415,7 +535,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
   app.get('/pharmacy/prescriptions', { preHandler: pharmacyOnly }, async (request, reply) => {
     const { pharmacyId } = requirePharmacy(request);
     const query = z
-      .object({ activeOnly: z.coerce.boolean().optional(), limit: z.coerce.number().int().min(1).max(100).optional() })
+      .object({ activeOnly: queryBoolean.optional(), limit: z.coerce.number().int().min(1).max(100).optional() })
       .parse(request.query);
 
     const prescriptions = await getPrisma().prescription.findMany({
@@ -430,6 +550,23 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
         items: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
         doctor: { select: { fullName: true, mdcNumber: true } },
         consultation: { select: { publicId: true } },
+        /**
+         * The most recent substitution, so the counter can see what the doctor
+         * said. A refusal is the case that matters: SUBSTITUTION_REJECTED on
+         * its own tells a pharmacist the answer was no but not why, and "why"
+         * is what they have to explain to the patient standing there.
+         */
+        substitutions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            state: true,
+            proposedMedication: true,
+            reason: true,
+            decisionNote: true,
+            decidedAt: true,
+          },
+        },
       },
       orderBy: { issuedAt: 'desc' },
       take: query.limit ?? 50,
@@ -447,6 +584,15 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
         dispensedAt: rx.dispensedAt?.toISOString() ?? null,
         revokedAt: rx.revokedAt?.toISOString() ?? null,
         revokedReason: rx.revokedReason,
+        lastSubstitution: rx.substitutions[0]
+          ? {
+              state: rx.substitutions[0].state,
+              proposedMedication: rx.substitutions[0].proposedMedication,
+              reason: rx.substitutions[0].reason,
+              decisionNote: rx.substitutions[0].decisionNote,
+              decidedAt: rx.substitutions[0].decidedAt?.toISOString() ?? null,
+            }
+          : null,
         items: rx.items,
       })),
       meta: { requestId: request.correlationId },

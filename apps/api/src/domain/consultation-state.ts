@@ -1,4 +1,4 @@
-import type { ConsultationState } from '@neem/contracts';
+import { TERMINAL_CONSULTATION_STATES, type ConsultationState } from '@neem/contracts';
 
 /**
  * Consultation state machine (spec §81).
@@ -65,13 +65,7 @@ export function allowedTransitions(from: ConsultationState): readonly Consultati
   return TRANSITIONS[from];
 }
 
-const TERMINAL: ReadonlySet<ConsultationState> = new Set([
-  'COMPLETED',
-  'EXPIRED',
-  'CANCELLED',
-  'ABANDONED',
-  'REFUNDED',
-]);
+const TERMINAL: ReadonlySet<ConsultationState> = new Set(TERMINAL_CONSULTATION_STATES);
 
 export function isTerminal(state: ConsultationState): boolean {
   return TERMINAL.has(state);

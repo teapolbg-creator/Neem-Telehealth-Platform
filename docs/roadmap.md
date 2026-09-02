@@ -83,7 +83,7 @@ the reason in `data-retention.md` §4.
 
 ---
 
-## Phase 6 — Clinical workflow ✅ engine and API complete 2026-09-02; UI outstanding
+## Phase 6 — Clinical workflow ✅ complete 2026-09-02
 
 Vitals and point-of-care test entry by the pharmacy · the doctor's clinical workspace · outcome capture · prescription creation, items, and the prescription state machine · digital signature binding to the verified doctor · prescription PDF · public QR verification page · revocation before dispensing · dispensing and immutability · the pharmacy substitution workflow with doctor approval · referral creation and PDF · **the consultation summary** — doctor-authored, mandatory for advice-only outcomes, permanent, with its own verification page (D25) · **the completion transaction, which now seals and schedules rather than purges** (D23).
 
@@ -95,11 +95,43 @@ required set from 3 of 16 to 11 of 16. The revised §101 test is scenario 11:
 after completion the clinical record still exists, no role can read it, and it
 is destroyed when its retention period elapses.
 
-**Outstanding: the front end.** The doctor's clinical workspace, the pharmacy's
-prescription and dispensing screens, the substitution flows, and the public
-verification page are not built. Every route behind them is, and is tested.
+**The front end is built.** The pharmacy's vitals and point-of-care entry
+(`ClinicalIntake`), the doctor's clinical workspace (`ClinicalWorkspace`), the
+pharmacy prescription and dispensing screen, the doctor's substitution inbox,
+and the public verification page.
 
-Two things surfaced while building this and were fixed here:
+Building the screens surfaced work that the API-layer tests could not have
+caught, because in each case the route was right and nothing reached it:
+
+- **A pharmacy could propose a substitution that no doctor could ever see.**
+  `POST /doctor/substitutions/:id/decide` existed; nothing listed what was
+  awaiting a decision. A proposal blocks dispensing, so every unanswered one
+  was a patient at a counter with nothing in their hand.
+  `GET /doctor/substitutions` and `/doctor/substitutions` close that loop.
+- **A pharmacy had no way to record vitals at all.** The routes existed and
+  were tested; no screen called them. Since the pharmacy's measurements are
+  the only clinical data a remote doctor gets beyond a name and an age, this
+  was the largest hole in the phase.
+- **The doctor's screen 403'd on its own completed consultations.** The route
+  read the clinical record unconditionally, so sealing took the whole endpoint
+  down with it. Only the clinical part is sealed; the operational record is
+  not, and a doctor looking back at a consultation they finished should see it.
+- **`activeOnly=false` meant true.** `z.coerce.boolean()` applies
+  JavaScript's `Boolean()`, under which the string `"false"` is truthy — so
+  the pharmacy's "All" toggle silently returned the to-dispense list and a
+  dispensed prescription could not be found again. Replaced everywhere by
+  `queryBoolean` in `src/lib/query.ts`.
+
+**Carried forward, not fixed here.** Phase 4 lists "Socket.IO wiring for
+queue, waiting room, and dashboards". The server half exists and emits —
+`prescription.issued`, `substitution.requested`, `substitution.decided` and
+the queue events — but no client anywhere opens a socket: `socket.io-client`
+is a declared dependency with no import. Every screen, including the ones
+added here, refreshes by polling instead. That is adequate for a counter
+workflow measured in minutes and wrong for the 90-second offer window, so it
+belongs with the queue rather than the clinical workflow.
+
+Two more surfaced while building this and were fixed here:
 
 - **The NIGHT shift could never be activated.** The backlog claimed 24-hour
   operation was "accommodated" by seeding the definition inactive, but no route

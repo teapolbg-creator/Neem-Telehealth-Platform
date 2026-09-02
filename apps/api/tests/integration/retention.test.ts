@@ -276,6 +276,90 @@ describe('sealing', () => {
 // Nobody can read a sealed record through the product
 // ---------------------------------------------------------------------------
 
+/**
+ * The pharmacy's read-back of its own observations.
+ *
+ * A pharmacist who cannot see whether a reading went in will enter it twice.
+ * The boundary is that they read back what they measured — never the doctor's
+ * notes, which live in the same guarded record (spec §50).
+ */
+describe('the pharmacy reads back its observations, and nothing else', () => {
+  it('returns the vitals and tests it recorded', async () => {
+    const consultation = await liveConsultation();
+    await writeRecord(consultation.id, consultation.userId);
+
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { id: consultation.userId } });
+    const cookies = await signIn(user.email, PHARMACY_PASSWORD);
+
+    const response = await request<{
+      sealed: boolean;
+      vitals: { bpSystolic: number; temperatureC: number } | null;
+      tests: Array<{ label: string; result: string }>;
+    }>(`/pharmacy/consultations/${consultation.publicId}/observations`, { cookies });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data!.sealed).toBe(false);
+    expect(response.body.data!.vitals?.bpSystolic).toBe(128);
+    expect(response.body.data!.vitals?.temperatureC).toBe(38.2);
+    expect(response.body.data!.tests).toHaveLength(1);
+    expect(response.body.data!.tests[0]!.result).toBe('Positive');
+  });
+
+  it('never returns the doctor’s notes', async () => {
+    const consultation = await liveConsultation();
+    await writeRecord(consultation.id, consultation.userId);
+
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { id: consultation.userId } });
+    const cookies = await signIn(user.email, PHARMACY_PASSWORD);
+
+    const response = await request(
+      `/pharmacy/consultations/${consultation.publicId}/observations`,
+      { cookies },
+    );
+
+    // 'Fever for three days.' is what writeRecord puts in the notes.
+    expect(JSON.stringify(response.body)).not.toMatch(/Fever/);
+  });
+
+  it('closes once the consultation is over', async () => {
+    const consultation = await liveConsultation();
+    await writeRecord(consultation.id, consultation.userId);
+    await transition(consultation.id, 'EXPIRED', { actorType: 'SYSTEM', reason: 'test' });
+
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { id: consultation.userId } });
+    const cookies = await signIn(user.email, PHARMACY_PASSWORD);
+
+    const response = await request<{ sealed: boolean; vitals: unknown; tests: unknown[] }>(
+      `/pharmacy/consultations/${consultation.publicId}/observations`,
+      { cookies },
+    );
+
+    expect(response.body.data!.sealed).toBe(true);
+    expect(response.body.data!.vitals).toBeNull();
+    expect(response.body.data!.tests).toEqual([]);
+    expect(JSON.stringify(response.body)).not.toMatch(/Positive|128|38\.2/);
+  });
+
+  it('is closed to another pharmacy', async () => {
+    const consultation = await liveConsultation();
+    await writeRecord(consultation.id, consultation.userId);
+
+    const other = await liveConsultation();
+    const otherUser = await getPrisma().user.findUniqueOrThrow({ where: { id: other.userId } });
+    const cookies = await signIn(otherUser.email, PHARMACY_PASSWORD);
+
+    const response = await request(
+      `/pharmacy/consultations/${consultation.publicId}/observations`,
+      { cookies },
+    );
+
+    // 404, not 403 — a pharmacy must not learn another's consultation exists.
+    expect(response.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('a sealed record is closed to every role', () => {
   it('is not returned by the doctor consultation route', async () => {
     const consultation = await liveConsultation();

@@ -10,7 +10,7 @@ import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { acceptOffer, offerNextDoctor, processWaitingQueue } from './allocation.service.ts';
 import { getPresence, goOffline, goOnline, heartbeat } from './presence.service.ts';
 import { readPatientPanel } from '../consultation/patient-session.service.ts';
-import { readClinicalRecord } from '../retention/clinical-record.service.ts';
+import { isSealed, readClinicalRecord } from '../retention/clinical-record.service.ts';
 
 /**
  * Doctor queue routes (spec §24, §30).
@@ -199,8 +199,17 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
        * (decision D23). Once the consultation reaches a terminal state the
        * record is sealed and this refuses — which is what stops a doctor
        * re-opening a finished consultation and reading it again.
+       *
+       * The refusal is caught rather than propagated, because only the
+       * *clinical* part is sealed. The operational record — which pharmacy,
+       * when, what type, what outcome — is not clinical (spec §12), and a
+       * doctor looking back at a consultation they completed should see it
+       * rather than a bare "not found".
        */
-      const clinical = await readClinicalRecord(consultation.id);
+      const sealed = await isSealed(consultation.id);
+      const clinical = sealed
+        ? { vitals: null, tests: [] }
+        : await readClinicalRecord(consultation.id);
 
       return reply.send({
         data: {
@@ -213,6 +222,10 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           vitals: clinical.vitals,
           tests: clinical.tests,
           startedAt: consultation.startedAt?.toISOString() ?? null,
+          // So the screen can say "sealed" rather than showing empty panels
+          // as though nothing had been recorded.
+          clinicalSealed: sealed,
+          outcome: consultation.outcome,
           durationSeconds: await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS),
         },
         meta: { requestId: request.correlationId },

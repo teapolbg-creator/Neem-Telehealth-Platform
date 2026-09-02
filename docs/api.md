@@ -287,10 +287,17 @@ Who may do what is the whole design here.
 ```
 POST /pharmacy/consultations/:publicId/vitals       BP, pulse, temperature, weight, SpO₂
 POST /pharmacy/consultations/:publicId/tests        point-of-care result, free text
+GET  /pharmacy/consultations/:publicId/observations  read-back; observations only
 GET  /pharmacy/prescriptions                        never returns a DRAFT
 POST /pharmacy/prescriptions/:publicId/dispense     terminal and irreversible
 POST /pharmacy/prescriptions/:publicId/substitutions  a proposal, not a change
 ```
+
+The read-back exists so a pharmacist can see that a reading went in; without
+it the natural response to doubt is to enter it twice. It returns vitals and
+tests and never the doctor’s notes, which sit in the same guarded record. It
+closes once the consultation is terminal, the recording pharmacy included
+(D23).
 
 **There is no route by which a pharmacy edits a prescription** (spec §47). It
 proposes a substitution and the issuing doctor decides. Dispensing refuses
@@ -304,11 +311,17 @@ PUT  /doctor/consultations/:publicId/notes
 POST /doctor/consultations/:publicId/prescriptions  creates a DRAFT
 POST /doctor/prescriptions/:publicId/issue          signs it; generates the PDF
 POST /doctor/prescriptions/:publicId/revoke         refused once dispensed (spec §82)
+GET  /doctor/substitutions                          proposals awaiting this doctor's decision
 POST /doctor/substitutions/:id/decide               approve supersedes, never overwrites
 POST /doctor/consultations/:publicId/referrals
 POST /doctor/consultations/:publicId/summary        mandatory for advice-only (D25)
 POST /doctor/consultations/:publicId/complete       the only completion path (spec §16)
 ```
+
+A proposal blocks dispensing until it is answered, so `GET /doctor/substitutions`
+is a work queue rather than a notification: a doctor who was offline when the
+proposal arrived finds it waiting. It returns the doctor's own prescription and
+the pharmacy's counter-proposal, and nothing from the clinical record.
 
 **Deliberately absent:** any route that edits a prescription's items after
 issue. A correction is a revocation plus a new prescription, so the trail

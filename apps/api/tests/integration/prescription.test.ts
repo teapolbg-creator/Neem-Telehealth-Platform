@@ -33,11 +33,13 @@ import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
  */
 
 const PHARMACY_PASSWORD = 'PharmacyPassword123!';
+const DOCTOR_PASSWORD = 'DoctorPassword123!';
 
 interface Fixture {
   consultationId: string;
   consultationPublicId: string;
   doctorId: string;
+  doctorEmail: string;
   pharmacyId: string;
   pharmacyUserId: string;
 }
@@ -59,7 +61,7 @@ async function liveConsultation(): Promise<Fixture> {
 
   const doctorUser = await createTestUser({
     email: `${suffix}@doctor.test`,
-    password: 'DoctorPassword123!',
+    password: DOCTOR_PASSWORD,
     role: 'DOCTOR',
   });
 
@@ -123,6 +125,7 @@ async function liveConsultation(): Promise<Fixture> {
     consultationId: consultation.id,
     consultationPublicId: publicId,
     doctorId: doctor.id,
+    doctorEmail: doctorUser.email,
     pharmacyId: pharmacy.id,
     pharmacyUserId: pharmacyUser.id,
   };
@@ -473,6 +476,148 @@ describe('substitution', () => {
 
 // ---------------------------------------------------------------------------
 // Dispensing
+// ---------------------------------------------------------------------------
+
+/**
+ * The doctor's side of the substitution loop.
+ *
+ * Without this route a proposal is unanswerable in practice: the prescription
+ * sits in PENDING_SUBSTITUTION, undispensable, and nothing tells the doctor a
+ * decision is owed.
+ */
+/**
+ * The pharmacy's list filter.
+ *
+ * `activeOnly=false` used to parse as TRUE — `z.coerce.boolean()` applies
+ * JavaScript's `Boolean()`, and the string "false" is truthy. The "All"
+ * toggle on the prescriptions screen therefore showed the to-dispense list,
+ * and a pharmacist could not find a prescription they had already dispensed.
+ */
+describe('the pharmacy prescription filter', () => {
+  it('treats activeOnly=false as false, so a dispensed prescription is still findable', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    await dispensePrescription(prescription.id, fixture.pharmacyId, fixture.pharmacyUserId);
+
+    const pharmacyUser = await getPrisma().user.findUniqueOrThrow({
+      where: { id: fixture.pharmacyUserId },
+    });
+    const cookies = await signIn(pharmacyUser.email, PHARMACY_PASSWORD);
+
+    const all = await request<Array<{ publicId: string; state: string }>>(
+      '/pharmacy/prescriptions?activeOnly=false',
+      { cookies },
+    );
+    expect(all.body.data!.map((rx) => rx.publicId)).toContain(prescription.publicId);
+
+    const toDispense = await request<Array<{ publicId: string }>>(
+      '/pharmacy/prescriptions?activeOnly=true',
+      { cookies },
+    );
+    expect(toDispense.body.data!.map((rx) => rx.publicId)).not.toContain(prescription.publicId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('the doctor’s substitution inbox', () => {
+  it('shows a proposal on this doctor’s prescription, with both products', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    const item = await getPrisma().prescriptionItem.findFirstOrThrow({
+      where: { prescriptionId: prescription.id },
+    });
+
+    await proposeSubstitution(prescription.id, item.id, fixture.pharmacyId, fixture.pharmacyUserId, {
+      medication: 'Amoxil',
+      strength: '500mg',
+      reason: 'Generic out of stock.',
+    });
+
+    const cookies = await signIn(fixture.doctorEmail, DOCTOR_PASSWORD);
+    const response = await request<
+      Array<{
+        id: string;
+        reason: string;
+        proposed: { medication: string };
+        prescribed: { medication: string; quantity: string };
+        prescriptionPublicId: string;
+        consultationReference: string;
+        patient: { fullName: string };
+      }>
+    >('/doctor/substitutions', { cookies });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+
+    const proposal = response.body.data![0]!;
+    expect(proposal.proposed.medication).toBe('Amoxil');
+    // The original has to travel with it — a doctor cannot judge a substitution
+    // without seeing what it replaces.
+    expect(proposal.prescribed.medication).toBe('Amoxicillin');
+    expect(proposal.prescribed.quantity).toBe('15 capsules');
+    expect(proposal.reason).toBe('Generic out of stock.');
+    expect(proposal.prescriptionPublicId).toBe(prescription.publicId);
+    expect(proposal.consultationReference).toBe(fixture.consultationPublicId);
+    expect(proposal.patient.fullName).toBe('Adwoa Mensah');
+  });
+
+  it('shows another doctor nothing', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    const item = await getPrisma().prescriptionItem.findFirstOrThrow({
+      where: { prescriptionId: prescription.id },
+    });
+    await proposeSubstitution(prescription.id, item.id, fixture.pharmacyId, fixture.pharmacyUserId, {
+      medication: 'Amoxil',
+      reason: 'Generic out of stock.',
+    });
+
+    const other = await liveConsultation();
+    const cookies = await signIn(other.doctorEmail, DOCTOR_PASSWORD);
+    const response = await request<unknown[]>('/doctor/substitutions', { cookies });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([]);
+  });
+
+  it('drops out of the inbox once decided', async () => {
+    const fixture = await liveConsultation();
+    const prescription = await issuedPrescription(fixture);
+    const item = await getPrisma().prescriptionItem.findFirstOrThrow({
+      where: { prescriptionId: prescription.id },
+    });
+    const proposal = await proposeSubstitution(
+      prescription.id,
+      item.id,
+      fixture.pharmacyId,
+      fixture.pharmacyUserId,
+      { medication: 'Amoxil', reason: 'Generic out of stock.' },
+    );
+
+    const cookies = await signIn(fixture.doctorEmail, DOCTOR_PASSWORD);
+    expect((await request<unknown[]>('/doctor/substitutions', { cookies })).body.data).toHaveLength(
+      1,
+    );
+
+    await decideSubstitution(proposal.id, fixture.doctorId, { approve: true });
+
+    expect((await request<unknown[]>('/doctor/substitutions', { cookies })).body.data).toEqual([]);
+  });
+
+  it('is closed to a pharmacy', async () => {
+    const fixture = await liveConsultation();
+    const pharmacyUser = await getPrisma().user.findUniqueOrThrow({
+      where: { id: fixture.pharmacyUserId },
+    });
+
+    const cookies = await signIn(pharmacyUser.email, PHARMACY_PASSWORD);
+    const response = await request('/doctor/substitutions', { cookies });
+
+    expect(response.status).toBe(403);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 describe('dispensing', () => {
