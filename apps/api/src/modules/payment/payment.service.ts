@@ -11,6 +11,7 @@ import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { splitRevenue } from '../../lib/money.ts';
 import { getPaymentProvider, type VerifiedPayment } from '../../adapters/payment/index.ts';
 import { completeRefund } from './refund.service.ts';
+import { settleMembershipPayment } from '../subscription/membership-payment.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 
@@ -223,6 +224,71 @@ export async function settlePayment(
         ? (await db.consultation.findUniqueOrThrow({ where: { id: consultation.id } })).state
         : 'UNKNOWN',
     };
+  }
+
+  /**
+   * A membership fee is not a consultation fee.
+   *
+   * Same verification, same idempotency, but no consultation to activate and
+   * no revenue to split — the fee is Neem's income and no pharmacy has a share
+   * in it. Sending it down the consultation path would have failed here with
+   * "Consultation not found for this payment", which is true and unhelpful.
+   */
+  if (payment.doctorSubscriptionId) {
+    if (verified.amountMinor !== payment.amountMinor) {
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.PAYMENT_ANOMALY,
+          actorType: 'SYSTEM',
+          outcome: 'FAILURE',
+          entityType: 'payment',
+          entityId: payment.id,
+          correlationId: context.correlationId,
+          metadata: { expectedMinor: payment.amountMinor, receivedMinor: verified.amountMinor },
+        },
+        db,
+      );
+      throw errors.businessRule(
+        'The amount confirmed by the payment provider does not match this membership fee. This has been flagged for review.',
+      );
+    }
+
+    await db.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: 'SUCCESS',
+        paidAt: verified.paidAt ?? clock.now(),
+        verifiedAt: clock.now(),
+        channel: verified.channel ?? payment.channel,
+      },
+    });
+
+    await settleMembershipPayment(
+      payment.doctorSubscriptionId,
+      { correlationId: context.correlationId },
+      db,
+      clock,
+    );
+
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.PAYMENT_CONFIRMED,
+        actorType: context.actorType,
+        actorId: context.actorId,
+        entityType: 'payment',
+        entityId: payment.id,
+        correlationId: context.correlationId,
+        metadata: {
+          kind: 'membership',
+          amountMinor: payment.amountMinor,
+          provider: payment.provider,
+          mock: getPaymentProvider().isMock,
+        },
+      },
+      db,
+    );
+
+    return { status: 'SUCCESS', consultationState: 'N/A' };
   }
 
   if (!consultation) throw errors.notFound('Consultation not found for this payment.');

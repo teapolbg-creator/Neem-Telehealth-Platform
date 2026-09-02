@@ -40,6 +40,9 @@ import {
  * membership expiry.
  */
 
+/** Typed into the decision box and asserted afterwards; one constant, so they cannot drift. */
+const DECISION_NOTE = 'Nobody was available. Refunding in full.';
+
 test.describe('required scenarios (spec §80)', () => {
   // Scenarios 3, 4 and 5 are implemented in queue.spec.ts (Phase 4).
 
@@ -123,7 +126,7 @@ test.describe('required scenarios (spec §80)', () => {
 
     // A reason is required for either answer.
     await expect(card.getByRole('button', { name: 'Approve and refund' })).toBeDisabled();
-    await card.getByRole('textbox').fill('Nobody was available. Refunding in full.');
+    await card.getByRole('textbox').fill(DECISION_NOTE);
     await card.getByRole('button', { name: 'Approve and refund' }).click();
 
     /**
@@ -147,14 +150,17 @@ test.describe('required scenarios (spec §80)', () => {
     /**
      * The decision is recorded and shown back, not merely applied.
      *
-     * Asserted at page level rather than scoped to the card. A `section`
-     * locator matches ancestors as well as the card itself, so filtering it
-     * was ambiguous — and once approval removed the card's buttons, a filter
-     * defined by one of those buttons stopped matching the very row it had
-     * just acted on. This sentence appears once on the page, and the poll
-     * above has already pinned which refund it belongs to.
+     * Matched on the paragraph specifically. The obvious assertion — any
+     * element carrying this text — is ambiguous by construction: the same
+     * sentence sits in the textarea it was typed into and in the paragraph
+     * that reads it back, so it always resolves to two elements. Scoping to
+     * the card instead does not help, because a `section` locator matches
+     * ancestors too, and a filter defined by the approve button stops
+     * matching the moment approval removes it.
      */
-    await expect(page.getByText('Nobody was available. Refunding in full.')).toBeVisible();
+    await expect(
+      page.getByRole('paragraph').filter({ hasText: DECISION_NOTE }),
+    ).toBeVisible();
 
     await pharmacyApi.dispose();
   });

@@ -84,6 +84,9 @@ export const AUDIT_ACTIONS = {
 
   FEEDBACK_SUBMITTED: 'feedback.submitted',
 
+  PROMOTION_CREATED: 'promotion.created',
+  PROMOTION_DEACTIVATED: 'promotion.deactivated',
+
   SETTING_CHANGED: 'settings.changed',
   SENSITIVE_RECORD_ACCESSED: 'access.sensitive-record',
   RETENTION_PURGE_EXECUTED: 'retention.purge.executed',

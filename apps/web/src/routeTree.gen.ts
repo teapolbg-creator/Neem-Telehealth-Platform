@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
+import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
+import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
@@ -19,6 +21,8 @@ import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthResetRouteImport } from './routes/auth.reset'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
+import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
+import { Route as DoctorMembershipRouteImport } from './routes/doctor.membership'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
 import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
 import { Route as DoctorSubstitutionsRouteImport } from './routes/doctor.substitutions'
@@ -48,6 +52,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/admin/payouts',
   path: '/admin/payouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPayrollRoute = AdminPayrollRouteImport.update({
+  id: '/admin/payroll',
+  path: '/admin/payroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPromotionsRoute = AdminPromotionsRouteImport.update({
+  id: '/admin/promotions',
+  path: '/admin/promotions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminQueueRoute = AdminQueueRouteImport.update({
@@ -83,6 +97,16 @@ const AuthResetRoute = AuthResetRouteImport.update({
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
   id: '/doctor/',
   path: '/doctor/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorEarningsRoute = DoctorEarningsRouteImport.update({
+  id: '/doctor/earnings',
+  path: '/doctor/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorMembershipRoute = DoctorMembershipRouteImport.update({
+  id: '/doctor/membership',
+  path: '/doctor/membership',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorOnboardingRoute = DoctorOnboardingRouteImport.update({
@@ -166,12 +190,16 @@ const VerifyKindCodeRoute = VerifyKindCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -193,12 +221,16 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -221,12 +253,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -250,12 +286,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin/payouts'
+    | '/admin/payroll'
+    | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/doctor/earnings'
+    | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -277,12 +317,16 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin/payouts'
+    | '/admin/payroll'
+    | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/doctor/earnings'
+    | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -304,12 +348,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin/payouts'
+    | '/admin/payroll'
+    | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/doctor/earnings'
+    | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -332,12 +380,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
+  AdminPayrollRoute: typeof AdminPayrollRoute
+  AdminPromotionsRoute: typeof AdminPromotionsRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthResetRoute: typeof AuthResetRoute
+  DoctorEarningsRoute: typeof DoctorEarningsRoute
+  DoctorMembershipRoute: typeof DoctorMembershipRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
   DoctorQueueRoute: typeof DoctorQueueRoute
   DoctorSubstitutionsRoute: typeof DoctorSubstitutionsRoute
@@ -378,6 +430,20 @@ declare module '@tanstack/react-router' {
       path: '/admin/payouts'
       fullPath: '/admin/payouts'
       preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/payroll': {
+      id: '/admin/payroll'
+      path: '/admin/payroll'
+      fullPath: '/admin/payroll'
+      preLoaderRoute: typeof AdminPayrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/promotions': {
+      id: '/admin/promotions'
+      path: '/admin/promotions'
+      fullPath: '/admin/promotions'
+      preLoaderRoute: typeof AdminPromotionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/queue': {
@@ -427,6 +493,20 @@ declare module '@tanstack/react-router' {
       path: '/doctor'
       fullPath: '/doctor/'
       preLoaderRoute: typeof DoctorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doctor/earnings': {
+      id: '/doctor/earnings'
+      path: '/doctor/earnings'
+      fullPath: '/doctor/earnings'
+      preLoaderRoute: typeof DoctorEarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doctor/membership': {
+      id: '/doctor/membership'
+      path: '/doctor/membership'
+      fullPath: '/doctor/membership'
+      preLoaderRoute: typeof DoctorMembershipRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/onboarding': {
@@ -540,12 +620,16 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
+  AdminPayrollRoute: AdminPayrollRoute,
+  AdminPromotionsRoute: AdminPromotionsRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminRefundsRoute: AdminRefundsRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthResetRoute: AuthResetRoute,
+  DoctorEarningsRoute: DoctorEarningsRoute,
+  DoctorMembershipRoute: DoctorMembershipRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
   DoctorQueueRoute: DoctorQueueRoute,
   DoctorSubstitutionsRoute: DoctorSubstitutionsRoute,

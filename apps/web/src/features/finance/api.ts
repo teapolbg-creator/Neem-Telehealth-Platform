@@ -142,3 +142,197 @@ export function usePharmacyFinance() {
     queryFn: ({ signal }) => api.get<PharmacyFinance>("/pharmacy/finance", signal),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Doctor membership (spec §27)
+// ---------------------------------------------------------------------------
+
+export interface Membership {
+  status: "NONE" | "PENDING" | "ACTIVE" | "GRACE" | "EXPIRED" | "CANCELLED";
+  periodStart: string | null;
+  periodEnd: string | null;
+  graceEndsAt: string | null;
+  amountMinor: number;
+  currency: string;
+  daysRemaining: number | null;
+  renewalDue: boolean;
+  doctorStatus: string;
+  suspendedForNonPayment: boolean;
+}
+
+export const membershipKey = ["doctor", "membership"] as const;
+
+export function useMembership() {
+  return useQuery({
+    queryKey: membershipKey,
+    queryFn: ({ signal }) => api.get<Membership>("/doctor/membership", signal),
+  });
+}
+
+export interface MembershipPayment {
+  paymentPublicId: string;
+  providerReference: string;
+  authorizationUrl: string | null;
+  amountMinor: number;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  isMockProvider: boolean;
+}
+
+/**
+ * Starts a membership payment.
+ *
+ * Succeeding means a checkout was opened, never that the fee was paid. The
+ * membership activates only when the provider confirms it server-side, which
+ * is what `useMembershipPaymentStatus` waits for.
+ */
+export function useStartMembershipPayment() {
+  return useMutation({
+    mutationFn: () => api.post<MembershipPayment>("/doctor/membership/payment"),
+  });
+}
+
+/**
+ * Polls the provider through our own server.
+ *
+ * Only while a payment is outstanding — a doctor with an active membership
+ * has nothing to wait for, and polling a provider on their behalf for ever
+ * would be a request per interval for no reason.
+ */
+export function useMembershipPaymentStatus(enabled: boolean) {
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: ["doctor", "membership", "payment-status"],
+    queryFn: async ({ signal }) => {
+      const result = await api.get<{ status: string; membership: Membership }>(
+        "/doctor/membership/payment/status",
+        signal,
+      );
+      queryClient.setQueryData(membershipKey, result.membership);
+      return result;
+    },
+    enabled,
+    refetchInterval: enabled ? 4000 : false,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Doctor earnings and payroll (spec §26, decision D28)
+// ---------------------------------------------------------------------------
+
+export interface DoctorEarnings {
+  period: { isoYear: number; fromIsoWeek: number; toIsoWeek: number };
+  contractedHoursPerWeek: number | null;
+  employmentType: string | null;
+  /** Null when no contract is recorded — not the same as being owed nothing. */
+  monthlyMinor: number | null;
+  currency: string;
+  scheduledLabel: string;
+  servedLabel: string;
+  consultationsThisPeriod: number;
+}
+
+export function useDoctorEarnings() {
+  return useQuery({
+    queryKey: ["doctor", "earnings"],
+    queryFn: ({ signal }) => api.get<DoctorEarnings>("/doctor/earnings", signal),
+  });
+}
+
+export interface PayrollLine {
+  doctorPublicId: string;
+  fullName: string;
+  employmentType: string | null;
+  contractedHoursPerWeek: number | null;
+  monthlyMinor: number;
+  currency: string;
+  fraction: number;
+  isFullTime: boolean;
+  scheduledLabel: string;
+  servedLabel: string;
+  shortOfContract: boolean;
+  remainderNumerator: number;
+}
+
+export interface Payroll {
+  period: { isoYear: number; fromIsoWeek: number; toIsoWeek: number };
+  fullTimeMonthlyMinor: number;
+  fullTimeHoursPerWeek: number;
+  currency: string;
+  totalMinor: number;
+  lines: PayrollLine[];
+  doctorsWithoutContract: number;
+}
+
+export function useAdminPayroll() {
+  return useQuery({
+    queryKey: ["admin", "payroll"],
+    queryFn: ({ signal }) => api.get<Payroll>("/admin/payroll", signal),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Promotions (spec §42)
+// ---------------------------------------------------------------------------
+
+export interface Promotion {
+  code: string;
+  type: "PERCENT" | "FIXED";
+  valueBp: number | null;
+  valueMinor: number | null;
+  startsAt: string;
+  endsAt: string;
+  maxUses: number | null;
+  usedCount: number;
+  minAmountMinor: number;
+  campaign: string | null;
+  pharmacyName: string | null;
+  isActive: boolean;
+  redeemable: boolean;
+  discountedMinor: number;
+}
+
+export const adminPromotionsKey = ["admin", "promotions"] as const;
+
+export function useAdminPromotions(activeOnly = false) {
+  return useQuery({
+    queryKey: [...adminPromotionsKey, activeOnly],
+    queryFn: ({ signal }) =>
+      api.get<Promotion[]>(`/admin/promotions?activeOnly=${activeOnly}`, signal),
+  });
+}
+
+export interface CreatePromotionInput {
+  code: string;
+  type: "PERCENT" | "FIXED";
+  valueBp?: number;
+  valueMinor?: number;
+  startsAt: string;
+  endsAt: string;
+  maxUses?: number;
+  campaign?: string;
+  minAmountMinor?: number;
+}
+
+export function useCreatePromotion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreatePromotionInput) =>
+      api.post<{ code: string }>("/admin/promotions", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminPromotionsKey }),
+  });
+}
+
+/** Withdraws a code. Deactivates rather than deletes — redemptions stay explainable. */
+export function useDeactivatePromotion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (code: string) =>
+      api.post<{ code: string; isActive: boolean }>(`/admin/promotions/${code}/deactivate`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminPromotionsKey }),
+  });
+}

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { doctorSignatureSchema, DOCTOR_DOCUMENT_TYPES } from '@neem/contracts';
+import { doctorSignatureSchema, DOCTOR_DOCUMENT_TYPES, PERMISSIONS } from '@neem/contracts';
 import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -7,6 +7,12 @@ import { systemClock } from '../../lib/clock.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { captureSignature, getDoctorByPublicId } from './doctor.service.ts';
+import {
+  initiateMembershipPayment,
+  membershipView,
+} from '../subscription/membership-payment.service.ts';
+import { verifyAndSettle } from '../payment/payment.service.ts';
+import { calculatePayroll, currentPayrollPeriod, doctorEarnings } from './payroll.service.ts';
 import { uploadDocument, readDocument } from '../documents/documents.service.ts';
 import {
   confirmShift,
@@ -174,6 +180,121 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Assigned shifts, with the weekly hours position (spec §25). */
+  // -------------------------------------------------------------------------
+  // Earnings and payroll (spec §26, decision D28)
+  // -------------------------------------------------------------------------
+
+  /**
+   * The doctor's own figure.
+   *
+   * Their contract and the hours behind it — never another doctor's, and
+   * never a rating or a quality score (spec §24, §52).
+   */
+  app.get('/doctor/earnings', { preHandler: doctorOnly }, async (request, reply) => {
+    const { doctorId } = requireDoctor(request);
+
+    return reply.send({
+      data: await doctorEarnings(doctorId),
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  /**
+   * The payroll run (spec §26).
+   *
+   * Produces figures. **Neem never transfers doctor salary** — there is no
+   * route that marks one paid, because the transfer happens outside the
+   * system and recording it here would imply Neem had made it.
+   */
+  app.get(
+    '/admin/payroll',
+    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.FINANCE_READ_ALL] }) },
+    async (request, reply) => {
+      const query = z
+        .object({
+          isoYear: z.coerce.number().int().min(2020).max(2100).optional(),
+          fromIsoWeek: z.coerce.number().int().min(1).max(53).optional(),
+          toIsoWeek: z.coerce.number().int().min(1).max(53).optional(),
+        })
+        .parse(request.query);
+
+      const period =
+        query.isoYear && query.fromIsoWeek && query.toIsoWeek
+          ? { isoYear: query.isoYear, fromIsoWeek: query.fromIsoWeek, toIsoWeek: query.toIsoWeek }
+          : currentPayrollPeriod();
+
+      return reply.send({
+        data: await calculatePayroll(period),
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Membership (spec §27)
+  // -------------------------------------------------------------------------
+
+  app.get('/doctor/membership', { preHandler: doctorOnly }, async (request, reply) => {
+    const { doctorId } = requireDoctor(request);
+
+    return reply.send({
+      data: await membershipView(doctorId),
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  /**
+   * Starts a membership payment.
+   *
+   * Returns something to pay with and nothing more. The membership becomes
+   * active only when the provider confirms the money server-side, through the
+   * same settlement path a consultation fee takes (spec §34).
+   */
+  app.post('/doctor/membership/payment', { preHandler: doctorOnly }, async (request, reply) => {
+    const { doctorId } = requireDoctor(request);
+
+    const result = await initiateMembershipPayment(
+      doctorId,
+      { correlationId: request.correlationId },
+      getPrisma(),
+    );
+
+    return reply.status(201).send({ data: result, meta: { requestId: request.correlationId } });
+  });
+
+  /**
+   * Asks the provider where the membership payment stands.
+   *
+   * The doctor's screen polls this after being sent to the checkout, exactly
+   * as the pharmacy's payment screen does. It settles nothing on its own —
+   * `verifyAndSettle` asks the provider and applies the answer.
+   */
+  app.get('/doctor/membership/payment/status', { preHandler: doctorOnly }, async (request, reply) => {
+    const { doctorId } = requireDoctor(request);
+
+    const payment = await getPrisma().payment.findFirst({
+      where: { doctorSubscription: { doctorId } },
+      orderBy: { createdAt: 'desc' },
+      select: { providerReference: true, status: true },
+    });
+
+    if (!payment) {
+      return reply.send({
+        data: { status: 'NONE', membership: await membershipView(doctorId) },
+        meta: { requestId: request.correlationId },
+      });
+    }
+
+    if (payment.status === 'PENDING' || payment.status === 'PROCESSING') {
+      await verifyAndSettle(payment.providerReference, { actorType: 'SYSTEM' }).catch(() => undefined);
+    }
+
+    return reply.send({
+      data: { status: payment.status, membership: await membershipView(doctorId) },
+      meta: { requestId: request.correlationId },
+    });
+  });
+
   app.get('/doctor/shifts', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
 

@@ -100,7 +100,34 @@ POST   /admin/refunds/:publicId/decide                    { approve, note } — 
 GET    /admin/payouts
 POST   /admin/payouts/calculate                           { periodStart, periodEnd }
 POST   /admin/payouts/:publicId/mark-paid                 { paymentReference, note? }
+
+GET    /doctor/membership                                 period, grace, what is owed
+POST   /doctor/membership/payment                         returns a checkout; activates nothing
+GET    /doctor/membership/payment/status                  asks the provider, then reports
+GET    /doctor/earnings                                   this doctor's own figure
+GET    /admin/payroll                                     every doctor's, calculated not paid
+
+GET    /admin/promotions
+POST   /admin/promotions                                  { code, type, valueBp|valueMinor, window }
+POST   /admin/promotions/:code/deactivate                 withdraws; never deletes
 ```
+
+**A membership fee is not a consultation fee.** It runs through the same
+verification and the same idempotency, but activates no consultation and
+creates no revenue allocation — no pharmacy has a share in it. Paying lifts a
+suspension **only** when the doctor was suspended for non-payment; a suspension
+an administrator imposed for any other reason survives the payment, and the
+membership is still recorded as paid.
+
+**Payroll is calculated and never paid.** There is no route that transfers a
+salary or marks one sent, because the transfer happens outside Neem and
+recording it here would imply otherwise (spec §26). A doctor with no contracted
+hours is omitted from the run and counted separately, rather than assumed to be
+full-time or silently treated as owed nothing.
+
+**A promotion is withdrawn, never deleted.** Consultations reference it and the
+discount they received has to stay explainable, so `deactivate` is a POST and
+there is no DELETE.
 
 **Nothing refunds automatically.** A patient or a pharmacy asks; an
 administrator decides, with a reason required for either answer. Approving

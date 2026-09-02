@@ -30,6 +30,8 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Queue", to: "/doctor/queue" },
     { label: "Dashboard", to: "/doctor" },
     { label: "Substitutions", to: "/doctor/substitutions" },
+    { label: "Earnings", to: "/doctor/earnings" },
+    { label: "Membership", to: "/doctor/membership" },
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
   admin: [
@@ -37,6 +39,8 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Live queue", to: "/admin/queue" },
     { label: "Refunds", to: "/admin/refunds" },
     { label: "Payouts", to: "/admin/payouts" },
+    { label: "Payroll", to: "/admin/payroll" },
+    { label: "Promotions", to: "/admin/promotions" },
     { label: "Verification", to: "/admin/verification" },
   ],
 };

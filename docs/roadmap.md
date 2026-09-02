@@ -221,10 +221,31 @@ That in turn required the capacity release in `transition()` to fire only on a
 consultation's first ending, or a refunded consultation would have handed its
 doctor a slot they were not free for.
 
-**Still open in Phase 7:** doctor membership payment through Paystack (the
-subscription record and the expiry sweep exist; taking the money does not),
-promotion validation at consultation creation, and the payroll calculation —
-`domain/compensation.ts` implements D28's formula and has no caller.
+**Part two landed 2026-09-02**, closing the phase.
+
+- **Membership payment.** The lifecycle had existed since Phase 2 with nothing
+  able to pay for it. It now runs through the same settlement path a
+  consultation fee takes — same verification, same idempotency — while
+  activating no consultation and creating no revenue allocation, because no
+  pharmacy has a share in a doctor's membership fee. Paying lifts a suspension
+  only when the doctor was suspended for non-payment; an administrator's
+  suspension for any other reason survives it, and the membership is still
+  recorded as paid so the money is not lost.
+- **Payroll.** `domain/compensation.ts` implemented D28's formula and had no
+  caller, so nothing computed a doctor's pay. There is now an admin run and a
+  doctor's own view of their figure. Neem calculates and does not transfer
+  (spec §26) — no route marks a salary sent. A doctor with no contracted hours
+  is omitted and counted rather than assumed full-time.
+- **Promotions.** Redemption was already validated server-side inside
+  consultation creation. What was missing was the other half:
+  `PROMOTION_MANAGE` was a permission with no route, so running a campaign
+  meant writing rows by hand. Codes are now created and withdrawn from an admin
+  screen, and the list reports what each campaign has actually given away —
+  `usedCount` alone does not say it.
+
+A promotion whose value does not match its type is refused at creation: a
+PERCENT code carrying only `valueMinor` would have stored cleanly and then
+discounted nothing, because `computeDiscount` reads the field its type names.
 
 ---
 
