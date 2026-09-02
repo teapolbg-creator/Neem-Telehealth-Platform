@@ -91,6 +91,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.SUBSTITUTION_PROPOSE,
     P.REFERRAL_READ,
     P.FINANCE_READ_OWN,
+    /**
+     * The pharmacy took the money and is who the patient comes back to. By the
+     * time a refund is worth asking for the patient has often left, so the
+     * counter must be able to ask on their behalf. Deciding remains an
+     * administrator's alone (spec §41).
+     */
+    P.REFUND_REQUEST,
   ],
 
   DOCTOR: [

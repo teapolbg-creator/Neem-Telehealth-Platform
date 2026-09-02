@@ -52,7 +52,16 @@ export interface WebhookEvent {
   /** Provider-side unique event id — the idempotency key for webhooks. */
   providerEventId: string;
   eventType: string;
+  /** The original transaction's reference, for every kind of event. */
   providerReference: string;
+  /**
+   * The refund's own provider reference, on refund events only.
+   *
+   * A refund event is about a different object from the charge that preceded
+   * it, and settling it as though it were a payment would re-verify the
+   * charge and conclude, correctly but uselessly, that it succeeded.
+   */
+  refundReference?: string;
   status: VerifiedPaymentStatus;
   amountMinor: number;
   currency: string;

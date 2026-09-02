@@ -9,6 +9,8 @@ import {
 } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
+import { runSubscriptionExpirySweep } from '../modules/subscription/subscription.service.ts';
+import { reconcilePayments } from '../modules/payment/reconciliation.service.ts';
 import { emitTimerWarnings } from '../modules/media/media.service.ts';
 import { purgeExpiredClinicalRecords } from '../modules/retention/clinical-record.service.ts';
 
@@ -102,6 +104,34 @@ const JOBS: JobDefinition[] = [
     intervalMs: 15 * MINUTE,
     run: purgeExpiredSessions,
     describe: (count) => `removed ${count} expired session(s)`,
+  },
+  {
+    /**
+     * Membership expiry → suspension (spec §27).
+     *
+     * The sweep has existed since Phase 2 and was never scheduled, so a
+     * doctor whose six-month membership lapsed stayed ACTIVE indefinitely and
+     * kept receiving consultations. Hourly rather than daily because the
+     * boundary is a moment, not a day, and a doctor suspended an hour late is
+     * a doctor who took an hour of consultations they were not entitled to.
+     */
+    name: 'sweep-subscription-expiry',
+    intervalMs: 60 * MINUTE,
+    run: async () => (await runSubscriptionExpirySweep()).suspended,
+    describe: (count) => `suspended ${count} doctor(s) whose membership lapsed`,
+  },
+  {
+    /**
+     * Payment reconciliation (docs/payment-flow.md §10).
+     *
+     * Finds payments where Neem and the provider disagree — most often a
+     * webhook that never arrived, leaving a patient who paid with a
+     * consultation that never activated. Records the drift; corrects nothing.
+     */
+    name: 'reconcile-payments',
+    intervalMs: 60 * MINUTE,
+    run: async () => (await reconcilePayments()).findings.length,
+    describe: (count) => `found ${count} payment discrepancie(s) needing review`,
   },
 ];
 

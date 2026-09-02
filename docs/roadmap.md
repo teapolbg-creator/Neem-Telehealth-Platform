@@ -189,6 +189,43 @@ Real Paystack integration · server-side verification · signature-verified webh
 
 **Exit:** the §103 critical financial test is demonstrated — duplicate webhook creates no duplicate revenue; splits are exact and reproducible.
 
+**Part one landed 2026-09-02.** The exit criterion is met and asserted against
+a real database: three webhooks for one charge produce exactly one revenue
+allocation, the split reconstitutes the total exactly in integers, and the rate
+in force is stored so a later configuration change cannot rewrite history.
+
+- **The Paystack adapter.** Signature verified against the raw body with HMAC
+  SHA-512 before the body is parsed, constant-time; unrecognised provider
+  statuses map to PENDING so nothing unanticipated can settle a consultation.
+  `PAYSTACK_WEBHOOK_SECRET` is no longer required — Paystack signs with the
+  secret key, and demanding a second value invited an operator to invent one,
+  which would have failed every real webhook's signature check.
+- **Refunds**, end to end: patient and pharmacy request surfaces, an admin
+  decision queue, provider call before any local write, revenue reversal, and
+  `refund.processed` closing the loop. §80 scenario 16 is covered.
+- **Payouts**: period calculation, an admin settlement record with a required
+  reference, and a pharmacy earnings screen showing real figures.
+- **Two jobs that existed and never ran.** `runSubscriptionExpirySweep` had
+  been written in Phase 2 and never scheduled, so a doctor whose six-month
+  membership lapsed stayed ACTIVE and kept taking consultations. Reconciliation
+  is new: it finds payments where Neem and the provider disagree — usually a
+  webhook that never arrived — and records the drift without correcting it.
+
+Two state-machine changes were needed and are worth naming. `EXPIRED`,
+`CANCELLED` and `ABANDONED` became re-enterable, because all three are
+reachable *after* payment and a consultation that took money and delivered
+nothing had no route by which the money could go back. `COMPLETED` was
+deliberately left terminal: a consultation that happened was delivered, and a
+patient unhappy with it has a complaint, not an automatic claim on the fee.
+That in turn required the capacity release in `transition()` to fire only on a
+consultation's first ending, or a refunded consultation would have handed its
+doctor a slot they were not free for.
+
+**Still open in Phase 7:** doctor membership payment through Paystack (the
+subscription record and the expiry sweep exist; taking the money does not),
+promotion validation at consultation creation, and the payroll calculation —
+`domain/compensation.ts` implements D28's formula and has no caller.
+
 ---
 
 ## Phase 8 — Notifications

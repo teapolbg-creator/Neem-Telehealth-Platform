@@ -25,6 +25,7 @@ import {
   usePatientSession,
   useSelectLanguage,
   useSelectMode,
+  useRequestRefund,
   useSubmitFeedback,
   useSubmitIdentity,
 } from "@/features/consultation/api";
@@ -783,7 +784,11 @@ function ClosedStep({ session }: { session: PatientSessionView }) {
       ? "This consultation was cancelled."
       : session.state === "EXPIRED"
         ? "This consultation expired before it began."
-        : "This consultation has ended.";
+        : session.state === "REFUND_REQUESTED"
+          ? "This consultation is on hold."
+          : session.state === "REFUNDED"
+            ? "This consultation was refunded."
+            : "This consultation has ended.";
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
@@ -791,6 +796,105 @@ function ClosedStep({ session }: { session: PatientSessionView }) {
       <h1 className="mt-4 text-xl font-bold">{reason}</h1>
       <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
         Please speak to the pharmacist if you still need to see a doctor.
+      </p>
+
+      {/*
+        This is where a refund actually matters: the patient paid and no
+        consultation happened. Offering it here rather than only at the counter
+        means they can ask before they have walked away.
+      */}
+      <RefundPanel state={session.state} />
+    </div>
+  );
+}
+
+/**
+ * Asking for the fee back (spec §41).
+ *
+ * Shown only where money was taken and nothing was delivered. It is a request,
+ * and the copy is careful not to imply otherwise — an administrator reviews it,
+ * and telling the patient a refund is on its way would be a promise Neem has
+ * not made.
+ */
+function RefundPanel({ state }: { state: string }) {
+  const request = useRequestRefund();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  // REFUND_REQUESTED means one is already with an administrator.
+  if (state === "REFUND_REQUESTED" || request.isSuccess) {
+    return (
+      <p className="mt-8 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
+        Your refund request is with Neem. Someone will review it and the pharmacy will be told the
+        outcome.
+      </p>
+    );
+  }
+
+  if (state === "REFUNDED") {
+    return (
+      <p className="mt-8 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
+        This consultation has been refunded.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-8 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50"
+      >
+        Ask for a refund
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-8 w-full max-w-xs rounded-2xl border border-border p-4 text-left">
+      <label className="block">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          What happened?
+        </span>
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={3}
+          maxLength={500}
+          placeholder="No doctor was available and I had to leave."
+          className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm"
+        />
+      </label>
+
+      {request.error && (
+        <p className="mt-3 text-sm text-red-600">
+          {request.error instanceof ApiError
+            ? request.error.message
+            : "The request could not be sent."}
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={reason.trim().length < 3 || request.isPending}
+          onClick={() => request.mutate(reason.trim())}
+          className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {request.isPending ? "Sending…" : "Send the request"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
+        >
+          Not now
+        </button>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        Neem reviews every request. This is not an automatic refund.
       </p>
     </div>
   );

@@ -10,6 +10,7 @@ import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { splitRevenue } from '../../lib/money.ts';
 import { getPaymentProvider, type VerifiedPayment } from '../../adapters/payment/index.ts';
+import { completeRefund } from './refund.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 
@@ -343,6 +344,7 @@ export async function handleWebhookEvent(
     providerEventId: string;
     eventType: string;
     providerReference: string;
+    refundReference?: string;
     status: string;
     amountMinor: number;
     currency: string;
@@ -375,17 +377,36 @@ export async function handleWebhookEvent(
     throw error;
   }
 
-  // Re-verify with the provider rather than trusting the webhook body. A valid
-  // signature proves origin, not that the body reflects current truth.
-  const verified = await getPaymentProvider().verify(event.providerReference);
-
   let result: { status: string; consultationState: string } | undefined;
   let error: string | undefined;
 
-  try {
-    result = await settlePayment(verified, { actorType: 'SYSTEM', correlationId }, db, clock);
-  } catch (caught) {
-    error = caught instanceof Error ? caught.message : 'unknown error';
+  /**
+   * A refund event is not a payment event.
+   *
+   * Sending one down the settlement path would re-verify the original charge,
+   * find it successful — which it was — and conclude nothing, leaving the
+   * refund stuck in PROCESSING for ever. It is the refund's own reference
+   * that closes it.
+   */
+  if (event.eventType.startsWith('refund.')) {
+    try {
+      const closed = event.refundReference
+        ? await completeRefund(event.refundReference, db, clock)
+        : false;
+      result = { status: closed ? 'REFUND_COMPLETED' : 'REFUND_UNMATCHED', consultationState: '' };
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'unknown error';
+    }
+  } else {
+    // Re-verify with the provider rather than trusting the webhook body. A
+    // valid signature proves origin, not that the body reflects current truth.
+    const verified = await getPaymentProvider().verify(event.providerReference);
+
+    try {
+      result = await settlePayment(verified, { actorType: 'SYSTEM', correlationId }, db, clock);
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : 'unknown error';
+    }
   }
 
   await db.paymentWebhookEvent.updateMany({

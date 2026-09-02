@@ -1,6 +1,7 @@
 import { getEnv } from '../../config/env.ts';
 import type { PaymentProvider } from './payment.provider.ts';
 import { MockPaymentProvider } from './mock-payment.provider.ts';
+import { PaystackPaymentProvider } from './paystack-payment.provider.ts';
 
 /**
  * Payment provider selection.
@@ -20,11 +21,8 @@ export function getPaymentProvider(): PaymentProvider {
         provider = new MockPaymentProvider();
         break;
       case 'paystack':
-        // Phase 7. Failing loudly beats silently falling back to a mock, which
-        // would report payments that never happened (spec §93).
-        throw new Error(
-          'PAYMENT_PROVIDER=paystack is selected but the Paystack adapter is not implemented yet (Phase 7).',
-        );
+        provider = new PaystackPaymentProvider();
+        break;
       default:
         throw new Error(`Unknown PAYMENT_PROVIDER: ${env.PAYMENT_PROVIDER}`);
     }
@@ -38,3 +36,4 @@ export function setPaymentProviderForTesting(next: PaymentProvider | undefined):
 
 export * from './payment.provider.ts';
 export { MockPaymentProvider } from './mock-payment.provider.ts';
+export { PaystackPaymentProvider } from './paystack-payment.provider.ts';

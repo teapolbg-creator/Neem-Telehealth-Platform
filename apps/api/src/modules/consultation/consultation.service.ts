@@ -51,7 +51,7 @@ export async function transition(
 ): Promise<ConsultationState> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    select: { id: true, state: true, doctorId: true },
+    select: { id: true, state: true, doctorId: true, clinicalSealedAt: true },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -118,10 +118,21 @@ export async function transition(
    * rather than at each terminal call site precisely so no future path can
    * forget it.
    *
-   * `GREATEST(currentLoad - 1, 0)` inside `releaseCapacity` makes a repeat
-   * harmless, so a retried transition cannot drive the count negative.
+   * **Released once, on the first time this consultation ends.** Phase 7 made
+   * `EXPIRED`, `CANCELLED` and `ABANDONED` re-enterable so a paid consultation
+   * that delivered nothing can be refunded, which means a consultation can now
+   * reach a terminal state twice: once when it ended, and again at REFUNDED.
+   * Releasing on both would decrement a count this consultation no longer
+   * holds and hand the doctor a slot they are not free for.
+   *
+   * `clinicalSealedAt` is the marker, set by the seal immediately below on the
+   * same first crossing. `GREATEST(currentLoad - 1, 0)` still guards against a
+   * count going negative; it does not, on its own, make a second release
+   * correct.
    */
-  if (consultation.doctorId && !isTerminal(from) && isTerminal(to)) {
+  const endedBefore = consultation.clinicalSealedAt !== null;
+
+  if (consultation.doctorId && !endedBefore && !isTerminal(from) && isTerminal(to)) {
     await releaseCapacity(consultation.doctorId, db);
   }
 

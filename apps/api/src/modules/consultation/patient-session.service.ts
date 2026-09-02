@@ -179,9 +179,14 @@ export async function buildSessionView(
     ? consultation.state === 'COMPLETED'
       ? 'COMPLETE'
       : 'CLOSED'
-    : consultation.state === 'COMPLETING'
-      ? 'COMPLETE'
-      : !identityCaptured
+    : // A consultation held for a refund decision is not a consultation in
+      // progress. Without this it fell through to WAITING and the patient was
+      // shown a waiting room for something that will not resume.
+      consultation.state === 'REFUND_REQUESTED'
+      ? 'CLOSED'
+      : consultation.state === 'COMPLETING'
+        ? 'COMPLETE'
+        : !identityCaptured
         ? 'IDENTITY'
         : !consultation.languageId
           ? 'LANGUAGE'

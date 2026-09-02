@@ -1,7 +1,7 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { authenticator } from 'otplib';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -102,6 +102,29 @@ export async function signInAdmin(
   const verify = await request.post(`${API}/auth/2fa/verify`, {
     data: { challengeId, code: authenticator.generate(secret!) },
   });
+
+  /**
+   * A cached secret that no longer matches the account.
+   *
+   * This happens the moment anyone signs into the demo admin by hand — the
+   * browser enrols a fresh secret, and the file here still holds the old one.
+   * Every test needing an admin then fails on `expect(false).toBeTruthy()`,
+   * eighteen times, saying nothing about why.
+   *
+   * The stale file is discarded so the next run can enrol cleanly after a
+   * reset, and the error names the actual cause.
+   */
+  if (!verify.ok() && !enrollmentRequired) {
+    if (existsSync(ADMIN_SECRET_FILE)) rmSync(ADMIN_SECRET_FILE);
+
+    throw new Error(
+      'The demo admin rejected the recorded two-factor code.\n' +
+        'Its enrolled secret has changed — most often because someone signed in as the demo\n' +
+        'admin through the browser, which enrols a new one. The stale copy has been discarded.\n' +
+        'Run `npm run db:reset-2fa` and try again.',
+    );
+  }
+
   expect(verify.ok(), 'admin two-factor verification should succeed').toBeTruthy();
 
   return { csrf: await readCsrf(request), secret: secret! };

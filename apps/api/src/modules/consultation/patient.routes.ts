@@ -11,6 +11,7 @@ import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { patientSessionIsUsable } from '../../domain/consultation-state.ts';
+import { requestRefund } from '../payment/refund.service.ts';
 import {
   PATIENT_SESSION_COOKIE,
   exchangeAccessToken,
@@ -211,6 +212,29 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.status(201).send({
       data: { submitted: true },
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  /**
+   * The patient asking for their money back (spec §41).
+   *
+   * Recorded, never granted. An administrator decides, and the patient is told
+   * only that the request was received — a screen that implied a refund was
+   * on its way would be making a promise nobody has yet agreed to.
+   */
+  app.post('/patient/refund-request', async (request, reply) => {
+    const principal = await requirePatient(request);
+    const { reason } = z.object({ reason: z.string().trim().min(3).max(500) }).parse(request.body);
+
+    const result = await requestRefund(principal.consultationId, {
+      reason,
+      requestedByType: 'PATIENT',
+      correlationId: request.correlationId,
+    });
+
+    return reply.status(201).send({
+      data: { publicId: result.publicId, state: result.state },
       meta: { requestId: request.correlationId },
     });
   });

@@ -68,7 +68,7 @@ GET    /patient/session/prescription      → metadata + PDF download
 GET    /patient/session/referral
 GET    /patient/complaint-categories      what a complaint may be about
 POST   /patient/feedback                  { doctorRating, neemRating, category, complaintCategoryCode?, comment? }
-POST   /patient/session/refund-request    { reason }
+POST   /patient/refund-request            { reason } — recorded, never granted
 ```
 
 Every route is scoped to the single consultation bound to the session. No route accepts a consultation identifier from the client.
@@ -87,6 +87,35 @@ once per consultation, enforced by a unique key rather than a read-then-write.
 A `COMPLAINT` also opens a `complaints` row for an administrator. Nothing here
 is ever returned to the doctor (spec §24, §52) — it reaches them only through
 the nightly quality aggregate, which is admin-facing.
+
+---
+
+## 3a. Money (spec §38–§41)
+
+```
+POST   /pharmacy/consultations/:publicId/refund-request   asks on the patient's behalf
+GET    /pharmacy/finance                                  this pharmacy's share only
+GET    /admin/refunds                                     the decision queue
+POST   /admin/refunds/:publicId/decide                    { approve, note } — the only path that returns money
+GET    /admin/payouts
+POST   /admin/payouts/calculate                           { periodStart, periodEnd }
+POST   /admin/payouts/:publicId/mark-paid                 { paymentReference, note? }
+```
+
+**Nothing refunds automatically.** A patient or a pharmacy asks; an
+administrator decides, with a reason required for either answer. Approving
+calls the provider first and writes locally only if that succeeds, so the
+ledger and the money cannot drift apart.
+
+**Revenue is reversed, never deleted.** The allocation row stays and is stamped
+`reversedAt`; payout calculation excludes reversed rows rather than netting
+them off, so every figure still traces to the consultations behind it.
+
+**Neem does not transfer payouts.** `mark-paid` records a transfer an
+administrator has already made and demands a reference to trace it by (spec
+§40). A payout already marked paid is frozen — recalculating its period leaves
+it exactly as it was, because an amount someone has sent must not move
+underneath them.
 
 ---
 

@@ -390,3 +390,19 @@ Two things were unreachable as a result, neither of them noticed because every r
 **A second defect fell out of it.** `buildSessionView` tested the onboarding steps before the consultation's state, so a consultation that ended before the patient finished a step reported that step. A consultation cancelled while the patient was choosing a language would have shown them a language picker. This was unreachable while sessions died at the end and became reachable the moment they stopped; the outcome now outranks the ladder.
 
 **Consequences.** The window is bounded by `PATIENT_SESSION_TIMEOUT_MINUTES` (60), unchanged. Nothing new is disclosed: the session view carries what it always carried, and the clinical record is sealed at completion by a separate mechanism (D23) that this does not touch.
+
+---
+
+### D31 — A refund follows the money, not the consultation · 2026-09-02 · **DECIDED (Category B)**
+
+**Issue.** `REFUND_REQUESTED` was reachable only from live states — ACTIVATED, WAITING_FOR_PATIENT, PATIENT_JOINED, WAITING_FOR_DOCTOR. Every terminal state was a dead end.
+
+That left the clearest refund case in the product with no route at all. A consultation reaches ACTIVATED only once money has been taken, and from there it can expire unscanned, be cancelled by the pharmacy, or be abandoned by the patient. All three mean someone paid and received nothing, and in all three the refund routes could not so much as record the request.
+
+**Decision.** `EXPIRED`, `CANCELLED` and `ABANDONED` accept a transition to `REFUND_REQUESTED`, and `REFUND_REQUESTED` can return to any of them if the request is declined.
+
+**`COMPLETED` is deliberately excluded.** A consultation that happened was delivered. A patient unhappy with the care they received has a complaint — captured in Phase 6.5, reviewed by an administrator — and not an automatic claim on the fee. The line is between "did you receive the service" and "was the service good": different questions, different remedies, and collapsing them would make every quality dispute a billing dispute.
+
+**What a request does depends on where the consultation is.** A live consultation is moved to `REFUND_REQUESTED`, which holds it while the decision is pending; a finished one is left exactly where it is, because the refund is a fact about the money rather than a second ending. On rejection the prior state is restored from the state event log, which already records `fromState` — storing it a second time on the refund row would be a copy of the same fact with its own way of being wrong.
+
+**Consequence, and the thing that nearly broke.** Making a terminal state re-enterable means a consultation can now cross into terminal twice: once when it ended, and again at `REFUNDED`. `transition()` released doctor capacity on every non-terminal→terminal crossing, so the second one would have decremented a count the consultation no longer held and handed the doctor a slot they were not free for. The release is now guarded on `clinicalSealedAt`, which the seal sets on the first crossing. The existing comment claimed `GREATEST(currentLoad - 1, 0)` made a repeat harmless; it prevents a negative count, which is not the same thing.

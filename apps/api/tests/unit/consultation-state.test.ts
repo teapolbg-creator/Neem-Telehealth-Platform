@@ -42,6 +42,10 @@ const ALLOWED = new Set([
   'REFUND_REQUESTED>WAITING_FOR_PATIENT',
   'REFUND_REQUESTED>PATIENT_JOINED', 'REFUND_REQUESTED>WAITING_FOR_DOCTOR',
   'REFUND_REQUESTED>COMPLETED',
+  // Decision D31. All three are reachable after payment, so all three can be
+  // a consultation that took money and delivered nothing.
+  'REFUND_REQUESTED>EXPIRED', 'REFUND_REQUESTED>CANCELLED', 'REFUND_REQUESTED>ABANDONED',
+  'EXPIRED>REFUND_REQUESTED', 'CANCELLED>REFUND_REQUESTED', 'ABANDONED>REFUND_REQUESTED',
 ]);
 
 describe('consultation transitions', () => {
@@ -59,11 +63,37 @@ describe('consultation transitions', () => {
     }
   });
 
-  it('lets nothing out of a terminal state', () => {
-    for (const state of ['COMPLETED', 'EXPIRED', 'CANCELLED', 'ABANDONED', 'REFUNDED'] as const) {
+  /**
+   * Terminal means a consultation is over, and stays over.
+   *
+   * Decision D31 opened exactly one door: a refund request. `EXPIRED`,
+   * `CANCELLED` and `ABANDONED` are all reachable *after* payment, so each can
+   * be a consultation that took money and delivered nothing, and the fee had
+   * no route back at all. Nothing else may leave a terminal state, and the
+   * assertion is written to fail if a second exception is ever added quietly.
+   */
+  it('lets nothing out of a terminal state except a refund request (D31)', () => {
+    for (const state of ['COMPLETED', 'REFUNDED'] as const) {
       expect(isTerminal(state)).toBe(true);
       expect(allowedTransitions(state)).toHaveLength(0);
     }
+
+    for (const state of ['EXPIRED', 'CANCELLED', 'ABANDONED'] as const) {
+      expect(isTerminal(state)).toBe(true);
+      expect(allowedTransitions(state)).toEqual(['REFUND_REQUESTED']);
+    }
+  });
+
+  /**
+   * A completed consultation was delivered.
+   *
+   * A patient unhappy with the care has a complaint, reviewed by an
+   * administrator, and not an automatic claim on the fee (D31). Keeping this
+   * as its own assertion means the boundary cannot be moved by accident.
+   */
+  it('will not take a completed consultation into a refund', () => {
+    expect(canTransition('COMPLETED', 'REFUND_REQUESTED')).toBe(false);
+    expect(canTransition('COMPLETED', 'REFUNDED')).toBe(false);
   });
 
   it('reaches PAID only from PAYMENT_PROCESSING (spec §34)', () => {

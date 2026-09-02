@@ -23,6 +23,7 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Dashboard", to: "/pharmacy" },
     { label: "New consultation", to: "/pharmacy/new" },
     { label: "Prescriptions", to: "/pharmacy/prescriptions" },
+    { label: "Earnings", to: "/pharmacy/finance" },
     { label: "Verification", to: "/pharmacy/onboarding" },
   ],
   doctor: [
@@ -34,6 +35,8 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },
+    { label: "Refunds", to: "/admin/refunds" },
+    { label: "Payouts", to: "/admin/payouts" },
     { label: "Verification", to: "/admin/verification" },
   ],
 };

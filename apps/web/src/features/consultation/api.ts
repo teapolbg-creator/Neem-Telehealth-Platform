@@ -264,6 +264,24 @@ export function useSubmitFeedback() {
   });
 }
 
+/**
+ * Asking for a refund (spec §41).
+ *
+ * Recorded, never granted. The mutation succeeding means an administrator has
+ * the request, not that money is coming back — the screen says so, because a
+ * patient told "refund on its way" by a system that has decided nothing would
+ * be being misled.
+ */
+export function useRequestRefund() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reason: string) =>
+      api.post<{ publicId: string; state: string }>('/patient/refund-request', { reason }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: patientSessionKey }),
+  });
+}
+
 function usePatientStep<TInput>(path: string) {
   const queryClient = useQueryClient();
 

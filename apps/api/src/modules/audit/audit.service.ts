@@ -68,6 +68,7 @@ export const AUDIT_ACTIONS = {
   PAYMENT_ANOMALY: 'payment.anomaly',
   REFUND_REQUESTED: 'refund.requested',
   REFUND_DECIDED: 'refund.decided',
+  PAYOUT_CALCULATED: 'payout.calculated',
   PAYOUT_MARKED_PAID: 'payout.marked-paid',
 
   DOCTOR_ASSIGNED: 'queue.doctor.assigned',

@@ -17,6 +17,8 @@ import { adminRoutes } from './modules/admin/admin.routes.ts';
 import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
 import { webhookRoutes } from './modules/payment/webhook.routes.ts';
+import { refundRoutes } from './modules/payment/refund.routes.ts';
+import { payoutRoutes } from './modules/payment/payout.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
 import { mediaRoutes } from './modules/media/media.routes.ts';
 import { retentionRoutes } from './modules/retention/retention.routes.ts';
@@ -116,6 +118,8 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(mediaRoutes);
       await api.register(retentionRoutes);
       await api.register(clinicalRoutes);
+      await api.register(refundRoutes);
+      await api.register(payoutRoutes);
     },
     { prefix: '/api/v1' },
   );

@@ -47,13 +47,33 @@ const TRANSITIONS: Record<ConsultationState, readonly ConsultationState[]> = {
     'PATIENT_JOINED',
     'WAITING_FOR_DOCTOR',
     'COMPLETED',
+    // A rejected request must be able to put the consultation back exactly
+    // where it was, including the terminal states a request may now come from.
+    'EXPIRED',
+    'CANCELLED',
+    'ABANDONED',
   ],
 
-  // Terminal.
+  /**
+   * Terminal, with one deliberate exception.
+   *
+   * `EXPIRED`, `CANCELLED` and `ABANDONED` are all reachable *after* payment:
+   * a consultation reaches ACTIVATED only once money has been taken, and can
+   * then expire unscanned, be cancelled by the pharmacy, or be abandoned by
+   * the patient. Those are precisely the cases where someone paid and received
+   * nothing, and until this was added there was no path by which the money
+   * could go back — the refund routes could not even record a request.
+   *
+   * `COMPLETED` is deliberately NOT among them. A consultation that happened
+   * was delivered; a patient unhappy with it has a complaint (spec §51), which
+   * an administrator reviews, and not an automatic claim on the fee. Drawing
+   * the line here keeps "did you receive the service" separate from "was the
+   * service good", which are different questions with different remedies.
+   */
   COMPLETED: [],
-  EXPIRED: [],
-  CANCELLED: [],
-  ABANDONED: [],
+  EXPIRED: ['REFUND_REQUESTED'],
+  CANCELLED: ['REFUND_REQUESTED'],
+  ABANDONED: ['REFUND_REQUESTED'],
   REFUNDED: [],
 };
 

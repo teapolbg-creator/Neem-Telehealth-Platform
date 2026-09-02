@@ -101,7 +101,20 @@ const envSchema = z
 
     PAYSTACK_SECRET_KEY: z.string().optional(),
     PAYSTACK_PUBLIC_KEY: z.string().optional(),
+    /**
+     * Paystack signs webhooks with the account's SECRET key. This exists only
+     * so the two can be separated in a test harness; leave it unset in
+     * production and the secret key is used, which is the real arrangement.
+     */
     PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
+    PAYSTACK_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+    /**
+     * Domain for the synthetic per-transaction address Paystack requires.
+     *
+     * Neem collects a phone number at the counter, never an email. The address
+     * is derived from our own payment reference and carries no patient data.
+     */
+    PAYSTACK_RECEIPT_DOMAIN: z.string().min(3).default('receipts.neem.local'),
 
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
@@ -147,11 +160,16 @@ const envSchema = z
     if (env.PAYMENT_PROVIDER === 'paystack') {
       require('PAYSTACK_SECRET_KEY', env.PAYSTACK_SECRET_KEY, 'when PAYMENT_PROVIDER=paystack');
       require('PAYSTACK_PUBLIC_KEY', env.PAYSTACK_PUBLIC_KEY, 'when PAYMENT_PROVIDER=paystack');
-      require(
-        'PAYSTACK_WEBHOOK_SECRET',
-        env.PAYSTACK_WEBHOOK_SECRET,
-        'when PAYMENT_PROVIDER=paystack — webhooks must be signature-verified',
-      );
+      /**
+       * PAYSTACK_WEBHOOK_SECRET is deliberately NOT required.
+       *
+       * It was, on the reasoning that webhooks must be signature-verified —
+       * which is true, and is exactly why requiring it was wrong: Paystack
+       * signs with the secret key, so demanding a second value invited an
+       * operator to invent one, and every real webhook would then fail its
+       * signature check. The adapter falls back to the secret key, which is
+       * already required above.
+       */
     }
 
     const usesTwilio =
