@@ -423,6 +423,7 @@ model Pharmacy {
   consultations Consultation[]
   prescriptions Prescription[]
   referrals     Referral[]
+  summaries     ConsultationSummary[]
   payouts       PharmacyPayout[]
   substitutions SubstitutionRequest[]
   promotions    Promotion[]
@@ -556,6 +557,7 @@ model Doctor {
   assignments       ConsultationAssignment[]
   prescriptions     Prescription[]
   referrals         Referral[]
+  summaries         ConsultationSummary[]
   performanceEvents DoctorPerformanceEvent[]
   qualityScores     DoctorQualityScore[]
   substitutions     SubstitutionRequest[]
@@ -612,6 +614,7 @@ model DoctorSignature {
   doctor        Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   prescriptions Prescription[]
   referrals     Referral[]
+  summaries     ConsultationSummary[]
 
   @@index([doctorId, isActive])
   @@map("doctor_signatures")
@@ -818,6 +821,7 @@ model Consultation {
   mediaSessions  MediaSession[]
   prescriptions  Prescription[]
   referrals      Referral[]
+  summary        ConsultationSummary?
   payments       Payment[]
   refunds        Refund[]
   revenue        RevenueAllocation?
@@ -1601,4 +1605,67 @@ model DisclosureLog {
 
   @@index([entityType, entityId])
   @@map("disclosure_logs")
+}
+
+/// The consultation summary a doctor issues to the patient (decision D25).
+///
+/// PERMANENT, and patient-held. Mandatory when the outcome is ADVICE_ONLY —
+/// that is the case where the patient is talked out of the medicine they came
+/// for and would otherwise leave with nothing showing a doctor was involved.
+/// Optional for every other outcome, which already produces a document.
+///
+/// Sits in the same category as a referral: doctor-authored clinical text
+/// committed deliberately to a document the patient carries, distinct from the
+/// working notes that are sealed at completion.
+///
+/// **The doctor writes this. It is never generated.** A document carrying a
+/// practitioner's name and signature saying "you do not need medication" is a
+/// clinical opinion and the first thing a lawyer reads if the patient
+/// deteriorates. Composing it from the notes would put words in their mouth.
+///
+/// G7g: counsel confirms there is no mandated form or content, so these fields
+/// are Neem's own design and the constraints on them are product policy rather
+/// than legal requirement.
+model ConsultationSummary {
+  id               String   @id @default(uuid(7))
+  publicId         String   @unique @db.VarChar(32)
+  /// High-entropy, behind the public verification page. A hospital shown this
+  /// document must be able to confirm it is genuine (D25).
+  verificationCode String   @unique @db.VarChar(40)
+  consultationId   String   @unique
+  doctorId         String
+  pharmacyId       String
+
+  /// Copied BY VALUE at issue, like a prescription's. The sealed record is not
+  /// reachable from here (spec §11, D23).
+  patientName String     @db.VarChar(160)
+  patientAge  Int
+  patientSex  PatientSex
+
+  /// What the patient came in with, in the doctor's words.
+  presentingComplaint String @db.VarChar(500)
+  /// The doctor's assessment, and why medication was or was not needed.
+  assessment          String @db.Text
+  /// The advice given.
+  advice              String @db.Text
+  /// REQUIRED. What to watch for and when to seek care urgently.
+  ///
+  /// Not optional and not nullable: a summary saying only "no medication
+  /// needed" reads as an all-clear that a remote five-minute assessment cannot
+  /// support, and would be worse than issuing nothing (D25).
+  safetyNetting       String @db.Text
+
+  signatureId   String?
+  pdfStorageKey String? @db.VarChar(400)
+  issuedAt      DateTime @default(now())
+  isDemo        Boolean  @default(false)
+
+  consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyId, issuedAt])
+  @@index([doctorId, issuedAt])
+  @@map("consultation_summaries")
 }

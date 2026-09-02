@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { decryptField, encryptField } from '../../lib/crypto.ts';
+import { decryptField, encryptField, encryptNullable } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
@@ -101,6 +101,46 @@ export async function recordTest(
       resultEnc: encryptField(test.result),
       recordedByUserId,
       recordedAt: clock.now(),
+    },
+  });
+}
+
+
+export interface ClinicalNotesInput {
+  notes?: string | null;
+  diagnosis?: string | null;
+  treatment?: string | null;
+}
+
+/**
+ * Saves the doctor's working notes.
+ *
+ * Lives here rather than in the clinical workspace module for the same reason
+ * every other clinical read and write does: this is the only module allowed to
+ * touch these tables, and a test enforces it. Writing them from the workspace
+ * would have been the first bypass of the sealing rule.
+ */
+export async function saveClinicalNotes(
+  consultationId: string,
+  input: ClinicalNotesInput,
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<void> {
+  await assertUnsealed(consultationId, db);
+
+  await db.consultationClinicalNotes.upsert({
+    where: { consultationId },
+    create: {
+      consultationId,
+      notesEnc: encryptNullable(input.notes),
+      diagnosisEnc: encryptNullable(input.diagnosis),
+      treatmentEnc: encryptNullable(input.treatment),
+    },
+    update: {
+      notesEnc: encryptNullable(input.notes),
+      diagnosisEnc: encryptNullable(input.diagnosis),
+      treatmentEnc: encryptNullable(input.treatment),
+      updatedAt: clock.now(),
     },
   });
 }
