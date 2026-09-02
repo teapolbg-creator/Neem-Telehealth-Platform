@@ -22,7 +22,8 @@ import {
   issueSummary,
   readDocumentPdf,
 } from '../../src/modules/documents/document.service.ts';
-import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
+import { encryptField, generatePublicId, hashToken } from '../../src/lib/crypto.ts';
+import { collectQualityInputs } from '../../src/modules/quality/quality.service.ts';
 
 /**
  * Prescriptions end to end (spec §41–§48, §82).
@@ -493,6 +494,161 @@ describe('substitution', () => {
  * toggle on the prescriptions screen therefore showed the to-dispense list,
  * and a pharmacist could not find a prescription they had already dispensed.
  */
+/**
+ * The patient after completion (spec §51, decision D24).
+ *
+ * The session used to resolve only while the consultation was live, so it died
+ * at the moment of completion: the patient's phone got a 401 instead of the
+ * screen carrying their consultation reference, and there was no window in
+ * which feedback could be given. Both are asserted here because both were
+ * silently absent while every route involved passed its own tests.
+ */
+describe('the patient session after completion', () => {
+  async function completedWithPatient() {
+    const fixture = await liveConsultation();
+    const prisma = getPrisma();
+
+    // A device session for the patient, bound the way the QR landing page binds it.
+    const sessionToken = 'patient-session-' + generatePublicId('x');
+    await prisma.patientSession.update({
+      where: { consultationId: fixture.consultationId },
+      data: { deviceSessionTokenHash: hashToken(sessionToken), deviceBoundAt: new Date() },
+    });
+
+    await completeConsultation(fixture.consultationId, fixture.doctorId, { outcome: 'OTHER' });
+
+    return { fixture, cookies: { neem_patient: sessionToken } };
+  }
+
+  it('still resolves, so the patient can read their consultation reference', async () => {
+    const { fixture, cookies } = await completedWithPatient();
+
+    const view = await request<{ step: string; consultationPublicId: string }>('/patient/session', {
+      cookies,
+    });
+
+    expect(view.status).toBe(200);
+    expect(view.body.data?.step).toBe('COMPLETE');
+    expect(view.body.data?.consultationPublicId).toBe(fixture.consultationPublicId);
+  });
+
+  it('refuses to change anything through that session', async () => {
+    const { cookies } = await completedWithPatient();
+
+    // Readable is not actable: the widened resolve must not reopen the steps.
+    const language = await request('/patient/session/language', {
+      method: 'POST',
+      cookies,
+      payload: { languageCode: 'tw' },
+    });
+
+    expect(language.status).toBe(422);
+  });
+
+  it('accepts feedback once, and only once', async () => {
+    const { fixture, cookies } = await completedWithPatient();
+
+    const first = await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: { doctorRating: 5, neemRating: 4, category: 'COMPLIMENT' },
+    });
+    expect(first.status).toBe(201);
+
+    const stored = await getPrisma().feedback.findUnique({
+      where: { consultationId: fixture.consultationId },
+      select: { doctorRating: true, neemRating: true, category: true },
+    });
+    expect(stored).toEqual({ doctorRating: 5, neemRating: 4, category: 'COMPLIMENT' });
+
+    // Guarded by the unique key rather than a read-then-write, so a double tap
+    // on a slow connection cannot double-count a rating.
+    const second = await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: { doctorRating: 1, neemRating: 1, category: 'SUGGESTION' },
+    });
+    expect(second.status).toBe(409);
+  });
+
+  it('opens a complaint an administrator can work', async () => {
+    const { fixture, cookies } = await completedWithPatient();
+
+    await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: {
+        doctorRating: 2,
+        neemRating: 2,
+        category: 'COMPLAINT',
+        complaintCategoryCode: 'WAIT_TIME',
+        comment: 'The wait was very long.',
+      },
+    });
+
+    const complaint = await getPrisma().complaint.findFirst({
+      where: { consultationId: fixture.consultationId },
+      include: { category: { select: { code: true } } },
+    });
+
+    expect(complaint?.state).toBe('OPEN');
+    expect(complaint?.category.code).toBe('WAIT_TIME');
+  });
+
+  it('refuses a complaint that does not say what it is about', async () => {
+    const { cookies } = await completedWithPatient();
+
+    const response = await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: { doctorRating: 2, neemRating: 2, category: 'COMPLAINT' },
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('feeds the doctor’s quality score, which was neutral for everyone before', async () => {
+    const { fixture, cookies } = await completedWithPatient();
+
+    const before = await collectQualityInputs(fixture.doctorId);
+    expect(before.meanRating).toBeNull();
+
+    await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: { doctorRating: 5, neemRating: 5, category: 'COMPLIMENT' },
+    });
+
+    const after = await collectQualityInputs(fixture.doctorId);
+    expect(after.meanRating).toBe(5);
+    expect(after.ratingCount).toBe(1);
+  });
+
+  it('keeps the patient’s words out of the audit log', async () => {
+    const { fixture, cookies } = await completedWithPatient();
+
+    await request('/patient/feedback', {
+      method: 'POST',
+      cookies,
+      payload: {
+        doctorRating: 3,
+        neemRating: 3,
+        category: 'SUGGESTION',
+        comment: 'A sentence about my care that must not be copied into the log.',
+      },
+    });
+
+    const entry = await getPrisma().auditLog.findFirst({
+      where: { entityId: fixture.consultationId, action: 'feedback.submitted' },
+    });
+
+    expect(entry).not.toBeNull();
+    expect(JSON.stringify(entry?.metadata)).not.toContain('must not be copied');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('the pharmacy prescription filter', () => {
   it('treats activeOnly=false as false, so a dispensed prescription is still findable', async () => {
     const fixture = await liveConsultation();

@@ -418,6 +418,22 @@ describe('password reset', () => {
     expect(JSON.stringify(known.body.data)).toBe(JSON.stringify(unknown.body.data));
   });
 
+  /**
+   * The screen at /auth/forgot renders a different confirmation depending on
+   * this flag. Telling someone to check an inbox that will never receive
+   * anything is the pretence spec §93 forbids, and it would leave a
+   * locked-out pharmacist waiting instead of calling their administrator.
+   */
+  it('says whether a reset message can actually be delivered', async () => {
+    const response = await request<{ deliveryConfigured: boolean }>(
+      '/auth/password-reset/request',
+      { method: 'POST', payload: { email: 'anyone@test.local' } },
+    );
+
+    // False until the Phase 8 email adapter exists.
+    expect(response.body.data?.deliveryConfigured).toBe(false);
+  });
+
   it('issues a single-use token that ends every existing session', async () => {
     const user = await createTestUser({ ...PHARMACY, role: 'PHARMACY' });
     const cookies = await signIn(PHARMACY.email, PHARMACY.password);
@@ -462,3 +478,4 @@ describe('password reset', () => {
     expect(user.id).toBeTruthy();
   });
 });
+

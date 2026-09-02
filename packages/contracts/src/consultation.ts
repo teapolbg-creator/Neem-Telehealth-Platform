@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   CONSULTATION_STATES,
   CONSULTATION_TYPES,
+  FEEDBACK_CATEGORIES,
   PATIENT_SEXES,
 } from './enums.ts';
 import { ghanaPhoneSchema } from './onboarding.ts';
@@ -115,6 +116,43 @@ export const patientModeSchema = z.object({
 });
 
 /**
+ * Patient feedback (spec §51).
+ *
+ * Two ratings, because they answer different questions: the doctor may have
+ * been excellent while the connection was unusable, and a platform that
+ * collapsed both into one number could not tell those apart.
+ *
+ * The comment is optional and free text. It is shown to administrators, never
+ * to the doctor.
+ */
+export const patientFeedbackSchema = z
+  .object({
+    doctorRating: z.number().int().min(1).max(5),
+    neemRating: z.number().int().min(1).max(5),
+    category: z.enum(FEEDBACK_CATEGORIES),
+    /**
+     * Which complaint category, when the category is COMPLAINT.
+     *
+     * Required in that case rather than defaulted, because a complaint filed
+     * against "Other" is one an administrator cannot route, and the patient is
+     * the only person who knows whether it was the clinician, the connection
+     * or the bill.
+     */
+    complaintCategoryCode: z.string().trim().min(1).max(60).optional(),
+    comment: z.string().trim().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.category === 'COMPLAINT' && !value.complaintCategoryCode) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['complaintCategoryCode'],
+        message: 'Choose what the complaint is about.',
+      });
+    }
+  });
+export type PatientFeedback = z.infer<typeof patientFeedbackSchema>;
+
+/**
  * What the patient's own screen may show (spec §72).
  *
  * Deliberately excludes queue position mechanics, doctor scores and any
@@ -134,6 +172,8 @@ export const patientSessionViewSchema = z.object({
   /** Consultation length in seconds, so the client can show a timer. */
   consultationDurationSeconds: z.number().int(),
   expiresAt: z.string().nullable(),
+  /** Whether the patient has already left feedback on this consultation. */
+  feedbackSubmitted: z.boolean(),
 });
 export type PatientSessionView = z.infer<typeof patientSessionViewSchema>;
 

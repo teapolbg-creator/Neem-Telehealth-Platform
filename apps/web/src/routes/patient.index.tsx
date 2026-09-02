@@ -8,6 +8,7 @@ import {
   Lock,
   Phone,
   PhoneOutgoing,
+  Star,
   Video,
 } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
@@ -19,10 +20,12 @@ import {
   usePatientTimer,
 } from "@/features/media/api";
 import {
+  usePatientComplaintCategories,
   usePatientLanguages,
   usePatientSession,
   useSelectLanguage,
   useSelectMode,
+  useSubmitFeedback,
   useSubmitIdentity,
 } from "@/features/consultation/api";
 import { cn } from "@/lib/utils";
@@ -555,10 +558,221 @@ function CompleteStep({ session }: { session: PatientSessionView }) {
         retention period — is still with counsel (G7d) and belongs here once it
         comes back.
       */}
+      <FeedbackPanel submitted={session.feedbackSubmitted} />
+
       <p className="mt-6 max-w-xs text-pretty text-xs leading-relaxed text-slate-400">
         Your consultation record is stored securely. No doctor or pharmacy can open it, now or at a
         future visit.
       </p>
+    </div>
+  );
+}
+
+const FEEDBACK_CATEGORY_LABEL = {
+  COMPLIMENT: "Something went well",
+  SUGGESTION: "A suggestion",
+  COMPLAINT: "Something went wrong",
+} as const;
+
+/**
+ * Feedback, asked once (spec §51).
+ *
+ * This is the only place the ratings behind a doctor's quality score are
+ * produced — the queue weights the mean rating and the complaint count at half
+ * that score between them, and before this existed the table was empty, so
+ * that half sat neutral for everyone.
+ *
+ * Skippable on purpose. A patient who has just been told to go home should not
+ * be made to fill in a form to see their consultation reference, and a rating
+ * given to dismiss a blocking dialog is worse than no rating at all.
+ */
+function FeedbackPanel({ submitted }: { submitted: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  if (submitted) {
+    return (
+      <p className="mt-8 flex items-center gap-2 text-sm font-semibold text-slate-500">
+        <Check className="size-4 text-brand" /> Thank you for your feedback.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-8 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50"
+      >
+        Rate this consultation
+      </button>
+    );
+  }
+
+  return <FeedbackForm onCancel={() => setOpen(false)} />;
+}
+
+function FeedbackForm({ onCancel }: { onCancel: () => void }) {
+  const submit = useSubmitFeedback();
+  const [doctorRating, setDoctorRating] = useState(0);
+  const [neemRating, setNeemRating] = useState(0);
+  const [category, setCategory] = useState<keyof typeof FEEDBACK_CATEGORY_LABEL | null>(null);
+  const [complaintCategoryCode, setComplaintCategoryCode] = useState("");
+  const [comment, setComment] = useState("");
+
+  // Only fetched when the patient actually says something went wrong.
+  const { data: complaintCategories } = usePatientComplaintCategories(category === "COMPLAINT");
+
+  const ready =
+    doctorRating > 0 &&
+    neemRating > 0 &&
+    category !== null &&
+    (category !== "COMPLAINT" || complaintCategoryCode !== "");
+
+  return (
+    <div className="mt-8 w-full max-w-xs rounded-2xl border border-border p-4 text-left">
+      <h2 className="text-sm font-bold">How was it?</h2>
+
+      {/*
+        Two ratings, not one. The doctor may have been excellent on a
+        connection that kept dropping, and a single score cannot say so.
+      */}
+      <Stars label="The doctor" value={doctorRating} onChange={setDoctorRating} />
+      <Stars label="Neem" value={neemRating} onChange={setNeemRating} />
+
+      <fieldset className="mt-4">
+        <legend className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Anything to tell us?
+        </legend>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {(
+            Object.keys(FEEDBACK_CATEGORY_LABEL) as Array<keyof typeof FEEDBACK_CATEGORY_LABEL>
+          ).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setCategory(key)}
+              className={
+                category === key
+                  ? "rounded-xl border-2 border-brand bg-brand/5 px-3 py-2 text-left text-sm font-semibold"
+                  : "rounded-xl border border-border px-3 py-2 text-left text-sm hover:bg-slate-50"
+              }
+            >
+              {FEEDBACK_CATEGORY_LABEL[key]}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {category === "COMPLAINT" && (
+        <label className="mt-3 block">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            What went wrong?
+          </span>
+          <select
+            value={complaintCategoryCode}
+            onChange={(event) => setComplaintCategoryCode(event.target.value)}
+            className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Choose one</option>
+            {complaintCategories?.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label className="mt-3 block">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          In your own words (optional)
+        </span>
+        <textarea
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          rows={3}
+          maxLength={2000}
+          className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm"
+        />
+      </label>
+
+      {submit.error && (
+        <p className="mt-3 text-sm text-red-600">
+          {submit.error instanceof ApiError
+            ? submit.error.message
+            : "Your feedback could not be sent."}
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={!ready || submit.isPending}
+          onClick={() =>
+            submit.mutate({
+              doctorRating,
+              neemRating,
+              category: category!,
+              complaintCategoryCode: category === "COMPLAINT" ? complaintCategoryCode : undefined,
+              comment: comment.trim() || undefined,
+            })
+          }
+          className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {submit.isPending ? "Sending…" : "Send"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
+        >
+          Not now
+        </button>
+      </div>
+
+      {/*
+        Stated because the patient is about to walk back to the pharmacist who
+        can see them, and would otherwise reasonably assume the counter reads
+        this.
+      */}
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        The doctor and the pharmacy never see this.
+      </p>
+    </div>
+  );
+}
+
+function Stars({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+      <div className="mt-1 flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            aria-label={`${label}: ${star} out of 5`}
+            aria-pressed={value === star}
+            onClick={() => onChange(star)}
+            className="p-0.5"
+          >
+            <Star
+              className={
+                star <= value ? "size-6 fill-warning text-warning" : "size-6 text-slate-300"
+              }
+            />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

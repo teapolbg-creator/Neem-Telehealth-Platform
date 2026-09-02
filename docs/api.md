@@ -45,6 +45,12 @@ POST   /auth/password-reset/confirm
 POST   /auth/2fa/enroll | /verify | /recovery-codes           (admin)
 ```
 
+`POST /auth/password-reset/request` answers identically whether or not the
+address has an account, and returns `deliveryConfigured` — whether a message
+can actually be sent. That is a property of the deployment, not of the account,
+and the screen needs it: there is no email adapter until Phase 8, so telling
+someone to check an inbox would be a claim the system cannot honour (spec §93).
+
 ---
 
 ## 3. Patient (no account; device-bound session)
@@ -60,11 +66,27 @@ POST   /patient/consultation/media/leave
 GET    /patient/consultation/timer        elapsed / remaining / warning / overrun — advisory only
 GET    /patient/session/prescription      → metadata + PDF download
 GET    /patient/session/referral
-POST   /patient/session/feedback          { doctorRating, neemRating, category, comment? }
+GET    /patient/complaint-categories      what a complaint may be about
+POST   /patient/feedback                  { doctorRating, neemRating, category, complaintCategoryCode?, comment? }
 POST   /patient/session/refund-request    { reason }
 ```
 
 Every route is scoped to the single consultation bound to the session. No route accepts a consultation identifier from the client.
+
+**The session outlives the consultation, for reading only.** It used to resolve
+only while the consultation was live, which ended it at the instant of
+completion — so the patient's phone received a 401 rather than the screen
+carrying their consultation reference (D24), and there was no window in which
+feedback could be given. Resolution now covers the terminal states as well;
+every route that changes something asserts separately that the consultation is
+still live, so a finished consultation cannot have its language or mode
+rewritten.
+
+`POST /patient/feedback` is accepted only once the consultation is COMPLETED,
+once per consultation, enforced by a unique key rather than a read-then-write.
+A `COMPLAINT` also opens a `complaints` row for an administrator. Nothing here
+is ever returned to the doctor (spec §24, §52) — it reaches them only through
+the nightly quality aggregate, which is admin-facing.
 
 ---
 

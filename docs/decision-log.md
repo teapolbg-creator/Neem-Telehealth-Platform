@@ -368,3 +368,25 @@ That alphabet is fine for a machine-handled identifier and poor for one a patien
 **Scope.** Consultations only. Every other `publicId` stays base64url, because no human transcribes a user or doctor id. Older `cons_...` references still resolve; normalisation returns unrecognised input unchanged rather than padding it into a plausible reference, so a truncated reference fails the lookup instead of silently matching someone else's record.
 
 **Consequences.** Changed while all data is synthetic. Once real references are printed on prescriptions and referrals this would have been expensive and disruptive, which is why it was raised before Phase 6 rather than after.
+
+---
+
+### D30 — A patient session is readable after the consultation ends, and actable only while it runs · 2026-09-02 · **DECIDED (Category B)**
+
+**Issue.** `resolvePatientSession` gated on `patientSessionIsUsable`, the set of states in which a patient may still *do* something. That set stops at `IN_PROGRESS`, so the session stopped resolving the instant the doctor completed. The patient's phone polls every five seconds; the poll after completion returned 401 and the portal rendered "Session ended. Please ask the pharmacy for a new consultation code."
+
+Two things were unreachable as a result, neither of them noticed because every route involved passed its own tests:
+
+- **The consultation reference (D24).** D24 made it the patient's only route back to their own record, on the reasoning that a receipt needs no account. The screen that hands it over is `CompleteStep`, which no patient could ever reach. The decision was implemented; the delivery was not.
+- **Feedback.** There is no moment before completion at which asking makes sense, and none after it in which the patient could be asked.
+
+**Decision.** Reading a session and acting through one are separate rights.
+
+- `patientSessionIsReadable` covers the active states plus `COMPLETING`, every terminal state, and `REFUND_REQUESTED`. Resolution uses this.
+- `patientSessionIsUsable` is unchanged, and every mutating patient route now asserts it explicitly through `assertPatientCanAct`.
+
+**Why the guard is per-route rather than implicit.** Widening the resolve without it would have let a completed consultation's language or mode be rewritten — `selectLanguage` had no state check of its own, and `selectModeAndEnterQueue` wrote `type` before checking anything. The assertion sits at each call site because that is where the answer differs; a single wider predicate is what created this problem in the first place.
+
+**A second defect fell out of it.** `buildSessionView` tested the onboarding steps before the consultation's state, so a consultation that ended before the patient finished a step reported that step. A consultation cancelled while the patient was choosing a language would have shown them a language picker. This was unreachable while sessions died at the end and became reachable the moment they stopped; the outcome now outranks the ladder.
+
+**Consequences.** The window is bounded by `PATIENT_SESSION_TIMEOUT_MINUTES` (60), unchanged. Nothing new is disclosed: the session view carries what it always carried, and the clinical record is sealed at completion by a separate mechanism (D23) that this does not touch.

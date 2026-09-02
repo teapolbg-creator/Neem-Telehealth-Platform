@@ -1,13 +1,16 @@
 import type { PrismaClient } from '@prisma/client';
-import type { PatientIdentity, PatientSessionView } from '@neem/contracts';
+import { Prisma } from '@prisma/client';
+import type { PatientFeedback, PatientIdentity, PatientSessionView } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { encryptField, decryptNullable, encryptNullable } from '../../lib/crypto.ts';
+import { encryptField, decryptNullable, encryptNullable, generatePublicId } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { transition } from './consultation.service.ts';
+import { isTerminal } from '../../domain/consultation-state.ts';
 import type { PatientPrincipal } from './access-token.service.ts';
+import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 
 /**
  * The patient session (spec §10, §11).
@@ -155,26 +158,37 @@ export async function buildSessionView(
       doctor: { select: { fullName: true, specialty: true } },
       patientSession: { select: { fullNameEnc: true, expiresAt: true } },
       queueEntry: { select: { enqueuedAt: true } },
+      feedback: { select: { id: true } },
     },
   });
 
   const identityCaptured = Boolean(consultation.patientSession?.fullNameEnc);
   const durationSeconds = await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS, db);
 
-  const step: PatientSessionView['step'] = !identityCaptured
-    ? 'IDENTITY'
-    : !consultation.languageId
-      ? 'LANGUAGE'
-      : !consultation.type
-        ? 'MODE'
-        : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
-          ? 'IN_CONSULTATION'
-          : consultation.state === 'COMPLETED' || consultation.state === 'COMPLETING'
-            ? 'COMPLETE'
-            : consultation.state === 'CANCELLED' ||
-                consultation.state === 'EXPIRED' ||
-                consultation.state === 'ABANDONED'
-              ? 'CLOSED'
+  /**
+   * How the consultation ended outranks how far the patient got through it.
+   *
+   * The onboarding steps used to be tested first, so a consultation that
+   * ended before the patient finished one reported that step: a consultation
+   * cancelled while they were choosing a language reported LANGUAGE. That was
+   * unreachable while the session died at the end of the consultation, and
+   * became reachable the moment it stopped doing so — the patient would have
+   * been shown a language picker for a consultation that no longer exists.
+   */
+  const step: PatientSessionView['step'] = isTerminal(consultation.state)
+    ? consultation.state === 'COMPLETED'
+      ? 'COMPLETE'
+      : 'CLOSED'
+    : consultation.state === 'COMPLETING'
+      ? 'COMPLETE'
+      : !identityCaptured
+        ? 'IDENTITY'
+        : !consultation.languageId
+          ? 'LANGUAGE'
+          : !consultation.type
+            ? 'MODE'
+            : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
+              ? 'IN_CONSULTATION'
               : 'WAITING';
 
   const waitingSince = consultation.queueEntry?.enqueuedAt;
@@ -198,6 +212,9 @@ export async function buildSessionView(
       : null,
     consultationDurationSeconds: durationSeconds,
     expiresAt: consultation.patientSession?.expiresAt?.toISOString() ?? null,
+    // So the completion screen asks once and then thanks them, rather than
+    // presenting a form that will be refused.
+    feedbackSubmitted: consultation.feedback !== null,
   };
 }
 
@@ -236,4 +253,82 @@ export async function readPatientPanel(
     // pharmacy is the exception — they captured it, with the patient present.
     ...(options.includePhone ? { phone: decryptNullable(session.phoneEnc) ?? '' } : {}),
   };
+}
+
+/**
+ * Records the patient's feedback (spec §51).
+ *
+ * One row per consultation, guaranteed by the unique key rather than by a
+ * read-then-write: on a slow connection the patient taps twice, and a
+ * check-first would let both through.
+ *
+ * A COMPLAINT also opens a complaint for an administrator to work, so the
+ * category is not merely a statistic. The category catalogue is seeded
+ * reference data; if the row is missing the feedback is still recorded —
+ * losing the patient's rating because an admin deleted a category would be
+ * the wrong trade.
+ */
+export async function submitFeedback(
+  principal: PatientPrincipal,
+  feedback: PatientFeedback,
+  db: PrismaClient = getPrisma(),
+): Promise<void> {
+  try {
+    await db.$transaction(async (tx) => {
+      const created = await tx.feedback.create({
+        data: {
+          consultationId: principal.consultationId,
+          doctorRating: feedback.doctorRating,
+          neemRating: feedback.neemRating,
+          category: feedback.category,
+          comment: feedback.comment ?? null,
+        },
+      });
+
+      if (feedback.category !== 'COMPLAINT') return;
+
+      const category =
+        (await tx.complaintCategory.findFirst({
+          where: { isActive: true, code: feedback.complaintCategoryCode },
+          select: { id: true },
+        })) ??
+        (await tx.complaintCategory.findFirst({
+          where: { isActive: true, code: 'OTHER' },
+          select: { id: true },
+        }));
+      if (!category) return;
+
+      await tx.complaint.create({
+        data: {
+          publicId: generatePublicId('cmp'),
+          feedbackId: created.id,
+          consultationId: principal.consultationId,
+          categoryId: category.id,
+          description: feedback.comment ?? 'The patient marked this consultation as a complaint.',
+        },
+      });
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw errors.conflict('Feedback has already been given for this consultation.');
+    }
+    throw error;
+  }
+
+  await recordAudit({
+    action: AUDIT_ACTIONS.FEEDBACK_SUBMITTED,
+    actorType: 'PATIENT',
+    entityType: 'consultation',
+    entityId: principal.consultationId,
+    // Ratings and category only. The comment is the patient's words about
+    // their care and does not belong in an append-only operational log.
+    metadata: {
+      doctorRating: feedback.doctorRating,
+      neemRating: feedback.neemRating,
+      category: feedback.category,
+    },
+  });
 }

@@ -95,8 +95,25 @@ export function useLogout() {
   });
 }
 
+/**
+ * Asks for a reset link.
+ *
+ * The response is identical whether or not the address has an account —
+ * `deliveryConfigured` says only whether Neem can send anything at all, which
+ * is a property of the deployment, not of the account.
+ */
 export function useRequestPasswordReset() {
   return useMutation({
-    mutationFn: (email: string) => api.post('/auth/password-reset/request', { email }),
+    mutationFn: (email: string) =>
+      api.post<{ status: string; deliveryConfigured: boolean }>('/auth/password-reset/request', {
+        email,
+      }),
+  });
+}
+
+export function useConfirmPasswordReset() {
+  return useMutation({
+    mutationFn: (input: { token: string; password: string }) =>
+      api.post<{ status: string }>('/auth/password-reset/confirm', input),
   });
 }

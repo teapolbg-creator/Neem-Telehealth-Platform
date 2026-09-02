@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
@@ -149,6 +149,18 @@ function CredentialsStep({
           Sign in
         </button>
       </form>
+
+      {/*
+        The reset flow existed as two API routes with nothing linking to them,
+        which made it unreachable — a forgotten password meant a locked
+        account with no self-service path at all.
+      */}
+      <Link
+        to="/auth/forgot"
+        className="mt-4 inline-block text-sm font-semibold text-slate-500 hover:text-slate-900"
+      >
+        Forgot your password?
+      </Link>
 
       <p className="mt-6 text-xs text-slate-500 leading-relaxed">
         Patients do not sign in. A consultation opens from the one-time QR code the pharmacy

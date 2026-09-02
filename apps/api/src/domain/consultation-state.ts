@@ -116,6 +116,31 @@ export function patientSessionIsUsable(state: ConsultationState): boolean {
   return PATIENT_ACTIVE.has(state);
 }
 
+/**
+ * States in which a patient session may still be READ.
+ *
+ * Deliberately wider than the set in which it may act. Resolving only on
+ * `PATIENT_ACTIVE` meant the session died the instant the doctor completed,
+ * and the patient's phone — polling every five seconds — got a 401 instead of
+ * the completion screen. That screen carries the consultation reference, which
+ * decision D24 makes the patient's only route back to their own record, and it
+ * is where they are asked for feedback. Both were unreachable.
+ *
+ * Reading is all this widening grants. Every route that changes something
+ * calls `assertPatientCanAct`, so a completed consultation cannot have its
+ * language or mode altered through a session that is still readable.
+ */
+const PATIENT_READABLE: ReadonlySet<ConsultationState> = new Set<ConsultationState>([
+  ...PATIENT_ACTIVE,
+  'COMPLETING',
+  ...TERMINAL_CONSULTATION_STATES,
+  'REFUND_REQUESTED',
+]);
+
+export function patientSessionIsReadable(state: ConsultationState): boolean {
+  return PATIENT_READABLE.has(state);
+}
+
 /** States from which the pharmacy may still cancel. */
 export function canPharmacyCancel(state: ConsultationState): boolean {
   return (

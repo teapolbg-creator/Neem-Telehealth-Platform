@@ -4,6 +4,7 @@ import {
   expect,
   API,
   DEMO,
+  fillField,
   gotoHydrated,
   rememberAdminSecret,
   signInThroughUi,
@@ -162,3 +163,37 @@ test.describe('portal isolation', () => {
     expect(response.status(), 'the API is the enforcement point, not the UI').toBe(403);
   });
 });
+
+/**
+ * Password reset, reachable (spec §93).
+ *
+ * Both API routes existed from Phase 1 and nothing in the product linked to
+ * them, so a forgotten password meant a locked account with no self-service
+ * path. This asserts the path exists from the sign-in page, which is the part
+ * that was missing — the API behaviour is covered by the Vitest suite.
+ */
+test.describe('password reset from the sign-in page', () => {
+  test('is reachable, and says plainly that no email will arrive', async ({ page }) => {
+    await gotoHydrated(page, '/auth/login');
+
+    await page.getByRole('link', { name: 'Forgot your password?' }).click();
+    await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
+
+    await fillField(page, 'Email', DEMO.pharmacy.email);
+    await page.getByRole('button', { name: 'Send the reset link' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Request received' })).toBeVisible();
+
+    // Until the Phase 8 adapter exists, promising an email would be a claim
+    // the system cannot honour (spec §93).
+    await expect(page.getByText('No email has been sent.')).toBeVisible();
+  });
+
+  test('refuses to act on a link with no token', async ({ page }) => {
+    await gotoHydrated(page, '/auth/reset');
+
+    await expect(page.getByRole('heading', { name: 'This link is incomplete' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Change my password' })).toHaveCount(0);
+  });
+});
+

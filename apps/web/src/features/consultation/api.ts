@@ -228,6 +228,42 @@ export function usePatientLanguages(enabled = true) {
   });
 }
 
+/** What a complaint may be about — only needed once the form is open. */
+export function usePatientComplaintCategories(enabled = false) {
+  return useQuery({
+    queryKey: ['patient', 'complaint-categories'],
+    queryFn: ({ signal }) =>
+      api.get<Array<{ code: string; label: string }>>('/patient/complaint-categories', signal),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export interface PatientFeedbackInput {
+  doctorRating: number;
+  neemRating: number;
+  category: 'COMPLAINT' | 'COMPLIMENT' | 'SUGGESTION';
+  complaintCategoryCode?: string;
+  comment?: string;
+}
+
+/**
+ * The patient's rating of the consultation (spec §51).
+ *
+ * Refetches the session rather than trusting the mutation's own result,
+ * because `feedbackSubmitted` on the session view is what decides whether the
+ * form is shown again.
+ */
+export function useSubmitFeedback() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: PatientFeedbackInput) =>
+      api.post<{ submitted: boolean }>('/patient/feedback', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: patientSessionKey }),
+  });
+}
+
 function usePatientStep<TInput>(path: string) {
   const queryClient = useQueryClient();
 

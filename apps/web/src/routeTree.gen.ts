@@ -13,7 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
+import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as AuthResetRouteImport } from './routes/auth.reset'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
 import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
@@ -50,9 +52,19 @@ const AdminVerificationRoute = AdminVerificationRouteImport.update({
   path: '/admin/verification',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthForgotRoute = AuthForgotRouteImport.update({
+  id: '/auth/forgot',
+  path: '/auth/forgot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthResetRoute = AuthResetRouteImport.update({
+  id: '/auth/reset',
+  path: '/auth/reset',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
@@ -137,7 +149,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
+  '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/reset': typeof AuthResetRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -159,7 +173,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
+  '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/reset': typeof AuthResetRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -182,7 +198,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/verification': typeof AdminVerificationRoute
+  '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/reset': typeof AuthResetRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
@@ -206,7 +224,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/queue'
     | '/admin/verification'
+    | '/auth/forgot'
     | '/auth/login'
+    | '/auth/reset'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -228,7 +248,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/queue'
     | '/admin/verification'
+    | '/auth/forgot'
     | '/auth/login'
+    | '/auth/reset'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -250,7 +272,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/queue'
     | '/admin/verification'
+    | '/auth/forgot'
     | '/auth/login'
+    | '/auth/reset'
     | '/doctor/onboarding'
     | '/doctor/queue'
     | '/doctor/substitutions'
@@ -273,7 +297,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
+  AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
+  AuthResetRoute: typeof AuthResetRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
   DoctorQueueRoute: typeof DoctorQueueRoute
   DoctorSubstitutionsRoute: typeof DoctorSubstitutionsRoute
@@ -322,11 +348,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminVerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/forgot': {
+      id: '/auth/forgot'
+      path: '/auth/forgot'
+      fullPath: '/auth/forgot'
+      preLoaderRoute: typeof AuthForgotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/login': {
       id: '/auth/login'
       path: '/auth/login'
       fullPath: '/auth/login'
       preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/reset': {
+      id: '/auth/reset'
+      path: '/auth/reset'
+      fullPath: '/auth/reset'
+      preLoaderRoute: typeof AuthResetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/': {
@@ -441,7 +481,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminVerificationRoute: AdminVerificationRoute,
+  AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,
+  AuthResetRoute: AuthResetRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
   DoctorQueueRoute: DoctorQueueRoute,
   DoctorSubstitutionsRoute: DoctorSubstitutionsRoute,

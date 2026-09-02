@@ -76,6 +76,17 @@ function authRateLimit() {
   return { max: env.RATE_LIMIT_AUTH_MAX, timeWindow: env.RATE_LIMIT_AUTH_WINDOW };
 }
 
+/**
+ * Whether a password-reset message can actually be delivered.
+ *
+ * There is no email adapter yet — `EMAIL_PROVIDER` is configurable but nothing
+ * reads it — so this is `false` regardless of configuration. Phase 8 flips it
+ * when the notification abstraction lands, in the same edit that removes the
+ * TODO below. Deriving it from the env instead would report `true` today and
+ * be wrong.
+ */
+const EMAIL_DELIVERY_IMPLEMENTED = false;
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/auth/login',
@@ -233,9 +244,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         );
       }
 
-      // Identical response whether or not the account exists.
+      /**
+       * Identical response whether or not the account exists — except for one
+       * fact that has nothing to do with the account: whether Neem can deliver
+       * a message at all.
+       *
+       * The screen needs it. Telling someone "check your email" when no email
+       * will ever arrive is exactly the pretence spec §93 forbids, and it
+       * would leave a locked-out pharmacist refreshing an inbox instead of
+       * calling their administrator.
+       */
       return reply.send({
-        data: { status: 'REQUESTED' },
+        data: { status: 'REQUESTED', deliveryConfigured: EMAIL_DELIVERY_IMPLEMENTED },
         meta: { requestId: request.correlationId },
       });
     },

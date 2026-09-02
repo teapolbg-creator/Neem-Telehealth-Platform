@@ -45,6 +45,31 @@ export interface Observations {
   tests: PointOfCareTest[];
 }
 
+/**
+ * What this pharmacy declared it can do (spec §50).
+ *
+ * The route has existed since Phase 3 with no caller, so the point-of-care
+ * entry asked every pharmacy to type a test name from scratch and derived a
+ * code from whatever they typed — meaning "Malaria RDT", "malaria rdt" and
+ * "MRDT" became three different codes for one test, and the declared
+ * catalogue was never used.
+ */
+export interface PharmacyCapability {
+  kind: "SERVICE" | "TEST" | "EQUIPMENT";
+  code: string;
+  label: string;
+}
+
+export const pharmacyCapabilitiesKey = ["pharmacy", "capabilities"] as const;
+
+export function usePharmacyCapabilities() {
+  return useQuery({
+    queryKey: pharmacyCapabilitiesKey,
+    queryFn: ({ signal }) => api.get<PharmacyCapability[]>("/pharmacy/capabilities", signal),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export const observationsKey = (publicId: string) =>
   ["pharmacy", "observations", publicId] as const;
 

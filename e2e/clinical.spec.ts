@@ -47,6 +47,15 @@ interface LiveConsultation {
   doctorApi: APIRequestContext;
   pharmacyApi: APIRequestContext;
   adminApi: APIRequestContext;
+  /**
+   * The patient's device session cookie.
+   *
+   * Not the QR token: that is single use and the fixture spends it walking
+   * the patient through identity, language and mode. A browser opening the
+   * link a second time is correctly told the code is spent, so a test that
+   * needs the patient's phone adds this cookie instead.
+   */
+  patientSessionCookie: string;
 }
 
 /**
@@ -98,7 +107,12 @@ async function liveConsultation(
   });
   await patientApi.post(`${API}/patient/session/language`, { data: { languageCode: 'en' } });
   await patientApi.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });
+
+  const patientSessionCookie = (await patientApi.storageState()).cookies.find(
+    (cookie) => cookie.name === 'neem_patient',
+  )?.value;
   await patientApi.dispose();
+  if (!patientSessionCookie) return { skip: 'The patient session cookie was not issued.' };
 
   // Make the doctor eligible and route the consultation to them.
   const adminCsrf = (await signInAdmin(adminApi)).csrf;
@@ -150,7 +164,7 @@ async function liveConsultation(
     data: {},
   });
 
-  return { publicId, doctor, doctorApi, pharmacyApi, adminApi };
+  return { publicId, doctor, doctorApi, pharmacyApi, adminApi, patientSessionCookie };
 }
 
 async function csrfOf(api: APIRequestContext): Promise<string> {
@@ -678,6 +692,58 @@ test.describe('vitals and point-of-care entry through the UI', () => {
       await live.pharmacyApi.dispose();
       await live.adminApi.dispose();
     }
+  });
+});
+
+/**
+ * The patient after completion (spec §51, decision D24).
+ *
+ * The session resolved only while the consultation was live, so it ended at
+ * the moment of completion and the patient's phone showed "Session ended"
+ * instead of the screen carrying their consultation reference. Nothing caught
+ * it: every route involved passed its own tests, and no test had ever looked
+ * at that screen after a doctor completed.
+ */
+test.describe('what the patient sees after completion', () => {
+  test('shows the consultation reference and takes feedback', async ({ page, playwright, run }) => {
+    const live = await liveConsultation(playwright, run, 'fb');
+    if ('skip' in live) test.skip(true, live.skip);
+    if ('skip' in live) return;
+
+    // The patient's phone, carrying the session their QR scan produced.
+    await page.context().addCookies([
+      {
+        name: 'neem_patient',
+        value: live.patientSessionCookie,
+        url: 'http://localhost:8080',
+      },
+    ]);
+    await gotoHydrated(page, '/patient');
+    // The doctor has already joined, so the phone is in the consultation.
+    await expect(page.getByRole('button', { name: 'Leave' })).toBeVisible();
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+    await live.doctorApi.post(`${API}/doctor/consultations/${live.publicId}/complete`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { outcome: 'OTHER' },
+    });
+
+    // The phone polls; the completion screen must arrive on its own.
+    await expect(page.getByText('Consultation complete')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(live.publicId)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Rate this consultation' }).click();
+    await page.getByRole('button', { name: /The doctor: 4 out of 5/ }).click();
+    await page.getByRole('button', { name: /Neem: 5 out of 5/ }).click();
+    await page.getByRole('button', { name: 'Something went well' }).click();
+    await page.getByRole('button', { name: 'Send' }).click();
+
+    await expect(page.getByText('Thank you for your feedback.')).toBeVisible();
+
+    // Asked once. A reload must not present the form again.
+    await page.reload();
+    await expect(page.getByText('Thank you for your feedback.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Rate this consultation' })).toHaveCount(0);
   });
 });
 

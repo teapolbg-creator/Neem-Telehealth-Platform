@@ -147,6 +147,42 @@ Two more surfaced while building this and were fixed here:
 
 ---
 
+## Phase 6.5 — closing what nothing called
+
+**Completed 2026-09-02.** A sweep for API routes with no caller, and tables
+with no writer, after Phase 6 turned up four such gaps. Three were closed here;
+the fourth (the admin console over archived-consultation retrieval, the audit
+log and retention health) belongs with Phase 9.
+
+- **Patient feedback had no write path.** The `feedback` table had no writer
+  anywhere, while the queue weights a doctor's mean rating at 0.3 and their
+  complaint count at 0.2 — so half of every doctor's quality score sat at its
+  neutral default and the routing fairness it exists to provide was not
+  happening. Now captured on the patient's completion screen, with a
+  `COMPLAINT` opening a complaints row for Phase 9's console.
+- **The patient's session died at completion.** Found while building the
+  above: `resolvePatientSession` gated on the states in which a patient may
+  *act*, so the phone got a 401 the moment the doctor completed. The
+  completion screen — carrying the consultation reference that D24 makes the
+  patient's only route back to their own record — was unreachable, and had
+  been since D24 was implemented. Reading and acting are now separate rights.
+- **The step ladder outranked the outcome.** Exposed by the fix above: a
+  consultation that ended before the patient finished a step reported that
+  step, so a cancelled consultation would have shown a language picker. Only
+  reachable once the session survived, and fixed with it.
+- **Password reset was unreachable from both ends.** Two API routes live since
+  Phase 1 with nothing linking to them: no "Forgot your password?" on the
+  sign-in page and no screen to consume a token. Both now exist. Delivery
+  still waits on the Phase 8 email adapter, and the screen says so rather than
+  promising an email that will not arrive (spec §93).
+- **`/pharmacy/capabilities` had no caller.** The point-of-care entry added in
+  Phase 6 asked every pharmacy to type a test name and derived a code from the
+  text, so one test recorded three ways became three codes. The pharmacy's
+  declared tests are now offered as one tap each, carrying their real codes;
+  free text stays for anything else.
+
+---
+
 ## Phase 7 — Financial system
 
 Real Paystack integration · server-side verification · signature-verified webhooks · the four idempotency constraints · refund request and admin approval · revenue allocation · pharmacy payout tracking and manual settlement · reconciliation job · doctor membership payments and expiry → suspension · promotions and discounts with server-side validation.

@@ -8,7 +8,11 @@ import { addSeconds, addMinutes, systemClock, type Clock } from '../../lib/clock
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
-import { acceptsPatientArrival, patientSessionIsUsable } from '../../domain/consultation-state.ts';
+import {
+  acceptsPatientArrival,
+  patientSessionIsReadable,
+} from '../../domain/consultation-state.ts';
+import type { ConsultationState } from '@neem/contracts';
 
 /**
  * One-time consultation access tokens and device-bound patient sessions
@@ -223,7 +227,7 @@ export interface PatientPrincipal {
   patientSessionId: string;
   consultationId: string;
   consultationPublicId: string;
-  consultationState: string;
+  consultationState: ConsultationState;
 }
 
 /**
@@ -250,7 +254,16 @@ export async function resolvePatientSession(
   // specification forbids.
   if (!session) return null;
   if (session.expiresAt && session.expiresAt <= clock.now()) return null;
-  if (!patientSessionIsUsable(session.consultation.state)) return null;
+  /**
+   * Readable, not actable.
+   *
+   * The narrower `patientSessionIsUsable` was used here, which ended the
+   * session at the moment of completion — so the patient never saw their
+   * consultation reference (D24) and could never be asked for feedback. What
+   * the session may still *do* is enforced per route by
+   * `assertPatientCanAct`, not by whether it resolves at all.
+   */
+  if (!patientSessionIsReadable(session.consultation.state)) return null;
 
   return {
     patientSessionId: session.id,

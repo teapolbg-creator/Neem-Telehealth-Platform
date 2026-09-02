@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, Check, Loader2, Lock, Plus, Thermometer } from "lucide-react";
 import { ApiError } from "@/lib/api-client";
 import {
+  usePharmacyCapabilities,
   usePharmacyObservations,
   useRecordTest,
   useRecordVitals,
@@ -204,9 +205,15 @@ function VitalsPanel({
 /**
  * Point-of-care tests.
  *
- * Free text rather than a picker, because the range of strips and devices in a
- * Ghanaian pharmacy is not something to guess at, and a list that omits what
- * they actually ran would push them into recording nothing.
+ * The pharmacy's own declared tests come first, as one tap each. Free text
+ * stays underneath for anything else: the range of strips and devices in a
+ * Ghanaian pharmacy is not something to guess at, and a closed list that
+ * omitted what they actually ran would push them into recording nothing.
+ *
+ * Choosing a declared test carries its real code through. Typing one derives a
+ * code from the text, which is why the declared list matters — three
+ * pharmacists typing the same test three ways produced three codes, and
+ * nothing downstream could group them.
  */
 function TestsPanel({
   consultationPublicId,
@@ -216,8 +223,26 @@ function TestsPanel({
   tests: Observations["tests"];
 }) {
   const record = useRecordTest(consultationPublicId);
+  const { data: capabilities } = usePharmacyCapabilities();
   const [label, setLabel] = useState("");
+  const [code, setCode] = useState<string | null>(null);
   const [result, setResult] = useState("");
+
+  const declaredTests = (capabilities ?? []).filter((capability) => capability.kind === "TEST");
+
+  // Already recorded this visit, so the same test is not offered twice.
+  const recorded = new Set(tests.map((test) => test.code));
+
+  const choose = (capability: { code: string; label: string }) => {
+    setCode(capability.code);
+    setLabel(capability.label);
+  };
+
+  const reset = () => {
+    setLabel("");
+    setCode(null);
+    setResult("");
+  };
 
   const submit = () => {
     const trimmedLabel = label.trim();
@@ -226,18 +251,14 @@ function TestsPanel({
 
     record.mutate(
       {
-        // Derived rather than asked for: a pharmacist should not have to invent
-        // a code, and the label is what the doctor reads.
-        code: trimmedLabel.toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 60),
+        // The declared code when one was chosen; otherwise derived, because a
+        // pharmacist should not have to invent a code and the label is what
+        // the doctor reads.
+        code: code ?? trimmedLabel.toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 60),
         label: trimmedLabel,
         result: trimmedResult,
       },
-      {
-        onSuccess: () => {
-          setLabel("");
-          setResult("");
-        },
-      },
+      { onSuccess: reset },
     );
   };
 
@@ -270,14 +291,44 @@ function TestsPanel({
         </ul>
       )}
 
+      {declaredTests.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Tests this pharmacy offers
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {declaredTests.map((capability) => (
+              <button
+                key={capability.code}
+                type="button"
+                disabled={recorded.has(capability.code)}
+                onClick={() => choose(capability)}
+                className={
+                  code === capability.code
+                    ? "rounded-xl border-2 border-brand bg-brand/5 px-3 py-1.5 text-xs font-bold"
+                    : "rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40"
+                }
+              >
+                {capability.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Test</span>
           <input
             value={label}
-            onChange={(event) => setLabel(event.target.value)}
+            onChange={(event) => {
+              setLabel(event.target.value);
+              // Typing over a chosen test means it is no longer that test, so
+              // its code must not travel with the new name.
+              setCode(null);
+            }}
             maxLength={160}
-            placeholder="Malaria RDT"
+            placeholder="Something else you ran"
             className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm"
           />
         </label>

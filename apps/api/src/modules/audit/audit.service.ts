@@ -81,6 +81,8 @@ export const AUDIT_ACTIONS = {
   REFERRAL_GENERATED: 'referral.generated',
   SUMMARY_ISSUED: 'summary.issued',
 
+  FEEDBACK_SUBMITTED: 'feedback.submitted',
+
   SETTING_CHANGED: 'settings.changed',
   SENSITIVE_RECORD_ACCESSED: 'access.sensitive-record',
   RETENTION_PURGE_EXECUTED: 'retention.purge.executed',
