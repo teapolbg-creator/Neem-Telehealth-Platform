@@ -163,7 +163,8 @@ export interface NotificationTemplate {
   subject: string | null;
   body: string;
   isActive: boolean;
-  updatedAt: string;
+  /** Null until somebody edits it — the wording is still the shipped one. */
+  updatedAt: string | null;
   /** What this notification is for — shown so an author is not guessing. */
   description: string | null;
   /** The only placeholders this notification can fill. */

@@ -444,6 +444,84 @@ describe('template administration (spec §58)', () => {
     expect(offer?.description).toBeTruthy();
   });
 
+  /**
+   * The catalogue is the list, not the table.
+   *
+   * `notify()` reads the code catalogue and treats a row as an override, so a
+   * template with no row is still sent — it is simply unedited. Listing the
+   * table instead hid those, which is a screen disagreeing with the system it
+   * administers. It is not hypothetical: a database seeded before these
+   * templates existed showed an empty catalogue while every message was going
+   * out correctly.
+   */
+  it('lists a template that has no row, and calls it untouched rather than off', async () => {
+    const cookies = await adminCookies();
+    const prisma = getPrisma();
+
+    await prisma.notificationTemplate.deleteMany({
+      where: { code: 'doctor.consultation.offered', channel: 'SMS' },
+    });
+
+    const response = await request<
+      Array<{ code: string; channel: string; isActive: boolean; updatedAt: string | null }>
+    >('/admin/notification-templates', { cookies });
+
+    const row = response.body.data!.find(
+      (entry) => entry.code === 'doctor.consultation.offered' && entry.channel === 'SMS',
+    );
+
+    expect(row, 'a template with no override row must still be listed').toBeTruthy();
+    // Absence of a row means nobody has edited it, never that it is disabled.
+    expect(row!.isActive).toBe(true);
+    expect(row!.updatedAt).toBeNull();
+  });
+
+  /**
+   * The first edit of any template is the case that must work, and it was the
+   * one that could not: `update` on a row that does not exist fails outright,
+   * and every template starts without one.
+   */
+  it('creates the override row on the first edit', async () => {
+    const cookies = await adminCookies();
+    const prisma = getPrisma();
+
+    await prisma.notificationTemplate.deleteMany({
+      where: { code: 'doctor.consultation.offered', channel: 'SMS' },
+    });
+
+    const response = await request(
+      '/admin/notification-templates/doctor.consultation.offered/SMS',
+      {
+        method: 'PATCH',
+        cookies,
+        payload: { body: 'A patient is waiting at {{pharmacyName}}. Please respond.' },
+      },
+    );
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+
+    const created = await prisma.notificationTemplate.findFirst({
+      where: { code: 'doctor.consultation.offered', channel: 'SMS' },
+    });
+
+    expect(created).toBeTruthy();
+    // Built from the catalogue, so editing the body alone does not blank the
+    // subject the notification is supposed to carry.
+    expect(created!.subject).toBe('A consultation is waiting');
+  });
+
+  it('refuses a channel the notification is never sent on', async () => {
+    const cookies = await adminCookies();
+
+    // `doctor.consultation.offered` declares IN_APP, BROWSER and SMS. Writing
+    // an EMAIL row would create wording nothing ever reads.
+    const response = await request(
+      '/admin/notification-templates/doctor.consultation.offered/EMAIL',
+      { method: 'PATCH', cookies, payload: { body: 'Anything.' } },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it('accepts a reworded template', async () => {
     const cookies = await adminCookies();
 

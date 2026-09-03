@@ -411,6 +411,15 @@ Full authorization audit · every §79 security test automated · retention veri
   named, an unknown `{{placeholder}}` is refused separately, and a valid edit
   saves and round-trips.
 
+  The route was then made to match how the system actually works. It listed
+  the *table*, so a template with no row was invisible and its first edit
+  impossible — `update` on a row that does not exist fails, and every template
+  starts without one. It now lists the **catalogue** and treats rows as the
+  overrides they are, upserts on write, builds a created row from the
+  catalogue so editing a body does not blank the subject, and refuses a
+  channel the notification is never sent on. Absence of a row now reads as
+  "untouched", never "disabled". Three tests pin it.
+
   Building it surfaced that the dev database held **zero** template rows: the
   seed writes them, and this database predates Phase 8. Not a product defect —
   `notify()` reads the code catalogue and treats the rows as overrides, so

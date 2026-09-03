@@ -26,33 +26,53 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
     permissions: [PERMISSIONS.NOTIFICATION_TEMPLATE_MANAGE],
   });
 
+  /**
+   * Every notification Neem can send.
+   *
+   * Listed from the **catalogue**, not from the table. `notify()` reads the
+   * catalogue and treats a row as an override (see `notification.service.ts`),
+   * so a template with no row is still sent — it is simply unedited. Listing
+   * the table instead made those invisible here, which is a screen that
+   * disagrees with the system it administers.
+   *
+   * That is not hypothetical: it is exactly what happened on a database
+   * seeded before these templates existed. The screen opened empty while
+   * every message was being sent correctly.
+   */
   app.get('/admin/notification-templates', { preHandler: adminOnly }, async (request, reply) => {
-    const rows = await getPrisma().notificationTemplate.findMany({
-      orderBy: [{ code: 'asc' }, { channel: 'asc' }],
-    });
+    const rows = await getPrisma().notificationTemplate.findMany();
+    const overrides = new Map(rows.map((row) => [`${row.code}|${row.channel}`, row]));
 
-    return reply.send({
-      data: rows.map((row) => {
-        const definition = NOTIFICATION_TEMPLATES.find((entry) => entry.code === row.code);
+    const data = NOTIFICATION_TEMPLATES.flatMap((definition) =>
+      definition.channels.map((channel) => {
+        const override = overrides.get(`${definition.code}|${channel}`);
+
+        const subject = override?.subject ?? definition.subject ?? null;
+        const body = override?.body ?? definition.body;
 
         return {
-          code: row.code,
-          channel: row.channel,
-          locale: row.locale,
-          subject: row.subject,
-          body: row.body,
-          isActive: row.isActive,
-          updatedAt: row.updatedAt.toISOString(),
+          code: definition.code,
+          channel,
+          locale: definition.locale,
+          subject,
+          body,
+          // A template nobody has edited is on, because that is how it is
+          // sent. Absence of a row is "untouched", never "disabled".
+          isActive: override?.isActive ?? true,
+          updatedAt: override?.updatedAt.toISOString() ?? null,
           // What this notification is for, and what it may say. Shown beside
           // the editor so an author is not guessing.
-          description: definition?.description ?? null,
-          variables: definition?.variables ?? [],
+          description: definition.description,
+          variables: definition.variables,
           /** True when the wording still matches what Neem shipped. */
-          isDefault: definition ? row.body === definition.body : false,
+          isDefault: body === definition.body && subject === (definition.subject ?? null),
         };
       }),
-      meta: { requestId: request.correlationId },
-    });
+    );
+
+    data.sort((a, b) => a.code.localeCompare(b.code) || a.channel.localeCompare(b.channel));
+
+    return reply.send({ data, meta: { requestId: request.correlationId } });
   });
 
   app.patch(
@@ -74,6 +94,12 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
 
       const definition = NOTIFICATION_TEMPLATES.find((entry) => entry.code === params.code);
       if (!definition) throw errors.notFound('No such notification.');
+
+      // A template is only sent on the channels it declares, so editing it on
+      // any other channel would write a row nothing ever reads.
+      if (!definition.channels.includes(params.channel as never)) {
+        throw errors.notFound('This notification is not sent on that channel.');
+      }
 
       /**
        * Validated before it is saved, not before it is sent.
@@ -99,19 +125,36 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      const updated = await getPrisma().notificationTemplate.update({
+      /**
+       * Upsert, because the row is an override that may not exist yet.
+       *
+       * `update` failed outright for any template nobody had edited, which
+       * made the first edit of a notification impossible — the one case that
+       * is guaranteed to happen to every template exactly once. The created
+       * row starts from the catalogue so an edit to the body alone does not
+       * blank the subject.
+       */
+      const updated = await getPrisma().notificationTemplate.upsert({
         where: {
           code_channel_locale: {
             code: params.code,
-            // Prisma's enum; an unknown channel fails the lookup as a 404.
             channel: params.channel as never,
-            locale: 'en',
+            locale: definition.locale,
           },
         },
-        data: {
+        update: {
           ...(body.subject !== undefined ? { subject: body.subject } : {}),
           ...(body.body !== undefined ? { body: body.body } : {}),
           ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+          updatedByAdminId: principal.userId,
+        },
+        create: {
+          code: params.code,
+          channel: params.channel as never,
+          locale: definition.locale,
+          subject: body.subject !== undefined ? body.subject : (definition.subject ?? null),
+          body: body.body ?? definition.body,
+          isActive: body.isActive ?? true,
           updatedByAdminId: principal.userId,
         },
       });
