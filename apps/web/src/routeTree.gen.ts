@@ -19,6 +19,7 @@ import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
 import { Route as AdminQualityRouteImport } from './routes/admin.quality'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
+import { Route as AdminSchedulingRouteImport } from './routes/admin.scheduling'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
@@ -91,6 +92,11 @@ const AdminQueueRoute = AdminQueueRouteImport.update({
 const AdminRefundsRoute = AdminRefundsRouteImport.update({
   id: '/admin/refunds',
   path: '/admin/refunds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSchedulingRoute = AdminSchedulingRouteImport.update({
+  id: '/admin/scheduling',
+  path: '/admin/scheduling',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -292,6 +300,7 @@ export interface FileRoutesById {
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -329,6 +338,7 @@ export interface FileRouteTypes {
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/scheduling'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/scheduling'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/scheduling'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -435,6 +447,7 @@ export interface RootRouteChildren {
   AdminQualityRoute: typeof AdminQualityRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
+  AdminSchedulingRoute: typeof AdminSchedulingRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
@@ -531,6 +544,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/refunds'
       fullPath: '/admin/refunds'
       preLoaderRoute: typeof AdminRefundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/scheduling': {
+      id: '/admin/scheduling'
+      path: '/admin/scheduling'
+      fullPath: '/admin/scheduling'
+      preLoaderRoute: typeof AdminSchedulingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/settings': {
@@ -707,6 +727,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminQualityRoute: AdminQualityRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminRefundsRoute: AdminRefundsRoute,
+  AdminSchedulingRoute: AdminSchedulingRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,

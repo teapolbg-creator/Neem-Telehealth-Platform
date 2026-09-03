@@ -155,3 +155,30 @@ export function useSettingHistory(key: string, enabled: boolean) {
     enabled,
   });
 }
+
+export interface SystemHealth {
+  status: "ready" | "degraded";
+  environment: string;
+  database: { status: "up" | "down"; latencyMs?: number };
+  providers: Record<string, string>;
+  mockedProviders: string[];
+  /** True when any provider is mocked — this deployment cannot really take money. */
+  demoMode: boolean;
+}
+
+/**
+ * System health (spec §54).
+ *
+ * This lived on the unauthenticated `/health/ready` probe until Phase 10, and
+ * nothing consumed it, so the dashboard never in fact showed demo mode — it
+ * only had a comment saying it did. The probe now says whether the instance
+ * can serve traffic and nothing else; the configuration is here, behind
+ * authentication, and on the screen.
+ */
+export function useSystemHealth() {
+  return useQuery({
+    queryKey: ["admin", "system-health"],
+    queryFn: ({ signal }) => api.get<SystemHealth>("/admin/system-health", signal),
+    refetchInterval: 60_000,
+  });
+}

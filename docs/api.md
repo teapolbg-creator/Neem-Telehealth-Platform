@@ -1,6 +1,19 @@
 # API Design
 
-**Status:** Proposed (Phase 0). REST/JSON over HTTPS. Base path `/api/v1`.
+**Status:** part design, part reference. REST/JSON over HTTPS. Base path `/api/v1`.
+
+> **Read this before trusting a path below.** Sections 1–7 were written in
+> Phase 0 as a design and were never reconciled with what got built. A sweep in
+> Phase 10 compared every path in this file against the live Fastify router and
+> found **31 that do not exist**. Most are provisional names the implementation
+> moved on from — `/webhooks/paystack` became `/webhooks/payment`,
+> `/auth/login/2fa` became `/auth/2fa/verify`, `/pharmacy/prescriptions/:id/pdf`
+> became `/documents/prescriptions/:publicId.pdf` — but some name capabilities
+> that were never built at all, such as `/admin/languages`.
+>
+> The sections added from Phase 6 onwards (3b, and the notes under 6 and 7)
+> describe routes that exist and were written against them. The router itself is
+> the authority; `security.test.ts` enumerates it on every run.
 
 ---
 
@@ -281,14 +294,30 @@ GET    /admin/payments | /refunds | POST /admin/refunds/:id/decide
 GET    /admin/payouts   | POST /admin/payouts/:id/mark-paid
 GET    /admin/reconciliation
 GET    /admin/settings  | PATCH /admin/settings      confirmation + impact required on sensitive keys
-GET    /admin/languages | POST | PATCH
+GET    /admin/languages | POST | PATCH               NOT BUILT (see below)
 GET    /admin/promotions | POST | PATCH
 GET    /admin/notification-templates | PATCH
 GET    /admin/complaints | :id | POST :id/resolve
 GET    /admin/quality/doctors
-GET    /admin/audit-logs                             filterable, read-only
-GET    /admin/system/health
+GET    /admin/audit-logs                             filterable, read-only, cursor-paged
+GET    /admin/system-health                          providers, demo mode, database
 ```
+
+**`/admin/languages` does not exist.** It was listed here from Phase 0 and no
+route was ever registered for it, so a language cannot be added or activated
+through the product — the seeded six are what there are, and three of them are
+inactive. Kept in this list, marked, rather than deleted: the capability is
+real and unbuilt, and quietly removing the line would turn a gap into a
+silence.
+
+**Health is split by audience, and the split is the point.** `/health` and
+`/health/ready` are unauthenticated probes and say only whether this instance
+can serve traffic. Until Phase 10 `/health/ready` also returned the
+environment, the database latency, every configured provider by name, which of
+them were mocked, and a `demoMode` flag — to anyone who asked. None of that is
+needed to route traffic and all of it names the integrations worth attacking.
+It lives at `/admin/system-health` now, where an administrator can see at a
+glance whether this deployment can actually take money and send messages.
 
 ---
 

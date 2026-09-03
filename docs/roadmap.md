@@ -304,6 +304,128 @@ Full authorization audit · every §79 security test automated · retention veri
 
 **Exit:** the four §102 critical security demonstrations pass as tests; all critical and high findings fixed.
 
+**Completed 2026-09-03.**
+
+- **The authentication boundary is now a written list that the build
+  enforces.** `security.test.ts` reads the live Fastify route tree and calls
+  every route anonymously; anything that answers without appearing in
+  `INTENTIONALLY_PUBLIC` — fifteen routes, each with its reason — fails. The
+  sweep runs again with a real pharmacy session, a real doctor session and a
+  real patient cookie, because "is signed in" and "is allowed" fail
+  differently and the likelier attacker already holds an account. A route
+  added next month is in scope next month without anyone remembering.
+- **The four §102 demonstrations** are executable: cross-pharmacy,
+  cross-doctor, cross-patient and privilege escalation, each attacked with a
+  complete legitimate account on the other side of the boundary. The
+  cross-patient one has a structural half worth naming — **no patient route
+  accepts an identifier at all**, asserted against the route tree, so there is
+  nothing to enumerate.
+- **`/health/ready` was disclosing configuration to anonymous callers**: the
+  environment, database latency, every provider by name, which were mocked,
+  and `demoMode`. That names the integrations worth attacking, and in
+  production `demoMode: true` would have advertised that payments were not
+  real. Narrowed to a readiness answer; the detail moved to
+  `GET /admin/system-health` and onto the admin dashboard — which had carried
+  a comment claiming it showed demo mode honestly while **nothing consumed the
+  field**. Another route with no caller, found the same way as Phase 6.5's
+  four.
+- **`POST /patient/session/leave` revoked nothing.** It cleared the cookie,
+  which protects only whoever already has the phone; a token copied off a
+  shared handset at a pharmacy counter kept working until its own expiry.
+  Staff logout has revoked server-side since Phase 2. The test steals the
+  token before leaving, which is the only version of this test that means
+  anything.
+- **Patient-authored free text was plaintext.** `feedback.comment`,
+  `complaints.description` and `complaints.resolutionNote` — while every other
+  patient field was encrypted. A patient explaining why they were unhappy
+  writes about their own care. Moved under field encryption in two migrations
+  with a backfill between them, because SQL cannot encrypt; the backfill
+  verifies no row is left half-migrated before it reports success, since the
+  second migration is destructive.
+- **The whole shadcn/ui directory was dead code** — 46 files, nothing outside
+  it importing any of them, and `chart.tsx` carrying a
+  `dangerouslySetInnerHTML` sink that interpolated `id` and `color` into a
+  `<style>` tag. Deleted rather than audited: an XSS sink no code reaches is
+  still a sink the next person will reach for.
+- **A skipped test was sheltering a broken one.** Resetting the demo
+  administrator’s two-factor enrolment made the enrolment walkthrough runnable
+  again, and it failed at once: it asserted a heading "Executive overview"
+  that Phase 9 renamed to "Overview". The assertion broke that day and nobody
+  saw it, because enrolling the demo admin through a browser — done while
+  verifying Phase 9 — made the test skip permanently, the TOTP secret being
+  unrecoverable by design. Nothing in "44 passed, 5 skipped" distinguishes it
+  from "45 passed", which is the whole reason the five were worth opening.
+- **Backup and restore, rehearsed rather than documented.** `npm run
+  backup:rehearse` backs up the live database, restores it into a scratch
+  database, and compares row counts table by table — 60 tables, 17,229 audit
+  rows, all matching. Comparing is the point: a restore that runs cleanly and
+  produces an empty table is the failure worth catching, and it looks exactly
+  like success if all you check is the exit code. It caught two things on its
+  first run, both in `data-retention.md` §7.
+- **The audit log could not be read past its first page.** `/admin/audit-logs`
+  accepted a cursor from the shared pagination schema and ignored it, so the
+  newest hundred entries were the only ones reachable — in the one record that
+  exists to answer "who saw this, and when". Written correctly, unreadable
+  beyond page one. Now pages like every other list, keyed on `id` rather than
+  `occurredAt` because a consultation transition writes several entries in the
+  same millisecond and a cursor on a tied column drops rows. The screen gained
+  a "Show older entries" control, which it had never had.
+- **Four of the sixteen required §80 scenarios had never run.** They were
+  `test.fixme` placeholders, which is the honest way to carry a gap — but
+  every blocker named in their notes had already shipped. Scenario 14 had been
+  waiting nine phases behind "needs an admin scheduling UI, which arrives with
+  the Phase 9 admin console".
+- **That scheduling screen never arrived, and its absence was a real gap.**
+  `POST /admin/shifts` existed from Phase 2 and `useAssignShift` was written
+  in the feature layer, but no component imported either. The 40-hour weekly
+  ceiling — a fatigue rule — was enforced on a route no administrator could
+  reach through the product. `/admin/scheduling` closes it, and Scenario 14
+  now drives the refusal through the screen: an API that says no is worth
+  nothing if the rota page swallows it.
+- **Writing that test found a defect in the screen it was written against.**
+  The doctor list is paged, so a doctor created seconds earlier was not
+  selectable at all. It gained a search — and a guard so that narrowing the
+  search past the current selection disables the button rather than assigning
+  the shift to someone the administrator can no longer see.
+- **Scenarios 1 and 2 now run through the screens**: 2 proves a failed payment
+  leaves the consultation recoverable rather than dead, and 1 joins the
+  counter, the patient's phone at 390×844, the clinical workspace and the
+  completion screen carrying the D24 reference, across three browser contexts.
+- **Scenario 15 stays pending, with an accurate reason for the first time.**
+  Its note claimed it needed Phase 7 payment; Phase 7 shipped three phases
+  earlier. The real obstacle is that suspension happens in an hourly job with
+  no trigger route, and this suite drives a real server over HTTP so it cannot
+  move the clock. Adding a "run maintenance now" endpoint that exists only for
+  a test would be inventing product surface to make a test pass. It is covered
+  with an injected clock in `membership.test.ts`.
+- **A queue-testing obstacle worth writing down.** Scenario 1 first completed
+  somebody else's consultation and then waited for a patient who never heard
+  anything. The development database holds 124 stale queued consultations
+  (99 `REASSIGNING`, 25 `WAITING_FOR_DOCTOR`, the oldest five days old, all
+  demo rows), and because **a doctor cannot decline an offer** (spec §30), a
+  doctor coming online is committed to whichever one `process-waiting-queue`
+  hands them. 97 of the 124 are English, so no language isolates a test
+  either. Scenario 1 therefore routes and accepts over the API and says why;
+  being shown an undeclinable offer is what queue.spec.ts scenario 4 covers,
+  through the screen, with the countdown.
+
+- **Pagination and the indexes the request path depends on** are asserted in
+  `performance.test.ts`, against `information_schema` rather than by timing —
+  a timing test on a small database passes whatever the plan is, and would
+  then go on passing with the index dropped.
+
+Two carried-forward items from earlier phases were checked and closed here.
+The rate limiter already keys by principal and falls back to IP
+(`app.ts:100`), so the note about it keying only by IP was stale. The
+`Feedback.comment` plaintext concern was real and is the encryption work above.
+
+One thing worth stating plainly: **the four §102 demonstrations are my
+grouping, not a quotation.** The master specification's §102 list is not in
+this repository — only references to it are. The four boundaries above are
+what every `§102` code comment in the codebase points at, and they are named
+as such in `security.md` §8 so that the inference is visible rather than
+buried.
+
 ---
 
 ## Phase 11 — Demo readiness

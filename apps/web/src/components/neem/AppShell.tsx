@@ -37,6 +37,7 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },
+    { label: "Scheduling", to: "/admin/scheduling" },
     { label: "Refunds", to: "/admin/refunds" },
     { label: "Payouts", to: "/admin/payouts" },
     { label: "Payroll", to: "/admin/payroll" },

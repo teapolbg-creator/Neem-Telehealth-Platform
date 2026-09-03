@@ -366,10 +366,16 @@ export { expect };
  *
  * Close the returned page when done; its context closes with it.
  */
-export async function openSecondPage(page: Page): Promise<Page> {
+export async function openSecondPage(
+  page: Page,
+  options: { viewport?: { width: number; height: number } } = {},
+): Promise<Page> {
   const context = await page.context().browser()!.newContext({
     baseURL: process.env.E2E_WEB_URL ?? 'http://localhost:8080',
     permissions: ['camera', 'microphone'],
+    // The patient portal is phone-first (spec §69) and its layout differs
+    // enough that driving it at desktop width tests a screen no patient sees.
+    ...(options.viewport ? { viewport: options.viewport } : {}),
   });
 
   return context.newPage();
@@ -387,6 +393,70 @@ export interface ActiveDoctor {
   email: string;
   password: string;
   publicId: string;
+  /** Both are searchable in the admin directory, which is paged. */
+  fullName: string;
+  mdcNumber: string;
+}
+
+/**
+ * The seeded shift that covers this hour.
+ *
+ * A doctor is only offered consultations during a shift they are on, so a
+ * suite that ran at 21:00 and assigned MORNING would watch the queue offer
+ * nothing and call it a routing bug.
+ *
+ * NOTE: `clinical.spec.ts` and `media.spec.ts` each carry their own copy of
+ * this function. They are identical; this is the one new code should use, and
+ * the other two are worth folding into it next time either is touched.
+ */
+export function shiftCoveringNow(): string {
+  const hour = new Date().getUTCHours();
+  if (hour >= 8 && hour < 14) return 'MORNING';
+  if (hour >= 14 && hour < 20) return 'AFTERNOON';
+  return 'NIGHT';
+}
+
+/**
+ * Puts a doctor on today's shift and brings them online.
+ *
+ * Setup rather than subject: every scenario that needs a doctor to receive an
+ * offer needs all of this first, and none of them are about rota mechanics.
+ * Returns the doctor's own CSRF token so the caller can keep acting as them.
+ */
+export async function putDoctorOnShiftNow(
+  doctorApi: APIRequestContext,
+  adminApi: APIRequestContext,
+  doctor: ActiveDoctor,
+): Promise<{ ok: true; csrf: string } | { ok: false; reason: string }> {
+  const shiftCode = shiftCoveringNow();
+  const serviceDate = new Date().toISOString().slice(0, 10);
+  const adminCsrf = (await signInAdmin(adminApi)).csrf;
+
+  // Idempotent, and only matters for NIGHT, which is seeded inactive.
+  await adminApi.patch(`${API}/admin/shifts/definitions/${shiftCode}`, {
+    headers: csrfHeaders(adminCsrf),
+    data: { isActive: true },
+  });
+
+  const assigned = await adminApi.post(`${API}/admin/shifts`, {
+    headers: csrfHeaders(adminCsrf),
+    data: { doctorPublicId: doctor.publicId, shiftCode, serviceDate },
+  });
+  if (!assigned.ok()) return { ok: false, reason: `shift: ${await assigned.text()}` };
+
+  const csrf = await signIn(doctorApi, doctor);
+  const shifts = await doctorApi.get(`${API}/doctor/shifts`);
+  const todays = (
+    (await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>
+  ).find((shift) => shift.serviceDate === serviceDate);
+  if (!todays) return { ok: false, reason: `no shift on ${serviceDate}` };
+
+  await doctorApi.post(`${API}/doctor/shifts/${todays.id}/confirm`, {
+    headers: csrfHeaders(csrf),
+    data: {},
+  });
+
+  return { ok: true, csrf };
 }
 
 /**
@@ -472,5 +542,11 @@ export async function createActiveDoctor(
 
   await request.post(`${API}/auth/logout`, { headers: csrfHeaders(adminCsrf) });
 
-  return { email, password, publicId: applicant.publicId };
+  return {
+    email,
+    password,
+    publicId: applicant.publicId,
+    fullName: `Dr. Media ${options.run}`,
+    mdcNumber,
+  };
 }

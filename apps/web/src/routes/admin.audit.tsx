@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { AlertCircle, Loader2, ScrollText, Search } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
@@ -23,14 +23,35 @@ interface AuditEntry {
   metadata: unknown;
 }
 
-function useAuditLog(filters: { action?: string; entityId?: string }) {
-  const params = new URLSearchParams();
-  if (filters.action) params.set("action", filters.action);
-  if (filters.entityId) params.set("entityId", filters.entityId);
+const PAGE_SIZE = 50;
 
-  return useQuery({
+/**
+ * The audit log, paged.
+ *
+ * This asked for one page and stopped, so the newest fifty entries were the
+ * only ones an administrator could reach — in the record that exists to answer
+ * "who saw this, and when". The route was ignoring its own cursor; both halves
+ * are fixed.
+ *
+ * The cursor is the last entry's id, which this already has in hand, so paging
+ * needs nothing from the response envelope. `hasMore` is inferred the same
+ * way: a full page means there is probably another, and asking for it and
+ * getting nothing back is a cheap way to be wrong.
+ */
+function useAuditLog(filters: { action?: string; entityId?: string }) {
+  return useInfiniteQuery({
     queryKey: ["admin", "audit", filters],
-    queryFn: ({ signal }) => api.get<AuditEntry[]>(`/admin/audit-logs?${params}`, signal),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (filters.action) params.set("action", filters.action);
+      if (filters.entityId) params.set("entityId", filters.entityId);
+      if (pageParam) params.set("cursor", pageParam);
+
+      return api.get<AuditEntry[]>(`/admin/audit-logs?${params}`, signal);
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.length === PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
   });
 }
 
@@ -51,7 +72,10 @@ function AdminAudit() {
   const [entityId, setEntityId] = useState("");
   const [applied, setApplied] = useState<{ action?: string; entityId?: string }>({});
 
-  const { data, isLoading, error } = useAuditLog(applied);
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useAuditLog(applied);
+
+  const entries = data?.pages.flat() ?? [];
 
   return (
     <AppShell active="admin">
@@ -130,16 +154,37 @@ function AdminAudit() {
         </div>
       )}
 
-      {data?.length === 0 && (
+      {!isLoading && entries.length === 0 && (
         <div className="card-soft p-12 text-center">
           <ScrollText className="mx-auto size-10 text-slate-300" />
           <p className="mt-3 text-sm text-slate-500">Nothing matches that search.</p>
         </div>
       )}
 
-      <div className="card-soft divide-y divide-border">
-        {data?.map((entry) => <AuditRow key={entry.id} entry={entry} />)}
-      </div>
+      {entries.length > 0 && (
+        <div className="card-soft divide-y divide-border">
+          {entries.map((entry) => (
+            <AuditRow key={entry.id} entry={entry} />
+          ))}
+        </div>
+      )}
+
+      {hasNextPage && (
+        <button
+          type="button"
+          onClick={() => void fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="mx-auto inline-flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+        >
+          {isFetchingNextPage ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Loading
+            </>
+          ) : (
+            <>Show older entries</>
+          )}
+        </button>
+      )}
     </AppShell>
   );
 }

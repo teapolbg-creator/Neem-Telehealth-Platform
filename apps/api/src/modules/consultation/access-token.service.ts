@@ -273,6 +273,34 @@ export async function resolvePatientSession(
   };
 }
 
+/**
+ * Ends a patient's session on the server, not just in their browser.
+ *
+ * `POST /patient/session/leave` used to clear the cookie and nothing else,
+ * which protects only the person who already has the phone. A session token
+ * copied off the device — a shared handset at the counter, a screenshot, a
+ * proxy — kept working for the rest of its lifetime, because the server had
+ * never been told the patient had gone.
+ *
+ * Staff logout has always revoked server-side (`revokeSession`). This is the
+ * same guarantee for the patient, and it is the one that matters more: the
+ * patient's device is a phone at a pharmacy counter, not a private desktop.
+ *
+ * Expiring the row rather than deleting it keeps re-entry working. Scanning a
+ * fresh QR code upserts a new token hash and expiry over the same row, so a
+ * patient who left by accident is one code away from returning.
+ */
+export async function endPatientSession(
+  patientSessionId: string,
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<void> {
+  await db.patientSession.update({
+    where: { id: patientSessionId },
+    data: { expiresAt: clock.now() },
+  });
+}
+
 /** Invalidates every token for a consultation. Part of the completion path. */
 export async function revokeAllTokens(
   consultationId: string,

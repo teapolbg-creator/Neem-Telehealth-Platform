@@ -462,18 +462,34 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         })
         .parse(request.query);
 
+      /**
+       * Paged, like every other list.
+       *
+       * The cursor was accepted by the schema and then ignored, which meant
+       * the newest hundred entries were the only ones reachable — in the one
+       * record that exists to answer "who saw this, and when". The log was
+       * being written correctly and could not be read past its first page.
+       *
+       * Ordered by `occurredAt` but keyed on `id`, because timestamps tie:
+       * a consultation transition writes several entries in the same
+       * millisecond, and a cursor on a non-unique column silently skips rows.
+       */
       const rows = await getPrisma().auditLog.findMany({
         where: {
           ...(query.action ? { action: query.action } : {}),
           ...(query.entityType ? { entityType: query.entityType } : {}),
           ...(query.entityId ? { entityId: query.entityId } : {}),
         },
-        orderBy: { occurredAt: 'desc' },
-        take: query.limit,
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        take: query.limit + 1,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
       });
 
+      const hasMore = rows.length > query.limit;
+      const page = hasMore ? rows.slice(0, query.limit) : rows;
+
       return reply.send({
-        data: rows.map((entry) => ({
+        data: page.map((entry) => ({
           id: entry.id,
           occurredAt: entry.occurredAt.toISOString(),
           action: entry.action,
@@ -484,7 +500,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           outcome: entry.outcome,
           metadata: entry.metadata,
         })),
-        meta: { requestId: request.correlationId },
+        meta: {
+          requestId: request.correlationId,
+          page: { cursor: hasMore ? page.at(-1)?.id : undefined, hasMore },
+        },
       });
     },
   );

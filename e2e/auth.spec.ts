@@ -131,7 +131,13 @@ test.describe('admin two-factor authentication', () => {
     await page.getByRole('button', { name: /continue to neem/i }).click();
 
     await expect(page).toHaveURL(/\/admin/);
-    await expect(page.getByRole('heading', { name: /executive overview/i })).toBeVisible();
+    // "Executive overview" until Phase 9 rewrote this dashboard and renamed the
+    // heading to "Overview". The assertion went stale that day and nobody saw
+    // it, because enrolling the demo admin through a browser made this whole
+    // test skip — its secret is unrecoverable by design, so the suite could no
+    // longer sign in as an un-enrolled admin. A test that skips is not a test
+    // that passes, and this is what was hiding behind the difference.
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
 
     // And the API agrees. `page.request` shares the browser's cookies; the
     // standalone `request` fixture is a separate context and would see no

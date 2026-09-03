@@ -1366,7 +1366,10 @@ model Feedback {
   doctorRating   Int              @db.TinyInt
   neemRating     Int              @db.TinyInt
   category       FeedbackCategory
-  comment        String?          @db.Text
+  /// Patient-authored free text, encrypted. A patient explaining a complaint
+  /// writes about their own care, so this carries health information whatever
+  /// the form asked for (spec §58).
+  commentEnc     String?          @db.Text
   submittedAt    DateTime         @default(now())
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
@@ -1388,17 +1391,21 @@ model ComplaintCategory {
 }
 
 model Complaint {
-  id              String         @id @default(uuid(7))
-  publicId        String         @unique @db.VarChar(32)
-  feedbackId      String?
-  consultationId  String?
-  categoryId      String
-  description     String         @db.Text
-  state           ComplaintState @default(OPEN)
-  assignedAdminId String?
-  resolutionNote  String?        @db.Text
-  resolvedAt      DateTime?
-  createdAt       DateTime       @default(now())
+  id                String         @id @default(uuid(7))
+  publicId          String         @unique @db.VarChar(32)
+  feedbackId        String?
+  consultationId    String?
+  categoryId        String
+  /// The patient's own words, copied from their feedback. Encrypted for the
+  /// same reason.
+  descriptionEnc    String         @db.Text
+  state             ComplaintState @default(OPEN)
+  assignedAdminId   String?
+  /// An administrator's written outcome. Encrypted because it answers the
+  /// patient's account and will quote it.
+  resolutionNoteEnc String?        @db.Text
+  resolvedAt        DateTime?
+  createdAt         DateTime       @default(now())
 
   feedback     Feedback?         @relation(fields: [feedbackId], references: [id], onDelete: SetNull)
   consultation Consultation?     @relation(fields: [consultationId], references: [id], onDelete: SetNull)

@@ -15,6 +15,7 @@ import { requestRefund } from '../payment/refund.service.ts';
 import {
   PATIENT_SESSION_COOKIE,
   exchangeAccessToken,
+  endPatientSession,
   resolvePatientSession,
   type PatientPrincipal,
 } from './access-token.service.ts';
@@ -245,10 +246,18 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
    * Ends their participation without completing the consultation — only the
    * doctor completes (spec §16). The consultation is left for the doctor or an
    * administrator to resolve rather than being silently closed.
+   *
+   * Both halves of the leaving matter. Clearing the cookie is for the patient:
+   * the next person to pick up the phone sees nothing. Ending the session on
+   * the server is for everyone else — a token copied off the device stops
+   * working here rather than at its own expiry, which is what "leave" has to
+   * mean when the device is a handset on a pharmacy counter (spec §79, §102,
+   * decision D34).
    */
   app.post('/patient/session/leave', async (request, reply) => {
     const principal = await requirePatient(request);
 
+    await endPatientSession(principal.patientSessionId);
     reply.clearCookie(PATIENT_SESSION_COOKIE, { path: '/' });
 
     return reply.send({

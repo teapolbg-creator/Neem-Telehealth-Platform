@@ -4,7 +4,7 @@ import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestPharmacy, createTestUser, resetDatabase } from '../helpers/database.ts';
 import { encryptTotpSecret } from '../../src/modules/auth/totp.service.ts';
-import { generatePublicId } from '../../src/lib/crypto.ts';
+import { decryptField, encryptField, generatePublicId } from '../../src/lib/crypto.ts';
 import {
   MockPaymentProvider,
   setPaymentProviderForTesting,
@@ -405,7 +405,7 @@ describe('complaints and quality review (spec §51, §52, §55)', () => {
         publicId: generatePublicId('cmp'),
         consultationId: consultation.id,
         categoryId: category.id,
-        description: 'The wait was very long and nobody explained why.',
+        descriptionEnc: encryptField('The wait was very long and nobody explained why.'),
         state: 'OPEN',
       },
     });
@@ -461,7 +461,10 @@ describe('complaints and quality review (spec §51, §52, §55)', () => {
     expect(response.body.data?.state).toBe('RESOLVED');
 
     const after = await getPrisma().complaint.findUniqueOrThrow({ where: { id: complaint.id } });
-    expect(after.resolutionNote).toContain('Apologised');
+    // Stored encrypted (spec §58), so the assertion goes through the same
+    // decryption the admin screen does rather than reading the column raw.
+    expect(after.resolutionNoteEnc).not.toBeNull();
+    expect(decryptField(after.resolutionNoteEnc!)).toContain('Apologised');
     expect(after.resolvedAt).not.toBeNull();
   });
 

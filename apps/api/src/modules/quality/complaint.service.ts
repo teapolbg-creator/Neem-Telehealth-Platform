@@ -1,5 +1,6 @@
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
+import { decryptField, decryptNullable, encryptField } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 
@@ -62,12 +63,12 @@ export async function listComplaints(
   return complaints.map((complaint) => ({
     publicId: complaint.publicId,
     state: complaint.state,
-    description: complaint.description,
+    description: decryptField(complaint.descriptionEnc),
     categoryCode: complaint.category.code,
     categoryLabel: complaint.category.label,
     createdAt: complaint.createdAt.toISOString(),
     resolvedAt: complaint.resolvedAt?.toISOString() ?? null,
-    resolutionNote: complaint.resolutionNote,
+    resolutionNote: decryptNullable(complaint.resolutionNoteEnc),
     consultationReference: complaint.consultation?.publicId ?? null,
     pharmacyName: complaint.consultation?.pharmacy.name ?? null,
     // Named because a complaint about a consultation is usually about the
@@ -112,7 +113,9 @@ export async function decideComplaint(
     data: {
       state: input.state,
       assignedAdminId: adminId,
-      resolutionNote: input.note?.trim() ?? complaint.resolutionNote,
+      resolutionNoteEnc: input.note?.trim()
+        ? encryptField(input.note.trim())
+        : complaint.resolutionNoteEnc,
       resolvedAt: closing ? clock.now() : null,
     },
   });

@@ -430,3 +430,80 @@ This is the same reasoning that produced the substitution inbox in Phase 6.5, an
 **Consequence for retries.** A failed message cannot be re-sent verbatim, because the text is gone. Templates that take no variables re-render exactly from the catalogue and are retried; the rest are marked `SUPPRESSED` with the reason recorded, rather than re-sent with a placeholder in them. That is a real limitation and is stated in the module rather than hidden.
 
 **What this does not change.** SMS, email and WhatsApp still deliver a full message to the recipient's own device. The restriction is on what Neem keeps, not on what it sends.
+
+---
+
+### D33 — The list of public routes is code, and the build enforces it · 2026-09-03 · **DECIDED (Category B)**
+
+**Issue.** Phase 10 asked for a "full authorization audit". An audit is a
+snapshot: it tells you the API was sound on the day someone read it. Neem will
+have routes added for years after that day, and the failure this audit exists
+to prevent — a route registered without a guard — is precisely the one that
+announces nothing. It returns 200. It looks like it works.
+
+Auditing by reading is also how the *other* Phase 9 defect happened in reverse.
+Four routes existed with no caller and nobody noticed, because reading code
+tells you what is written, not what is reachable.
+
+**Decision.** The authentication boundary is a data structure in the test
+suite, and a sweep enforces it against the **live Fastify route tree**.
+
+`INTENTIONALLY_PUBLIC` maps fifteen `METHOD /path` keys to the reason each one
+is unauthenticated — "you cannot be signed in in order to sign in", "the
+provider has no session; the HMAC is the authentication". The sweep enumerates
+every route the router actually serves, calls each one anonymously, and fails
+on any that answers without appearing in the map. A second assertion fails on
+any entry in the map that no longer matches a live route, so a renamed route
+cannot leave behind a line that pre-authorises the next thing to take its name.
+
+**Three consequences, all of them the point.**
+
+- A route added next month is in scope next month, with nobody remembering.
+- Making a route public becomes an argument in review rather than an omission
+  in middleware.
+- The reasons are versioned next to the list, so "why is this public" has an
+  answer that does not depend on who is still working here.
+
+**A 404 counts as a failure.** It means the handler ran and looked the record
+up before deciding it had nothing to say — which is one schema change away
+from saying something. Only 401 and 403 pass.
+
+**Why not enforce it in the application instead**, refusing to register a route
+without a guard? Because `/auth/login` has to exist, so the mechanism needs an
+exception list either way, and an exception list in the application is
+consulted at boot by a process with no way to complain to a human. In the test
+suite it fails a build, which is where a security decision should be argued.
+
+---
+
+### D34 — Leaving a consultation revokes the session, not the cookie · 2026-09-03 · **DECIDED (Category B)**
+
+**Issue.** `POST /patient/session/leave` called `reply.clearCookie` and nothing
+else. That is a reasonable-looking implementation and it protects exactly one
+person: whoever is currently holding the phone.
+
+The patient's device in this product is a handset at a pharmacy counter. The
+threat is not a private laptop left unlocked — it is a token that was copied,
+screenshotted, or read off a shared phone before it was handed back. Against
+that, clearing a cookie in the victim's browser does nothing at all: the
+attacker's copy was never in that browser.
+
+Staff logout has revoked server-side since Phase 2 (`revokeSession`). The
+asymmetry was not a decision anyone made; the patient path simply never got
+the same treatment, and it is the path with the weaker device.
+
+**Decision.** Leaving ends the session on the server. `endPatientSession` sets
+`expiresAt` to now, which the existing expiry check in
+`resolvePatientSession` already honours, so every copy of the token stops
+resolving on its next request.
+
+**Expiring rather than deleting**, because re-entry has to keep working. A
+patient who tapped the wrong thing scans a fresh QR code, and
+`exchangeAccessToken` upserts a new token hash and expiry over the same row.
+Deleting would have meant losing the identity the patient had already entered.
+
+**The test steals the token before leaving.** A test that calls `leave` and
+then checks the same cookie fails would pass against the old implementation
+too, because the response cleared it. Copying the cookie first is the only
+version of this test that distinguishes the two behaviours, and it is worth
+saying out loud that the weaker test would have looked identical in the report.

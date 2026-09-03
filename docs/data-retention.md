@@ -204,6 +204,62 @@ The obligation that remains is at the far end. When a record is destroyed at exp
 - Restore is admin-only and audited.
 - The window is stated in the privacy notice rather than concealed.
 
+### Implemented and rehearsed, 2026-09-03
+
+```bash
+npm run backup            # encrypted dump of DATABASE_URL
+npm run restore -- <file> --url mysql://...
+npm run backup:rehearse   # both, into a scratch database, then compared
+```
+
+**Encrypted with a key that is not the application's.** `BACKUP_ENCRYPTION_KEY`
+must differ from `ENCRYPTION_KEY` and the script refuses to run if it does not.
+One key for both means a leaked application key also opens every historical
+copy of the database — and a backup is a complete copy of every clinical record
+Neem holds, which makes an unencrypted dump on a build agent the single largest
+disclosure risk the product has. AES-256-GCM, scrypt-derived, with a fresh salt
+and IV per file so two backups of the same database are not byte-comparable.
+
+**The window is printed on every run**, so it cannot quietly grow past the
+retention period it is supposed to sit inside.
+
+**The restore verifies the authentication tag before running a single
+statement**, so a truncated or tampered file fails as a decryption error rather
+than as a half-restored database — which is far harder to notice. It also
+refuses to restore over a non-empty database unless told to, because the
+common accident is restoring yesterday's copy over today's data.
+
+**The rehearsal compares, rather than checking an exit code.** A restore that
+runs cleanly and produces an empty table is the failure worth catching, and it
+is indistinguishable from success if all you look at is the status. The first
+run against the development database:
+
+```
+users 523 → 523 · pharmacies 95 → 95 · doctors 426 → 426
+consultations 346 → 346 · consultation_state_events 7926 → 7926
+payments 330 → 330 · prescriptions 116 → 116 · audit_logs 17229 → 17229
+system_settings 32 → 32 · feedback 11 → 11 · complaints 1 → 1
+```
+
+Reference tables alone would not have proved anything — `seedReferenceData`
+recreates those, so a seeded empty database would have looked identical. The
+witness tables are the transactional ones, which can only have come from the
+backup.
+
+Two things the rehearsal found immediately:
+
+- `mysqldump` printed an access-denied error for tablespace metadata into the
+  middle of an otherwise complete dump, because a least-privilege backup user
+  has no server-wide `PROCESS` privilege. `--no-tablespaces` is the fix, and a
+  backup that reports an error it does not mean is a backup nobody will trust.
+- The application's database user **cannot** create the scratch database, which
+  is correct — it holds rights over one database and no more. The rehearsal
+  therefore needs an administrative credential for that one step, and says so
+  rather than silently running as root for everything.
+
+Passwords travel in `MYSQL_PWD`, not on the command line, where every other
+process on the machine could read them for as long as a full dump takes.
+
 ---
 
 ## 8. Consultation history — operational, not medical

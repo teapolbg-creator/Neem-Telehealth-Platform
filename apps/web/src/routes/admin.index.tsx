@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Archive,
   Clock,
+  FlaskConical,
   Loader2,
   Stethoscope,
   Timer,
@@ -19,6 +20,7 @@ import {
   useOperationalSummary,
   useOutcomeMix,
   useSatisfactionSummary,
+  useSystemHealth,
   type ClinicalCoverage,
 } from "@/features/analytics/api";
 
@@ -44,6 +46,7 @@ function AdminOverview() {
   const financial = useFinancialSummary();
   const satisfaction = useSatisfactionSummary();
   const outcomes = useOutcomeMix();
+  const health = useSystemHealth();
 
   const loading = operational.isLoading || financial.isLoading;
   const error = operational.error ?? financial.error;
@@ -55,6 +58,36 @@ function AdminOverview() {
         <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
         <p className="mt-2 text-sm text-slate-500">The last 30 days.</p>
       </header>
+
+      {/*
+        Demo mode, stated where an administrator will see it.
+
+        A mocked payment provider means this deployment takes no money and
+        every activation is free — which is correct for a demonstration and
+        catastrophic to mistake for production. It is worth the space at the
+        top of the overview, above the figures, because it changes what all
+        of those figures mean.
+      */}
+      {health.data?.demoMode && (
+        <div className="card-soft flex items-start gap-3 border-amber-300/60 bg-amber-50 p-5">
+          <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-600" />
+          <div className="text-sm leading-relaxed text-amber-900">
+            <strong className="font-bold">Demo mode.</strong> {health.data.mockedProviders.join(", ")}{" "}
+            {health.data.mockedProviders.length === 1 ? "is" : "are"} mocked, so no money moves and
+            no message leaves this system. The figures below are real records of simulated activity.
+          </div>
+        </div>
+      )}
+
+      {health.data?.database.status === "down" && (
+        <div className="card-soft flex items-start gap-3 border-red-200 bg-red-50 p-5">
+          <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
+          <p className="text-sm text-red-700">
+            <strong className="font-bold">The database is unreachable.</strong> Consultations
+            cannot be created or paid for until it returns.
+          </p>
+        </div>
+      )}
 
       {loading && (
         <div className="card-soft grid place-items-center p-16">

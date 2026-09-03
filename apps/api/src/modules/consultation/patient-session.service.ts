@@ -286,7 +286,11 @@ export async function submitFeedback(
           doctorRating: feedback.doctorRating,
           neemRating: feedback.neemRating,
           category: feedback.category,
-          comment: feedback.comment ?? null,
+          // Encrypted at rest like every other field the patient wrote
+          // (spec §58). A comment left on a COMPLAINT is a patient
+          // describing their own care, which is health information however
+          // the form was labelled.
+          commentEnc: encryptNullable(feedback.comment),
         },
       });
 
@@ -309,7 +313,9 @@ export async function submitFeedback(
           feedbackId: created.id,
           consultationId: principal.consultationId,
           categoryId: category.id,
-          description: feedback.comment ?? 'The patient marked this consultation as a complaint.',
+          descriptionEnc: encryptField(
+            feedback.comment ?? 'The patient marked this consultation as a complaint.',
+          ),
         },
       });
     });

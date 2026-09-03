@@ -109,8 +109,112 @@ Every item in spec §79 gets an automated test, not a manual check: unauthorized
 
 The four critical demonstrations in spec §102 are written as executable tests so they can be run in front of you rather than described.
 
+**Done, 2026-09-03.** `apps/api/tests/integration/security.test.ts` — one file,
+deliberately, so §79 can be read in one place rather than reassembled from
+fifteen feature files. Every test is written from the attacker's side; where a
+feature file already covers the same mechanism, it appears here again in that
+form, because "the QR exchange is single-use" and "a photographed QR code
+cannot be replayed" are the same property read from opposite ends, and only the
+second fails loudly when the mechanism is relaxed for a good-looking reason.
+
+### The authentication boundary is a list, and the list is enforced
+
+The strongest test in the file is not about any one route. `INTENTIONALLY_PUBLIC`
+names all fifteen unauthenticated routes with the reason each one is public,
+and a sweep reads the **live Fastify route tree** and calls every route
+anonymously. Anything that answers without being on the list fails the build.
+
+Three consequences worth stating:
+
+- A route added tomorrow is in scope tomorrow, with nobody remembering to add
+  it to a test.
+- Making a route public becomes an argument someone has to make in review,
+  rather than a line of middleware nobody notices is missing.
+- The sweep runs again with a real pharmacy session, a real doctor session and
+  a real patient cookie, because "is signed in" and "is allowed" fail
+  differently — and the likelier attacker already holds a legitimate account.
+
+A 404 counts as a leak here, not a pass: it means the handler ran and looked
+the record up, which is one schema change away from returning it.
+
+### The §102 demonstrations
+
+The master specification names four. The repository cites §102 at the ownership
+check of every resource, and these are those four boundaries, each attacked
+with a complete legitimate account on the other side:
+
+1. **Cross-pharmacy** — every route that takes a consultation, a prescription
+   or a document, called by a second pharmacy. Answers are 404, never 403,
+   because confirming the record exists is itself a disclosure.
+2. **Cross-doctor** — the clinical workspace above all, which is the whole
+   record and would be the most damaging IDOR the product could have.
+3. **Cross-patient** — including the structural half: **no patient route
+   accepts an identifier at all**, asserted against the route tree. The cookie
+   *is* the scope, so there is nothing to enumerate.
+4. **Privilege escalation** — no route writes a role, no non-admin reaches any
+   of the 30-odd admin routes, and a password alone does not produce a session
+   that can act before the second factor.
+
+### Two findings fixed here
+
+- **`/health/ready` disclosed configuration to anonymous callers**: the
+  environment, database latency, every provider by name, which were mocked, and
+  `demoMode`. That is reconnaissance — it names the integrations to aim at, and
+  in production `demoMode: true` would advertise that payments were not real.
+  The probe now answers only whether traffic can be served; the detail moved to
+  `GET /admin/system-health`, behind authentication, and onto the admin
+  dashboard, which had been claiming to show demo mode while nothing consumed
+  the field.
+- **`POST /patient/session/leave` revoked nothing.** It cleared the cookie,
+  which protects only the person already holding the phone. A session token
+  copied off a shared handset at the counter kept working until its own
+  expiry. Staff logout has always revoked server-side; the patient now does
+  too, and the test steals the token before leaving to prove it.
+
+### Patient-authored free text is encrypted
+
+`feedback.comment`, `complaints.description` and `complaints.resolutionNote`
+were plaintext while every other patient field was encrypted. A patient
+explaining why they were unhappy writes about their own care, so all three
+carry health information whatever the form asked for. Moved under field
+encryption in two migrations with a backfill in between
+(`npm run db:backfill:encrypt-free-text`) — SQL cannot encrypt, so the middle
+step is a script, and it verifies that no row is left half-migrated before
+reporting success.
+
+### The §80 scenarios
+
+15 of the 16 required end-to-end scenarios now run; the count was 12 when the
+phase began. Scenarios 1, 2 and 14 were `test.fixme` placeholders whose stated
+blockers had all shipped — 14 had been waiting nine phases behind "needs an
+admin scheduling UI", and that screen had never been built, leaving the 40-hour
+fatigue ceiling enforced on a route no administrator could reach.
+
+Scenario 15 remains pending and now says why honestly: suspension happens in an
+hourly job with no trigger route, and this suite drives a real server over HTTP
+so it cannot move the clock. Adding an endpoint that exists only for a test
+would be inventing product surface to make a test pass. It is covered with an
+injected clock in `membership.test.ts`.
+
+**A skip is not a pass.** Three of the four skips found here were stale
+placeholders, and the fourth was hiding an assertion that Phase 9 had broken.
+Nothing in the reporting distinguished them from successes.
+
+### What is deliberately not tested
+
+There is no test that a recording cannot be retrieved, because there is no
+recording API to attack. That guarantee is structural (spec §64) and is
+asserted against the media adapter's configuration, which is where it could
+regress.
+
 ---
 
 ## 9. Backup and recovery
 
 Documented in Phase 1, exercised in Phase 10: automated MySQL backups, retention period, restore procedure with a rehearsed restore, and an explicit statement of the window during which purged temporary data still exists in backups (see `data-retention.md` §5). Pretending backups do not retain deleted rows would be dishonest; stating the window and bounding it is the correct engineering answer.
+
+**Exercised, 2026-09-03.** `scripts/backup.mjs`, `scripts/restore.mjs` and
+`scripts/rehearse-restore.mjs`. The rehearsal backs up the live database,
+restores it into a scratch database under a different name, compares row counts
+table by table, and drops the scratch database. See `data-retention.md` §7 for
+the result and what it caught.

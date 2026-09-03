@@ -178,7 +178,6 @@ neem/
 │  │  │  ├─ admin/…             # ops, users, finance, settings, analytics, audit
 │  │  │  ├─ verify.$code.tsx    # public prescription verification
 │  │  │  └─ auth/…
-│  │  ├─ src/components/ui/     # 47 shadcn primitives (unchanged)
 │  │  ├─ src/components/neem/   # AppShell, Chip, Logo + new shared components
 │  │  ├─ src/features/          # per-portal hooks, API clients, forms
 │  │  ├─ src/lib/
@@ -216,7 +215,36 @@ Under **Option B** the same content lives at `./src` (web, unchanged) and `./ser
 
 **api dev:** `vitest`, `@vitest/coverage-v8`, `tsx`, `typescript`, `@types/node`, `prisma`, `supertest`-equivalent via `fastify.inject`.
 
-**web:** `socket.io-client`. Everything else is already installed — react-query, react-hook-form, zod, recharts, and the Radix set are present but unused, so most of the frontend work is wiring rather than adding.
+**web:** `socket.io-client`. Everything else was already installed.
+
+**Corrected in Phase 10.** This paragraph used to end "react-query,
+react-hook-form, zod, recharts, and the Radix set are present but unused, so
+most of the frontend work is wiring rather than adding" — a prediction that
+the scaffolded set would get wired up. Two of them were: react-query and zod
+are used throughout. The rest never were.
+
+The 46 shadcn/ui files under `src/components/ui/` were imported by nothing
+outside their own directory for the entire build. Neem's screens are
+`components/neem/` plus the route files, using the `cn` helper directly, and
+that turned out to be the whole of it. The directory is deleted, along with
+the 39 packages that existed only to serve it: the 26 Radix primitives,
+`react-hook-form` and `@hookform/resolvers`, `recharts`, `cmdk`, `vaul`,
+`sonner`, `embla-carousel-react`, `react-day-picker`, `react-resizable-panels`,
+`input-otp`, `date-fns`, `class-variance-authority`, and
+`@tanstack/router-plugin` (which arrives transitively through
+`@tanstack/react-start` anyway). Seventeen dependencies remain.
+
+Nothing about the built output changed, because Vite never bundled files no
+entry point reached. What changed is that 4,360 lines of unreviewed code —
+including a `dangerouslySetInnerHTML` sink in `chart.tsx` — and 39 packages'
+worth of install-time supply-chain surface are no longer carried by a product
+that handles patient data.
+
+Three packages **stay** despite no import naming them, and a dependency scan
+that only reads import statements will keep proposing their removal:
+`@tailwindcss/vite` and `vite-tsconfig-paths` are peer dependencies of
+`@lovable.dev/vite-tanstack-config`, and `react-dom` is a peer of
+`@tanstack/react-start` and the thing that actually renders the application.
 
 **e2e:** `@playwright/test`.
 

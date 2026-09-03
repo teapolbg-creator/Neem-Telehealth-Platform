@@ -63,3 +63,6 @@ playwright-report/
 
 # Belt and braces: uploads must never be committed, wherever they land.
 **/uploads/
+
+# Encrypted database backups are never committed.
+backups/
