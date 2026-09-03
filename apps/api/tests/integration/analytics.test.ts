@@ -387,3 +387,138 @@ describe('the settings console (spec §96)', () => {
     expect((await request('/admin/settings', { cookies })).status).toBe(403);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe('complaints and quality review (spec §51, §52, §55)', () => {
+  /** A complaint, created the way a patient's feedback creates one. */
+  async function openComplaint() {
+    const prisma = getPrisma();
+    const { consultation } = await completedConsultation();
+
+    const category = await prisma.complaintCategory.findFirstOrThrow({
+      where: { code: 'WAIT_TIME' },
+    });
+
+    return prisma.complaint.create({
+      data: {
+        publicId: generatePublicId('cmp'),
+        consultationId: consultation.id,
+        categoryId: category.id,
+        description: 'The wait was very long and nobody explained why.',
+        state: 'OPEN',
+      },
+    });
+  }
+
+  it('lists open complaints with the consultation context', async () => {
+    await openComplaint();
+
+    const cookies = await adminCookies();
+    const response = await request<
+      Array<{ state: string; categoryLabel: string; consultationReference: string | null }>
+    >('/admin/complaints?openOnly=true', { cookies });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data![0]!.state).toBe('OPEN');
+    expect(response.body.data![0]!.consultationReference).toBeTruthy();
+  });
+
+  /**
+   * A complaint closed with no explanation cannot be answered to the person
+   * who raised it, and "dismissed" without a reason is indistinguishable from
+   * ignored.
+   */
+  it('refuses to close a complaint without saying what was decided', async () => {
+    const complaint = await openComplaint();
+    const cookies = await adminCookies();
+
+    for (const state of ['RESOLVED', 'DISMISSED']) {
+      const response = await request(`/admin/complaints/${complaint.publicId}/decide`, {
+        method: 'POST',
+        cookies,
+        payload: { state },
+      });
+
+      expect(response.status, state).toBe(422);
+    }
+  });
+
+  it('records the outcome when it is closed', async () => {
+    const complaint = await openComplaint();
+    const cookies = await adminCookies();
+
+    const response = await request<{ state: string }>(
+      `/admin/complaints/${complaint.publicId}/decide`,
+      {
+        method: 'POST',
+        cookies,
+        payload: { state: 'RESOLVED', note: 'Apologised; the queue was starved that evening.' },
+      },
+    );
+
+    expect(response.body.data?.state).toBe('RESOLVED');
+
+    const after = await getPrisma().complaint.findUniqueOrThrow({ where: { id: complaint.id } });
+    expect(after.resolutionNote).toContain('Apologised');
+    expect(after.resolvedAt).not.toBeNull();
+  });
+
+  it('refuses a second decision on a closed complaint', async () => {
+    const complaint = await openComplaint();
+    const cookies = await adminCookies();
+
+    const decide = () =>
+      request(`/admin/complaints/${complaint.publicId}/decide`, {
+        method: 'POST',
+        cookies,
+        payload: { state: 'RESOLVED', note: 'Handled.' },
+      });
+
+    expect((await decide()).status).toBe(200);
+    expect((await decide()).status).toBe(409);
+  });
+
+  /** A complaint is never deleted — there is no route for it. */
+  it('offers no way to delete a complaint', async () => {
+    const complaint = await openComplaint();
+    const cookies = await adminCookies();
+
+    const response = await request(`/admin/complaints/${complaint.publicId}`, {
+      method: 'DELETE',
+      cookies,
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('shows the quality board with the breakdown behind each score', async () => {
+    const cookies = await adminCookies();
+
+    const response = await request<
+      Array<{ fullName: string; score: number | null; breakdown: unknown }>
+    >('/admin/quality', { cookies });
+
+    expect(response.status).toBe(200);
+  });
+
+  /**
+   * The rule that matters most in this area.
+   *
+   * A doctor never sees their score or the ratings behind it — a score a
+   * clinician can watch becomes a target they optimise rather than a signal
+   * about care (spec §24, §52).
+   */
+  it('is closed to a doctor, both the board and the complaints', async () => {
+    await createTestUser({
+      email: 'doctor@quality.test',
+      password: 'DoctorPassword123!',
+      role: 'DOCTOR',
+    });
+    const cookies = await signIn('doctor@quality.test', 'DoctorPassword123!');
+
+    expect((await request('/admin/quality', { cookies })).status).toBe(403);
+    expect((await request('/admin/complaints', { cookies })).status).toBe(403);
+  });
+});

@@ -87,6 +87,7 @@ export const AUDIT_ACTIONS = {
   PROMOTION_CREATED: 'promotion.created',
   PROMOTION_DEACTIVATED: 'promotion.deactivated',
 
+  COMPLAINT_DECIDED: 'complaint.decided',
   NOTIFICATION_TEMPLATE_CHANGED: 'notification-template.changed',
 
   SETTING_CHANGED: 'settings.changed',

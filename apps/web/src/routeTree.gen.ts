@@ -16,6 +16,7 @@ import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
+import { Route as AdminQualityRouteImport } from './routes/admin.quality'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
@@ -75,6 +76,11 @@ const AdminPayrollRoute = AdminPayrollRouteImport.update({
 const AdminPromotionsRoute = AdminPromotionsRouteImport.update({
   id: '/admin/promotions',
   path: '/admin/promotions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminQualityRoute = AdminQualityRouteImport.update({
+  id: '/admin/quality',
+  path: '/admin/quality',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminQueueRoute = AdminQueueRouteImport.update({
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
+  '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
+  '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
+  '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
+    | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/settings'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
+    | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/settings'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
+    | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/settings'
@@ -420,6 +432,7 @@ export interface RootRouteChildren {
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
   AdminPromotionsRoute: typeof AdminPromotionsRoute
+  AdminQualityRoute: typeof AdminQualityRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -497,6 +510,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/promotions'
       fullPath: '/admin/promotions'
       preLoaderRoute: typeof AdminPromotionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/quality': {
+      id: '/admin/quality'
+      path: '/admin/quality'
+      fullPath: '/admin/quality'
+      preLoaderRoute: typeof AdminQualityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/queue': {
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,
   AdminPromotionsRoute: AdminPromotionsRoute,
+  AdminQualityRoute: AdminQualityRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminRefundsRoute: AdminRefundsRoute,
   AdminSettingsRoute: AdminSettingsRoute,

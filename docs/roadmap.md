@@ -263,6 +263,39 @@ Real-time operational dashboard · financial dashboard · analytics over retaine
 
 **Exit:** the admin can perform every §100 admin capability; analytics never manufacture deleted clinical data.
 
+**Completed 2026-09-03.** The exit criterion holds by construction rather than
+by discipline: the analytics module contains no query against a clinical
+record, and where a figure could be affected by destruction its coverage is
+reported beside it.
+
+- **The three placeholder dashboards are gone.** Admin, pharmacy and doctor all
+  showed figures invented for the design prototype — GH₵ 68,420 of revenue,
+  GH₵ 1,420, GH₵ 420 — behind a notice saying not to believe them. A dashboard
+  that has to warn you off its own numbers is not a dashboard.
+  `PrototypeDataNotice` and `neem-data.ts` are deleted, because nothing needs
+  them any more.
+- **The settings console** closes §96. `listSettings` and `updateSetting` had
+  existed since Phase 2 with no routes, so changing a price or a revenue split
+  meant editing the database by hand.
+- **Archived consultation retrieval** has existed since Phase 5.5 with no
+  caller, which meant Neem carried a legal obligation — made explicitly to
+  counsel in the G7c answer — that it could not discharge. Exercising it
+  surfaced that a single-administrator deployment cannot retrieve a record at
+  all, because self-authorisation is refused. That is the four-eyes control
+  working, and a deployment constraint worth knowing before a court order
+  arrives rather than after.
+- **Complaints and quality review**, closing the loop that began with patient
+  feedback in Phase 6.5: a patient marks feedback as a complaint, it opens
+  against a category, and an administrator resolves or dismisses it with a
+  written outcome. Verified end to end on real data.
+- **The audit log viewer**, read-only, with no edit or delete route behind it.
+
+One defect introduced and caught here: the admin navigation reached ten items
+and overflowed its container, 1063px into 885px, silently clipping the last
+entries. `min-w-0` is the part that matters — a flex child will not shrink
+below its content without it, so the bar grew and pushed items off the end
+instead of scrolling.
+
 ---
 
 ## Phase 10 — Security and QA

@@ -146,6 +146,57 @@ underneath them.
 
 ---
 
+## 3b. Admin analytics, configuration and oversight (spec §54, §96, §100)
+
+```
+GET    /admin/analytics/operational | /financial | /satisfaction | /outcomes | /coverage
+GET    /admin/settings
+PATCH  /admin/settings/:key                    { value, reason? } — reason required when sensitive
+GET    /admin/settings/:key/history
+GET    /admin/complaints
+POST   /admin/complaints/:publicId/decide      { state, note } — note required to close
+GET    /admin/quality                          scores and their breakdown
+POST   /admin/quality/recompute
+GET    /admin/audit-logs
+GET    /admin/retention/health
+POST   /admin/archived-consultations/retrieve  { consultationPublicId, purpose, reference, authorisedByUserPublicId }
+GET    /admin/archived-consultations/retrievals
+POST   /admin/archived-consultations/retrievals/:id/end
+```
+
+**Analytics never manufacture deleted clinical data.** No query in the module
+touches a clinical record: every figure comes from the consultation row, the
+queue entry, the assignment or the allocation. Where a figure could be affected
+by destruction, its coverage travels with it, so a period whose records have
+gone reports that fact rather than presenting a partial total as a whole one.
+
+There is deliberately **no route reporting a diagnosis, a medication or a test
+result**, in aggregate or otherwise — a "most common condition" chart is a
+medical history with a bar chart on top (spec §13).
+
+**A sensitive setting cannot be changed without a reason**, and which settings
+are sensitive is a property of the setting rather than a list a screen keeps.
+Every change writes the previous value to append-only history.
+
+**A complaint is resolved or dismissed, never deleted**, and both require a
+written outcome — a complaint closed with no explanation cannot be answered to
+the person who raised it. Working one does not open the clinical record; a
+complaint that genuinely needs it goes through archived retrieval, where it is
+logged as an access.
+
+**Archived retrieval is the narrow door counsel required (D27).** It is not a
+search: the consultation reference must be known, the purpose named from a
+fixed list, a request reference given, and a **different** administrator
+recorded as authorising — self-authorisation is refused. There is no browse, no
+consultation list and no patient search, because those would be the
+longitudinal history D24 exists to prevent.
+
+**A doctor never sees a quality score or a patient rating.** The whole area is
+admin-only and a doctor principal is refused rather than filtered (spec §24,
+§52).
+
+---
+
 ## 4. Pharmacy
 
 ### Self-service and verification (spec §20)
