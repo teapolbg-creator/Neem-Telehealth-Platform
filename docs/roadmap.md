@@ -429,12 +429,25 @@ Full authorization audit · every §79 security test automated · retention veri
   fiction. Verified afterwards: 0 stranded, 438 consultations still present,
   421 successful payments still present, no negative capacity.
 
-  It also surfaced a second and larger pile: **206 consultations stuck in
-  `IN_PROGRESS`**, each pinning a doctor at capacity. Only a doctor completes
-  a consultation (spec §15, §16) and there is deliberately no job that does,
-  so in a demo database they never end. That is not a defect — it is the
-  design meeting five days of abandoned test runs — but it is the other half
-  of why the queue was hard to exercise.
+  It also surfaced a second and larger pile: **208 consultations stuck in
+  `IN_PROGRESS` and `DOCTOR_ACCEPTED`**, each pinning a doctor at capacity.
+  Only a doctor completes a consultation (spec §15, §16) and there is
+  deliberately no job that does, so in a demo database they never end. Not a
+  defect — the design meeting five days of abandoned runs — but the other half
+  of why the queue was hard to exercise, and closing them took doctors at
+  capacity from **206 to 0**.
+
+  Closing them also **sealed 208 clinical records that had been sitting
+  unsealed**, because every terminal transition seals and schedules
+  destruction (D23). 341 retention jobs now exist that should have existed all
+  along. That is the more interesting consequence: an unfinished consultation
+  was not only holding a doctor, it was holding a clinical record outside the
+  retention machinery entirely.
+
+  The script now guards on `updatedAt` rather than `createdAt` and leaves
+  anything touched in the last fifteen minutes alone — a long consultation is
+  old and busy at the same time, and a sweep that ended a live call would be a
+  far worse bug than the one it was cleaning up.
 
 - **A queue-testing obstacle worth writing down.** Scenario 1 first completed
   somebody else's consultation and then waited for a patient who never heard
