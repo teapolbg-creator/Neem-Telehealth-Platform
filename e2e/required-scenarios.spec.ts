@@ -221,6 +221,36 @@ test.describe('required scenarios (spec §80)', () => {
     });
     await expect(patient.getByText(/NEEM-[0-9A-HJKMNP-TV-Z]{4}-/)).toBeVisible();
 
+    // And the patient can hand the phone back.
+    //
+    // `POST /patient/session/leave` existed from Phase 3 with no caller: the
+    // portal's only "Leave" was the call's, which ends the video and lets you
+    // rejoin. So there was no way to end a session on a handset about to go
+    // back over a counter. The confirmation asks about the reference rather
+    // than about security, because losing it is the consequence a patient
+    // can actually act on (D24).
+    const stolen = (await patient.context().cookies()).find(
+      (cookie) => cookie.name === 'neem_patient',
+    )!.value;
+
+    await patient.getByRole('button', { name: /finish and clear this phone/i }).click();
+    await patient.getByRole('button', { name: /yes, finish/i }).click();
+
+    await expect(patient.getByRole('heading', { name: /this phone is clear/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    // Nothing of the consultation survives on the screen for the next person.
+    await expect(patient.getByText(/NEEM-[0-9A-HJKMNP-TV-Z]{4}-/)).toHaveCount(0);
+
+    // The copied token dies with it (D34) — the half that a cleared cookie
+    // does nothing about.
+    const replay = await playwright.request.newContext({
+      extraHTTPHeaders: { cookie: `neem_patient=${stolen}` },
+    });
+    const afterFinish = await replay.get(`${API}/patient/session`);
+    expect(afterFinish.status(), 'a copied patient token must not outlive the session').toBe(401);
+    await replay.dispose();
+
     await patient.context().close();
     await doctorPage.context().close();
     await doctorApi.dispose();

@@ -282,6 +282,30 @@ export function useRequestRefund() {
   });
 }
 
+/**
+ * The patient finishing with the phone.
+ *
+ * `POST /patient/session/leave` existed from Phase 3 and **nothing called
+ * it** — the portal's only "Leave" was the call's, which ends the video and
+ * lets the patient rejoin. So a patient handing the handset back across the
+ * counter had no way to end their session at all; it sat valid until it
+ * expired, on a device now in someone else's hands.
+ *
+ * The route clears the cookie *and* ends the session on the server (D34), so
+ * a token already copied off the device stops working too. Clearing the cache
+ * here matters for the same reason the server-side half does: leaving the
+ * consultation reference sitting in memory for the next person to see would
+ * undo most of the point.
+ */
+export function useEndPatientSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.post<{ state: string; message: string }>('/patient/session/leave', {}),
+    onSuccess: () => queryClient.removeQueries({ queryKey: patientSessionKey }),
+  });
+}
+
 function usePatientStep<TInput>(path: string) {
   const queryClient = useQueryClient();
 

@@ -22,6 +22,7 @@ import {
 import {
   usePatientComplaintCategories,
   usePatientLanguages,
+  useEndPatientSession,
   usePatientSession,
   useSelectLanguage,
   useSelectMode,
@@ -47,6 +48,20 @@ export const Route = createFileRoute("/patient/")({
  */
 function PatientPortal() {
   const { data: session, isLoading, error } = usePatientSession();
+
+  // Held here rather than inferred from the session going away. Once the
+  // patient has finished, the session is gone and every query 401s — which is
+  // indistinguishable from an expired code, and would show them "ask the
+  // pharmacy for a new consultation code" as though something had gone wrong.
+  const [finished, setFinished] = useState(false);
+
+  if (finished) {
+    return (
+      <PhoneFrame>
+        <FinishedStep />
+      </PhoneFrame>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -81,8 +96,12 @@ function PatientPortal() {
       {session.step === "MODE" && <ModeStep />}
       {session.step === "WAITING" && <WaitingStep session={session} />}
       {session.step === "IN_CONSULTATION" && <InConsultationStep session={session} />}
-      {session.step === "COMPLETE" && <CompleteStep session={session} />}
-      {session.step === "CLOSED" && <ClosedStep session={session} />}
+      {session.step === "COMPLETE" && (
+        <CompleteStep session={session} onFinished={() => setFinished(true)} />
+      )}
+      {session.step === "CLOSED" && (
+        <ClosedStep session={session} onFinished={() => setFinished(true)} />
+      )}
     </PhoneFrame>
   );
 }
@@ -509,7 +528,13 @@ function AwaitingCallStep({ doctorName }: { doctorName: string }) {
   );
 }
 
-function CompleteStep({ session }: { session: PatientSessionView }) {
+function CompleteStep({
+  session,
+  onFinished,
+}: {
+  session: PatientSessionView;
+  onFinished: () => void;
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
       <div className="grid size-20 place-items-center rounded-full bg-brand/10">
@@ -564,6 +589,106 @@ function CompleteStep({ session }: { session: PatientSessionView }) {
       <p className="mt-6 max-w-xs text-pretty text-xs leading-relaxed text-slate-400">
         Your consultation record is stored securely. No doctor or pharmacy can open it, now or at a
         future visit.
+      </p>
+
+      <FinishOnThisPhone reference={session.consultationPublicId} onFinished={onFinished} />
+    </div>
+  );
+}
+
+/**
+ * Ending the session on a phone that is about to change hands.
+ *
+ * The device here is a handset on a pharmacy counter, not a private one. Until
+ * Phase 10 there was no way to end a session at all: the only "Leave" in this
+ * portal is the call's, which ends the video and lets the patient rejoin, so
+ * a session stayed valid until it expired on a phone already handed back.
+ *
+ * It asks first, and the question is about the reference rather than about
+ * security. Neem keeps no patient profile, so that reference is the patient's
+ * only route back to their own record (D24) — and this screen is the last
+ * place it is ever shown. A confirmation that warned about sessions and
+ * cookies would be answering a question the patient is not asking.
+ */
+function FinishOnThisPhone({
+  reference,
+  onFinished,
+}: {
+  reference?: string;
+  onFinished: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const end = useEndPatientSession();
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="mt-8 w-full max-w-xs rounded-2xl border border-border py-3.5 text-sm font-bold text-slate-600"
+      >
+        Finish and clear this phone
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-8 w-full max-w-xs rounded-2xl border border-warning/40 bg-warning-soft p-5 text-left">
+      <p className="text-sm font-bold">Have you written down your reference?</p>
+
+      {reference && (
+        <p className="mt-2 select-all font-mono text-sm font-bold tracking-wide">{reference}</p>
+      )}
+
+      <p className="mt-2 text-xs leading-relaxed text-slate-600">
+        This is the last time it is shown. Once you finish, this phone is cleared and the
+        reference cannot be shown again — the pharmacist can still find your consultation with it.
+      </p>
+
+      {end.error && (
+        <p className="mt-3 text-xs font-semibold text-red-600">
+          {end.error instanceof ApiError ? end.error.message : "Could not finish. Try again."}
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={end.isPending}
+          onClick={() => end.mutate(undefined, { onSuccess: onFinished })}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-xs font-bold text-white disabled:opacity-40"
+        >
+          {end.isPending && <Loader2 className="size-3.5 animate-spin" />}
+          Yes, finish
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          className="flex-1 rounded-xl border border-border bg-white py-3 text-xs font-bold"
+        >
+          Not yet
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the next person to pick up this phone sees.
+ *
+ * Deliberately empty of everything: no reference, no name, no pharmacy, no
+ * consultation state. A screen that still said "Consultation complete" would
+ * tell the next patient in the queue that someone had just been seen.
+ */
+function FinishedStep() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+      <div className="grid size-16 place-items-center rounded-full bg-slate-100">
+        <Check className="size-8 text-slate-400" />
+      </div>
+      <h1 className="mt-6 text-xl font-bold">This phone is clear</h1>
+      <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
+        You can hand it back. Nothing from your consultation is left on it.
       </p>
     </div>
   );
@@ -778,7 +903,13 @@ function Stars({
   );
 }
 
-function ClosedStep({ session }: { session: PatientSessionView }) {
+function ClosedStep({
+  session,
+  onFinished,
+}: {
+  session: PatientSessionView;
+  onFinished: () => void;
+}) {
   const reason =
     session.state === "CANCELLED"
       ? "This consultation was cancelled."
@@ -804,6 +935,13 @@ function ClosedStep({ session }: { session: PatientSessionView }) {
         means they can ask before they have walked away.
       */}
       <RefundPanel state={session.state} />
+
+      {/*
+        Offered here too. A consultation that was cancelled or expired still
+        leaves a session open on a phone that is about to go back over the
+        counter, and there is no reference to lose in this case.
+      */}
+      <FinishOnThisPhone onFinished={onFinished} />
     </div>
   );
 }

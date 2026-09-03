@@ -374,6 +374,28 @@ Full authorization audit · every §79 security test automated · retention veri
   doctors see a consultation history. They have no such route — the true
   position is stricter than the document claimed, but it was true by omission
   rather than by decision.
+- **The patient had no way to end their session.** Found by sweeping all 131
+  routes for callers after the phase was otherwise done. `POST
+  /patient/session/leave` existed from Phase 3 and nothing invoked it — the
+  portal's only "Leave" is the call's, which ends the video and lets
+  the patient rejoin. So a handset going back over a pharmacy counter kept a
+  live session until it expired. Worth saying plainly: D34 fixed that route's
+  revocation semantics earlier **in the same phase**, and I fixed the
+  mechanism without noticing there was no door to it.
+
+  `Finish and clear this phone` now appears on the completion and closed
+  screens. It confirms first, and the confirmation asks about the consultation
+  reference rather than about sessions and cookies — losing the reference is
+  the consequence a patient can actually act on (D24), and this screen is the
+  last place it is shown. Afterwards the portal renders a screen holding
+  nothing: no reference, no name, no pharmacy, because one still saying
+  "Consultation complete" would tell the next person in the queue that someone
+  had just been seen.
+
+  Verified in a browser and then pinned in Scenario 1: the cookie is gone, the
+  session probe returns 401, and a token copied off the device beforehand is
+  refused as well — the half a cleared cookie does nothing about.
+
 - **Backup and restore, rehearsed rather than documented.** `npm run
   backup:rehearse` backs up the live database, restores it into a scratch
   database, and compares row counts table by table — 60 tables, 17,229 audit
