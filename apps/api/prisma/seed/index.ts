@@ -40,7 +40,29 @@ async function main(): Promise<void> {
       adminPassword: env.DEMO_ADMIN_PASSWORD,
     });
 
-    console.log('  ✓ pharmacies, doctors, accounts\n');
+    console.log('  ✓ pharmacies, doctors, accounts');
+
+    if (result.history) {
+      const h = result.history;
+      console.log(
+        `  ✓ ${h.created} consultations — ${h.completed} completed, ${h.live} still open`,
+      );
+      console.log(
+        `  ✓ ${h.prescriptionsIssued} prescriptions — ${h.dispensed} dispensed, ` +
+          `${h.awaitingSubstitution} awaiting a substitution decision`,
+      );
+      console.log(
+        `  ✓ ${h.refundRequests} refund request, ${h.feedback} pieces of patient feedback`,
+      );
+      console.log(
+        '    Produced by driving the real services, so the analytics, payouts\n' +
+          '    and audit log describe consultations that actually happened.',
+      );
+    } else {
+      console.log('  · consultation history already present — left alone');
+    }
+
+    console.log('');
     console.log('  DEMO ACCOUNTS');
     console.log('  ' + '─'.repeat(94));
     for (const account of result.accounts) {

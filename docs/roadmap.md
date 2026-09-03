@@ -557,6 +557,35 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 **In progress.**
 
+- **The demo history is produced, not fabricated.** The Phase 1 seed created
+  accounts and stopped, with a note saying why: "seeding a prescription before
+  the prescription engine exists would be fabricating data the system cannot
+  yet produce." Those engines exist now, so `demo-consultations.ts` **drives
+  them** — `createConsultation`, `initiatePayment`, `exchangeAccessToken`,
+  `saveClinicalNotes`, `issuePrescription`, `completeConsultation`,
+  `submitFeedback` — rather than inserting rows. The result carries the state
+  events, audit entries, revenue allocations, sealed records and retention
+  jobs a real consultation carries, so the analytics, payouts and audit log
+  describe something that actually happened.
+
+  From an empty database: 15 consultations (12 completed, one unpaid at the
+  counter, one waiting for a doctor, one refunded), 9 prescriptions across
+  ACTIVE, DISPENSED, REVOKED and PENDING_SUBSTITUTION, 8 pieces of feedback
+  including one complaint, 14 payments with 14 matching revenue rows, 106
+  audit entries and 158 state events. The admin dashboard reads 85.7%
+  completion, GHS 560.00 gross, a mean doctor rating of 4.375 and an outcome
+  mix of 9 prescriptions to 3 advice-only.
+
+  **Nothing is left stuck**: 0 doctors at capacity, 13 sealed records with 13
+  matching retention jobs. A demo database full of consultations that can
+  never end is what Phase 10 spent an afternoon clearing.
+
+  **The engines refused the seed twice, which is the point of writing it this
+  way.** Completing an advice-only consultation without a summary was rejected
+  by D25, and revoking a prescription as the wrong doctor was rejected as a
+  404 by the §102 ownership check. Row inserts would have accepted both and
+  produced a demonstration that contradicted the product.
+
 - **The README described a different product.** It said Phase 1 was in
   progress and phases 2–11 were unbuilt; it told the reader that clinical
   notes, diagnosis, vitals and test results are **hard-deleted the moment the

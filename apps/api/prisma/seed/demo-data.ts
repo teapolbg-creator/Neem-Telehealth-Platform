@@ -1,6 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
 import { hashPassword, generatePublicId, encryptField } from '../../src/lib/crypto.ts';
 import { POINT_OF_CARE_TESTS, VITAL_EQUIPMENT } from './reference-data.ts';
+import {
+  seedDemoConsultations,
+  type DemoConsultationSummary,
+} from './demo-consultations.ts';
 
 /**
  * Demo data.
@@ -10,11 +14,16 @@ import { POINT_OF_CARE_TESTS, VITAL_EQUIPMENT } from './reference-data.ts';
  * to run when NODE_ENV=production, and the config loader independently rejects
  * SEED_DEMO_DATA=true in production.
  *
- * Phase 1 seeds the accounts and organisations needed to demonstrate
- * authentication, RBAC and 2FA. Consultations, payments, prescriptions and
- * analytics arrive with the engines that produce them, in Phases 3–9 — seeding
- * a prescription before the prescription engine exists would be fabricating
- * data the system cannot yet produce.
+ * Phase 1 seeded the accounts and organisations needed to demonstrate
+ * authentication, RBAC and 2FA, and stopped there on the grounds that
+ * "seeding a prescription before the prescription engine exists would be
+ * fabricating data the system cannot yet produce".
+ *
+ * Those engines exist now, so Phase 11 adds the history — in
+ * `demo-consultations.ts`, and by **driving the engines** rather than
+ * inserting rows. The original reasoning still holds and is the reason that
+ * file looks the way it does: data the system did not produce is data that
+ * disagrees with the system.
  */
 
 const DEMO_PASSWORD = 'NeemDemo!2026';
@@ -22,6 +31,8 @@ const DEMO_PASSWORD = 'NeemDemo!2026';
 export interface DemoSeedResult {
   adminEmail: string;
   accounts: Array<{ role: string; email: string; password: string; note: string }>;
+  /** Null when a history already existed and this run left it alone. */
+  history: DemoConsultationSummary | null;
 }
 
 export async function seedDemoData(
@@ -293,8 +304,37 @@ export async function seedDemoData(
     }
   }
 
+  /**
+   * The history, built through the engines.
+   *
+   * After the accounts, because it needs them: a consultation belongs to a
+   * pharmacy and is conducted by a doctor, and both have to be ACTIVE before
+   * any of the services will accept one.
+   */
+  const activePharmacy = await prisma.pharmacy.findFirstOrThrow({
+    where: { email: 'akosua@pharmacy.demo' },
+    include: { users: { take: 1 } },
+  });
+  const secondPharmacy = await prisma.pharmacy.findFirstOrThrow({
+    where: { email: 'healthfirst@pharmacy.demo' },
+    include: { users: { take: 1 } },
+  });
+  const activeDoctors = await prisma.doctor.findMany({
+    where: { status: 'ACTIVE', isDemo: true },
+    select: { id: true },
+  });
+  const history = await seedDemoConsultations(prisma, {
+    pharmacyId: activePharmacy.id,
+    pharmacyUserId: activePharmacy.users[0]!.userId,
+    secondPharmacyId: secondPharmacy.id,
+    secondPharmacyUserId: secondPharmacy.users[0]!.userId,
+    doctorIds: activeDoctors.map((doctor) => doctor.id),
+    englishId: english.id,
+  });
+
   return {
     adminEmail: options.adminEmail,
+    history,
     accounts: [
       {
         role: 'ADMIN',
