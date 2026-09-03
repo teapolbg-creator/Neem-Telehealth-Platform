@@ -42,6 +42,9 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Payroll", to: "/admin/payroll" },
     { label: "Promotions", to: "/admin/promotions" },
     { label: "Verification", to: "/admin/verification" },
+    { label: "Archive", to: "/admin/archive" },
+    { label: "Audit", to: "/admin/audit" },
+    { label: "Settings", to: "/admin/settings" },
   ],
 };
 
@@ -81,8 +84,18 @@ export function AppShell({
           <NeemLogo className="text-xl" markClassName="size-8" />
         </Link>
 
+        {/*
+          Scrolls rather than clips.
+
+          The admin has ten sections and the bar overflowed a 900px viewport,
+          silently hiding the last of them — including the audit log and
+          settings. `min-w-0` is the part that actually does the work: a flex
+          child will not shrink below its content without it, so the container
+          would keep growing and push items off the end instead of scrolling.
+        */}
         {navItems.length > 1 && (
-          <div className="hidden sm:flex gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="hidden min-w-0 flex-1 sm:flex justify-center overflow-x-auto">
+            <div className="flex shrink-0 gap-1 bg-slate-100 p-1 rounded-xl">
             {navItems.map((item) => {
               const isActive =
                 item.to === pathname || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
@@ -99,6 +112,7 @@ export function AppShell({
                 </Link>
               );
             })}
+            </div>
           </div>
         )}
 

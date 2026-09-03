@@ -11,11 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminArchiveRouteImport } from './routes/admin.archive'
+import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
@@ -49,6 +52,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminArchiveRoute = AdminArchiveRouteImport.update({
+  id: '/admin/archive',
+  path: '/admin/archive',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/admin/payouts',
   path: '/admin/payouts',
@@ -72,6 +85,11 @@ const AdminQueueRoute = AdminQueueRouteImport.update({
 const AdminRefundsRoute = AdminRefundsRouteImport.update({
   id: '/admin/refunds',
   path: '/admin/refunds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminVerificationRoute = AdminVerificationRouteImport.update({
@@ -189,11 +207,14 @@ const VerifyKindCodeRoute = VerifyKindCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin/archive': typeof AdminArchiveRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -220,11 +241,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/archive': typeof AdminArchiveRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -252,11 +276,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin/archive': typeof AdminArchiveRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -285,11 +312,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin/archive'
+    | '/admin/audit'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -316,11 +346,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/archive'
+    | '/admin/audit'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -347,11 +380,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin/archive'
+    | '/admin/audit'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
     | '/admin/queue'
     | '/admin/refunds'
+    | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -379,11 +415,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminArchiveRoute: typeof AdminArchiveRoute
+  AdminAuditRoute: typeof AdminAuditRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
   AdminPromotionsRoute: typeof AdminPromotionsRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -425,6 +464,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/archive': {
+      id: '/admin/archive'
+      path: '/admin/archive'
+      fullPath: '/admin/archive'
+      preLoaderRoute: typeof AdminArchiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/payouts': {
       id: '/admin/payouts'
       path: '/admin/payouts'
@@ -458,6 +511,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/refunds'
       fullPath: '/admin/refunds'
       preLoaderRoute: typeof AdminRefundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/verification': {
@@ -619,11 +679,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminArchiveRoute: AdminArchiveRoute,
+  AdminAuditRoute: AdminAuditRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,
   AdminPromotionsRoute: AdminPromotionsRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminRefundsRoute: AdminRefundsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,

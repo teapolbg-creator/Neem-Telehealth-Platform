@@ -1,289 +1,410 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/neem/AppShell";
-import { PrototypeDataNotice } from "@/components/neem/PrototypeDataNotice";
-import { Chip } from "@/components/neem/Chip";
-import { doctors, pharmacies } from "@/lib/neem-data";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
-  Users,
-  Building2,
-  Wallet,
+  AlertCircle,
+  Archive,
+  Clock,
+  Loader2,
+  Stethoscope,
   Timer,
-  ShieldCheck,
-  BarChart3,
-  MapPin,
-  Star,
-  AlertTriangle,
+  Users,
+  Wallet,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AppShell } from "@/components/neem/AppShell";
+import { Chip } from "@/components/neem/Chip";
+import { ApiError } from "@/lib/api-client";
+import { formatMinor } from "@/features/finance/api";
+import {
+  useFinancialSummary,
+  useOperationalSummary,
+  useOutcomeMix,
+  useSatisfactionSummary,
+  type ClinicalCoverage,
+} from "@/features/analytics/api";
 
 export const Route = createFileRoute("/admin/")({
-  component: AdminDashboard,
+  component: AdminOverview,
 });
 
-function AdminDashboard() {
+/**
+ * The administrator's overview (spec §54, §100).
+ *
+ * These are real figures. Until Phase 9 this screen carried numbers invented
+ * for the design prototype — GH₵ 68,420 of revenue that never existed — behind
+ * a notice saying so. A dashboard that has to warn you not to believe it is
+ * not a dashboard.
+ *
+ * Everything here is operational: counts, durations, money. Nothing is derived
+ * from a clinical record, so nothing degrades as records are destroyed under
+ * the retention policy — and where a figure *could* be affected, its coverage
+ * is stated rather than assumed.
+ */
+function AdminOverview() {
+  const operational = useOperationalSummary();
+  const financial = useFinancialSummary();
+  const satisfaction = useSatisfactionSummary();
+  const outcomes = useOutcomeMix();
+
+  const loading = operational.isLoading || financial.isLoading;
+  const error = operational.error ?? financial.error;
+
   return (
     <AppShell active="admin">
-      <PrototypeDataNotice phase="Phase 9 (Admin & Analytics)" />
-      <header className="flex flex-wrap justify-between items-end gap-4">
-        <div>
-          <p className="text-sm text-brand font-semibold mb-1">Neem Administration</p>
-          <h1 className="text-3xl font-bold tracking-tight">Executive Overview</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Chip tone="brand" pulse>
-            System healthy
-          </Chip>
-          <select className="px-4 py-2 rounded-xl border border-border bg-white text-sm font-semibold">
-            <option>Today</option>
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-          </select>
-        </div>
+      <header>
+        <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
+        <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
+        <p className="mt-2 text-sm text-slate-500">The last 30 days.</p>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI icon={Activity} label="Live consultations" value="142" tone="brand" delta="+18" />
-        <KPI icon={Users} label="Doctors online" value="48 / 62" tone="medical" />
-        <KPI icon={Building2} label="Active pharmacies" value="312" delta="+4" />
-        <KPI icon={Wallet} label="Revenue today" value="GH₵ 68,420" tone="brand" delta="+12%" />
-        <KPI icon={Timer} label="Avg wait" value="8m 14s" />
-        <KPI icon={Star} label="Satisfaction" value="4.7 / 5" tone="warning" />
-        <KPI icon={ShieldCheck} label="Uptime" value="99.98%" tone="medical" />
-        <KPI icon={AlertTriangle} label="Escalations" value="3 open" tone="warning" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-soft p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold">Consultations by hour</h3>
-            <div className="flex gap-2 text-xs">
-              <Chip tone="brand">Live</Chip>
-              <Chip tone="medical">Completed</Chip>
-            </div>
-          </div>
-          <div className="flex items-end gap-2 h-56">
-            {[30, 45, 52, 60, 75, 92, 100, 88, 76, 65, 58, 42].map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full rounded-lg bg-medical/25" style={{ height: `${h * 0.7}%` }} />
-                <div
-                  className={cn(
-                    "w-full rounded-lg -mt-2",
-                    i === 6 ? "bg-brand" : "bg-brand/40",
-                  )}
-                  style={{ height: `${h * 0.3}%` }}
-                />
-                <span className="text-[10px] text-slate-400 font-medium">{6 + i}:00</span>
-              </div>
-            ))}
-          </div>
+      {loading && (
+        <div className="card-soft grid place-items-center p-16">
+          <Loader2 className="size-6 animate-spin text-brand" />
         </div>
+      )}
 
-        <div className="card-soft p-6">
-          <h3 className="font-bold mb-4">Language demand</h3>
-          <div className="space-y-3">
-            {[
-              { lang: "English", pct: 45, tone: "brand" },
-              { lang: "Twi", pct: 28, tone: "medical" },
-              { lang: "Ga", pct: 12, tone: "brand" },
-              { lang: "Hausa", pct: 9, tone: "medical" },
-              { lang: "Ewe", pct: 6, tone: "brand" },
-            ].map((l) => (
-              <div key={l.lang}>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span>{l.lang}</span>
-                  <span className="text-slate-500">{l.pct}%</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={l.tone === "brand" ? "h-full bg-brand" : "h-full bg-medical"}
-                    style={{ width: `${l.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Doctors */}
-        <div className="card-soft overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-bold">Doctor management</h3>
-            <button className="text-xs font-semibold text-brand">View all →</button>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[10px] uppercase text-slate-400 bg-slate-50/60">
-                <th className="px-5 py-3 font-semibold">Doctor</th>
-                <th className="px-5 py-3 font-semibold">Rating</th>
-                <th className="px-5 py-3 font-semibold">Hours</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {doctors.map((d) => (
-                <tr key={d.id}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={d.photo}
-                        alt={d.name}
-                        width={36}
-                        height={36}
-                        className="size-9 rounded-full object-cover"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate">{d.name}</p>
-                        <p className="text-[11px] text-slate-500">{d.mdc}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 font-semibold">{d.rating} ★</td>
-                  <td className="px-5 py-3">{d.weeklyHours}h</td>
-                  <td className="px-5 py-3">
-                    <Chip tone="brand" pulse>
-                      Online
-                    </Chip>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pharmacies */}
-        <div className="card-soft overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-bold">Pharmacy network</h3>
-            <button className="text-xs font-semibold text-brand">View all →</button>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-[10px] uppercase text-slate-400 bg-slate-50/60">
-                <th className="px-5 py-3 font-semibold">Pharmacy</th>
-                <th className="px-5 py-3 font-semibold">Sessions</th>
-                <th className="px-5 py-3 font-semibold">Revenue</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {pharmacies.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-5 py-3">
-                    <p className="font-semibold">{p.name}</p>
-                    <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                      <MapPin className="size-3" /> {p.city}
-                    </p>
-                  </td>
-                  <td className="px-5 py-3">{p.consultations}</td>
-                  <td className="px-5 py-3 font-mono">GH₵ {p.revenue.toLocaleString()}</td>
-                  <td className="px-5 py-3">
-                    <Chip tone={p.status === "active" ? "brand" : "warning"}>{p.status}</Chip>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-soft p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold">Smart Queue · live assignment</h3>
-            <Chip tone="brand" pulse>
-              Auto-assigning
-            </Chip>
-          </div>
-          <p className="text-xs text-slate-500 mb-4">
-            Doctors are matched by workload, language, availability, and performance.
+      {error && (
+        <div className="card-soft flex items-start gap-3 border-red-200 bg-red-50 p-6">
+          <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
+          <p className="text-sm text-red-700">
+            {error instanceof ApiError ? error.message : "The overview could not be loaded."}
           </p>
-          <div className="space-y-3">
-            {[
-              { lang: "Twi", wait: "1m", pos: 1, doc: "Dr. Ama Boateng" },
-              { lang: "English", wait: "3m", pos: 2, doc: "Dr. Kwame Owusu" },
-              { lang: "Hausa", wait: "6m", pos: 3, doc: "Assigning..." },
-            ].map((q, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-border">
-                <div className="size-10 rounded-xl bg-brand/10 text-brand font-bold grid place-items-center">
-                  #{q.pos}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">Waiting · {q.lang}</p>
-                  <p className="text-xs text-slate-500">Assigned: {q.doc}</p>
-                </div>
-                <Chip tone="medical">{q.wait} wait</Chip>
-              </div>
-            ))}
-          </div>
         </div>
+      )}
 
-        <div className="card-soft p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="size-4 text-brand" />
-            <h3 className="font-bold">Financial split</h3>
+      {operational.data && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat
+              icon={Stethoscope}
+              label="Consultations"
+              value={String(operational.data.consultations.created)}
+              hint={`${operational.data.consultations.completed} completed`}
+            />
+            <Stat
+              icon={Timer}
+              label="Waiting now"
+              value={String(operational.data.queue.waitingNow)}
+              hint={
+                operational.data.queue.medianTimeToDoctorSeconds === null
+                  ? "No wait recorded yet"
+                  : `Median ${Math.round(operational.data.queue.medianTimeToDoctorSeconds)}s to a doctor`
+              }
+              tone={operational.data.queue.waitingNow > 0 ? "warn" : undefined}
+            />
+            <Stat
+              icon={Users}
+              label="Doctors online"
+              value={String(operational.data.doctors.onlineNow)}
+              hint={`${operational.data.doctors.active} active`}
+            />
+            <Stat
+              icon={Wallet}
+              label="Net revenue"
+              value={
+                financial.data
+                  ? formatMinor(financial.data.netMinor, financial.data.currency)
+                  : "—"
+              }
+              hint={
+                financial.data ? `${financial.data.paidConsultations} paid consultations` : ""
+              }
+            />
           </div>
-          <div className="space-y-3">
-            {[
-              { label: "Doctor earnings", value: "GH₵ 27,368", pct: 40, tone: "brand" },
-              { label: "Pharmacy share", value: "GH₵ 20,526", pct: 30, tone: "medical" },
-              { label: "Platform", value: "GH₵ 20,526", pct: 30, tone: "warning" },
-            ].map((r) => (
-              <div key={r.label} className="p-3 rounded-xl bg-slate-50 border border-border">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold">{r.label}</span>
-                  <span className="text-sm font-bold">{r.value}</span>
-                </div>
-                <div className="h-2 bg-white rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full",
-                      r.tone === "brand" && "bg-brand",
-                      r.tone === "medical" && "bg-medical",
-                      r.tone === "warning" && "bg-warning",
-                    )}
-                    style={{ width: `${r.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+
+          {/*
+            The queue's failures, not its successes. A missed offer and a
+            language starvation are the two things an administrator can act on
+            today, so they are on the overview rather than buried a click away.
+          */}
+          {(operational.data.queue.noLanguageMatch > 0 ||
+            operational.data.queue.missedOffers > 0) && (
+            <section className="card-soft border-amber-300/60 bg-amber-50 p-5">
+              <h2 className="flex items-center gap-2 font-bold text-amber-900">
+                <AlertCircle className="size-4" /> Needs attention
+              </h2>
+              <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                {operational.data.queue.noLanguageMatch > 0 && (
+                  <li>
+                    {operational.data.queue.noLanguageMatch} consultation
+                    {operational.data.queue.noLanguageMatch === 1 ? "" : "s"} could not be matched
+                    to a doctor speaking the patient’s language.{" "}
+                    <Link to="/admin/queue" className="font-semibold underline">
+                      Live queue
+                    </Link>
+                  </li>
+                )}
+                {operational.data.queue.missedOffers > 0 && (
+                  <li>
+                    {operational.data.queue.missedOffers} offer
+                    {operational.data.queue.missedOffers === 1 ? "" : "s"} went unanswered inside
+                    the response window.
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ConsultationBreakdown data={operational.data} />
+            {financial.data && <FinancialBreakdown data={financial.data} />}
           </div>
-        </div>
-      </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {outcomes.data && <Outcomes data={outcomes.data} />}
+            {satisfaction.data && <Satisfaction data={satisfaction.data} />}
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }
 
-function KPI({
+function Stat({
   icon: Icon,
   label,
   value,
-  tone = "brand",
-  delta,
+  hint,
+  tone,
 }: {
-  icon: React.ElementType;
+  icon: typeof Users;
   label: string;
   value: string;
-  tone?: "brand" | "medical" | "warning";
-  delta?: string;
+  hint: string;
+  tone?: "warn";
 }) {
-  const tones = {
-    brand: "bg-brand/10 text-brand",
-    medical: "bg-medical/10 text-medical",
-    warning: "bg-warning/15 text-warning",
-  };
   return (
     <div className="card-soft p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div className={cn("size-10 rounded-xl grid place-items-center", tones[tone])}>
-          <Icon className="size-5" />
-        </div>
-        {delta && <span className="text-xs font-bold text-brand">{delta}</span>}
+      <div className="flex items-center gap-2 text-slate-400">
+        <Icon className={tone === "warn" ? "size-4 text-warning" : "size-4"} />
+        <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
       </div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
+      <p className="mt-1.5 text-2xl font-bold">{value}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{hint}</p>
+    </div>
+  );
+}
+
+function ConsultationBreakdown({
+  data,
+}: {
+  data: NonNullable<ReturnType<typeof useOperationalSummary>["data"]>;
+}) {
+  const { consultations, consultationMinutes } = data;
+
+  const rows = [
+    { label: "Completed", value: consultations.completed },
+    { label: "Cancelled", value: consultations.cancelled },
+    { label: "Expired unused", value: consultations.expired },
+    { label: "Abandoned", value: consultations.abandoned },
+    { label: "Refunded", value: consultations.refunded },
+  ];
+
+  return (
+    <section className="card-soft p-6">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Activity className="size-4 text-brand" /> Consultations
+      </h2>
+
+      <p className="mt-3 text-sm text-slate-600">
+        {consultations.completionRate === null
+          ? "Nothing has been paid for in this period."
+          : `${Math.round(consultations.completionRate * 100)}% of paid consultations completed.`}
+      </p>
+
+      <dl className="mt-4 space-y-2 text-sm">
+        {rows.map((row) => (
+          <div key={row.label} className="flex justify-between gap-4">
+            <dt className="text-slate-500">{row.label}</dt>
+            <dd className="font-semibold tabular-nums">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <p className="mt-4 flex items-center gap-2 border-t border-border pt-4 text-sm text-slate-600">
+        <Clock className="size-4 text-slate-400" />
+        {consultationMinutes.median === null
+          ? "No completed consultation to measure yet."
+          : `Median ${consultationMinutes.median.toFixed(1)} minutes, ${consultationMinutes.total} minutes in total.`}
+      </p>
+    </section>
+  );
+}
+
+function FinancialBreakdown({
+  data,
+}: {
+  data: NonNullable<ReturnType<typeof useFinancialSummary>["data"]>;
+}) {
+  return (
+    <section className="card-soft p-6">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Wallet className="size-4 text-brand" /> Money
+      </h2>
+
+      <dl className="mt-4 space-y-2 text-sm">
+        <Row label="Gross" value={formatMinor(data.grossMinor, data.currency)} />
+        <Row label="Discounts given" value={formatMinor(data.discountMinor, data.currency)} />
+        <Row label="Net" value={formatMinor(data.netMinor, data.currency)} strong />
+        <Row label="Pharmacy share" value={formatMinor(data.pharmacyShareMinor, data.currency)} />
+        <Row label="Neem share" value={formatMinor(data.neemShareMinor, data.currency)} />
+        <Row label="Doctor memberships" value={formatMinor(data.membershipMinor, data.currency)} />
+      </dl>
+
+      {/*
+        Refunds are reported separately rather than subtracted. A refunded
+        consultation never earned anything, and netting it off unrelated
+        revenue makes the total impossible to reconcile against the
+        consultations behind it.
+      */}
+      <div className="mt-4 border-t border-border pt-4 text-sm">
+        <Row label="Refunded" value={formatMinor(data.refundedMinor, data.currency)} />
+        {data.reversedAllocations > 0 && (
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            {data.reversedAllocations} allocation
+            {data.reversedAllocations === 1 ? " was" : "s were"} reversed by a refund and are
+            excluded from the figures above, not netted off them.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  ADVICE_ONLY: "Advice only",
+  PRESCRIPTION: "Prescription",
+  REFERRAL: "Referral",
+  EMERGENCY_REFERRAL: "Emergency referral",
+  OTHER: "Other",
+};
+
+function Outcomes({ data }: { data: NonNullable<ReturnType<typeof useOutcomeMix>["data"]> }) {
+  const total = data.outcomes.reduce((sum, row) => sum + row.count, 0);
+
+  return (
+    <section className="card-soft p-6">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Stethoscope className="size-4 text-brand" /> What consultations concluded with
+      </h2>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        The kind of document issued — never what was in it.
+      </p>
+
+      {total === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">No consultation has completed in this period.</p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {data.outcomes.map((row) => (
+            <li key={row.outcome}>
+              <div className="flex justify-between gap-4 text-sm">
+                <span className="text-slate-600">{OUTCOME_LABEL[row.outcome] ?? row.outcome}</span>
+                <span className="font-semibold tabular-nums">{row.count}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-brand"
+                  style={{ width: `${(row.count / total) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {data.unrecorded > 0 && (
+        <p className="mt-3 text-xs text-slate-500">
+          {data.unrecorded} completed consultation{data.unrecorded === 1 ? "" : "s"} recorded no
+          outcome and {data.unrecorded === 1 ? "is" : "are"} not in the mix above.
+        </p>
+      )}
+
+      <CoverageNotice coverage={data.coverage} />
+    </section>
+  );
+}
+
+/**
+ * States plainly when a period's clinical records have been destroyed.
+ *
+ * The Phase 9 exit criterion: analytics must never manufacture deleted
+ * clinical data. For a recent period this renders nothing, because there is
+ * nothing to say — and it exists for the day there is.
+ */
+function CoverageNotice({ coverage }: { coverage: ClinicalCoverage }) {
+  if (coverage.complete) return null;
+
+  return (
+    <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-300/60 bg-amber-50 p-3">
+      <Archive className="mt-0.5 size-4 shrink-0 text-amber-600" />
+      <p className="text-xs leading-relaxed text-amber-900">
+        <strong className="font-bold">This period is no longer complete.</strong>{" "}
+        {coverage.recordsDestroyed} of {coverage.consultationsInPeriod} clinical records have
+        reached the end of their retention period and been destroyed. Figures derived from them
+        cannot be recovered and are not estimated.
+      </p>
+    </div>
+  );
+}
+
+function Satisfaction({
+  data,
+}: {
+  data: NonNullable<ReturnType<typeof useSatisfactionSummary>["data"]>;
+}) {
+  return (
+    <section className="card-soft p-6">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Users className="size-4 text-brand" /> What patients said
+      </h2>
+
+      {data.responses === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">
+          No feedback has been given in this period.
+        </p>
+      ) : (
+        <>
+          <div className="mt-4 flex gap-6">
+            <div>
+              <p className="text-2xl font-bold">{data.meanDoctorRating?.toFixed(1) ?? "—"}</p>
+              <p className="text-xs text-slate-500">The doctor</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{data.meanNeemRating?.toFixed(1) ?? "—"}</p>
+              <p className="text-xs text-slate-500">Neem</p>
+            </div>
+          </div>
+
+          <dl className="mt-4 space-y-2 text-sm">
+            <Row label="Responses" value={String(data.responses)} />
+            <Row
+              label="Response rate"
+              value={
+                data.responseRate === null ? "—" : `${Math.round(data.responseRate * 100)}%`
+              }
+            />
+            <Row label="Compliments" value={String(data.compliments)} />
+            <Row label="Suggestions" value={String(data.suggestions)} />
+            <Row label="Complaints" value={String(data.complaints)} />
+          </dl>
+        </>
+      )}
+
+      {data.openComplaints > 0 && (
+        <p className="mt-4 border-t border-border pt-4">
+          <Chip tone="warning">
+            {data.openComplaints} open complaint{data.openComplaints === 1 ? "" : "s"}
+          </Chip>
+        </p>
+      )}
+    </section>
+  );
+}
+
+function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className={strong ? "font-bold tabular-nums" : "font-semibold tabular-nums"}>{value}</dd>
     </div>
   );
 }
