@@ -175,7 +175,7 @@ underneath them.
 ## 3b. Admin analytics, configuration and oversight (spec §54, §96, §100)
 
 ```
-GET    /admin/analytics/operational | /financial | /satisfaction | /outcomes | /coverage
+GET    /admin/analytics/operational | /financial | /satisfaction | /outcomes
 GET    /admin/settings
 PATCH  /admin/settings/:key                    { value, reason? } — reason required when sensitive
 GET    /admin/settings/:key/history

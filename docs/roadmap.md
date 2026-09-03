@@ -427,6 +427,23 @@ Full authorization audit · every §79 security test automated · retention veri
   empty, and it is the second time this phase that a thing existed only in
   code.
 
+- **The last two uncalled routes, resolved differently.**
+  `GET /admin/analytics/coverage` is **deleted**: it returned exactly the
+  `clinicalCoverage(period)` value that `/outcomes` already carries, with none
+  of the context that makes it meaningful, and nothing called it. Two
+  endpoints for one figure is two places for the figure to disagree — and this
+  figure exists precisely so a period whose records were destroyed cannot be
+  read as a whole one. It travels with the mix it qualifies. A comment stands
+  where the route was, so the next person does not add it back.
+
+  `POST /admin/doctors/:publicId/subscription` **stays, with no screen.** The
+  paid path does not need it — `settleMembershipPayment` creates the period
+  itself — so what it uniquely offers is granting a period nobody paid for.
+  That is a revenue decision, absent from the backlog's admin capabilities, and
+  not worth a button that makes it a click. Its response did need fixing: it
+  told administrators that payment "is integrated in Phase 7" three phases
+  after Phase 7 shipped. It now says plainly that the doctor was not charged.
+
 - **Backup and restore, rehearsed rather than documented.** `npm run
   backup:rehearse` backs up the live database, restores it into a scratch
   database, and compares row counts table by table — 60 tables, 17,229 audit

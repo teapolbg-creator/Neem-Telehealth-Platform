@@ -186,6 +186,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  /**
+   * Granting a membership period without payment.
+   *
+   * **Has no screen, deliberately.** A doctor's own membership is paid for
+   * through `POST /doctor/membership/payment`, and `settleMembershipPayment`
+   * creates the period itself — it does not call this. So nothing in the
+   * normal flow depends on this route; what it uniquely offers is an
+   * administrator granting a period that nobody paid for.
+   *
+   * That is a revenue decision rather than an operational one, it appears
+   * nowhere in the product backlog's admin capabilities, and it is not worth
+   * a button that makes it a click. It stays reachable for a support case
+   * with a person deciding, and it is audited like everything else here.
+   */
   app.post('/admin/doctors/:publicId/subscription', { preHandler: doctorAdmin }, async (request, reply) => {
     const principal = requireAuth(request);
     const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
@@ -200,10 +214,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         periodStart: result.periodStart.toISOString(),
         periodEnd: result.periodEnd.toISOString(),
         amountMinor: result.amountMinor,
-        // Stated plainly: creating the period is not the same as being paid.
-        // Payment collection arrives with Paystack in Phase 7 (spec §93).
+        // Creating the period is not the same as being paid, and this route
+        // takes no money: it is a grant. The note said payment "is integrated
+        // in Phase 7" until Phase 10 — Phase 7 had shipped three phases
+        // earlier, so the response was telling an administrator something
+        // untrue about the money.
         status: 'PENDING',
-        note: 'Subscription period created. Payment is not yet collected — the payment provider is integrated in Phase 7.',
+        note: 'Subscription period granted without payment. The doctor was not charged; nothing was collected for this period.',
       },
       meta: { requestId: request.correlationId },
     });

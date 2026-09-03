@@ -6,7 +6,6 @@ import { guard, requireAuth } from '../../middleware/auth.ts';
 import { listSettings, updateSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS, type SettingKey } from '../settings/settings.defaults.ts';
 import {
-  clinicalCoverage,
   financialSummary,
   last30Days,
   operationalSummary,
@@ -90,14 +89,17 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.get('/admin/analytics/coverage', { preHandler: analyticsOnly }, async (request, reply) => {
-    const period = resolvePeriod(periodQuery.parse(request.query));
-
-    return reply.send({
-      data: await clinicalCoverage(period),
-      meta: { requestId: request.correlationId },
-    });
-  });
+  /*
+   * There is deliberately no `GET /admin/analytics/coverage`.
+   *
+   * It existed and returned exactly what `/outcomes` already carries — the
+   * same `clinicalCoverage(period)` value, with none of the context that
+   * makes it meaningful. Nothing called it. Two endpoints for one figure is
+   * two places for the figure to disagree, and the coverage number exists
+   * precisely so a period whose records have been destroyed cannot be read as
+   * a whole one (the Phase 9 exit criterion). It travels with the mix it
+   * qualifies.
+   */
 
   // -------------------------------------------------------------------------
   // Settings (spec §96)

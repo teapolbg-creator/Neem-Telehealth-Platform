@@ -184,12 +184,13 @@ describe('the exit criterion: analytics never manufacture deleted clinical data'
       },
     });
 
+    // `/coverage` was here until Phase 10 removed it as a duplicate; the
+    // figure it returned is part of `/outcomes`, which is still swept.
     for (const path of [
       '/admin/analytics/operational',
       '/admin/analytics/financial',
       '/admin/analytics/satisfaction',
       '/admin/analytics/outcomes',
-      '/admin/analytics/coverage',
     ]) {
       const body = JSON.stringify((await request(path, { cookies })).body).toLowerCase();
 
