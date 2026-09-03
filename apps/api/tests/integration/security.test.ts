@@ -282,7 +282,7 @@ function concreteUrl(path: string): string {
   return path
     .replace(/:publicId\.pdf/g, 'rx_000000000000000000000000.pdf')
     .replace(/:publicId/g, 'cst_000000000000000000000000')
-    .replace(/:kind/g, 'prescription')
+    .replace(/:kind/g, 'rx')
     .replace(/:channel/g, 'SMS')
     .replace(/:code/g, 'ABCD1234')
     .replace(/:key/g, 'consultation_price_minor')

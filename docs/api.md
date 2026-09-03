@@ -2,18 +2,18 @@
 
 **Status:** part design, part reference. REST/JSON over HTTPS. Base path `/api/v1`.
 
-> **Read this before trusting a path below.** Sections 1–7 were written in
-> Phase 0 as a design and were never reconciled with what got built. A sweep in
-> Phase 10 compared every path in this file against the live Fastify router and
-> found **31 that do not exist**. Most are provisional names the implementation
-> moved on from — `/webhooks/paystack` became `/webhooks/payment`,
-> `/auth/login/2fa` became `/auth/2fa/verify`, `/pharmacy/prescriptions/:id/pdf`
-> became `/documents/prescriptions/:publicId.pdf` — but some name capabilities
-> that were never built at all, such as `/admin/languages`.
+> **Reconciled against the router in Phase 10.** These sections were written in
+> Phase 0 as a design and had never been checked against what shipped. A sweep
+> found **31 paths that did not exist**. Most were provisional names the
+> implementation moved past; eight named capabilities that were never built at
+> all.
 >
-> The sections added from Phase 6 onwards (3b, and the notes under 6 and 7)
-> describe routes that exist and were written against them. The router itself is
-> the authority; `security.test.ts` enumerates it on every run.
+> Every listing below now matches a real route. The eight unbuilt ones are
+> marked **NOT BUILT** where they stood rather than deleted — a capability that
+> quietly disappears from a design reads as one nobody ever wanted, and two of
+> these are absent on purpose and worth being able to point at.
+>
+> The router is the authority; `security.test.ts` enumerates it on every run.
 
 ---
 
@@ -50,12 +50,13 @@
 
 ```
 POST   /auth/login                 { email, password }        → session or 2FA challenge
-POST   /auth/login/2fa             { challengeId, code }      → session
+POST   /auth/2fa/verify            { challengeId, code }      → session
+POST   /auth/2fa/enroll            first admin sign-in; returns the secret and recovery codes
 POST   /auth/logout
 GET    /auth/me                                               → principal, role, permissions
+POST   /auth/password              { currentPassword, newPassword }
 POST   /auth/password-reset/request
 POST   /auth/password-reset/confirm
-POST   /auth/2fa/enroll | /verify | /recovery-codes           (admin)
 ```
 
 `POST /auth/password-reset/request` answers identically whether or not the
@@ -69,7 +70,7 @@ someone to check an inbox would be a claim the system cannot honour (spec §93).
 ## 3. Patient (no account; device-bound session)
 
 ```
-GET    /s/:token                          one-time token exchange → patient session
+POST   /s/exchange                        { token } — one-time exchange → patient session
 POST   /patient/session/identity          { fullName, age, sex, phone, paymentPhone? }
 POST   /patient/session/language          { languageCode }
 POST   /patient/session/mode              { type: AUDIO|VIDEO|CALL_ME }
@@ -77,12 +78,24 @@ GET    /patient/session                   status, doctor presence, timer
 POST   /patient/consultation/media/join   → room + join credential (idempotent; rejoin after a drop)
 POST   /patient/consultation/media/leave
 GET    /patient/consultation/timer        elapsed / remaining / warning / overrun — advisory only
-GET    /patient/session/prescription      → metadata + PDF download
-GET    /patient/session/referral
 GET    /patient/complaint-categories      what a complaint may be about
 POST   /patient/feedback                  { doctorRating, neemRating, category, complaintCategoryCode?, comment? }
+POST   /patient/session/leave             ends the session on the server, not just the cookie
 POST   /patient/refund-request            { reason } — recorded, never granted
+
+NOT BUILT
+GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone
+GET    /patient/session/referral          same
 ```
+
+**`POST`, not `GET`, on the exchange.** A GET is prefetched by scanners, chat
+previews and mail clients, which would spend a single-use token before the
+patient ever arrived.
+
+**The two absent routes are absent on purpose.** A prescription reaches the
+pharmacy the patient is already standing in. What the patient leaves with is
+the consultation reference (D24) — their route back to their own record, and
+deliberately not a copy of it on a device they may lose or hand over.
 
 Every route is scoped to the single consultation bound to the session. No route accepts a consultation identifier from the client.
 
@@ -227,26 +240,30 @@ Neem performs no automated registration lookup, and no response here asserts a d
 
 ```
 POST   /pharmacy/consultations                       create → PENDING_PAYMENT
-POST   /pharmacy/consultations/:id/payment           initiate
-GET    /pharmacy/consultations/:id/payment/status
-POST   /pharmacy/consultations/:id/token             issue/reissue QR token (audited)
-GET    /pharmacy/consultations/:id/qr                → PNG, no data encoded but the token URL
-GET    /pharmacy/consultations                       filter by state/date, paginated
-GET    /pharmacy/consultations/:id                   incl. temporary patient panel while active
-POST   /pharmacy/consultations/:id/cancel
-POST   /pharmacy/consultations/:id/reassign-request
-POST   /pharmacy/consultations/:id/vitals
-POST   /pharmacy/consultations/:id/tests
+POST   /pharmacy/consultations/:publicId/payment     initiate
+GET    /pharmacy/consultations/:publicId/payment     authoritative; re-verifies with the provider
+POST   /pharmacy/consultations/:publicId/payment/simulate   mock provider only; 404 otherwise
+POST   /pharmacy/consultations/:publicId/qr          issue/reissue (audited) → data URL + link
+GET    /pharmacy/consultations                       activeOnly filter, cursor-paged
+GET    /pharmacy/consultations/:publicId             incl. temporary patient panel while active
+POST   /pharmacy/consultations/:publicId/cancel
+POST   /pharmacy/consultations/:publicId/refund-request
+GET    /pharmacy/consultations/:publicId/observations
+POST   /pharmacy/consultations/:publicId/vitals
+POST   /pharmacy/consultations/:publicId/tests
 GET    /pharmacy/prescriptions                       paginated
-GET    /pharmacy/prescriptions/:id
-GET    /pharmacy/prescriptions/:id/pdf
-POST   /pharmacy/prescriptions/:id/substitution      propose alternative
-POST   /pharmacy/prescriptions/:id/dispense
-GET    /pharmacy/referrals/:id/pdf
-GET    /pharmacy/finance/summary                     pharmacy share only — never gross Neem revenue
-GET    /pharmacy/finance/transactions
-GET    /pharmacy/payouts
-POST   /pharmacy/onboarding                          + document upload
+POST   /pharmacy/prescriptions/:publicId/substitutions      propose alternative
+POST   /pharmacy/prescriptions/:publicId/dispense
+GET    /documents/prescriptions/:publicId.pdf        the signed prescription
+GET    /pharmacy/finance                             pharmacy share only — never gross Neem revenue
+GET    /pharmacy/capabilities                        point-of-care capabilities, for the vitals form
+GET    /pharmacy/profile
+POST   /pharmacy/documents | GET /pharmacy/documents/:id
+POST   /onboarding/pharmacy                          the public application form
+
+NOT BUILT
+POST   /pharmacy/consultations/:publicId/reassign-request   only an admin reallocates
+GET    /pharmacy/referrals/:publicId/pdf             a referral is verified, never downloaded
 ```
 
 ---
@@ -254,27 +271,32 @@ POST   /pharmacy/onboarding                          + document upload
 ## 5. Doctor
 
 ```
-GET    /doctor/profile | PATCH /doctor/profile
-POST   /doctor/onboarding/documents
-POST   /doctor/onboarding/signature                  drawn signature capture
-GET    /doctor/status                                credential, licence, subscription
+GET    /doctor/profile                               incl. status, licence, subscription, serviceHours
+POST   /doctor/documents | GET /doctor/documents/:id
+POST   /doctor/signature                             drawn signature capture
 GET    /doctor/shifts | POST /doctor/shifts/:id/confirm
-GET    /doctor/service-hours                         weekly total vs the 40h ceiling
+GET    /doctor/presence | POST /doctor/presence/online | /offline | /heartbeat
 GET    /doctor/queue                                 current offer + countdown
-POST   /doctor/consultations/:id/accept              (no decline endpoint exists)
-GET    /doctor/consultations/:id                     demographics, vitals, tests
-PUT    /doctor/consultations/:id/notes               temporary clinical workspace
-POST   /doctor/consultations/:id/media/join          → room + join credential (joining starts the consultation)
-POST   /doctor/consultations/:id/media/leave
-GET    /doctor/consultations/:id/timer               advisory; nothing here can end a consultation
-POST   /doctor/consultations/:id/call                bridged voice call — response carries no phone number
-POST   /doctor/consultations/:id/complete            { outcome, … } — triggers purge
-POST   /doctor/prescriptions
-POST   /doctor/prescriptions/:id/revoke              blocked once DISPENSED
-POST   /doctor/prescriptions/:id/substitution/:sid/decide  { APPROVE | REJECT, note }
-POST   /doctor/referrals
-GET    /doctor/consultations/history                 operational only — no clinical history
+POST   /doctor/consultations/:publicId/accept        (no decline endpoint exists)
+GET    /doctor/consultations/:publicId               demographics, vitals, tests
+GET    /doctor/consultations/:publicId/workspace     the clinical record while it is open
+PUT    /doctor/consultations/:publicId/notes         temporary clinical workspace
+POST   /doctor/consultations/:publicId/media/join    → room + join credential (joining starts it)
+POST   /doctor/consultations/:publicId/media/leave
+GET    /doctor/consultations/:publicId/timer         advisory; nothing here can end a consultation
+POST   /doctor/consultations/:publicId/call          bridged voice — response carries no phone number
+POST   /doctor/consultations/:publicId/complete      { outcome, … } — seals the record (D23)
+POST   /doctor/consultations/:publicId/prescriptions draft
+POST   /doctor/consultations/:publicId/referrals
+POST   /doctor/consultations/:publicId/summary
+POST   /doctor/prescriptions/:publicId/issue         signs it; generates the PDF
+POST   /doctor/prescriptions/:publicId/revoke        blocked once DISPENSED
+GET    /doctor/substitutions | POST /doctor/substitutions/:id/decide   { APPROVE | REJECT, note }
 GET    /doctor/earnings
+GET    /doctor/membership | POST /doctor/membership/payment | GET .../payment/status
+
+NOT BUILT
+GET    /doctor/consultations/history                 a doctor has no list of past consultations
 ```
 
 No route returns a doctor's own ratings or quality score (spec §24, §52).
@@ -284,31 +306,55 @@ No route returns a doctor's own ratings or quality score (spec §24, §52).
 ## 6. Admin
 
 ```
-GET    /admin/dashboard/realtime | /daily | /trends
-GET    /admin/doctors | :id | POST :id/review | /approve | /activate | /suspend | /reject
-GET    /admin/doctors/:id/documents/:docId           authorised, audited download
-POST   /admin/doctors/:id/shifts                     enforces the 40h rule
-GET    /admin/pharmacies | :id | POST :id/approve | /activate | /suspend | /reject
-GET    /admin/consultations | /queue | POST /admin/consultations/:id/assign
-GET    /admin/payments | /refunds | POST /admin/refunds/:id/decide
-GET    /admin/payouts   | POST /admin/payouts/:id/mark-paid
-GET    /admin/reconciliation
-GET    /admin/settings  | PATCH /admin/settings      confirmation + impact required on sensitive keys
-GET    /admin/languages | POST | PATCH               NOT BUILT (see below)
-GET    /admin/promotions | POST | PATCH
-GET    /admin/notification-templates | PATCH
-GET    /admin/complaints | :id | POST :id/resolve
-GET    /admin/quality/doctors
+GET    /admin/doctors | GET /doctors/:publicId | POST /admin/doctors/:publicId/status
+GET    /admin/doctors/:publicId/transitions          only the moves the machine permits
+PATCH  /admin/doctors/:publicId/compensation
+POST   /admin/doctors/:publicId/subscription
+GET    /admin/doctors/documents/:id | POST /admin/doctors/documents/:id/verify
+GET    /admin/doctors/licences/expiring
+GET    /admin/pharmacies | :publicId | POST :publicId/status | GET :publicId/transitions
+GET    /admin/pharmacies/documents/:id | POST /admin/pharmacies/documents/:id/verify
+GET    /admin/queue     | POST /admin/queue/:publicId/reallocate
+POST   /admin/shifts    | DELETE /admin/shifts/:id   enforces the 40h rule
+GET    /admin/shifts/definitions | PATCH /admin/shifts/definitions/:code
+GET    /admin/refunds   | POST /admin/refunds/:publicId/decide
+GET    /admin/payouts   | POST /admin/payouts/calculate | POST /admin/payouts/:publicId/mark-paid
+GET    /admin/payroll
+GET    /admin/settings  | PATCH /admin/settings/:key | GET /admin/settings/:key/history
+GET    /admin/promotions | POST | POST /admin/promotions/:code/deactivate
+GET    /admin/notification-templates | PATCH /admin/notification-templates/:code/:channel
+GET    /admin/complaints | POST /admin/complaints/:publicId/decide
+GET    /admin/quality   | POST /admin/quality/recompute
 GET    /admin/audit-logs                             filterable, read-only, cursor-paged
 GET    /admin/system-health                          providers, demo mode, database
+
+NOT BUILT
+GET    /admin/dashboard/realtime                     live figures arrive over Socket.IO
+GET    /admin/consultations                          deliberately absent — see below
+GET    /admin/payments                               money is read through analytics/refunds/payouts
+GET    /admin/reconciliation                         the sweep runs hourly into the audit log
+GET    /admin/languages | POST | PATCH               the seeded six are all there are
 ```
 
-**`/admin/languages` does not exist.** It was listed here from Phase 0 and no
-route was ever registered for it, so a language cannot be added or activated
-through the product — the seeded six are what there are, and three of them are
-inactive. Kept in this list, marked, rather than deleted: the capability is
-real and unbuilt, and quietly removing the line would turn a gap into a
-silence.
+**Those five absences are not all the same kind of thing**, and collapsing them
+into one list would hide the difference. One is a design decision, one is a
+gap, and one was never more than a line in this file.
+
+`GET /admin/consultations` is not missing — it is refused by design. An
+administrator who can list consultations can build the longitudinal patient
+history D24 exists to prevent. Reaching one archived consultation takes a known
+reference, a stated purpose and a second administrator (D27); there is no
+browse, and adding one would undo the whole retrieval design.
+
+`GET /admin/reconciliation` names a real capability that runs but cannot be
+read as a report. `reconcilePayments` sweeps hourly and writes its findings to
+the audit log, so payment drift is recorded and searchable by action — but
+there is no screen that puts it in front of an administrator. That is a gap,
+not a design decision, and it is listed here so it stays visible.
+
+`GET /admin/languages` was listed from Phase 0 and no route was ever
+registered. A language cannot be added or activated through the product: the
+seeded six are what there are, and three of them are inactive.
 
 **Health is split by audience, and the split is the point.** `/health` and
 `/health/ready` are unauthenticated probes and say only whether this instance
@@ -334,8 +380,10 @@ Returns **only**: prescription id, issuing doctor name, issue date, status (`VAL
 ## 8. Webhooks
 
 ```
-POST   /webhooks/paystack     raw body, signature verified before parsing, idempotent
-POST   /webhooks/twilio       signature verified
+POST   /webhooks/payment      raw body, signature verified before parsing, idempotent
+
+NOT BUILT
+POST   /webhooks/twilio       media is mocked; no voice status callback is received
 ```
 
 Exempt from CSRF and session auth; authenticated by provider signature only. Duplicate delivery is absorbed by unique constraints (see `payment-flow.md` §3).

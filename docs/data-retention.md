@@ -264,7 +264,9 @@ process on the machine could read them for as long as a full dump takes.
 
 ## 8. Consultation history — operational, not medical
 
-Doctors and pharmacies see historical consultations as: identifier, date, duration, language, type, outcome, and whether a prescription or referral was issued.
+A **pharmacy** sees its own historical consultations as: identifier, date, duration, language, type, outcome, and whether a prescription or referral was issued (`GET /pharmacy/consultations`).
+
+**A doctor has no history route at all.** This section said otherwise until Phase 10; the reconciliation of `docs/api.md` against the router found that `GET /doctor/consultations/history` was never built. A doctor reaches the consultation in front of them and no other. That is a stricter position than this document claimed, and the stricter one is the one that is true — but it was true by omission rather than by decision, which is worth saying plainly.
 
 They cannot see clinical notes, diagnoses, treatment information, vitals, or test results from past consultations. Those records exist, and neither role has any route that returns them.
 

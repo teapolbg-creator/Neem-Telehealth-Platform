@@ -355,6 +355,25 @@ Full authorization audit · every §79 security test automated · retention veri
   verifying Phase 9 — made the test skip permanently, the TOTP secret being
   unrecoverable by design. Nothing in "44 passed, 5 skipped" distinguishes it
   from "45 passed", which is the whole reason the five were worth opening.
+- **`docs/api.md` named 31 routes that do not exist**, and now names none.
+  It was written in Phase 0 as a design and never checked against what
+  shipped. Most entries were provisional names the implementation moved past;
+  eight were capabilities never built. Every listing now matches the router,
+  and the eight sit under `NOT BUILT` markers where they stood — including two
+  worth being able to point at: `/admin/consultations` is refused by design,
+  because an administrator who can list consultations can assemble the
+  longitudinal history D24 exists to prevent, while `/admin/reconciliation`
+  is a genuine gap (the sweep runs hourly into the audit log, but no screen
+  shows payment drift to a human).
+
+  `docs-drift.test.ts` keeps it reconciled: every path the document names must
+  exist or be marked absent, and a renamed route now fails a test instead of
+  quietly widening the gap again. The same argument as D33, applied to prose.
+
+  It also settled a contradiction in `data-retention.md` §8, which claimed
+  doctors see a consultation history. They have no such route — the true
+  position is stricter than the document claimed, but it was true by omission
+  rather than by decision.
 - **Backup and restore, rehearsed rather than documented.** `npm run
   backup:rehearse` backs up the live database, restores it into a scratch
   database, and compares row counts table by table — 60 tables, 17,229 audit
