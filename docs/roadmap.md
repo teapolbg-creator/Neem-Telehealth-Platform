@@ -554,3 +554,36 @@ buried.
 Seeded demo environment clearly marked DEMO and isolated from production config · demo admin, pharmacies, doctors, consultations, payments, prescriptions, referrals, feedback, analytics · UI polish across empty, loading, error, and success states · accessibility pass · complete README and setup instructions · a written demonstration script covering pharmacy → patient → doctor → prescription → admin.
 
 **Exit:** you can run the full business cycle end to end on this machine from a clean checkout.
+
+**In progress.**
+
+- **The README described a different product.** It said Phase 1 was in
+  progress and phases 2–11 were unbuilt; it told the reader that clinical
+  notes, diagnosis, vitals and test results are **hard-deleted the moment the
+  doctor completes**. That has been false since D23, which established that
+  deletion was never lawful and replaced it with sealing. A README is the one
+  document a stranger reads first, and this one made a promise about patient
+  data that the system deliberately does not keep. Rewritten against what the
+  code does, with the retention position stated as it actually is.
+
+  Other corrections in the same pass: the web URL was wrong (3000, not 8080),
+  shadcn/ui was still listed in the stack after Phase 10 deleted it, the
+  integrations table said Paystack and the notification providers were future
+  work, and mock mode was said to be reported by `/health/ready` — which Phase
+  10 narrowed precisely so it would not be.
+
+- **Adminer and the web server both defaulted to port 8080.** The README told
+  the reader to start Adminer while developing, which could not work. Adminer
+  moved to 8081.
+
+- **`.env.example` claimed to document every variable and documented all but
+  two.** `PAYSTACK_TIMEOUT_MS` and `PAYSTACK_RECEIPT_DOMAIN` have defaults, so
+  nothing was broken — but the file makes a completeness claim, and a
+  completeness claim that is nearly true is worse than none. Checked
+  programmatically against the zod schema: 58 variables, 0 undocumented.
+
+- **One claim I wrote and had to correct before committing.** The new
+  integrations table said the Twilio video and voice adapters were built. They
+  are not: selecting `twilio` throws at boot saying so. The table now says
+  interface-and-mock, and notes that a demonstration therefore runs on
+  simulated media — which the screens already state.
