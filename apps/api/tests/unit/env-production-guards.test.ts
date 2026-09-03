@@ -13,7 +13,11 @@ import { loadEnv } from '../../src/config/env.ts';
  */
 
 /** A configuration that is valid in production, as a baseline to spoil. */
-function productionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+// `undefined` is meaningful in an override: it removes a variable the baseline
+// sets, which is how the "required when ..." guards are exercised.
+function productionEnv(
+  overrides: Record<string, string | undefined> = {},
+): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
     DATABASE_URL: 'mysql://neem:secret@db:3306/neem',
@@ -32,6 +36,9 @@ function productionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEn
     TWILIO_ACCOUNT_SID: 'AC00000000000000000000000000000001',
     TWILIO_AUTH_TOKEN: 'a-real-twilio-auth-token-value-0000000001',
     TWILIO_VOICE_NUMBER: '+233200000000',
+    // Each channel needs the sender it will actually send from; Phase 8 made
+    // that a boot requirement rather than a runtime surprise.
+    TWILIO_SMS_NUMBER: '+233200000001',
     SMTP_HOST: 'smtp.example.com',
     SMTP_PORT: '587',
     SEED_DEMO_DATA: 'false',
@@ -112,6 +119,33 @@ describe('the other production guards', () => {
     expect(() => loadEnv(productionEnv({ PAYMENT_PROVIDER: 'mock' }))).toThrow(
       /a mock adapter cannot verify that anything actually happened/,
     );
+  });
+
+  /**
+   * A channel selected without the number it sends from.
+   *
+   * Twilio rejects a message with no `From`, so this would boot cleanly and
+   * then fail on every notification — the worst shape of failure, because the
+   * deployment looks healthy while nothing is delivered.
+   */
+  it('refuses Twilio SMS without a sender number', () => {
+    expect(() => loadEnv(productionEnv({ TWILIO_SMS_NUMBER: undefined }))).toThrow(
+      /TWILIO_SMS_NUMBER/,
+    );
+  });
+
+  it('refuses Twilio WhatsApp without a sender number', () => {
+    expect(() =>
+      loadEnv(productionEnv({ WHATSAPP_PROVIDER: 'twilio', TWILIO_WHATSAPP_NUMBER: undefined })),
+    ).toThrow(/TWILIO_WHATSAPP_NUMBER/);
+  });
+
+  it('accepts Twilio WhatsApp once its sender is configured', () => {
+    expect(() =>
+      loadEnv(
+        productionEnv({ WHATSAPP_PROVIDER: 'twilio', TWILIO_WHATSAPP_NUMBER: '+233200000002' }),
+      ),
+    ).not.toThrow();
   });
 
   it('refuses MailHog, which is a mock by another name', () => {

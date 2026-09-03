@@ -39,7 +39,7 @@ export const PROVIDER_MODES = {
   voice: ['mock', 'twilio'],
   sms: ['mock', 'twilio'],
   email: ['mock', 'mailhog', 'smtp'],
-  whatsapp: ['mock'],
+  whatsapp: ['mock', 'twilio'],
 } as const;
 
 const envSchema = z
@@ -121,6 +121,10 @@ const envSchema = z
     TWILIO_API_KEY_SID: z.string().optional(),
     TWILIO_API_KEY_SECRET: z.string().optional(),
     TWILIO_VOICE_NUMBER: z.string().optional(),
+    TWILIO_SMS_NUMBER: z.string().optional(),
+    /** The WhatsApp sender, without the `whatsapp:` prefix — the adapter adds it. */
+    TWILIO_WHATSAPP_NUMBER: z.string().optional(),
+    TWILIO_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
 
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: port.default(1025),
@@ -172,10 +176,26 @@ const envSchema = z
        */
     }
 
+    if (env.SMS_PROVIDER === 'twilio') {
+      require('TWILIO_SMS_NUMBER', env.TWILIO_SMS_NUMBER, 'when SMS_PROVIDER=twilio');
+    }
+    if (env.WHATSAPP_PROVIDER === 'twilio') {
+      require(
+        'TWILIO_WHATSAPP_NUMBER',
+        env.TWILIO_WHATSAPP_NUMBER,
+        'when WHATSAPP_PROVIDER=twilio',
+      );
+    }
+    if (env.EMAIL_PROVIDER === 'smtp') {
+      require('SMTP_HOST', env.SMTP_HOST, 'when EMAIL_PROVIDER=smtp');
+      require('SMTP_FROM', env.SMTP_FROM, 'when EMAIL_PROVIDER=smtp');
+    }
+
     const usesTwilio =
       env.VIDEO_PROVIDER === 'twilio' ||
       env.VOICE_PROVIDER === 'twilio' ||
-      env.SMS_PROVIDER === 'twilio';
+      env.SMS_PROVIDER === 'twilio' ||
+      env.WHATSAPP_PROVIDER === 'twilio';
     if (usesTwilio) {
       require('TWILIO_ACCOUNT_SID', env.TWILIO_ACCOUNT_SID, 'when a Twilio provider is selected');
       require('TWILIO_AUTH_TOKEN', env.TWILIO_AUTH_TOKEN, 'when a Twilio provider is selected');

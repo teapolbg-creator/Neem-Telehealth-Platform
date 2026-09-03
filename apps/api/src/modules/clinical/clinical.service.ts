@@ -11,6 +11,7 @@ import {
 } from '../retention/clinical-record.service.ts';
 import { endMediaSession } from '../media/media.service.ts';
 import { emitToConsultation, emitToPharmacy } from '../realtime/realtime.service.ts';
+import { notify } from '../notification/notification.service.ts';
 
 /**
  * The doctor's clinical workspace and consultation completion (spec §14–§17).
@@ -208,6 +209,26 @@ export async function completeConsultation(
   emitToPharmacy(consultation.pharmacyId, 'consultation.completed', {
     consultationPublicId: consultation.publicId,
     outcome: input.outcome,
+  });
+
+  /**
+   * The consultation reference, by SMS (decision D24).
+   *
+   * Neem keeps no patient profile, so this reference is the only route back to
+   * their own record. The completion screen shows it, but a screen is closed
+   * and forgotten — an SMS is still in the phone next month, which is when
+   * someone actually needs it.
+   *
+   * The message says nothing about what happened. An SMS is readable by anyone
+   * holding the handset, and this one has to survive that (spec §60).
+   *
+   * Sent after the transaction and not awaited: the consultation is complete
+   * whether or not the gateway answers.
+   */
+  void notify({
+    templateCode: 'patient.consultation.complete',
+    recipient: { type: 'PATIENT', consultationId },
+    variables: { consultationReference: consultation.publicId },
   });
 
   return {

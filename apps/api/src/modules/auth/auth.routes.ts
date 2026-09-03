@@ -9,6 +9,7 @@ import {
   type SessionUser,
 } from '@neem/contracts';
 import { getEnv } from '../../config/env.ts';
+import { getNotificationProvider } from '../../adapters/notification/index.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { requireAuth, requireSession } from '../../middleware/auth.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
@@ -79,13 +80,14 @@ function authRateLimit() {
 /**
  * Whether a password-reset message can actually be delivered.
  *
- * There is no email adapter yet — `EMAIL_PROVIDER` is configurable but nothing
- * reads it — so this is `false` regardless of configuration. Phase 8 flips it
- * when the notification abstraction lands, in the same edit that removes the
- * TODO below. Deriving it from the env instead would report `true` today and
- * be wrong.
+ * Phase 8 built the email adapter, so this is now a real question about the
+ * deployment rather than about the code: a mock or a local catcher delivers
+ * nothing anyone will read, and the screen must not tell someone to check an
+ * inbox in that case (spec §93).
  */
-const EMAIL_DELIVERY_IMPLEMENTED = false;
+function emailDeliveryConfigured(): boolean {
+  return getEnv().EMAIL_PROVIDER === 'smtp';
+}
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
@@ -234,14 +236,44 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const input = passwordResetRequestSchema.parse(request.body);
       const issued = await requestPasswordReset(input.email, requestContext(request));
 
-      // TODO(Phase 8): dispatch through the notification abstraction. Until the
-      // email adapter exists, development surfaces the token in the API log
-      // rather than pretending a message was sent (spec §93).
-      if (issued.token && getEnv().NODE_ENV !== 'production') {
-        request.log.warn(
-          { resetPath: `/auth/reset?token=${issued.token}` },
-          'password reset token issued (development only — no email provider configured yet)',
-        );
+      /**
+       * The link, by email.
+       *
+       * Not routed through `notify()`. That path stores a hash of what it
+       * sent and retries what failed, both of which are wrong for a
+       * credential: a reset link must not be re-sent by a background job
+       * minutes later, and there is no version of "notification history" that
+       * should be able to reconstruct one. It goes to one address, once,
+       * through the adapter directly.
+       */
+      if (issued.token) {
+        const link = `${getEnv().WEB_ORIGIN}/auth/reset?token=${issued.token}`;
+
+        void getNotificationProvider('EMAIL')
+          .send({
+            to: input.email,
+            subject: 'Reset your Neem password',
+            body:
+              `Someone asked to reset the password for this Neem account.\n\n` +
+              `${link}\n\n` +
+              `The link expires shortly and can be used once. If this was not you, ` +
+              `ignore this message — your password has not changed.`,
+            reference: `pwreset_${issued.token.slice(0, 8)}`,
+          })
+          .catch((error: unknown) => {
+            // Never surfaced to the caller: whether an address exists must not
+            // be inferable from how this route behaves.
+            request.log.error({ err: error }, 'password reset email could not be sent');
+          });
+
+        // Development still logs the path, because a local catcher is not
+        // always running and a developer needs the link either way.
+        if (getEnv().NODE_ENV !== 'production') {
+          request.log.warn(
+            { resetPath: `/auth/reset?token=${issued.token}` },
+            'password reset token issued (development)',
+          );
+        }
       }
 
       /**
@@ -255,7 +287,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
        * calling their administrator.
        */
       return reply.send({
-        data: { status: 'REQUESTED', deliveryConfigured: EMAIL_DELIVERY_IMPLEMENTED },
+        data: { status: 'REQUESTED', deliveryConfigured: emailDeliveryConfigured() },
         meta: { requestId: request.correlationId },
       });
     },

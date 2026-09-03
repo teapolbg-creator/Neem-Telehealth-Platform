@@ -268,7 +268,12 @@ describe('sealing', () => {
 
     const serialised = JSON.stringify(entry);
     expect(serialised).toContain('retentionYears');
-    expect(serialised).not.toMatch(/Fever|Positive|MALARIA|128/);
+    /**
+     * \b around 128: it is a systolic reading, and as a bare substring it also
+     * matches about one uuid in two hundred. These rows carry several, so the
+     * unbounded version failed roughly one run in fifty for no reason.
+     */
+    expect(serialised).not.toMatch(/Fever|Positive|MALARIA|\b128\b/);
   });
 });
 
@@ -337,7 +342,7 @@ describe('the pharmacy reads back its observations, and nothing else', () => {
     expect(response.body.data!.sealed).toBe(true);
     expect(response.body.data!.vitals).toBeNull();
     expect(response.body.data!.tests).toEqual([]);
-    expect(JSON.stringify(response.body)).not.toMatch(/Positive|128|38\.2/);
+    expect(JSON.stringify(response.body)).not.toMatch(/Positive|\b128\b|38\.2/);
   });
 
   it('is closed to another pharmacy', async () => {
@@ -384,7 +389,7 @@ describe('a sealed record is closed to every role', () => {
     const response = await request(`/pharmacy/consultations/${consultation.publicId}`, { cookies });
     const body = JSON.stringify(response.body);
 
-    expect(body).not.toMatch(/Fever|Positive|128|38\.2/);
+    expect(body).not.toMatch(/Fever|Positive|\b128\b|38\.2/);
   });
 });
 

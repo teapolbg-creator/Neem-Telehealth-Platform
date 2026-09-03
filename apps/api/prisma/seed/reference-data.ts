@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { NOTIFICATION_TEMPLATES } from '../../src/modules/notification/templates.ts';
 import {
   DEFAULT_SETTINGS,
   SETTING_KEYS,
@@ -119,6 +120,40 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
       update: { label: shift.label },
       create: shift,
     });
+  }
+
+  /**
+   * Notification templates.
+   *
+   * The catalogue in `modules/notification/templates.ts` is the source of
+   * truth for which notifications exist and what variables each may use.
+   * These rows are the *editable wording*, seeded from it so an administrator
+   * has something to edit rather than an empty screen.
+   *
+   * Upserted on `update: {}` — an admin's edit is never overwritten by a
+   * later seed run, which would silently undo their work.
+   */
+  for (const template of NOTIFICATION_TEMPLATES) {
+    for (const channel of template.channels) {
+      await prisma.notificationTemplate.upsert({
+        where: {
+          code_channel_locale: {
+            code: template.code,
+            channel,
+            locale: template.locale,
+          },
+        },
+        update: {},
+        create: {
+          code: template.code,
+          channel,
+          locale: template.locale,
+          subject: template.subject ?? null,
+          body: template.body,
+          isActive: true,
+        },
+      });
+    }
   }
 
   for (const category of COMPLAINT_CATEGORIES) {

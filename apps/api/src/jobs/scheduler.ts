@@ -11,6 +11,7 @@ import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 import { runSubscriptionExpirySweep } from '../modules/subscription/subscription.service.ts';
 import { reconcilePayments } from '../modules/payment/reconciliation.service.ts';
+import { retryFailedNotifications } from '../modules/notification/notification.service.ts';
 import { emitTimerWarnings } from '../modules/media/media.service.ts';
 import { purgeExpiredClinicalRecords } from '../modules/retention/clinical-record.service.ts';
 
@@ -119,6 +120,20 @@ const JOBS: JobDefinition[] = [
     intervalMs: 60 * MINUTE,
     run: async () => (await runSubscriptionExpirySweep()).suspended,
     describe: (count) => `suspended ${count} doctor(s) whose membership lapsed`,
+  },
+  {
+    /**
+     * Bounded retry for notifications that failed in flight
+     * (docs/architecture.md).
+     *
+     * Only transient failures are here: a permanently undeliverable address is
+     * put beyond this job's reach at the moment it fails, so the queue does
+     * not fill with messages that will never send.
+     */
+    name: 'retry-notifications',
+    intervalMs: MINUTE,
+    run: retryFailedNotifications,
+    describe: (count) => `retried ${count} notification(s)`,
   },
   {
     /**

@@ -8,6 +8,7 @@ import { getIntSetting, getNumberSetting } from '../settings/settings.service.ts
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { emitToConsultation, emitToDoctor, emitToAdmins } from '../realtime/realtime.service.ts';
+import { notify } from '../notification/notification.service.ts';
 import {
   isLanguageStarved,
   rankDoctors,
@@ -273,6 +274,21 @@ export async function offerNextDoctor(
     consultationPublicId: consultation.publicId,
     respondByAt: respondByAt.toISOString(),
     windowSeconds,
+  });
+
+  /**
+   * Also on SMS.
+   *
+   * The socket reaches a doctor watching the screen. This one reaches the
+   * doctor who stepped away, and the 90-second window is short enough that
+   * the difference decides whether the patient is seen.
+   *
+   * Not awaited: an unreachable gateway must not hold up an allocation.
+   */
+  void notify({
+    templateCode: 'doctor.consultation.offered',
+    recipient: { type: 'DOCTOR', doctorId: best.doctorId },
+    variables: { pharmacyName: consultation.pharmacy.name, seconds: windowSeconds },
   });
   emitToConsultation(consultation.publicId, 'consultation.state_changed', { state: 'ASSIGNED' });
 

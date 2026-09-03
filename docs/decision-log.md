@@ -406,3 +406,27 @@ That left the clearest refund case in the product with no route at all. A consul
 **What a request does depends on where the consultation is.** A live consultation is moved to `REFUND_REQUESTED`, which holds it while the decision is pending; a finished one is left exactly where it is, because the refund is a fact about the money rather than a second ending. On rejection the prior state is restored from the state event log, which already records `fromState` — storing it a second time on the refund row would be a copy of the same fact with its own way of being wrong.
 
 **Consequence, and the thing that nearly broke.** Making a terminal state re-enterable means a consultation can now cross into terminal twice: once when it ended, and again at `REFUNDED`. `transition()` released doctor capacity on every non-terminal→terminal crossing, so the second one would have decremented a count the consultation no longer held and handed the doctor a slot they were not free for. The release is now guarded on `clinicalSealedAt`, which the seal sets on the first crossing. The existing comment claimed `GREATEST(currentLoad - 1, 0)` made a repeat harmless; it prevents a negative count, which is not the same thing.
+
+---
+
+### D32 — There is no in-app notification archive · 2026-09-03 · **DECIDED (Category B)**
+
+**Issue.** `notifications` stores `renderedPayloadHash`, not the rendered body. That was decided in Phase 0 for a good reason — a notification history holding the text of every message would be a second copy of personal data, growing beside the record it was supposed to summarise (spec §60, docs/database.md).
+
+Building Phase 8 made the consequence concrete: **a notification bell with a list of past messages cannot be built.** There is nothing to list. The obvious workarounds are all worse:
+
+- *Store the body for IN_APP only.* The channel a message went out on has nothing to do with how sensitive it is, and this would create exactly the archive the schema exists to prevent.
+- *Store the variables and re-render.* Identical in effect. `{ consultationReference, pharmacyName }` reconstitutes the message perfectly.
+- *Store nothing and show nothing.* Leaves a doctor who was offline with no way to learn what they missed.
+
+**Decision.** In-app notification is **real-time only**, and the durable surface is the work queue itself.
+
+- A socket emit reaches whoever is looking at the screen.
+- A doctor who was not gets the same information from the queue they would have to visit anyway: `/doctor/substitutions` lists what is awaiting their decision, `/doctor/queue` what is offered, `/admin/refunds` what is awaiting a decision.
+- The `notifications` row records that a dispatch happened, with a hash — enough to answer "was this sent" and "did it fail", and not enough to reconstruct what it said.
+
+This is the same reasoning that produced the substitution inbox in Phase 6.5, and the phrase used there still applies: **a work queue rather than a notification.** A queue is better than an archive anyway — it shows what still needs doing rather than what was once announced.
+
+**Consequence for retries.** A failed message cannot be re-sent verbatim, because the text is gone. Templates that take no variables re-render exactly from the catalogue and are retried; the rest are marked `SUPPRESSED` with the reason recorded, rather than re-sent with a placeholder in them. That is a real limitation and is stated in the module rather than hidden.
+
+**What this does not change.** SMS, email and WhatsApp still deliver a full message to the recipient's own device. The restriction is on what Neem keeps, not on what it sends.

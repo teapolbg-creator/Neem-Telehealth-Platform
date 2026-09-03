@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { AlertCircle, Loader2, Phone, PhoneOutgoing, Video, Wifi, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
@@ -13,6 +14,16 @@ import {
   useQueue,
   type QueueOffer,
 } from "@/features/queue/api";
+import {
+  useRealtimeEvent,
+  useRealtimeInvalidation,
+} from "@/features/realtime/socket";
+import {
+  dismissNotificationPrompt,
+  useNotificationPermission,
+  useOfferAlert,
+  useShouldPromptForNotifications,
+} from "@/features/realtime/use-offer-alert";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/doctor/queue")({
@@ -40,6 +51,32 @@ function DoctorQueue() {
   useHeartbeat(online);
 
   const { data: queue } = useQueue(online);
+  const alert = useOfferAlert();
+  const shouldPrompt = useShouldPromptForNotifications();
+
+  /**
+   * The offer, pushed rather than polled (spec §58).
+   *
+   * The queue query still polls as a fallback, because a socket that has
+   * silently dropped must not cost a doctor an offer. But the socket is what
+   * arrives in the first second, and the 90-second window is short enough for
+   * that to decide whether the patient is seen.
+   */
+  useRealtimeInvalidation('queue.offer', ['doctor', 'queue'], online);
+
+  useRealtimeEvent<{ consultationPublicId: string }>(
+    'queue.offer',
+    () => {
+      // A sound and a browser notification, for the doctor who is not looking
+      // at this tab. Nothing clinical in either — a browser notification is
+      // rendered by the operating system and visible to anyone nearby.
+      alert({
+        title: 'A consultation is waiting',
+        body: 'Open Neem to accept it before the window closes.',
+      });
+    },
+    online,
+  );
 
   if (isLoading) {
     return (
@@ -53,6 +90,8 @@ function DoctorQueue() {
 
   return (
     <AppShell active="doctor">
+      {shouldPrompt && <NotificationPrompt />}
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mb-1 text-sm font-semibold text-brand">Consultation queue</p>
@@ -255,5 +294,50 @@ function IdleCard({ online, currentLoad }: { online: boolean; currentLoad: numbe
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Asks for notification permission, once, where it makes sense.
+ *
+ * Not on mount: browsers require a user gesture, and an unprompted request is
+ * denied by habit — a denial that then sticks. Shown here because this is the
+ * screen where the permission is worth having.
+ */
+function NotificationPrompt() {
+  const { request } = useNotificationPermission();
+  const [hidden, setHidden] = useState(false);
+
+  if (hidden) return null;
+
+  return (
+    <div className="card-soft flex flex-wrap items-center justify-between gap-4 border-brand/30 bg-brand/[0.03] p-5">
+      <div>
+        <p className="font-bold">Get told when a consultation arrives</p>
+        <p className="mt-0.5 text-sm text-slate-600">
+          Neem can sound an alert and show a notification when you are offered a consultation. You
+          have 90 seconds to accept one.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void request()}
+          className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white hover:brightness-110"
+        >
+          Turn on alerts
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            dismissNotificationPrompt();
+            setHidden(true);
+          }}
+          className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
+        >
+          Not now
+        </button>
+      </div>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { generatePublicId, generateVerificationCode } from '../../lib/crypto.ts'
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { emitToPharmacy, emitToDoctor } from '../realtime/realtime.service.ts';
+import { notify } from '../notification/notification.service.ts';
 import {
   assertPrescriptionTransition,
   canDispense,
@@ -212,7 +213,11 @@ export async function issuePrescription(
     return tx.prescription.update({
       where: { id: prescriptionId },
       data: { state: 'ACTIVE' },
-      include: { items: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } } },
+      include: {
+        items: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+        // The reference the pharmacy is notified with. Nothing clinical.
+        consultation: { select: { publicId: true } },
+      },
     });
   });
 
@@ -231,6 +236,14 @@ export async function issuePrescription(
 
   emitToPharmacy(prescription.pharmacyId, 'prescription.issued', {
     prescriptionPublicId: prescription.publicId,
+  });
+
+  void notify({
+    templateCode: 'pharmacy.prescription.issued',
+    recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
+    // The consultation reference only. What was prescribed stays behind the
+    // authenticated screen (spec §60).
+    variables: { consultationReference: issued.consultation.publicId },
   });
 
   return issued;
@@ -389,6 +402,9 @@ export async function proposeSubstitution(
     include: {
       items: { where: { id: itemId } },
       substitutions: { where: { state: 'PENDING' }, select: { id: true } },
+      // Named in the notification to the doctor, so they know where the
+      // pharmacist waiting on them is.
+      pharmacy: { select: { name: true } },
     },
   });
   if (!prescription) throw errors.notFound('Prescription not found.');
@@ -450,6 +466,16 @@ export async function proposeSubstitution(
   emitToDoctor(prescription.doctorId, 'substitution.requested', {
     prescriptionPublicId: prescription.publicId,
     substitutionId: request.id,
+  });
+
+  /**
+   * A pharmacist is at a counter with an undispensable prescription, so this
+   * reaches the doctor off-screen too.
+   */
+  void notify({
+    templateCode: 'doctor.substitution.requested',
+    recipient: { type: 'DOCTOR', doctorId: prescription.doctorId },
+    variables: { pharmacyName: prescription.pharmacy.name },
   });
 
   return request;
