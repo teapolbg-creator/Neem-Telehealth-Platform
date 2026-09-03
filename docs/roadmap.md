@@ -417,6 +417,25 @@ Full authorization audit · every §79 security test automated · retention veri
   move the clock. Adding a "run maintenance now" endpoint that exists only for
   a test would be inventing product surface to make a test pass. It is covered
   with an injected clock in `membership.test.ts`.
+- **The stale queue was cleared, through the state machine rather than with
+  a DELETE.** 133 demo consultations stranded in `WAITING_FOR_DOCTOR` and
+  `REASSIGNING` were moved to `ABANDONED` by `close-stale-demo-queue.ts`. 131
+  of them carried a successful payment with revenue allocations behind it, so
+  deleting them would have taken the money records too and left the demo
+  analytics describing a world that never existed. Every move goes through
+  `transition()`, so illegal moves are refused, state events are written and
+  the sweep appears in the audit log; `REASSIGNING` has no legal edge to a
+  terminal state, so those took two real steps rather than one convenient
+  fiction. Verified afterwards: 0 stranded, 438 consultations still present,
+  421 successful payments still present, no negative capacity.
+
+  It also surfaced a second and larger pile: **206 consultations stuck in
+  `IN_PROGRESS`**, each pinning a doctor at capacity. Only a doctor completes
+  a consultation (spec §15, §16) and there is deliberately no job that does,
+  so in a demo database they never end. That is not a defect — it is the
+  design meeting five days of abandoned test runs — but it is the other half
+  of why the queue was hard to exercise.
+
 - **A queue-testing obstacle worth writing down.** Scenario 1 first completed
   somebody else's consultation and then waited for a patient who never heard
   anything. The development database holds 124 stale queued consultations
