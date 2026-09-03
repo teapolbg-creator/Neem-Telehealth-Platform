@@ -396,6 +396,28 @@ Full authorization audit · every §79 security test automated · retention veri
   session probe returns 401, and a token copied off the device beforehand is
   refused as well — the half a cleared cookie does nothing about.
 
+- **The notification catalogue had no screen either.** Phase 8 built 21
+  templates, the allowed-variable list for each and the validation that stops
+  one carrying clinical content; `useNotificationTemplates` did not exist and
+  no component imported the routes. The wording of every message Neem sends
+  could be changed only by editing the database. `/admin/notifications` closes
+  it.
+
+  The refusal is the feature, so the screen shows exactly which rule was
+  broken rather than a generic failure — the API returns one entry per broken
+  rule, and a body can name a dose *and* use a variable the notification
+  cannot fill. Verified against the live API and then in the browser: saving
+  "Take 500mg twice daily for your diagnosis" is refused with both reasons
+  named, an unknown `{{placeholder}}` is refused separately, and a valid edit
+  saves and round-trips.
+
+  Building it surfaced that the dev database held **zero** template rows: the
+  seed writes them, and this database predates Phase 8. Not a product defect —
+  `notify()` reads the code catalogue and treats the rows as overrides, so
+  messages were always sent correctly — but it did mean the screen opened
+  empty, and it is the second time this phase that a thing existed only in
+  code.
+
 - **Backup and restore, rehearsed rather than documented.** `npm run
   backup:rehearse` backs up the live database, restores it into a scratch
   database, and compares row counts table by table — 60 tables, 17,229 audit

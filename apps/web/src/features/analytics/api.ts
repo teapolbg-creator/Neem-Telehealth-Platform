@@ -156,6 +156,60 @@ export function useSettingHistory(key: string, enabled: boolean) {
   });
 }
 
+export interface NotificationTemplate {
+  code: string;
+  channel: string;
+  locale: string;
+  subject: string | null;
+  body: string;
+  isActive: boolean;
+  updatedAt: string;
+  /** What this notification is for — shown so an author is not guessing. */
+  description: string | null;
+  /** The only placeholders this notification can fill. */
+  variables: string[];
+  /** False once the wording has been changed from what Neem shipped. */
+  isDefault: boolean;
+}
+
+const templatesKey = ['admin', 'notification-templates'];
+
+/**
+ * The notification catalogue (spec §58, §60, §96).
+ *
+ * Phase 8 built the templates, the allowed-variable lists and the validation
+ * that stops one carrying clinical content. No screen ever imported any of
+ * it, so the wording of every message Neem sends could only be changed in the
+ * database.
+ */
+export function useNotificationTemplates() {
+  return useQuery({
+    queryKey: templatesKey,
+    queryFn: ({ signal }) => api.get<NotificationTemplate[]>('/admin/notification-templates', signal),
+  });
+}
+
+export function useUpdateNotificationTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      code: string;
+      channel: string;
+      subject?: string | null;
+      body?: string;
+      isActive?: boolean;
+    }) => {
+      const { code, channel, ...changes } = input;
+      return api.patch<NotificationTemplate>(
+        `/admin/notification-templates/${code}/${channel}`,
+        changes,
+      );
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: templatesKey }),
+  });
+}
+
 export interface SystemHealth {
   status: "ready" | "degraded";
   environment: string;

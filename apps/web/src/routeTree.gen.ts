@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminArchiveRouteImport } from './routes/admin.archive'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
+import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
@@ -62,6 +63,11 @@ const AdminArchiveRoute = AdminArchiveRouteImport.update({
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin/audit',
   path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/admin/notifications',
+  path: '/admin/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/promotions': typeof AdminPromotionsRoute
@@ -332,6 +341,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/promotions'
@@ -441,6 +453,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminArchiveRoute: typeof AdminArchiveRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
   AdminPromotionsRoute: typeof AdminPromotionsRoute
@@ -502,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/payouts': {
@@ -721,6 +741,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminArchiveRoute: AdminArchiveRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminNotificationsRoute: AdminNotificationsRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,
   AdminPromotionsRoute: AdminPromotionsRoute,

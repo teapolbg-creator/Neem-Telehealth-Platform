@@ -46,6 +46,7 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Quality", to: "/admin/quality" },
     { label: "Archive", to: "/admin/archive" },
     { label: "Audit", to: "/admin/audit" },
+    { label: "Notifications", to: "/admin/notifications" },
     { label: "Settings", to: "/admin/settings" },
   ],
 };
