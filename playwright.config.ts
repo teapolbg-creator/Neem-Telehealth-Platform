@@ -69,9 +69,21 @@ export default defineConfig({
   ],
 
   /**
+   * Waits for the API, which `webServer` below does not.
+   *
+   * `npm run dev` starts two processes under `concurrently`, and the block
+   * below waits only for the web app on 8080 — while every test here talks to
+   * the API on 4000. They usually come up close enough together that it never
+   * showed, which is the least useful kind of correct.
+   */
+  globalSetup: "./e2e/support/global-setup.ts",
+
+  /**
    * Reuses an already-running `npm run dev` where there is one, and starts the
    * stack otherwise. The web dev server is pinned to 8080 by the Lovable vite
    * config, so the URL is not configurable here without changing that.
+   *
+   * This waits for the **web** app only — see `globalSetup` above for the API.
    */
   webServer: {
     command: "npm run dev",

@@ -67,12 +67,13 @@ npm run dev
 
 `docker:up` waits for MySQL to report healthy rather than merely started, because on a first run the server is still initialising when the migration would otherwise begin. The test database is migrated too: `npm test` runs against `neem_test`, which the container creates empty and nothing else fills.
 
-| Service            | URL                                                                                           |
-| ------------------ | --------------------------------------------------------------------------------------------- |
-| Web                | <http://localhost:8080>                                                                       |
-| API                | <http://localhost:4000>                                                                       |
-| Mail (MailHog)     | <http://localhost:8025>                                                                       |
-| Adminer (optional) | <http://localhost:8081> — `docker compose -f docker/docker-compose.yml --profile tools up -d` |
+| Service            | URL                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| Web                | <http://localhost:8080>                                                                             |
+| API                | <http://localhost:4000>                                                                             |
+| API health         | <http://localhost:4000/api/v1/health> — every route is under `/api/v1`, so `/health` alone is a 404 |
+| Mail (MailHog)     | <http://localhost:8025>                                                                             |
+| Adminer (optional) | <http://localhost:8081> — `docker compose -f docker/docker-compose.yml --profile tools up -d`       |
 
 ### Demo accounts
 
@@ -121,7 +122,7 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 
 `npm test` runs against a real MySQL database (`neem_test`), not mocks — a large part of what it verifies lives in the database itself: unique constraints, foreign keys, transactional atomicity. It takes roughly 45 minutes.
 
-`npm run test:e2e` drives the running dev server. Because that server watches for file changes, **anything that touches the working tree during a run — an editor save, a `git checkout`, a merge — restarts the API and fails tests that were not broken.** Run it against a quiet tree.
+`npm run test:e2e` waits for both servers before it starts — the web app via Playwright's `webServer` block, and the API via a global setup that probes `GET /api/v1/health`. It drives the running dev server. Because that server watches for file changes, **anything that touches the working tree during a run — an editor save, a `git checkout`, a merge — restarts the API and fails tests that were not broken.** Run it against a quiet tree.
 
 **It also needs the raised rate limits.** The suite signs in as several roles dozens of times from one address, and the values `.env.example` ships are production-shaped: a verbatim copy is refused with 429 part-way through, and everything after that fails for a reason unrelated to what it was testing. `.env.example` carries the four development values in a commented block, and the suite now recognises a 429 and says so rather than failing twenty tests silently. The safe numbers are the ones that ship, because that file is also a deployment's starting point.
 

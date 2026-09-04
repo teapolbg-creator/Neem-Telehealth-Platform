@@ -905,6 +905,26 @@ db:grants`", and there was no such script; the `.sql` file it named sat
   back with no pause for the reaper, show no recurrence — **which is evidence,
   not proof, and is stated that way deliberately.**
 
+- **The end-to-end suite never waited for the API.** Found by noticing my own
+  mistake rather than the product's: the readiness loop I had been typing by
+  hand all phase probed `/health/live`, which does not exist. Every route in
+  this API is under `/api/v1`, so it returned 404 — and `curl -s -o /dev/null`
+  exits 0 on a 404, because curl succeeded at fetching a response. The loop
+  therefore returned instantly and waited for nothing.
+
+  Looking for where that belonged in the repository turned up the real defect.
+  `playwright.config.ts` has a `webServer` block that waits for the **web** app
+  on 8080, and nothing waited for the API on 4000 — while every test in the
+  suite talks to the API. `npm run dev` starts the two under `concurrently`,
+  and they come up close enough together that it never showed, which is the
+  least useful kind of correct. A `globalSetup` now polls
+  `GET /api/v1/health` before any test runs, and says which URL it probed and
+  what it got back when it gives up.
+
+  I cannot claim this caused any of the intermittent failures I spent the
+  afternoon on — the servers were long up by the time those runs started. What
+  it removes is a real hole and the class of mistake that hid it.
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says
