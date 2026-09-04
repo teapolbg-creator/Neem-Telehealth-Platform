@@ -152,14 +152,6 @@ async function liveConsultation(
     data: {},
   });
   /**
-   * Carry the engine's own answer into the skip.
-   *
-   * This used to say only "the engine offered it to nobody", which is the one
-   * fact already obvious from the test not running. The route returns a
-   * `reason` and a `languageStarved` flag, and a skip that discards them turns
-   * a diagnosable failure into a shrug.
-   */
-  /**
    * A skip is only legitimate when the engine answered.
    *
    * This helper used to skip on anything that was not an offer, including a
@@ -178,7 +170,22 @@ async function liveConsultation(
   const offer = (await offered.json()).data as
     { offered: boolean; reason?: string; languageStarved?: boolean; message?: string } | undefined;
 
-  if (!offer?.offered) {
+  /**
+   * `ALREADY_ASSIGNED` is usually our own doctor, and not a reason to stop.
+   *
+   * The queue sweeps every ten seconds, and this helper has just made its
+   * doctor the only online candidate. So the sweep frequently offers the
+   * consultation before the explicit reallocation below runs, and the
+   * reallocation is then correctly told the work is done. Treating that as a
+   * skip made the suite lose two or three tests to timing on most runs —
+   * which is also how the deadlock above stayed hidden, because a suite that
+   * skips at random teaches you to ignore its skips.
+   *
+   * Whether the offer went to our doctor is answerable rather than
+   * guessable: try to accept it. If our doctor holds the offer, the test can
+   * proceed exactly as if the reallocation had made it.
+   */
+  if (!offer?.offered && offer?.reason !== 'ALREADY_ASSIGNED') {
     const presence = await doctorApi.get(`${API}/doctor/presence`);
     return {
       skip:

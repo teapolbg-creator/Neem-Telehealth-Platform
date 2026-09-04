@@ -169,8 +169,13 @@ async function offerAndAccept(
   }
 
   const offer = (await offered.json()).data;
-  if (!offer?.offered) {
-    return { ok: false, reason: `Offered to nobody: ${offer?.message ?? offered.status()}` };
+
+  // `ALREADY_ASSIGNED` is usually the ten-second queue sweep having got there
+  // first, offering to the doctor this helper just made the only candidate.
+  // Whether it went to ours is answered by trying to accept — see the longer
+  // note on the same guard in `clinical.spec.ts`.
+  if (!offer?.offered && offer?.reason !== 'ALREADY_ASSIGNED') {
+    return { ok: false, reason: `Offered to nobody: ${offer?.reason ?? offered.status()}` };
   }
 
   const doctorCsrf = await (async () => {
