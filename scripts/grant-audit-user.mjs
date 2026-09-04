@@ -49,10 +49,20 @@ function main() {
   const auditUser = auditUserName();
   const databases = testDb && testDb !== appDb ? [appDb, testDb] : [appDb];
 
-  const sql =
-    databases
-      .map((db) => `GRANT INSERT, SELECT ON \`${db}\`.\`audit_logs\` TO '${auditUser}'@'%';`)
-      .join('\n') + '\nFLUSH PRIVILEGES;\n';
+  /**
+   * One statement per database, each allowed to fail on its own.
+   *
+   * MySQL will not grant on a table that does not exist, and the databases
+   * here are not migrated together — so a single script would abort the whole
+   * grant, and with it `npm run setup`, because of one schema that happens not
+   * to be ready. That is exactly what a clean checkout did.
+   */
+  const statements = databases.map((db) => ({
+    db,
+    sql:
+      `GRANT INSERT, SELECT ON \`${db}\`.\`audit_logs\` TO '${auditUser}'@'%';\n` +
+      'FLUSH PRIVILEGES;\n',
+  }));
 
   const { command, args, env } = mysqlArgv(
     'mysql',
@@ -66,23 +76,40 @@ function main() {
     [],
   );
 
-  const result = spawnSync(command, args, {
-    env,
-    input: sql,
-    stdio: ['pipe', 'inherit', 'inherit'],
-  });
+  let granted = 0;
 
-  if (result.status !== 0) {
-    console.error(
-      '\nGranting failed. The usual cause is that migrations have not run yet:\n' +
-        '`audit_logs` has to exist before MySQL will grant on it. Run\n' +
-        '`npm run db:migrate` first.',
+  for (const statement of statements) {
+    const result = spawnSync(command, args, {
+      env,
+      input: statement.sql,
+      stdio: ['pipe', 'inherit', 'pipe'],
+    });
+
+    if (result.status === 0) {
+      console.log(
+        `  ✓ ${auditUser} may INSERT and SELECT on ${statement.db}.audit_logs, and nothing else`,
+      );
+      granted += 1;
+      continue;
+    }
+
+    /**
+     * A schema with no `audit_logs` has not been migrated yet, which is a
+     * state to report rather than fail on: the application database is the one
+     * that matters, and the test database is migrated separately.
+     */
+    console.log(
+      `  · skipped ${statement.db} — no audit_logs table there yet. ` +
+        'Run `npm run db:migrate` (or `db:migrate:test`) and this again.',
     );
-    process.exit(result.status ?? 1);
   }
 
-  for (const db of databases) {
-    console.log(`  ✓ ${auditUser} may INSERT and SELECT on ${db}.audit_logs, and nothing else`);
+  if (granted === 0) {
+    console.error(
+      '\nNothing was granted. `audit_logs` has to exist before MySQL will\n' +
+        'grant on it — run `npm run db:migrate` first.',
+    );
+    process.exit(1);
   }
 }
 

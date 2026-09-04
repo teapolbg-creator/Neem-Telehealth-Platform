@@ -32,8 +32,9 @@
     "db:reset": "npm run db:reset --workspace @neem/api",
     "db:seed": "npm run db:seed --workspace @neem/api",
     "db:grants": "node scripts/grant-audit-user.mjs",
+    "db:migrate:test": "node scripts/migrate-test-db.mjs",
     "db:studio": "npm run db:studio --workspace @neem/api",
-    "setup": "npm install && npm run docker:up && npm run db:migrate && npm run db:grants && npm run db:seed",
+    "setup": "npm install && npm run docker:up && npm run db:migrate && npm run db:migrate:test && npm run db:grants && npm run db:seed",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "backup:rehearse": "node scripts/rehearse-restore.mjs"
