@@ -24,7 +24,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d --wait",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
     "docker:reset": "docker compose -f docker/docker-compose.yml down -v && npm run docker:up",
     "db:generate": "npm run db:generate --workspace @neem/api",

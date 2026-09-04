@@ -55,6 +55,9 @@ async function main(): Promise<void> {
         `  ✓ ${h.refundRequests} refund request, ${h.feedback} pieces of patient feedback`,
       );
       console.log(
+        `  ✓ ${h.shiftsConfirmed} confirmed shifts today — the demo doctors can take a consultation`,
+      );
+      console.log(
         '    Produced by driving the real services, so the analytics, payouts\n' +
           '    and audit log describe consultations that actually happened.',
       );

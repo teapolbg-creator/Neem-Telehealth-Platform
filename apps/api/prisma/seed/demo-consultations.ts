@@ -24,6 +24,7 @@ import {
   revokePrescription,
 } from '../../src/modules/prescription/prescription.service.ts';
 import { requestRefund } from '../../src/modules/payment/refund.service.ts';
+import { assignShift, confirmShift } from '../../src/modules/scheduling/scheduling.service.ts';
 import { issueSummary } from '../../src/modules/documents/document.service.ts';
 
 /**
@@ -93,6 +94,7 @@ const PRESCRIPTIONS = [
 ];
 
 interface Cast {
+  adminUserId: string;
   pharmacyId: string;
   pharmacyUserId: string;
   secondPharmacyId: string;
@@ -305,6 +307,56 @@ export interface DemoConsultationSummary {
   refundRequests: number;
   feedback: number;
   live: number;
+  shiftsConfirmed: number;
+}
+
+/**
+ * Puts the demo doctors on today's day shifts, confirmed.
+ *
+ * Walking the demonstration by hand found the friction: a doctor with no
+ * shift cannot be offered anything, so the very first demo of the queue
+ * stalled and needed an unplanned detour through Admin → Scheduling. A seeded
+ * environment whose doctors cannot take a consultation is not seeded.
+ *
+ * Morning and afternoon only, which is 08:00–20:00 and twelve hours — well
+ * inside the 40-hour ceiling, and it leaves night cover switched off, because
+ * whether Neem runs at night is a business decision rather than a seed's to
+ * make. A demonstration outside those hours turns Night on from the
+ * scheduling screen, which is a better thing to show than a shift that was
+ * already there.
+ *
+ * Assignments only. Nobody is brought online: presence is something a doctor
+ * does, and a seeded online doctor would be offered the end-to-end suite's
+ * consultations out from under it.
+ */
+async function seedDemoShifts(prisma: PrismaClient, doctorIds: string[], adminId: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  let confirmed = 0;
+
+  for (const doctorId of doctorIds) {
+    const doctor = await prisma.doctor.findUniqueOrThrow({
+      where: { id: doctorId },
+      select: { publicId: true },
+    });
+
+    for (const shiftCode of ['MORNING', 'AFTERNOON']) {
+      try {
+        const result = await assignShift(
+          { doctorPublicId: doctor.publicId, shiftCode, serviceDate: today },
+          { adminId },
+          prisma,
+        );
+        await confirmShift(result.id, doctorId, {}, prisma);
+        confirmed += 1;
+      } catch {
+        // Already rostered, or the ceiling refused it. Either is fine: the
+        // point is that a doctor can take a consultation, not that this seed
+        // owns the rota.
+      }
+    }
+  }
+
+  return confirmed;
 }
 
 export async function seedDemoConsultations(
@@ -332,6 +384,7 @@ export async function seedDemoConsultations(
       refundRequests: 0,
       feedback: 0,
       live: 0,
+      shiftsConfirmed: 0,
     };
 
     const doctor = (index: number) => cast.doctorIds[index % cast.doctorIds.length]!;
@@ -470,6 +523,9 @@ export async function seedDemoConsultations(
       prisma,
     );
     summary.refundRequests += 1;
+
+    // --- the doctors can actually work -------------------------------------
+    summary.shiftsConfirmed = await seedDemoShifts(prisma, cast.doctorIds, cast.adminUserId);
 
     // --- one unpaid, so the counter has something waiting on payment --------
     await walkConsultation(prisma, cast, {

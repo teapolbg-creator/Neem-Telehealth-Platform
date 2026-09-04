@@ -73,7 +73,9 @@ Sign in as **`ama@doctor.demo`** in the first window.
 2. The offer arrives with a **90-second countdown**.
 3. There is **one button: Accept.** There is no decline, anywhere, because spec §30 says a doctor may not reject an assigned consultation. Look for the button; its absence is the feature.
 
-> If no offer arrives, the doctor has no shift today. Put them on one at **Admin → Scheduling** — which is also the screen that demonstrates the 40-hour rule in step 6.
+> The seed puts both active doctors on today's morning and afternoon shifts, so between **08:00 and 20:00 UTC** this just works.
+>
+> Outside those hours nobody is on shift, because night cover ships switched off — whether Neem runs at night is a business decision, not a default. Turn **Night** on at **Admin → Scheduling**, assign it, and confirm it from the doctor's own screen. That is a better thing to show than a shift that was already there.
 
 Accepting opens the **clinical workspace**: the patient's details, any vitals the pharmacy recorded, and space for notes, diagnosis and treatment.
 

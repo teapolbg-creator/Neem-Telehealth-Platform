@@ -671,6 +671,34 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
   completeness claim that is nearly true is worse than none. Checked
   programmatically against the zod schema: 58 variables, 0 undocumented.
 
+- **Walking the demonstration script by hand is what found the next defect.**
+  Reading it proves nothing; the queue stalled at step 3 because **no demo
+  doctor had a shift**, and a doctor without one cannot be offered anything.
+  The seed had built fourteen consultations through the real engines and left
+  an environment that could not conduct a fifteenth. `seedDemoShifts` now puts
+  both active doctors on today's morning and afternoon, confirmed —
+  assignments only. Nobody is seeded **online**: presence is something a doctor
+  does, and a seeded online doctor would be offered the end-to-end suite's
+  consultations out from under it, which is the Phase 10 bug again from the
+  other direction.
+
+  Night cover stays off. Whether Neem runs at night is a business decision,
+  not a seed's to make, and turning it on at Admin → Scheduling is a better
+  thing to demonstrate than a shift that was already there.
+
+  My first version credited the **pharmacy user** with each assignment, because
+  that was the id already in scope. `assignedByAdminId` is written into the row
+  and into the audit entry, so the seeded environment would have claimed a
+  pharmacy assigned a doctor's shift — a thing the product does not permit. The
+  demo administrator is threaded through instead.
+
+- **`npm run setup` could fail on a clean machine, which is the exit criterion
+  verbatim.** `docker compose up -d` returns when the container starts, not
+  when MySQL is accepting connections — and the compose file gives MySQL a
+  30-second start period. On a first run, where there is no initialised data
+  directory, `db:migrate` raced it. The healthcheck was already there and
+  nothing waited on it; `--wait` does.
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says

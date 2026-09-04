@@ -324,6 +324,7 @@ export async function seedDemoData(
     select: { id: true },
   });
   const history = await seedDemoConsultations(prisma, {
+    adminUserId: adminUser.id,
     pharmacyId: activePharmacy.id,
     pharmacyUserId: activePharmacy.users[0]!.userId,
     secondPharmacyId: secondPharmacy.id,
