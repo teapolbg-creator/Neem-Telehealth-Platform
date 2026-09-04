@@ -13,6 +13,14 @@ npm run setup     # install, containers, migrate, seed
 npm run dev
 ```
 
+**If you have run the tests on this machine, reset first.**
+
+```bash
+npm run db:reset
+```
+
+The end-to-end suite creates real doctors, real consultations and real shifts, because that is the only honest way to test them. It leaves them behind: after one run the admin directory holds twenty-five doctors called "Dr. Media 3e1b8849g", and night cover — which ships off — has been switched on. None of that is broken, and all of it makes a demonstration look like a test harness.
+
 | | |
 | --- | --- |
 | Web | <http://localhost:8080> |
@@ -83,7 +91,8 @@ In the workspace, write a prescription and issue it.
 Now switch to the pharmacy window: **Prescriptions**. It is there, immediately.
 
 - **Open the PDF.** It carries the patient by value, not by reference, so it survives the sealing of the clinical record.
-- **The verification page** (`/verify/rx/<code>`) is public and confirms a prescription is genuine **without disclosing what it says**. Show it in a private window — no sign-in, no clinical content.
+- **The verification code is on the PDF and nowhere else** — a QR top-right, and a printed `Verify at http://localhost:8080/verify/rx/<code>` along the footer. That is deliberate: the code belongs to whoever is holding the paper, not to anyone with a login. Read it off the document, exactly as a pharmacist in another town would.
+- **Open that URL in a private window.** No sign-in. It confirms the prescription is genuine, who issued it and when, and **does not say what it is for**. A verification page that disclosed the medication would be a medical record with no access control.
 
 Then **propose a substitution** as the pharmacy. It goes to the doctor for a decision and **blocks dispensing until answered**. A pharmacy cannot alter a doctor's prescription; it can only ask.
 

@@ -5,6 +5,7 @@ import {
   DEMO,
   createActiveDoctor,
   csrfHeaders,
+  goOnlineExclusively,
   gotoHydrated,
   openSecondPage,
   signIn,
@@ -92,6 +93,7 @@ async function queueAConsultation(
  * missing instead of leaving a silent hole in the coverage.
  */
 async function makeEligible(
+  playwright: typeof import('@playwright/test').default,
   doctorRequest: APIRequestContext,
   adminRequest: APIRequestContext,
   doctor: ActiveDoctor,
@@ -132,10 +134,8 @@ async function makeEligible(
     return { ok: false, reason: `Could not confirm the shift: ${await confirmed.text()}` };
   }
 
-  await doctorRequest.post(`${API}/doctor/presence/online`, {
-    headers: csrfHeaders(doctorCsrf),
-    data: {},
-  });
+  // Exclusively — see the note on `goOnlineExclusively`.
+  await goOnlineExclusively(playwright, doctorRequest, doctor, doctorCsrf);
 
   return { ok: true };
 }
@@ -216,7 +216,7 @@ test.describe('a video consultation', () => {
 
     const publicId = await queueAConsultation({ pharmacy: request, patient: request }, 'VIDEO');
 
-    const eligible = await makeEligible(page.request, admin, doctor);
+    const eligible = await makeEligible(playwright, page.request, admin, doctor);
     if (!eligible.ok) console.log('  skipped:', eligible.reason);
     test.skip(!eligible.ok, eligible.ok ? '' : eligible.reason);
 
@@ -288,7 +288,7 @@ test.describe('a Call Me consultation (spec §33)', () => {
     // The doctor needs their own context — the page is holding the patient's.
     const doctorApi = await playwright.request.newContext();
 
-    const eligible = await makeEligible(doctorApi, admin, doctor);
+    const eligible = await makeEligible(playwright, doctorApi, admin, doctor);
     if (!eligible.ok) console.log('  skipped:', eligible.reason);
     test.skip(!eligible.ok, eligible.ok ? '' : eligible.reason);
 

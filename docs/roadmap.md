@@ -557,6 +557,33 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 **In progress.**
 
+- **Running the suites found three tests that had been passing for the wrong
+  reason.** The demo seed left one consultation `WAITING_FOR_DOCTOR` so the
+  queue screen would not be empty; because a doctor cannot decline (spec §30),
+  that single row committed every test doctor to somebody else's consultation
+  and nine tests skipped. Removing it was necessary and not sufficient.
+
+  The real defect was older and larger: **each test left its doctor online**,
+  so the next test's `reallocate` offered its consultation to a previous
+  test's idle doctor. That had been latent for the whole build, masked by a
+  leak — before Phase 10, every test left its doctor pinned to a consultation
+  that never completed, so the next test's doctor was the only free
+  candidate. Cleaning up the stuck consultations removed the accidental
+  isolation and exposed it. `goOnlineExclusively` now takes every other
+  fixture doctor offline before bringing one online, because a test asserting
+  "this doctor receives the offer" has to be the only candidate.
+
+  Then two selector failures, both instructive. Scenario 1 clicked the sex
+  button by the name "F" — which the accessibility fix in this same phase
+  renamed to "Female". The right kind of breakage: the test was selecting by a
+  label that should not have existed. And Scenario 16 asserted a refund's
+  decision note on a screen that defaults to "awaiting a decision", so it was
+  catching the card in the instant between the mutation settling and the list
+  refetching it away. Seeding a second refund changed the timing and the race
+  started losing, which is the only reason anyone looked.
+
+  Final: **E2E 48 passed, 1 skipped** (scenario 15's documented `fixme`).
+
 - **A written demonstration script** (`docs/demonstration.md`) walks the full
   cycle in fifteen minutes, with a five-minute cut. It names what to point at
   rather than only what to click — the absent decline button, the URL carrying

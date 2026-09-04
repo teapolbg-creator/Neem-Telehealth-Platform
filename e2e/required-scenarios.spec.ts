@@ -138,7 +138,11 @@ test.describe('required scenarios (spec §80)', () => {
     });
     await fillField(patient, 'Full name', 'Adwoa Mensah');
     await fillField(patient, 'Age', '34');
-    await patient.getByRole('button', { name: 'F', exact: true }).click();
+    // "Female", not "F". The button still reads "F" on screen — three of them
+    // have to fit across a phone — but Phase 11 gave it an `aria-label`,
+    // because "F" read aloud is not an answer to "Sex". Selecting by the
+    // accessible name is what a patient using a screen reader would hear.
+    await patient.getByRole('button', { name: 'Female', exact: true }).click();
     await fillField(patient, 'Your phone number', '0245551234');
     await patient.getByRole('button', { name: /^continue$/i }).click();
 
@@ -511,17 +515,31 @@ test.describe('required scenarios (spec §80)', () => {
     /**
      * The decision is recorded and shown back, not merely applied.
      *
-     * Matched on the paragraph specifically. The obvious assertion — any
-     * element carrying this text — is ambiguous by construction: the same
-     * sentence sits in the textarea it was typed into and in the paragraph
-     * that reads it back, so it always resolves to two elements. Scoping to
-     * the card instead does not help, because a `section` locator matches
-     * ancestors too, and a filter defined by the approve button stops
-     * matching the moment approval removes it.
+     * Looked for under **All**, not on the default view. The screen opens on
+     * "Awaiting a decision", and a refund that has just been approved is by
+     * definition no longer awaiting one — so its card leaves that list the
+     * moment the query refetches.
+     *
+     * This assertion used to run against the default view and passed on a
+     * race: it caught the card in the instant between the mutation settling
+     * and the list refetching it away. Seeding a second refund changed the
+     * timing and the race started losing, which is the only reason anyone
+     * looked. A test that depends on observing something mid-flight is not
+     * testing that the decision was recorded.
+     *
+     * Matched on the paragraph specifically: the same sentence sits in the
+     * textarea it was typed into and in the paragraph that reads it back, so
+     * an element-agnostic locator always resolves to two.
      */
-    await expect(
-      page.getByRole('paragraph').filter({ hasText: DECISION_NOTE }),
-    ).toBeVisible();
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+
+    const decided = page
+      .locator('section')
+      .filter({ hasText: publicId })
+      .getByRole('paragraph')
+      .filter({ hasText: DECISION_NOTE });
+
+    await expect(decided).toBeVisible();
 
     await pharmacyApi.dispose();
   });

@@ -4,6 +4,7 @@ import {
   API,
   DEMO,
   createActiveDoctor,
+  goOnlineExclusively,
   fillField,
   gotoHydrated,
   signInThroughUi,
@@ -141,16 +142,35 @@ async function liveConsultation(
     headers: csrfHeaders(doctorCsrf),
     data: {},
   });
-  await doctorApi.post(`${API}/doctor/presence/online`, {
-    headers: csrfHeaders(doctorCsrf),
-    data: {},
-  });
+  // Exclusively: a doctor left online by an earlier test is still eligible,
+  // and the engine will hand them this consultation instead.
+  await goOnlineExclusively(playwright, doctorApi, doctor, doctorCsrf);
 
   const offered = await adminApi.post(`${API}/admin/queue/${publicId}/reallocate`, {
     headers: csrfHeaders(adminCsrf),
     data: {},
   });
-  if (!(await offered.json()).data?.offered) return { skip: 'The engine offered it to nobody.' };
+  /**
+   * Carry the engine's own answer into the skip.
+   *
+   * This used to say only "the engine offered it to nobody", which is the one
+   * fact already obvious from the test not running. The route returns a
+   * `reason` and a `languageStarved` flag, and a skip that discards them turns
+   * a diagnosable failure into a shrug.
+   */
+  const offer = (await offered.json()).data as
+    | { offered: boolean; reason?: string; languageStarved?: boolean; message?: string }
+    | undefined;
+
+  if (!offer?.offered) {
+    const presence = await doctorApi.get(`${API}/doctor/presence`);
+    return {
+      skip:
+        `Offered to nobody — reason=${offer?.reason ?? 'none'} ` +
+        `languageStarved=${offer?.languageStarved ?? 'n/a'}; ` +
+        `our doctor's presence: ${await presence.text()}`,
+    };
+  }
 
   const accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
     headers: csrfHeaders(doctorCsrf),

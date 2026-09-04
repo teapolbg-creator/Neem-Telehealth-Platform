@@ -399,6 +399,63 @@ export interface ActiveDoctor {
 }
 
 /**
+ * Doctors this suite has brought online and not yet taken off.
+ *
+ * The queue picks the best *eligible* doctor, and a doctor from an earlier
+ * test is still eligible: online, on shift, and — now that consultations
+ * actually end — no longer holding anything. So the engine hands them the next
+ * test's consultation, and that test's own doctor is offered nothing. The
+ * failures read "the engine offered it to nobody" and "you do not have an open
+ * offer", which sound like routing bugs and are not.
+ *
+ * This was latent for the whole build and was masked by a leak: before Phase
+ * 10, each test left its doctor pinned to a consultation that never completed,
+ * so the next test's doctor was the only free one. Cleaning that up removed
+ * the accidental isolation and exposed the real problem.
+ */
+const doctorsOnline: Array<{ email: string; password: string }> = [];
+
+/**
+ * Brings one doctor online and takes every other fixture doctor off.
+ *
+ * A test that asserts "this doctor receives the offer" has to be the only
+ * candidate, or it is asserting something about the whole database's presence
+ * rather than about routing.
+ */
+export async function goOnlineExclusively(
+  playwright: typeof import('@playwright/test').default,
+  doctorApi: APIRequestContext,
+  doctor: { email: string; password: string },
+  csrf: string,
+): Promise<void> {
+  for (const other of doctorsOnline) {
+    if (other.email === doctor.email) continue;
+
+    const context = await playwright.request.newContext();
+    try {
+      const otherCsrf = await signIn(context, other);
+      await context.post(`${API}/doctor/presence/offline`, {
+        headers: csrfHeaders(otherCsrf),
+        data: {},
+      });
+    } catch {
+      // A doctor this run can no longer sign in as is a doctor who cannot be
+      // offered anything either. Nothing to do.
+    } finally {
+      await context.dispose();
+    }
+  }
+
+  doctorsOnline.length = 0;
+
+  await doctorApi.post(`${API}/doctor/presence/online`, {
+    headers: csrfHeaders(csrf),
+    data: {},
+  });
+  doctorsOnline.push({ email: doctor.email, password: doctor.password });
+}
+
+/**
  * The seeded shift that covers this hour.
  *
  * A doctor is only offered consultations during a shift they are on, so a

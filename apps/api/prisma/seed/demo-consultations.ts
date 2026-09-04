@@ -481,15 +481,24 @@ export async function seedDemoConsultations(
     summary.created += 1;
     summary.live += 1;
 
-    // --- one waiting for a doctor, so the queue screen is not empty ----------
-    await walkConsultation(prisma, cast, {
-      patient: PATIENTS[6]!,
-      doctorId: doctor(2),
-      daysAgo: 0,
-      stopAt: 'WAITING',
-    });
-    summary.created += 1;
-    summary.live += 1;
+    /*
+     * There is deliberately **no consultation left waiting for a doctor**.
+     *
+     * One would make the admin queue screen non-empty, which is a real
+     * demonstration benefit — and it costs the entire clinical and media test
+     * coverage. A doctor cannot decline an offer (spec §30), so the moment any
+     * doctor comes online the sweep hands them whatever is queued and commits
+     * them to it. A single seeded row was enough to make nine end-to-end tests
+     * skip with "the engine offered it to nobody", because the doctor they had
+     * just brought online was already holding somebody else's consultation.
+     *
+     * This is the same contention Phase 10 spent an afternoon clearing out of
+     * this database, reintroduced by seeding one row. The demonstration script
+     * creates a live consultation in its first three steps anyway, so the
+     * queue is populated by the walkthrough rather than by the seed — which is
+     * a better demonstration in any case, because the presenter can watch it
+     * arrive.
+     */
 
     return summary;
   } finally {
