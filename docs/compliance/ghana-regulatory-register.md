@@ -26,6 +26,8 @@
 
 ## 2. Open questions for legal counsel
 
+> **The five still-open retention and patient-data questions are drafted as an instruction ready to send: [`counsel-brief-g7.md`](counsel-brief-g7.md).** The rest of this section is raw material for a second, wider instruction that has not been drafted.
+
 **Licensing and practice**
 
 1. Does operating a telemedicine platform require its own facility or service licence, and from which body?

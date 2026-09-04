@@ -19,6 +19,8 @@ Engineering research to identify which Ghanaian legal and regulatory instruments
 
 `ghana-regulatory-register.md` holds one row per candidate instrument, plus the open questions and the engineering implications of each. Take the open questions to counsel. As answers come back, replace `UNVERIFIED` with the source, the date checked, and who confirmed it.
 
+`counsel-brief-g7.md` is the first of those instructions, drafted and ready to send: the five retention and patient-data questions still open, each with the decision it drives, what the product does today in the absence of an answer, and what changes once there is one. Two of the five block launch. It is confined to retention and patient data on purpose — the wider register is a separate, larger instruction.
+
 ## Verification status
 
 **Nothing in this folder has been verified.** No official source has been consulted, and no live research was performed during Phase 0. Verification is a named task and has not yet been done.

@@ -145,9 +145,26 @@ function Landing() {
             it (spec §78, decision D10).
           */}
           <span>&copy; 2026 Neem Health · Accra, Ghana</span>
+          {/*
+            This said "Privacy-first · Session-only" and "WCAG AA" until Phase
+            11. Both were claims the product could not support, sitting two
+            lines below a comment forbidding exactly that.
+
+            "Session-only" stopped being true at D23: clinical records are
+            retained under legal obligation for three years, not discarded when
+            the session ends. It was the original design's promise, left
+            standing on the one page a patient reads before anything else.
+
+            "WCAG AA" is a conformance claim, and no audit has been performed —
+            Phase 11 ran an accessibility pass and fixed real defects, which is
+            not the same thing and must not be described as if it were.
+
+            What is left is what can be shown: no patient account exists, and
+            the retention position is stated where it is explained rather than
+            compressed into a badge.
+          */}
           <div className="flex gap-6">
-            <span>Privacy-first · Session-only</span>
-            <span>WCAG AA</span>
+            <span>No patient accounts · No consultation recording</span>
           </div>
         </div>
       </footer>
