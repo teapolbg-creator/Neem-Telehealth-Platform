@@ -871,6 +871,40 @@ db:grants`", and there was no such script; the `.sql` file it named sat
   who does not learn what. A code on its own is a to-do; a consequence is
   something a reviewer can weigh.
 
+- **The substitution test's intermittent skip, and what I could not prove.**
+  It skipped once, in the run that also failed Scenario 1, and I could not
+  reproduce it afterwards. Worth recording how that went, because the first
+  explanation was wrong and only a counterfactual showed it.
+
+  My hypothesis was that Playwright tears the worker down after a failure,
+  which would empty the in-memory list of online doctors while those doctors
+  were still online in the database — a bug that only appears once something
+  else has already gone wrong, which is the most misleading shape available. I
+  reproduced the condition with a deliberately failing probe test placed early
+  in the alphabet, and the skip did not appear. **Then I ran the same probe
+  with the fix reverted, and it did not appear either.** The hypothesis was
+  wrong, and one run in its favour would have looked like proof.
+
+  What did change: the accept now waits for the offer rather than assuming it
+  exists the instant reallocation returns. The offer is written asynchronously
+  by whichever of the reallocation and the ten-second sweep gets there first,
+  and neither has necessarily finished — the identical assumption that made
+  Scenario 1 fail. That is a real defect in the test whether or not it was
+  this particular skip's cause.
+
+  The online-doctor registry is also on disk now rather than in a module
+  variable. That is defensible on its own — doctors left online by a
+  **previous** run were invisible to a list that starts empty, and were only
+  ever cleaned up by the 90-second presence reaper happening to run between
+  suites — but I am not claiming it as the fix, because I never reproduced
+  what it would be fixing.
+
+  And all three skip sites in `clinical.spec.ts` now print their reason. That
+  file's other seven tests always did; these three did not, which is why the
+  original skip told me nothing. Four full runs since, including two back to
+  back with no pause for the reaper, show no recurrence — **which is evidence,
+  not proof, and is stated that way deliberately.**
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says

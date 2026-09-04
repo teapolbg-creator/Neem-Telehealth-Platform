@@ -215,11 +215,42 @@ async function liveConsultation(
     };
   }
 
-  const accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
+  /**
+   * The offer arrives asynchronously, so accepting has to wait for it.
+   *
+   * Two things can write it — this reallocation, or the ten-second sweep that
+   * may have been mid-flight when the doctor came online — and neither has
+   * necessarily finished when the call above returns. Accepting once and
+   * skipping on failure turned that into an intermittent "Could not accept",
+   * which reads like a routing fault and is a timing assumption. Scenario 1
+   * had the same symptom for the same reason.
+   *
+   * Five seconds is far longer than the write takes and far shorter than the
+   * 90-second response window, so a genuinely absent offer still gives up
+   * quickly rather than hanging the suite.
+   */
+  let accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
     headers: csrfHeaders(doctorCsrf),
     data: {},
   });
-  if (!accepted.ok()) return { skip: `Could not accept: ${await accepted.text()}` };
+
+  for (let attempt = 0; attempt < 20 && !accepted.ok(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+  }
+
+  if (!accepted.ok()) {
+    const presence = await doctorApi.get(`${API}/doctor/presence`);
+    return {
+      skip:
+        `Could not accept after waiting 5s: ${await accepted.text()}; ` +
+        `reallocation said reason=${offer?.reason ?? 'none'}; ` +
+        `our doctor's presence: ${await presence.text()}`,
+    };
+  }
 
   // Joining the media session is what moves DOCTOR_ACCEPTED → IN_PROGRESS.
   await doctorApi.post(`${API}/doctor/consultations/${publicId}/media/join`, {
@@ -638,6 +669,7 @@ test.describe('the substitution loop through the UI', () => {
     run,
   }) => {
     const live = await liveConsultation(playwright, run, 'ui');
+    if ('skip' in live) console.log('  skipped:', live.skip);
     if ('skip' in live) test.skip(true, live.skip);
     if ('skip' in live) return;
 
@@ -725,6 +757,7 @@ test.describe('the substitution loop through the UI', () => {
 test.describe('vitals and point-of-care entry through the UI', () => {
   test('what the pharmacy records is what the doctor sees', async ({ page, playwright, run }) => {
     const live = await liveConsultation(playwright, run, 'obs');
+    if ('skip' in live) console.log('  skipped:', live.skip);
     if ('skip' in live) test.skip(true, live.skip);
     if ('skip' in live) return;
 
@@ -780,6 +813,7 @@ test.describe('vitals and point-of-care entry through the UI', () => {
 test.describe('what the patient sees after completion', () => {
   test('shows the consultation reference and takes feedback', async ({ page, playwright, run }) => {
     const live = await liveConsultation(playwright, run, 'fb');
+    if ('skip' in live) console.log('  skipped:', live.skip);
     if ('skip' in live) test.skip(true, live.skip);
     if ('skip' in live) return;
 

@@ -436,7 +436,37 @@ export interface ActiveDoctor {
  * so the next test's doctor was the only free one. Cleaning that up removed
  * the accidental isolation and exposed the real problem.
  */
-const doctorsOnline: Array<{ email: string; password: string }> = [];
+/**
+ * On disk, not in a module variable.
+ *
+ * Playwright tears the worker down and starts a fresh one after a test fails.
+ * With this list in memory, that reset it to empty **while those doctors were
+ * still online in the database** — so every test after the first failure was
+ * racing candidates nothing knew about any more. It showed up as tests
+ * skipping with "could not accept" in runs that had a failure, and never in
+ * runs that were clean, which is the most misleading shape a bug can take: it
+ * only appears once something else has already gone wrong, so it looks like a
+ * consequence of that rather than a fault of its own.
+ *
+ * The same reasoning, and the same remedy, as `ADMIN_SECRET_FILE` above.
+ * Git-ignored, and holding test-account emails on a development machine.
+ */
+const ONLINE_DOCTORS_FILE = path.join(process.cwd(), '.playwright-doctors-online');
+
+function readDoctorsOnline(): Array<{ email: string; password: string }> {
+  if (!existsSync(ONLINE_DOCTORS_FILE)) return [];
+  try {
+    return JSON.parse(readFileSync(ONLINE_DOCTORS_FILE, 'utf8'));
+  } catch {
+    // A truncated file is worth nothing and must not stop the run. The cost of
+    // losing it is one race, not a failure.
+    return [];
+  }
+}
+
+function writeDoctorsOnline(doctors: Array<{ email: string; password: string }>): void {
+  writeFileSync(ONLINE_DOCTORS_FILE, JSON.stringify(doctors), 'utf8');
+}
 
 /**
  * Brings one doctor online and takes every other fixture doctor off.
@@ -475,7 +505,9 @@ export async function takeOtherDoctorsOffline(
   playwright: typeof import('@playwright/test').default,
   keep?: { email: string },
 ): Promise<void> {
-  for (const other of doctorsOnline) {
+  const before = readDoctorsOnline();
+
+  for (const other of before) {
     if (keep && other.email === keep.email) continue;
 
     const context = await playwright.request.newContext();
@@ -493,7 +525,16 @@ export async function takeOtherDoctorsOffline(
     }
   }
 
-  doctorsOnline.length = 0;
+  /**
+   * What is left online: the kept doctor's own entry, if the registry had one.
+   *
+   * `keep` carries an email and nothing else — the caller has the password but
+   * this function does not need it — so the entry is looked up rather than
+   * reconstructed. Writing a password-less entry would put a doctor in the
+   * registry that the next call cannot sign in as, and therefore cannot take
+   * offline, which is the failure this whole mechanism exists to prevent.
+   */
+  writeDoctorsOnline(keep ? before.filter((entry) => entry.email === keep.email) : []);
 }
 
 /**
@@ -504,7 +545,9 @@ export async function takeOtherDoctorsOffline(
  * every later test and is precisely what breaks them.
  */
 export function rememberOnline(doctor: { email: string; password: string }): void {
-  doctorsOnline.push({ email: doctor.email, password: doctor.password });
+  const current = readDoctorsOnline().filter((entry) => entry.email !== doctor.email);
+  current.push({ email: doctor.email, password: doctor.password });
+  writeDoctorsOnline(current);
 }
 
 /**

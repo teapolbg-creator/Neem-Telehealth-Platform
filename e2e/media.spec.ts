@@ -190,12 +190,26 @@ async function offerAndAccept(
     return state.cookies.find((cookie) => cookie.name === 'neem_csrf')!.value;
   })();
 
-  const accepted = await doctorRequest.post(`${API}/doctor/consultations/${publicId}/accept`, {
+  // The offer is written asynchronously by whichever of the reallocation and
+  // the ten-second sweep gets there — see the longer note in `clinical.spec.ts`.
+  let accepted = await doctorRequest.post(`${API}/doctor/consultations/${publicId}/accept`, {
     headers: csrfHeaders(doctorCsrf),
     data: {},
   });
+
+  for (let attempt = 0; attempt < 20 && !accepted.ok(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    accepted = await doctorRequest.post(`${API}/doctor/consultations/${publicId}/accept`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+  }
+
   if (!accepted.ok()) {
-    return { ok: false, reason: `The doctor could not accept: ${await accepted.text()}` };
+    return {
+      ok: false,
+      reason: `The doctor could not accept after waiting 5s: ${await accepted.text()}`,
+    };
   }
 
   return { ok: true };

@@ -60,6 +60,7 @@ playwright-report/
 
 # The demo admin TOTP secret the E2E harness enrols and reuses across runs.
 .playwright-admin-totp
+.playwright-doctors-online
 
 # Belt and braces: uploads must never be committed, wherever they land.
 **/uploads/
