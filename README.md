@@ -131,7 +131,7 @@ Every variable is documented in [`.env.example`](.env.example). Configuration is
 
 ### External integrations
 
-Each sits behind an interface in `apps/api/src/adapters/`, so changing provider changes one adapter, not the business logic. Every one has a real adapter and a mock, and development defaults to the mock.
+Each sits behind an interface in `apps/api/src/adapters/`, so changing provider changes one adapter, not the business logic. Development defaults to the mock in every case.
 
 | Concern | Provider | Adapter |
 | --- | --- | --- |
@@ -151,6 +151,7 @@ The media flows are complete either side of that boundary: joining, rejoining, t
 
 | Document | Contents |
 | --- | --- |
+| [`docs/demonstration.md`](docs/demonstration.md) | A 15-minute walkthrough of the full business cycle on a seeded machine |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases 0–11, what each built, and what building it exposed |
 | [`docs/decision-log.md`](docs/decision-log.md) | D1–D34, engineering decisions with their reasoning |
 | [`docs/architecture.md`](docs/architecture.md) | Modules, layering, providers, folder structure |

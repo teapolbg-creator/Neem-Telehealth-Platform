@@ -188,11 +188,22 @@ function IdentityStep() {
           />
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Sex</span>
-            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            {/*
+              `aria-pressed` because the only other signal that one of these is
+              chosen is its colour — which is no signal at all to a screen
+              reader, and a weak one to a colour-blind patient. `aria-label`
+              because the visible text is "F": short enough to fit three
+              buttons across a phone, and meaningless read aloud.
+            */}
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="group" aria-label="Sex">
               {(["FEMALE", "MALE", "OTHER"] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
+                  aria-pressed={form.sex === option}
+                  aria-label={
+                    option === "FEMALE" ? "Female" : option === "MALE" ? "Male" : "Other"
+                  }
                   onClick={() => setForm({ ...form, sex: option })}
                   className={cn(
                     "rounded-xl border-2 py-2.5 text-xs font-bold transition-colors",
@@ -280,11 +291,16 @@ function LanguageStep() {
         You will only be matched with a doctor who speaks it.
       </p>
 
-      <div className="grid flex-1 content-start grid-cols-2 gap-3">
+      <div
+        className="grid flex-1 content-start grid-cols-2 gap-3"
+        role="group"
+        aria-label="Choose your language"
+      >
         {(languages ?? []).map((language) => (
           <button
             key={language.code}
             type="button"
+            aria-pressed={chosen === language.code}
             onClick={() => setChosen(language.code)}
             className={cn(
               "min-h-[76px] rounded-2xl border-2 p-4 text-left transition-colors",
@@ -338,11 +354,12 @@ function ModeStep() {
       <h1 className="mt-2 text-xl font-bold">How would you like to consult?</h1>
       <p className="mb-6 mt-1 text-sm text-slate-500">Choose what works best for you.</p>
 
-      <div className="flex-1 space-y-3">
+      <div className="flex-1 space-y-3" role="group" aria-label="How would you like to consult?">
         {options.map((option) => (
           <button
             key={option.id}
             type="button"
+            aria-pressed={chosen === option.id}
             onClick={() => setChosen(option.id)}
             className={cn(
               "flex w-full items-start gap-4 rounded-2xl border-2 p-5 text-left transition-colors",

@@ -557,6 +557,39 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 **In progress.**
 
+- **A written demonstration script** (`docs/demonstration.md`) walks the full
+  cycle in fifteen minutes, with a five-minute cut. It names what to point at
+  rather than only what to click — the absent decline button, the URL carrying
+  no patient data, the verification page that confirms a prescription without
+  disclosing it — and ends with a table of things that look like bugs and are
+  not, because a demonstration where the presenter is surprised is worse than
+  one that is shorter.
+
+- **The accessibility pass found one real class of defect.** The patient
+  portal chose sex, language and consultation mode with buttons that showed
+  selection **through colour alone**: no `aria-pressed`, and the sex buttons
+  read "F" and "M" to a screen reader. The doctor's workspace already used
+  `aria-pressed`; the patient portal — the one interface used by someone who
+  did not choose this software, on their own phone — did not. Fixed and
+  verified in a browser: the buttons now announce "Female", and the pressed
+  state flips in the accessibility tree.
+
+  The rest of the pass came back clean, and two things I suspected were
+  defects were not: every form control has a real label (a tool that does not
+  print names for textboxes made it look otherwise), and every image has alt
+  text (a grep that could not see across lines made it look otherwise).
+
+- **Shift patterns can be turned on and off.** Night cover ships inactive —
+  24-hour operation is a business decision — and `PATCH
+  /admin/shifts/definitions/:code` had existed since Phase 2 with no caller, so
+  the decision could only be made in the database. Found while writing the
+  demonstration script, whose 40-hour walkthrough could not be performed as
+  written.
+
+- **One empty state was missing**, on the scheduling screen built in Phase 10:
+  a search matching nobody left a select holding its placeholder, which reads
+  as "there are no doctors" rather than "your search found none".
+
 - **The demo history is produced, not fabricated.** The Phase 1 seed created
   accounts and stopped, with a note saying why: "seeding a prescription before
   the prescription engine exists would be fabricating data the system cannot

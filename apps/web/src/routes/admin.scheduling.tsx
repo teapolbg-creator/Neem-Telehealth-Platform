@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, CalendarClock, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-client";
 import {
   useAdminDoctors,
   useAssignShift,
+  useSetShiftActive,
   useShiftDefinitions,
 } from "@/features/onboarding/api";
 
@@ -50,6 +51,7 @@ function AdminScheduling() {
   // doctor you cannot select is a doctor you cannot roster.
   const doctors = useAdminDoctors({ status: "ACTIVE", search });
   const assign = useAssignShift();
+  const setActive = useSetShiftActive();
 
   const [doctorPublicId, setDoctorPublicId] = useState("");
   const [shiftCode, setShiftCode] = useState("");
@@ -144,6 +146,23 @@ function AdminScheduling() {
           </label>
         </div>
 
+        {/*
+          A search that matches nobody leaves the select holding only its
+          placeholder, which reads as "there are no doctors" rather than "your
+          search found none". Different sentences, and an administrator acts
+          on them differently.
+        */}
+        {search.trim() !== "" && !doctors.isFetching && (doctors.data ?? []).length === 0 && (
+          <p className="mt-3 text-sm text-slate-500">
+            No active doctor matches <strong className="font-semibold">{search}</strong>. A doctor
+            must be ACTIVE before they can be put on a shift — check{" "}
+            <Link to="/admin/verification" className="underline">
+              verification
+            </Link>{" "}
+            if you are expecting someone.
+          </p>
+        )}
+
         {chosenDoctor && chosenDoctor.contractedHoursPerWeek !== null && (
           <p className="mt-3 text-xs text-slate-500">
             {chosenDoctor.fullName} is contracted for {chosenDoctor.contractedHoursPerWeek}h a
@@ -208,25 +227,64 @@ function AdminScheduling() {
         )}
 
         {definitions.data && (
-          <ul className="mt-4 divide-y divide-border">
-            {definitions.data.map((shift) => (
-              <li
-                key={shift.code}
-                className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
-              >
-                <div>
-                  <p className="font-semibold">{shift.label}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {shift.startsAt}–{shift.endsAt}
-                    {shift.crossesMidnight && " · crosses midnight"}
-                  </p>
-                </div>
-                <Chip tone={shift.isActive ? "medical" : "muted"}>
-                  {shift.isActive ? "active" : "inactive"}
-                </Chip>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              A doctor can only be put on an active shift. Night cover is seeded off — turning it
+              on is a business decision, so it is a decision someone makes here rather than a
+              value in the database.
+            </p>
+
+            <ul className="mt-4 divide-y divide-border">
+              {definitions.data.map((shift) => (
+                <li
+                  key={shift.code}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-semibold">{shift.label}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {shift.startsAt}–{shift.endsAt}
+                      {shift.crossesMidnight && " · crosses midnight"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Chip tone={shift.isActive ? "medical" : "muted"}>
+                      {shift.isActive ? "active" : "inactive"}
+                    </Chip>
+                    <button
+                      type="button"
+                      disabled={setActive.isPending}
+                      onClick={() =>
+                        setActive.mutate({ code: shift.code, isActive: !shift.isActive })
+                      }
+                      className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      {shift.isActive ? "Turn off" : "Turn on"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {setActive.error && (
+              <p className="mt-3 text-xs font-semibold text-red-600">
+                {setActive.error instanceof ApiError
+                  ? setActive.error.message
+                  : "Could not change that shift."}
+              </p>
+            )}
+
+            {/*
+              Turning a shift off does not cancel the assignments already on
+              it — the API leaves them alone, and a screen that implied
+              otherwise would be promising something it does not do.
+            */}
+            <p className="mt-3 text-xs text-slate-500">
+              Turning a shift off stops new assignments. Shifts already assigned to it are not
+              cancelled.
+            </p>
+          </>
         )}
       </section>
     </AppShell>

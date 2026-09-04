@@ -314,6 +314,27 @@ export function useShiftDefinitions() {
   });
 }
 
+/**
+ * Turning a shift pattern on or off.
+ *
+ * NIGHT is seeded inactive — 24-hour operation is post-MVP — and until Phase
+ * 11 there was no way to change that through the product. The route has
+ * existed since Phase 2; nothing imported it, so a pattern the business
+ * decided to run could only be enabled in the database.
+ */
+export function useSetShiftActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { code: string; isActive: boolean }) =>
+      api.patch<ShiftDefinition>(`/admin/shifts/definitions/${input.code}`, {
+        isActive: input.isActive,
+      }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'shift-definitions'] }),
+  });
+}
+
 export function useAssignShift() {
   const queryClient = useQueryClient();
 
