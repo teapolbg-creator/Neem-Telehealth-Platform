@@ -766,6 +766,59 @@ db:grants`", and there was no such script; the `.sql` file it named sat
   TLS, encryption at rest, key rotation — so that reading §1–§9 does not leave
   the impression they are already in force.
 
+- **The clean-checkout test found a real defect in the queue, which is the
+  point of running it rather than reasoning about it.** A deadlock:
+  `offerNextDoctor` writes four rows across three tables, and the ten-second
+  `process-waiting-queue` sweep can be offering the same consultation as an
+  administrator's manual reallocation. InnoDB breaks the tie by rolling one
+  transaction back with `P2034`, whose own message ends "Please retry your
+  transaction". **Nothing retried.** The offer was lost — a paid patient
+  waiting in the queue was offered to nobody — and on the request path
+  `POST /admin/queue/:publicId/reallocate` returned an unhandled 500.
+
+  That contradicts the rule the queue is built around: patients are never
+  abandoned (`consultation-flow.md` §4). `withWriteConflictRetry` now retries a
+  rolled-back transaction three times with jittered backoff — jittered because
+  two transactions that deadlock and retry in lockstep deadlock again — and
+  still throws when the attempts are spent, because a bounded retry makes a
+  lost offer unlikely rather than impossible and pretending otherwise would be
+  the same mistake in a new place.
+
+  **It had been invisible because the end-to-end suite skipped on it.** The
+  helpers that bring a consultation live treated anything that was not an
+  offer as a reason to skip — including a 500. So an unhandled deadlock
+  presented as four quietly skipped tests, and a run reporting "44 passed, 5
+  skipped" looked like a run reporting no failures. Both helpers now check the
+  status first: "nobody was eligible" is a legitimate state of the world, "the
+  server fell over" is not, and a suite that renders them identically is worse
+  than one that has no such helper.
+
+- **`npm run setup` had never been run on a clean machine, and did not work.**
+  Two faults, both of which only exist on the first run. `neem_test` is created
+  empty by `docker/mysql-init` and nothing filled it, so `npm test` met a
+  schema with no tables — while the README said it runs against `neem_test`.
+  It worked here because this machine's test database had been migrated by
+  hand months earlier, which is the definition of a setup step that does not
+  exist. And `db:grants` then aborted the whole chain on the missing table, so
+  `setup` never reached the seed. `db:migrate:test` is new; granting now
+  reports a not-yet-migrated schema and carries on rather than failing.
+
+- **Every "48 passed" on this machine depended on an undocumented `.env`
+  edit.** A clean checkout could not run the end-to-end suite at all: the
+  values in `.env.example` are production-shaped, and the suite signs in as
+  several roles dozens of times from one address, so it is refused with 429
+  part-way through and everything after that fails for an unrelated reason.
+  My own `.env` has `RATE_LIMIT_AUTH_MAX=500` against the shipped `10`, raised
+  at some point and never written down.
+
+  The design was already right — production refuses loose limits, and
+  `env.ts` has held those ceilings since Phase 10 — but `.env.example` is
+  doing two jobs, as the deployment template and as the file the README tells
+  you to copy. It now carries the four development values in a commented
+  block, with the safe numbers still the ones that ship, and `signIn` in the
+  fixtures recognises a 429 and says which block to read instead of failing
+  twenty tests silently.
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says

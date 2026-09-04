@@ -159,6 +159,22 @@ async function liveConsultation(
    * `reason` and a `languageStarved` flag, and a skip that discards them turns
    * a diagnosable failure into a shrug.
    */
+  /**
+   * A skip is only legitimate when the engine answered.
+   *
+   * This helper used to skip on anything that was not an offer, including a
+   * 500 — so an unhandled deadlock in `offerNextDoctor` presented as four
+   * quietly skipped tests instead of a failure, and stayed hidden for the
+   * whole build. "Nobody was eligible" is a legitimate state of the world;
+   * "the server fell over" is not, and the two must not look alike.
+   */
+  if (!offered.ok()) {
+    throw new Error(
+      `Reallocation failed with ${offered.status()}, which is a defect rather than ` +
+        `a reason to skip:\n${await offered.text()}`,
+    );
+  }
+
   const offer = (await offered.json()).data as
     { offered: boolean; reason?: string; languageStarved?: boolean; message?: string } | undefined;
 

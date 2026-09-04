@@ -1,5 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
-import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
+import {
+  getPrisma,
+  isUniqueConstraintError,
+  withWriteConflictRetry,
+  type Db,
+} from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { getLogger } from '../../lib/logger.ts';
@@ -204,40 +209,49 @@ export async function offerNextDoctor(
   const attemptNumber = (consultation.queueEntry?.offerAttempts ?? 0) + 1;
 
   try {
-    await db.$transaction(async (tx) => {
-      await tx.consultationAssignment.create({
-        data: {
+    /**
+     * Retried on a write conflict: the ten-second queue sweep and an
+     * administrator's manual reallocation can be offering the same
+     * consultation at the same moment, and InnoDB breaks that tie by rolling
+     * one of them back. Without the retry the offer was lost and the patient
+     * waited on — see `withWriteConflictRetry`.
+     */
+    await withWriteConflictRetry(() =>
+      db.$transaction(async (tx) => {
+        await tx.consultationAssignment.create({
+          data: {
+            consultationId,
+            doctorId: best.doctorId,
+            offeredAt: now,
+            respondByAt,
+            result: 'PENDING',
+            score: best.score,
+            // Stored so an allocation can be explained after the fact — which
+            // is what makes fairness auditable rather than asserted (spec §28).
+            scoreBreakdown: best.breakdown as never,
+            attemptNumber,
+          },
+        });
+
+        await tx.consultationQueueEntry.update({
+          where: { consultationId },
+          data: { state: 'OFFERING', offerAttempts: attemptNumber },
+        });
+
+        await tx.consultation.update({
+          where: { id: consultationId },
+          data: { doctorId: best.doctorId },
+        });
+
+        await transition(
           consultationId,
-          doctorId: best.doctorId,
-          offeredAt: now,
-          respondByAt,
-          result: 'PENDING',
-          score: best.score,
-          // Stored so an allocation can be explained after the fact — which is
-          // what makes fairness auditable rather than asserted (spec §28).
-          scoreBreakdown: best.breakdown as never,
-          attemptNumber,
-        },
-      });
-
-      await tx.consultationQueueEntry.update({
-        where: { consultationId },
-        data: { state: 'OFFERING', offerAttempts: attemptNumber },
-      });
-
-      await tx.consultation.update({
-        where: { id: consultationId },
-        data: { doctorId: best.doctorId },
-      });
-
-      await transition(
-        consultationId,
-        'ASSIGNED',
-        { actorType: 'SYSTEM', reason: `offered_to_doctor_attempt_${attemptNumber}` },
-        tx,
-        clock,
-      );
-    });
+          'ASSIGNED',
+          { actorType: 'SYSTEM', reason: `offered_to_doctor_attempt_${attemptNumber}` },
+          tx,
+          clock,
+        );
+      }),
+    );
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       return { offered: false, reason: 'ALREADY_ASSIGNED' };

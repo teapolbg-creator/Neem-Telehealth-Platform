@@ -159,6 +159,15 @@ async function offerAndAccept(
     headers: csrfHeaders(adminCsrf),
     data: {},
   });
+  // A server error is a defect, not a reason to skip — see the same guard in
+  // `clinical.spec.ts`, which is where an unhandled deadlock hid behind one.
+  if (!offered.ok()) {
+    throw new Error(
+      `Reallocation failed with ${offered.status()}, which is a defect rather than ` +
+        `a reason to skip:\n${await offered.text()}`,
+    );
+  }
+
   const offer = (await offered.json()).data;
   if (!offer?.offered) {
     return { ok: false, reason: `Offered to nobody: ${offer?.message ?? offered.status()}` };
