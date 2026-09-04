@@ -44,6 +44,7 @@ export const SETTING_KEYS = {
   DOCTOR_MEMBERSHIP_FEE_MINOR: 'doctor.membershipFeeMinor',
   DOCTOR_MEMBERSHIP_MONTHS: 'doctor.membershipPeriodMonths',
   DOCTOR_MEMBERSHIP_GRACE_DAYS: 'doctor.membershipGraceDays',
+  DOCTOR_MEMBERSHIP_WARNING_DAYS: 'doctor.membershipExpiryWarningDays',
   DOCTOR_MIN_YEARS_EXPERIENCE: 'doctor.minYearsExperience',
   DOCTOR_LICENCE_WARNING_DAYS: 'doctor.licenceExpiryWarningDays',
   DOCTOR_MAX_CONCURRENT: 'doctor.maxConcurrentConsultations',
@@ -310,6 +311,16 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: 7,
     valueType: 'number',
     description: 'Grace period after membership expiry before Active → Suspended (spec §27).',
+    category: 'workforce',
+  },
+  {
+    key: K.DOCTOR_MEMBERSHIP_WARNING_DAYS,
+    value: 14,
+    valueType: 'number',
+    description:
+      'Days before a membership ends at which the doctor is warned (spec §27). The warning ' +
+      'is sent once per window, not once per sweep. Setting this at or below the grace ' +
+      'period means the first a doctor hears of it is the suspension.',
     category: 'workforce',
   },
   {

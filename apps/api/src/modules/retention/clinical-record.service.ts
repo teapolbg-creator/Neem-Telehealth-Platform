@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notifyOnce } from '../notification/notification.service.ts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { decryptField, encryptField, encryptNullable } from '../../lib/crypto.ts';
@@ -375,6 +376,32 @@ export async function purgeExpiredClinicalRecords(
         },
       });
     }
+  }
+
+  /**
+   * A destruction that has fallen overdue is escalated, not merely countable.
+   *
+   * `overdueDestructions` has existed since Phase 5.5 and nothing called it
+   * outside a health check. Holding clinical data past its retention period is
+   * a compliance failure, and a destruction job that has been quietly failing
+   * is precisely the thing nobody notices — the failure mode is silence, so
+   * the remedy has to be a message.
+   *
+   * Deduped over a day: this runs hourly and an overdue record stays overdue
+   * until somebody acts.
+   */
+  const overdue = await overdueDestructions(db, clock);
+  if (overdue > 0) {
+    void notifyOnce(
+      {
+        templateCode: 'admin.retention.overdue',
+        recipient: { type: 'ADMIN' },
+        variables: { count: overdue },
+      },
+      { withinDays: 1 },
+      db,
+      clock,
+    );
   }
 
   return destroyed;

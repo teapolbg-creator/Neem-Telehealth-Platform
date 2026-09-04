@@ -5,6 +5,7 @@ import {
   DEMO,
   csrfHeaders,
   gotoHydrated,
+  rememberOnline,
   signIn,
   signInAdminOnPage,
   signInThroughUi,
@@ -171,6 +172,20 @@ test.describe('scenario 4 — the doctor misses the 90-second window', () => {
       headers: { 'x-neem-csrf': csrf },
       data: {},
     });
+    /**
+     * Recorded, so a later test can take them off again.
+     *
+     * This brings the **seeded** doctor online, and the seed now puts its
+     * doctors on a confirmed shift — which made them a live candidate for
+     * every test that ran afterwards. Scenario 1 failed on exactly that: its
+     * consultation was offered to this doctor, and its own accept was refused
+     * with "you do not have an open offer".
+     *
+     * Before the seed rostered them, being left online was harmless because a
+     * doctor with no shift is offered nothing. That is the kind of accident
+     * this suite has relied on before, and it is worth not relying on again.
+     */
+    rememberOnline(DEMO.doctor);
 
     await gotoHydrated(page, '/doctor/queue');
 
@@ -202,6 +217,8 @@ test.describe('what each role may see', () => {
     const csrf = await signIn(request, DEMO.doctor);
 
     await request.post(`${API}/doctor/presence/online`, { headers: csrfHeaders(csrf), data: {} });
+    rememberOnline(DEMO.doctor);
+
     const queue = await request.get(`${API}/doctor/queue`);
 
     expect(JSON.stringify(await queue.json())).not.toMatch(/score|rating|quality|breakdown/i);

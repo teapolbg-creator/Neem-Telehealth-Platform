@@ -8,6 +8,8 @@ import { canTransition } from '../../domain/consultation-state.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { getPaymentProvider } from '../../adapters/payment/index.ts';
 import { transition } from '../consultation/consultation.service.ts';
+import { notify } from '../notification/notification.service.ts';
+import { formatMoney, money } from '../../lib/money.ts';
 
 /**
  * Refunds (spec §41, docs/payment-flow.md §7).
@@ -126,7 +128,49 @@ export async function requestRefund(
     db,
   );
 
+  /**
+   * Someone is now waiting on a decision only an administrator can make.
+   *
+   * The admin console raises a live socket alert, which reaches an
+   * administrator who is signed in. This reaches the one who is not — and a
+   * refund request that sits unread over a weekend is a patient waiting on
+   * their money.
+   *
+   * The amount and the reference, never the requester's stated reason: that
+   * is their own words, and it belongs on the refund row where an
+   * administrator reads it in context, not in an email.
+   */
+  void notify({
+    templateCode: 'admin.refund.requested',
+    recipient: { type: 'ADMIN' },
+    variables: {
+      amount: formatMoney(money(refund.amountMinor, refund.currency)),
+      consultationReference: consultation.publicId,
+    },
+    correlationId: input.correlationId,
+  });
+
   return { publicId: refund.publicId, state: refund.state, consultationState };
+}
+
+/**
+ * Tells the pharmacy how a refund on its consultation was decided.
+ *
+ * Both exits of `decideRefund` call this, so the approved and rejected paths
+ * cannot drift apart in what the counter is told — which is the usual way one
+ * of a pair of notifications goes missing.
+ */
+function notifyRefundDecision(
+  refund: { consultation: { publicId: string; pharmacyId: string } },
+  decision: 'approved' | 'rejected',
+  correlationId?: string,
+): void {
+  void notify({
+    templateCode: 'pharmacy.refund.decided',
+    recipient: { type: 'PHARMACY', pharmacyId: refund.consultation.pharmacyId },
+    variables: { decision, consultationReference: refund.consultation.publicId },
+    correlationId,
+  });
 }
 
 export interface RefundDecision {
@@ -159,7 +203,7 @@ export async function decideRefund(
     where: { publicId: refundPublicId },
     include: {
       payment: { select: { id: true, providerReference: true, amountMinor: true } },
-      consultation: { select: { id: true, state: true } },
+      consultation: { select: { id: true, publicId: true, state: true, pharmacyId: true } },
     },
   });
   if (!refund) throw errors.notFound('Refund not found.');
@@ -195,6 +239,8 @@ export async function decideRefund(
       },
       db,
     );
+
+    notifyRefundDecision(refund, 'rejected', decision.correlationId);
 
     return { state: 'REJECTED', consultationState: restored };
   }
@@ -259,6 +305,8 @@ export async function decideRefund(
     },
     db,
   );
+
+  notifyRefundDecision(refund, 'approved', decision.correlationId);
 
   return { state: result.status === 'COMPLETED' ? 'COMPLETED' : 'PROCESSING', consultationState };
 }

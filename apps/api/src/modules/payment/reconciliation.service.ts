@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notifyOnce } from '../notification/notification.service.ts';
 import { getPrisma } from '../../db/prisma.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
@@ -141,6 +142,32 @@ export async function reconcilePayments(
         },
       },
       db,
+    );
+  }
+
+  /**
+   * One message per run, naming the kinds found — not one per finding.
+   *
+   * Reconciliation runs hourly and a drift usually persists until someone
+   * acts on it, so a per-finding notification would send the same alert every
+   * hour until it was fixed. The count and the kinds are enough to bring an
+   * administrator to the reconciliation report, which is where the detail
+   * belongs.
+   *
+   * Deduped over a day rather than sent every hour, for the same reason.
+   */
+  if (findings.length > 0) {
+    const kinds = [...new Set(findings.map((finding) => finding.kind))].join(', ');
+
+    void notifyOnce(
+      {
+        templateCode: 'admin.payment.anomaly',
+        recipient: { type: 'ADMIN' },
+        variables: { kind: `${findings.length} × ${kinds}` },
+      },
+      { withinDays: 1 },
+      db,
+      clock,
     );
   }
 

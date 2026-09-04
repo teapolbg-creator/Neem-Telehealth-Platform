@@ -9,6 +9,8 @@ import {
   fillField,
   openSecondPage,
   putDoctorOnShiftNow,
+  rememberOnline,
+  takeOtherDoctorsOffline,
   signIn,
   signInAdmin,
   signInAdminOnPage,
@@ -180,9 +182,22 @@ test.describe('required scenarios (spec §80)', () => {
     const presenceToggle = doctorPage.getByRole('button', { name: /go online|go offline/i });
     await presenceToggle.waitFor({ state: 'visible', timeout: 20_000 });
 
+    /**
+     * The only candidate, before coming online.
+     *
+     * This scenario goes online through the screen deliberately — the toggle
+     * is part of what it covers — so it cannot use `goOnlineExclusively`,
+     * which does it over the API. It still has to be the only doctor the
+     * queue can choose: without this, the reallocation below goes to a doctor
+     * an earlier test left online, and this scenario's own accept is refused
+     * with "you do not have an open offer". Which is what happened.
+     */
+    await takeOtherDoctorsOffline(playwright, doctor);
+
     if (/go online/i.test((await presenceToggle.textContent()) ?? '')) {
       await presenceToggle.click();
     }
+    rememberOnline(doctor);
     await expect(doctorPage.getByRole('button', { name: /go offline/i })).toBeVisible({
       timeout: 20_000,
     });
@@ -202,18 +217,42 @@ test.describe('required scenarios (spec §80)', () => {
     // counter, the phone, the clinical record and the patient's completion —
     // so that is what stays on the screens.
     const adminCsrf = (await signInAdmin(adminApi)).csrf;
-    await adminApi.post(`${API}/admin/queue/${publicId}/reallocate`, {
+    const reallocated = await adminApi.post(`${API}/admin/queue/${publicId}/reallocate`, {
       headers: csrfHeaders(adminCsrf),
       data: {},
     });
+    const reallocation = await reallocated.text();
 
-    const accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
+    /**
+     * The offer arrives asynchronously, so accepting has to wait for it.
+     *
+     * Two things can write it: this reallocation, or the ten-second sweep that
+     * may already have been running when the doctor came online. This test
+     * assumed the offer existed the instant reallocation returned, and failed
+     * intermittently with "you do not have an open offer" — which reads like a
+     * routing bug and was a timing assumption.
+     *
+     * The reallocation's own answer is carried into the failure, because
+     * without it the message says only that there was no offer and nothing
+     * about why the engine did not make one.
+     */
+    let accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
       headers: csrfHeaders(onShift.ok ? onShift.csrf : ''),
       data: {},
     });
+
+    for (let attempt = 0; attempt < 20 && !accepted.ok(); attempt += 1) {
+      await doctorPage.waitForTimeout(250);
+      accepted = await doctorApi.post(`${API}/doctor/consultations/${publicId}/accept`, {
+        headers: csrfHeaders(onShift.ok ? onShift.csrf : ''),
+        data: {},
+      });
+    }
+
     expect(
       accepted.ok(),
-      `the doctor should be able to accept: ${await accepted.text()}`,
+      `the doctor should be able to accept: ${await accepted.text()}\n` +
+        `reallocation answered ${reallocated.status()}: ${reallocation}`,
     ).toBeTruthy();
 
     await gotoHydrated(doctorPage, `/doctor/consultations/${publicId}`);

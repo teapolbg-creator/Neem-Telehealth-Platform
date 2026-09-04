@@ -470,3 +470,45 @@ function resolveRecipient(type: string, ref: string): Recipient | null {
       return null;
   }
 }
+
+/**
+ * Sends a notification only if the same one has not gone recently.
+ *
+ * Three of the notifications wired in Phase 11 are raised by a periodic job
+ * rather than by a business event: a licence approaching expiry, a membership
+ * approaching expiry, and destruction that has fallen overdue. Each of those
+ * conditions stays true for weeks, so the job that notices it would send the
+ * same message on every run — a doctor warned sixty times about one licence
+ * learns to ignore the warning, which is worse than not sending it.
+ *
+ * Event-driven notifications do not use this. They fire once because the event
+ * happens once, and adding a window to them would silently drop the second of
+ * two legitimate messages.
+ *
+ * The check is against the `notifications` table, so it survives a restart and
+ * does not need state of its own. It counts a SUPPRESSED row as having been
+ * sent, deliberately: suppression means the recipient has no address on that
+ * channel, and retrying daily will not give them one.
+ */
+export async function notifyOnce(
+  input: NotifyInput,
+  options: { withinDays: number },
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<NotifyResult | null> {
+  const since = new Date(clock.now().getTime() - options.withinDays * 86_400_000);
+
+  const existing = await db.notification.findFirst({
+    where: {
+      templateCode: input.templateCode,
+      recipientType: input.recipient.type,
+      recipientRef: recipientRef(input.recipient),
+      createdAt: { gte: since },
+    },
+    select: { id: true },
+  });
+
+  if (existing) return null;
+
+  return notify(input, db, clock);
+}

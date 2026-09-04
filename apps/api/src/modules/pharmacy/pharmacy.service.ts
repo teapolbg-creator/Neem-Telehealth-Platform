@@ -1,4 +1,5 @@
 import type { PharmacyStatus, PrismaClient } from '@prisma/client';
+import { notify } from '../notification/notification.service.ts';
 import type { PharmacyRegistration } from '@neem/contracts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -222,6 +223,16 @@ export async function changePharmacyStatus(
     },
     db,
   );
+
+  // The counterpart to the doctor's approval notice: a pharmacy that has been
+  // waiting on manual verification is told it can start consultations.
+  if (next === 'APPROVED') {
+    void notify({
+      templateCode: 'pharmacy.account.approved',
+      recipient: { type: 'PHARMACY', pharmacyId: pharmacy.id },
+      correlationId: context.correlationId,
+    });
+  }
 
   return { from, to: next };
 }

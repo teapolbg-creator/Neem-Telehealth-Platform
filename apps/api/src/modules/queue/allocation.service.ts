@@ -318,7 +318,12 @@ export async function offerNextDoctor(
  * — by finding a doctor who speaks it (spec §29, answers doc Q9: "A + C").
  */
 async function handleNoEligibleDoctor(
-  consultation: { id: string; publicId: string; language: { code: string; label: string } | null },
+  consultation: {
+    id: string;
+    publicId: string;
+    pharmacyId: string;
+    language: { code: string; label: string } | null;
+  },
   ranking: RankingResult,
   db: PrismaClient,
   clock: Clock,
@@ -362,6 +367,36 @@ async function handleNoEligibleDoctor(
       },
       db,
     );
+
+    /**
+     * The socket alert above reaches an administrator who is signed in and
+     * looking. These reach the ones who are not, and the pharmacy holding the
+     * patient who is still standing at the counter — who could otherwise only
+     * find out by watching the screen.
+     *
+     * Guarded by the same `noMatchAlertedAt` flag as the socket alert, so a
+     * five-second sweep does not send this repeatedly.
+     */
+    const waitedMinutes = Math.max(
+      1,
+      Math.round((now.getTime() - entry.enqueuedAt.getTime()) / 60_000),
+    );
+
+    void notify({
+      templateCode: 'admin.queue.no-language-match',
+      recipient: { type: 'ADMIN' },
+      variables: {
+        consultationReference: consultation.publicId,
+        minutes: waitedMinutes,
+        language: consultation.language?.label ?? 'the requested language',
+      },
+    });
+
+    void notify({
+      templateCode: 'pharmacy.consultation.no-doctor',
+      recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
+      variables: { consultationReference: consultation.publicId },
+    });
   }
 
   const delaySeconds = await getIntSetting(SETTING_KEYS.QUEUE_DELAY_ALERT_SECONDS, db);
@@ -461,6 +496,25 @@ export async function acceptOffer(
     state: 'DOCTOR_ACCEPTED',
   });
 
+  /**
+   * The counter is told a doctor has picked the consultation up, and the
+   * patient is told they can join.
+   *
+   * The patient's waiting-room screen polls and will show this anyway — but
+   * only to someone watching it. A patient who put the phone down to wait, at
+   * a counter, needs the SMS.
+   */
+  void notify({
+    templateCode: 'pharmacy.consultation.doctor-assigned',
+    recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
+    variables: { consultationReference: consultation.publicId },
+  });
+
+  void notify({
+    templateCode: 'patient.consultation.ready',
+    recipient: { type: 'PATIENT', consultationId: consultation.id },
+  });
+
   return { accepted: true };
 }
 
@@ -483,7 +537,16 @@ export async function enforceResponseWindow(
 
   const lapsed = await db.consultationAssignment.findMany({
     where: { result: 'PENDING', respondByAt: { lt: now } },
-    include: { consultation: { select: { id: true, publicId: true, state: true } } },
+    include: {
+      consultation: {
+        select: {
+          id: true,
+          publicId: true,
+          state: true,
+          pharmacy: { select: { name: true } },
+        },
+      },
+    },
   });
 
   let missed = 0;
@@ -540,6 +603,20 @@ export async function enforceResponseWindow(
 
       emitToDoctor(assignment.doctorId, 'queue.offer_expired', {
         consultationPublicId: assignment.consultation.publicId,
+      });
+
+      /**
+       * Told that it lapsed, and that it has gone elsewhere.
+       *
+       * A missed response is recorded against the doctor's quality data, so
+       * the one person who should certainly know it happened is the doctor it
+       * was recorded against. The message names the pharmacy and nothing about
+       * the patient.
+       */
+      void notify({
+        templateCode: 'doctor.consultation.missed',
+        recipient: { type: 'DOCTOR', doctorId: assignment.doctorId },
+        variables: { pharmacyName: assignment.consultation.pharmacy.name },
       });
 
       // Straight back into allocation; the patient is never left stranded.

@@ -1,4 +1,5 @@
 import type { DoctorStatus, PrismaClient } from '@prisma/client';
+import { notify } from '../notification/notification.service.ts';
 import type { DoctorRegistration } from '@neem/contracts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -251,6 +252,26 @@ export async function changeDoctorStatus(
     },
     db,
   );
+
+  /**
+   * An approved doctor is told they were approved.
+   *
+   * Until Phase 11 they were not: the application sat PENDING, an
+   * administrator approved it, and the only way to find out was to sign in
+   * and look. Approval is the end of a wait the applicant did not choose the
+   * length of, which makes it the clearest case in the catalogue.
+   *
+   * Fired on APPROVED rather than ACTIVE. ACTIVE additionally requires a
+   * verified document and a captured signature, so it is a step the doctor
+   * takes part in — approval is the decision made about them.
+   */
+  if (next === 'APPROVED') {
+    void notify({
+      templateCode: 'doctor.account.approved',
+      recipient: { type: 'DOCTOR', doctorId: doctor.id },
+      correlationId: context.correlationId,
+    });
+  }
 
   return { from, to: next };
 }

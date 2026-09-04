@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notify, notifyOnce } from '../notification/notification.service.ts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
@@ -82,6 +83,7 @@ export interface ExpirySweepResult {
   expired: number;
   suspended: number;
   enteringGrace: number;
+  warned: number;
 }
 
 /**
@@ -150,6 +152,15 @@ export async function runSubscriptionExpirySweep(
           clock,
         );
         suspended += 1;
+
+        // Suspension arrived silently until Phase 11: the account stopped
+        // receiving consultations and nothing said why. Sent after the status
+        // change succeeds, so a refused transition does not produce a message
+        // about a suspension that did not happen.
+        void notify({
+          templateCode: 'doctor.membership.suspended',
+          recipient: { type: 'DOCTOR', doctorId: subscription.doctor.id },
+        });
       } catch {
         // A transition the state machine refuses is not a sweep failure — the
         // doctor may already have been moved by an admin in the meantime.
@@ -157,7 +168,50 @@ export async function runSubscriptionExpirySweep(
     }
   }
 
-  return { expired, suspended, enteringGrace };
+  const warned = await warnExpiringMemberships(db, clock);
+
+  return { expired, suspended, enteringGrace, warned };
+}
+
+/**
+ * Warns doctors whose membership is about to end.
+ *
+ * The sweep above handles a membership that has already lapsed. This is the
+ * message that should have come first — an advance warning, so that expiry is
+ * something a doctor can prevent rather than something they discover when
+ * consultations stop arriving.
+ *
+ * Deduped over the warning window, because the condition stays true every day
+ * until the period ends and this job runs hourly. A doctor warned once acts on
+ * it; a doctor warned two hundred times filters the sender.
+ */
+async function warnExpiringMemberships(db: PrismaClient, clock: Clock): Promise<number> {
+  const warningDays = await getIntSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_WARNING_DAYS, db);
+  const now = clock.now();
+  const threshold = new Date(now.getTime() + warningDays * 86_400_000);
+
+  const ending = await db.doctorSubscription.findMany({
+    where: { status: 'ACTIVE', periodEnd: { gt: now, lte: threshold } },
+    select: { doctorId: true, periodEnd: true },
+  });
+
+  let warned = 0;
+
+  for (const subscription of ending) {
+    const sent = await notifyOnce(
+      {
+        templateCode: 'doctor.membership.expiring',
+        recipient: { type: 'DOCTOR', doctorId: subscription.doctorId },
+        variables: { periodEnd: subscription.periodEnd.toISOString().slice(0, 10) },
+      },
+      { withinDays: warningDays },
+      db,
+      clock,
+    );
+    if (sent) warned += 1;
+  }
+
+  return warned;
 }
 
 /**
@@ -199,6 +253,78 @@ export async function findExpiringLicences(
     mdcExpiresAt: doctor.mdcExpiresAt!,
     daysRemaining: Math.ceil((doctor.mdcExpiresAt!.getTime() - now.getTime()) / 86_400_000),
   }));
+}
+
+/**
+ * Warns doctors whose MDC licence is approaching expiry (spec §22).
+ *
+ * Everything for this existed except the thing that sends it: a warning
+ * threshold in settings, a query, an audit action reserved for it, and a
+ * written message. What that adds up to is a warning an administrator has to
+ * remember to look for, rather than one the doctor receives — and the doctor
+ * is the only person who can do anything about it.
+ *
+ * Without it, a doctor discovers their licence has lapsed when a prescription
+ * is refused mid-consultation, with a patient in front of them. That is the
+ * worst possible moment to find out, and it is the moment the product chose
+ * by default.
+ *
+ * Reports only. It never changes a doctor's status: a renewal Neem has not
+ * seen yet is not the same as a licence that has lapsed, and that judgement
+ * stays with an administrator.
+ */
+export async function warnExpiringLicences(
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<number> {
+  const expiring = await findExpiringLicences(db, clock);
+  const warningDays = await getIntSetting(SETTING_KEYS.DOCTOR_LICENCE_WARNING_DAYS, db);
+
+  let warned = 0;
+
+  for (const doctor of expiring) {
+    const record = await db.doctor.findUnique({
+      where: { publicId: doctor.publicId },
+      select: { id: true },
+    });
+    if (!record) continue;
+
+    /**
+     * Once per warning window, not once per run.
+     *
+     * The window is 60 days by default and this runs daily, so an
+     * un-deduplicated warning would arrive sixty times about one licence. A
+     * doctor who receives that learns to ignore the sender, which costs more
+     * than the warning was worth.
+     */
+    const sent = await notifyOnce(
+      {
+        templateCode: 'doctor.licence.expiring',
+        recipient: { type: 'DOCTOR', doctorId: record.id },
+        variables: { expiresAt: doctor.mdcExpiresAt.toISOString().slice(0, 10) },
+      },
+      { withinDays: Math.max(1, Math.floor(warningDays / 2)) },
+      db,
+      clock,
+    );
+
+    if (!sent) continue;
+    warned += 1;
+
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.DOCTOR_LICENCE_EXPIRING,
+        actorType: 'SYSTEM',
+        entityType: 'doctor',
+        entityId: record.id,
+        // A date and a count of days. Never the licence number.
+        metadata: { daysRemaining: doctor.daysRemaining },
+      },
+      db,
+    );
+  }
+
+  return warned;
 }
 
 export async function getCurrentSubscription(doctorId: string, db: Db = getPrisma()) {

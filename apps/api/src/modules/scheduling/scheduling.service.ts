@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notify } from '../notification/notification.service.ts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
@@ -173,6 +174,19 @@ export async function assignShift(
       },
       db,
     );
+
+    /**
+     * An assigned shift is not a confirmed one — the doctor has to accept it,
+     * and until they do, nobody is on shift. Telling them is therefore not a
+     * courtesy: an unconfirmed shift is a gap in cover that neither side knows
+     * about, and the doctor would otherwise find out only by opening the app.
+     */
+    void notify({
+      templateCode: 'doctor.shift.assigned',
+      recipient: { type: 'DOCTOR', doctorId: doctor.id },
+      variables: { shiftLabel: shift.label, serviceDate: input.serviceDate },
+      correlationId: context.correlationId,
+    });
 
     return {
       id: result.assignment.id,

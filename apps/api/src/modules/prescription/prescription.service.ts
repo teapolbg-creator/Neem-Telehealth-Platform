@@ -266,7 +266,10 @@ export async function revokePrescription(
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
 ) {
-  const prescription = await db.prescription.findUnique({ where: { id: prescriptionId } });
+  const prescription = await db.prescription.findUnique({
+    where: { id: prescriptionId },
+    include: { consultation: { select: { publicId: true } } },
+  });
   if (!prescription) throw errors.notFound('Prescription not found.');
   if (prescription.doctorId !== doctorId) throw errors.notFound('Prescription not found.');
 
@@ -310,6 +313,21 @@ export async function revokePrescription(
 
   emitToPharmacy(prescription.pharmacyId, 'prescription.revoked', {
     prescriptionPublicId: prescription.publicId,
+  });
+
+  /**
+   * The counter is told, on every channel the template declares including SMS.
+   *
+   * Dispensing a revoked prescription is refused server-side, so nobody is
+   * endangered by the silence — but without this the pharmacy finds out by
+   * being refused at the moment they try to hand the medicine over, in front
+   * of the patient. The message carries the consultation reference and not a
+   * word about what was prescribed or why it was withdrawn.
+   */
+  void notify({
+    templateCode: 'pharmacy.prescription.revoked',
+    recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
+    variables: { consultationReference: prescription.consultation.publicId },
   });
 
   return revoked;
@@ -498,7 +516,10 @@ export async function decideSubstitution(
 ) {
   const request = await db.substitutionRequest.findUnique({
     where: { id: substitutionId },
-    include: { prescription: true, prescriptionItem: true },
+    include: {
+      prescription: { include: { consultation: { select: { publicId: true } } } },
+      prescriptionItem: true,
+    },
   });
   if (!request) throw errors.notFound('Substitution request not found.');
   if (request.prescription.doctorId !== doctorId) {
@@ -595,6 +616,24 @@ export async function decideSubstitution(
   emitToPharmacy(request.pharmacyId, 'substitution.decided', {
     prescriptionPublicId: request.prescription.publicId,
     approved: decision.approve,
+  });
+
+  /**
+   * The other half of an exchange that was only half wired.
+   *
+   * The doctor has been told a substitution was proposed since Phase 8. The
+   * pharmacy was never told the answer — and it is the pharmacy that is
+   * blocked, because a prescription with an undecided substitution cannot be
+   * dispensed. The half of the conversation that was missing is the half
+   * somebody was waiting on.
+   */
+  void notify({
+    templateCode: 'pharmacy.substitution.decided',
+    recipient: { type: 'PHARMACY', pharmacyId: request.pharmacyId },
+    variables: {
+      decision: decision.approve ? 'approved' : 'declined',
+      consultationReference: request.prescription.consultation.publicId,
+    },
   });
 }
 

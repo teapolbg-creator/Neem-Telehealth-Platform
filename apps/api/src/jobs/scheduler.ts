@@ -6,7 +6,10 @@ import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
 import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
-import { runSubscriptionExpirySweep } from '../modules/subscription/subscription.service.ts';
+import {
+  runSubscriptionExpirySweep,
+  warnExpiringLicences,
+} from '../modules/subscription/subscription.service.ts';
 import { reconcilePayments } from '../modules/payment/reconciliation.service.ts';
 import { retryFailedNotifications } from '../modules/notification/notification.service.ts';
 import { emitTimerWarnings } from '../modules/media/media.service.ts';
@@ -144,6 +147,25 @@ const JOBS: JobDefinition[] = [
     intervalMs: 60 * MINUTE,
     run: async () => (await reconcilePayments()).findings.length,
     describe: (count) => `found ${count} payment discrepancie(s) needing review`,
+  },
+  {
+    /**
+     * MDC licence expiry warnings (spec §22).
+     *
+     * Everything for this existed except the thing that ran it: a warning
+     * threshold in settings, a query, an audit action reserved for it, and a
+     * written message. Without this job a doctor discovers their licence has
+     * lapsed when a prescription is refused mid-consultation, with a patient
+     * in front of them.
+     *
+     * Daily, because the subject is a date rather than a moment. The message
+     * is deduplicated over half the warning window, so one licence produces
+     * roughly two warnings rather than sixty.
+     */
+    name: 'warn-expiring-licences',
+    intervalMs: 24 * 60 * MINUTE,
+    run: warnExpiringLicences,
+    describe: (count) => `warned ${count} doctor(s) about an MDC licence nearing expiry`,
   },
 ];
 

@@ -159,22 +159,29 @@ async function offerAndAccept(
     headers: csrfHeaders(adminCsrf),
     data: {},
   });
-  // A server error is a defect, not a reason to skip — see the same guard in
+  // A 5xx is a defect, not a reason to skip — see the same guard in
   // `clinical.spec.ts`, which is where an unhandled deadlock hid behind one.
-  if (!offered.ok()) {
+  // A 409 is not: it is the sweep having changed the state under this request,
+  // which is the same race as NOT_WAITING and is handled just below.
+  if (offered.status() >= 500) {
     throw new Error(
       `Reallocation failed with ${offered.status()}, which is a defect rather than ` +
         `a reason to skip:\n${await offered.text()}`,
     );
   }
 
-  const offer = (await offered.json()).data;
+  const offer =
+    offered.status() === 409
+      ? { offered: false, reason: 'NOT_WAITING' }
+      : (await offered.json()).data;
 
-  // `ALREADY_ASSIGNED` is usually the ten-second queue sweep having got there
-  // first, offering to the doctor this helper just made the only candidate.
+  // `ALREADY_ASSIGNED` and `NOT_WAITING` both mean the ten-second sweep got
+  // there first, offering to the doctor this helper just made the only
+  // candidate — the second is commoner, since a swept consultation is no
+  // longer waiting.
   // Whether it went to ours is answered by trying to accept — see the longer
   // note on the same guard in `clinical.spec.ts`.
-  if (!offer?.offered && offer?.reason !== 'ALREADY_ASSIGNED') {
+  if (!offer?.offered && !['ALREADY_ASSIGNED', 'NOT_WAITING'].includes(offer?.reason ?? '')) {
     return { ok: false, reason: `Offered to nobody: ${offer?.reason ?? offered.status()}` };
   }
 

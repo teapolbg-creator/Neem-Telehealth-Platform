@@ -160,18 +160,31 @@ async function liveConsultation(
    * whole build. "Nobody was eligible" is a legitimate state of the world;
    * "the server fell over" is not, and the two must not look alike.
    */
-  if (!offered.ok()) {
+  if (offered.status() >= 500) {
     throw new Error(
       `Reallocation failed with ${offered.status()}, which is a defect rather than ` +
         `a reason to skip:\n${await offered.text()}`,
     );
   }
 
-  const offer = (await offered.json()).data as
-    { offered: boolean; reason?: string; languageStarved?: boolean; message?: string } | undefined;
+  /**
+   * A 409 is the same race, reported differently.
+   *
+   * Reallocation legitimately conflicts when the ten-second sweep changed the
+   * consultation's state between this request being read and its transaction
+   * running. Throwing on any non-2xx was too blunt in the other direction from
+   * the skip-everything version above — a 5xx is the server falling over, and
+   * a 4xx is the engine telling you what happened.
+   */
+  const offer =
+    offered.status() === 409
+      ? { offered: false, reason: 'NOT_WAITING' as const }
+      : ((await offered.json()).data as
+          | { offered: boolean; reason?: string; languageStarved?: boolean; message?: string }
+          | undefined);
 
   /**
-   * `ALREADY_ASSIGNED` is usually our own doctor, and not a reason to stop.
+   * A race with the sweep is usually our own doctor, and not a reason to stop.
    *
    * The queue sweeps every ten seconds, and this helper has just made its
    * doctor the only online candidate. So the sweep frequently offers the
@@ -181,11 +194,18 @@ async function liveConsultation(
    * which is also how the deadlock above stayed hidden, because a suite that
    * skips at random teaches you to ignore its skips.
    *
-   * Whether the offer went to our doctor is answerable rather than
-   * guessable: try to accept it. If our doctor holds the offer, the test can
-   * proceed exactly as if the reallocation had made it.
+   * Two reasons mean it: `ALREADY_ASSIGNED` from the unique constraint, and
+   * `NOT_WAITING` — which is the commoner of the two, because a sweep that
+   * has already offered the consultation leaves it ASSIGNED, and the engine
+   * then correctly refuses to offer a consultation that is not waiting.
+   *
+   * Whether the offer went to our doctor is answerable rather than guessable:
+   * try to accept it. If our doctor holds it, the test proceeds exactly as if
+   * the reallocation had made the offer.
    */
-  if (!offer?.offered && offer?.reason !== 'ALREADY_ASSIGNED') {
+  const RACE_WITH_THE_SWEEP = ['ALREADY_ASSIGNED', 'NOT_WAITING'];
+
+  if (!offer?.offered && !RACE_WITH_THE_SWEEP.includes(offer?.reason ?? '')) {
     const presence = await doctorApi.get(`${API}/doctor/presence`);
     return {
       skip:

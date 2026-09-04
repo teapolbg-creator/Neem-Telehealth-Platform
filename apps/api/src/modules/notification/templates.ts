@@ -310,41 +310,23 @@ export function validateTemplateBody(body: string, allowedVariables: string[]): 
 }
 
 /**
- * Templates the catalogue declares but nothing in the application sends.
+ * Templates the catalogue declares that nothing in the application sends,
+ * mapped to what the silence costs.
  *
- * Found in Phase 11: 17 of the 21 templates below had no producer. Every one
- * was complete — subject, body, channels, variables, and an admin screen to
- * reword them on — and nothing anywhere called `notify()` with the code. An
- * administrator could word a message with care and it would never reach
- * anyone, and the product said nothing about it.
+ * **Empty, and that is the point of it still existing.**
  *
- * This set is exported for two consumers, which is the point of it existing
- * here rather than in either of them:
+ * Phase 11 found seventeen of the twenty-one templates here with no producer:
+ * complete wording, channels, variables, and an admin screen to reword them
+ * on, and nothing anywhere calling `notify()` with the code. All seventeen
+ * are wired now. The register stays because it is what keeps the gap from
+ * reopening — `notification-producers.test.ts` fails when a template has no
+ * producer and no entry here, and the admin screen reads it to mark a message
+ * as not yet sent.
  *
- *  - `GET /admin/notification-templates` marks these rows, so the screen tells
- *    the truth about what editing them achieves today;
- *  - `tests/integration/notification-producers.test.ts` checks it against the
- *    actual source, so it cannot quietly go stale in either direction.
- *
- * It is a debt register. Wiring a producer means deleting the entry, and the
- * test fails until it is deleted.
+ * It is a map rather than a list so that declaring a gap requires saying who
+ * does not learn what. A code on its own is a to-do; a consequence is
+ * something a reviewer can weigh. The question worth asking of any entry is
+ * whether somebody is harmed by the silence, and a module name does not
+ * answer it.
  */
-export const TEMPLATES_WITHOUT_PRODUCER: ReadonlySet<string> = new Set([
-  'doctor.consultation.missed',
-  'doctor.shift.assigned',
-  'doctor.membership.expiring',
-  'doctor.membership.suspended',
-  'doctor.licence.expiring',
-  'doctor.account.approved',
-  'pharmacy.consultation.doctor-assigned',
-  'pharmacy.prescription.revoked',
-  'pharmacy.substitution.decided',
-  'pharmacy.consultation.no-doctor',
-  'pharmacy.refund.decided',
-  'pharmacy.account.approved',
-  'patient.consultation.ready',
-  'admin.queue.no-language-match',
-  'admin.payment.anomaly',
-  'admin.refund.requested',
-  'admin.retention.overdue',
-]);
+export const TEMPLATES_WITHOUT_PRODUCER: ReadonlyMap<string, string> = new Map([]);

@@ -451,8 +451,32 @@ export async function goOnlineExclusively(
   doctor: { email: string; password: string },
   csrf: string,
 ): Promise<void> {
+  await takeOtherDoctorsOffline(playwright, doctor);
+
+  await doctorApi.post(`${API}/doctor/presence/online`, {
+    headers: csrfHeaders(csrf),
+    data: {},
+  });
+  rememberOnline(doctor);
+}
+
+/**
+ * Takes every other fixture doctor offline, without bringing anyone online.
+ *
+ * Split out of `goOnlineExclusively` for the scenarios that come online
+ * **through the screen** — where the toggle is part of what is being tested,
+ * so the API cannot be used to do it. They still need to be the only
+ * candidate, and without this the queue hands their consultation to a doctor
+ * an earlier test left online. Scenario 1 failed exactly that way: its
+ * reallocation went to somebody else's doctor and its own accept was refused
+ * with "you do not have an open offer".
+ */
+export async function takeOtherDoctorsOffline(
+  playwright: typeof import('@playwright/test').default,
+  keep?: { email: string },
+): Promise<void> {
   for (const other of doctorsOnline) {
-    if (other.email === doctor.email) continue;
+    if (keep && other.email === keep.email) continue;
 
     const context = await playwright.request.newContext();
     try {
@@ -470,11 +494,16 @@ export async function goOnlineExclusively(
   }
 
   doctorsOnline.length = 0;
+}
 
-  await doctorApi.post(`${API}/doctor/presence/online`, {
-    headers: csrfHeaders(csrf),
-    data: {},
-  });
+/**
+ * Records that a doctor is online, so the next test can take them off again.
+ *
+ * Called by `goOnlineExclusively`, and directly by scenarios that go online
+ * through the screen — a doctor left online and unrecorded is invisible to
+ * every later test and is precisely what breaks them.
+ */
+export function rememberOnline(doctor: { email: string; password: string }): void {
   doctorsOnline.push({ email: doctor.email, password: doctor.password });
 }
 

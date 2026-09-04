@@ -831,6 +831,46 @@ db:grants`", and there was no such script; the `.sql` file it named sat
   fixtures recognises a 429 and says which block to read instead of failing
   twenty tests silently.
 
+- **The seventeen silent notifications are wired.** Every event they hang off
+  already existed; each needed the line that sends. Two needed more: the MDC
+  licence warning had a threshold in settings, a query, an audit action and a
+  written message, and no job to run any of it — `warn-expiring-licences` is
+  new, daily, and deduplicated over half the warning window so one licence
+  produces roughly two warnings rather than sixty. The membership warning
+  needed a threshold of its own, so `doctor.membershipExpiryWarningDays` is a
+  new setting rather than a number in the code.
+
+  `notifyOnce` is the piece that made the periodic ones safe to send at all.
+  Three of the seventeen are raised by a job rather than an event, and each
+  condition stays true for weeks — a licence expiring, a membership expiring,
+  a destruction overdue. Without a window the job that notices would send the
+  same message on every run, and a doctor warned sixty times about one licence
+  learns to ignore the sender, which costs more than the warning was worth.
+  Event-driven producers deliberately do not use it: they fire once because
+  the event happens once, and a window there would silently drop the second of
+  two legitimate messages.
+
+  **A source scan could not have finished this job.** The producers test greps
+  for call sites, so it proves a producer exists and nothing about whether it
+  works — and the likeliest defect is a producer passing `reference` where the
+  template declares `consultationReference`. `render` throws on a variable it
+  was not given, `notify` catches it, the row is written FAILED, and the
+  prescription is issued exactly as intended. Nothing goes red. So
+  `notification-delivery.test.ts` drives the real services and asserts the row
+  that came out — right template, right recipient, **never FAILED**.
+
+  Two of those twelve tests failed on first run, and both faults were in my
+  test rather than the product: `settled()` returned as soon as the rows it
+  had seen were terminal, which is before the SMS row has been created at all,
+  so an assertion about what was actually sent read an empty outbox. It now
+  waits for the channel count the catalogue declares.
+
+  `TEMPLATES_WITHOUT_PRODUCER` became a map from code to consequence rather
+  than a list of codes. It is empty, and it stays because it is what keeps the
+  gap from reopening — but a map means declaring a future gap requires writing
+  who does not learn what. A code on its own is a to-do; a consequence is
+  something a reviewer can weigh.
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says
