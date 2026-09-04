@@ -130,16 +130,16 @@ function VitalsPanel({
 
       {recorded && (
         <dl className="mt-4 grid gap-x-6 gap-y-2 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
-          {VITAL_FIELDS.filter((field) => recorded[field.key] !== null && recorded[field.key] !== undefined).map(
-            (field) => (
-              <div key={field.key} className="flex justify-between gap-4">
-                <dt className="text-slate-500">{field.label}</dt>
-                <dd className="font-semibold tabular-nums">
-                  {String(recorded[field.key])} {field.unit}
-                </dd>
-              </div>
-            ),
-          )}
+          {VITAL_FIELDS.filter(
+            (field) => recorded[field.key] !== null && recorded[field.key] !== undefined,
+          ).map((field) => (
+            <div key={field.key} className="flex justify-between gap-4">
+              <dt className="text-slate-500">{field.label}</dt>
+              <dd className="font-semibold tabular-nums">
+                {String(recorded[field.key])} {field.unit}
+              </dd>
+            </div>
+          ))}
         </dl>
       )}
 
@@ -187,7 +187,11 @@ function VitalsPanel({
           "hover:brightness-110 disabled:opacity-40",
         )}
       >
-        {record.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+        {record.isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Check className="size-4" />
+        )}
         {recorded ? "Record new readings" : "Record vitals"}
       </button>
 
@@ -254,7 +258,12 @@ function TestsPanel({
         // The declared code when one was chosen; otherwise derived, because a
         // pharmacist should not have to invent a code and the label is what
         // the doctor reads.
-        code: code ?? trimmedLabel.toUpperCase().replace(/[^A-Z0-9]+/g, "_").slice(0, 60),
+        code:
+          code ??
+          trimmedLabel
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "_")
+            .slice(0, 60),
         label: trimmedLabel,
         result: trimmedResult,
       },
@@ -346,7 +355,9 @@ function TestsPanel({
 
       {record.error && (
         <p className="mt-3 text-sm text-red-600">
-          {record.error instanceof ApiError ? record.error.message : "The result could not be saved."}
+          {record.error instanceof ApiError
+            ? record.error.message
+            : "The result could not be saved."}
         </p>
       )}
 
@@ -356,7 +367,11 @@ function TestsPanel({
         onClick={submit}
         className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
       >
-        {record.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+        {record.isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Plus className="size-4" />
+        )}
         Add result
       </button>
     </section>

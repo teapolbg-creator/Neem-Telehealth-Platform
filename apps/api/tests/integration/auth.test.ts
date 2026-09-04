@@ -478,4 +478,3 @@ describe('password reset', () => {
     expect(user.id).toBeTruthy();
   });
 });
-

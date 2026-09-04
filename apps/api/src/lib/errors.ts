@@ -33,14 +33,18 @@ export class AppError extends Error {
 }
 
 export const errors = {
-  validation: (details: Array<{ field?: string; issue: string }>, message = 'The submitted data is not valid.') =>
-    new AppError({ statusCode: 400, code: ERROR_CODES.VALIDATION_FAILED, message, details }),
+  validation: (
+    details: Array<{ field?: string; issue: string }>,
+    message = 'The submitted data is not valid.',
+  ) => new AppError({ statusCode: 400, code: ERROR_CODES.VALIDATION_FAILED, message, details }),
 
   unauthenticated: (message = 'You need to sign in to continue.') =>
     new AppError({ statusCode: 401, code: ERROR_CODES.UNAUTHENTICATED, message }),
 
-  forbidden: (message = 'You do not have permission to do that.', logContext?: Record<string, unknown>) =>
-    new AppError({ statusCode: 403, code: ERROR_CODES.FORBIDDEN, message, logContext }),
+  forbidden: (
+    message = 'You do not have permission to do that.',
+    logContext?: Record<string, unknown>,
+  ) => new AppError({ statusCode: 403, code: ERROR_CODES.FORBIDDEN, message, logContext }),
 
   /**
    * Used both for genuinely missing resources and for resources the caller is
@@ -63,7 +67,12 @@ export const errors = {
     }),
 
   businessRule: (message: string, logContext?: Record<string, unknown>) =>
-    new AppError({ statusCode: 422, code: ERROR_CODES.BUSINESS_RULE_VIOLATION, message, logContext }),
+    new AppError({
+      statusCode: 422,
+      code: ERROR_CODES.BUSINESS_RULE_VIOLATION,
+      message,
+      logContext,
+    }),
 
   rateLimited: (message = 'Too many requests. Please wait and try again.') =>
     new AppError({ statusCode: 429, code: ERROR_CODES.RATE_LIMITED, message }),
@@ -79,8 +88,9 @@ export const errors = {
   accountNotActive: (message = 'This account is not active. Contact Neem support.') =>
     new AppError({ statusCode: 403, code: ERROR_CODES.ACCOUNT_NOT_ACTIVE, message }),
 
-  twoFactorInvalid: (message = 'That code is not valid. Check your authenticator app and try again.') =>
-    new AppError({ statusCode: 401, code: ERROR_CODES.TWO_FACTOR_INVALID, message }),
+  twoFactorInvalid: (
+    message = 'That code is not valid. Check your authenticator app and try again.',
+  ) => new AppError({ statusCode: 401, code: ERROR_CODES.TWO_FACTOR_INVALID, message }),
 
   csrfInvalid: () =>
     new AppError({

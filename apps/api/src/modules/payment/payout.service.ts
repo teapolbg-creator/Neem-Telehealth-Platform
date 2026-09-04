@@ -43,7 +43,13 @@ export async function calculatePayouts(
   adminId: string,
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
-): Promise<{ periodStart: string; periodEnd: string; created: number; updated: number; frozen: number }> {
+): Promise<{
+  periodStart: string;
+  periodEnd: string;
+  created: number;
+  updated: number;
+  frozen: number;
+}> {
   const periodStart = asDateOnly(period.periodStart);
   const periodEnd = asDateOnly(period.periodEnd);
 

@@ -36,7 +36,13 @@ export class MockPaymentProvider implements PaymentProvider {
   /** In-memory ledger. Cleared on restart, which is fine for development. */
   private readonly payments = new Map<
     string,
-    { amountMinor: number; currency: string; status: VerifiedPaymentStatus; channel?: string; paidAt?: Date }
+    {
+      amountMinor: number;
+      currency: string;
+      status: VerifiedPaymentStatus;
+      channel?: string;
+      paidAt?: Date;
+    }
   >();
 
   async initialize(input: InitializePaymentInput): Promise<InitializePaymentResult> {
@@ -106,7 +112,14 @@ export class MockPaymentProvider implements PaymentProvider {
     const payload = JSON.parse(rawBody.toString('utf8')) as {
       id?: string;
       event?: string;
-      data?: { reference?: string; status?: string; amount?: number; currency?: string; channel?: string; paid_at?: string };
+      data?: {
+        reference?: string;
+        status?: string;
+        amount?: number;
+        currency?: string;
+        channel?: string;
+        paid_at?: string;
+      };
     };
 
     const reference = payload.data?.reference;
@@ -139,7 +152,10 @@ export class MockPaymentProvider implements PaymentProvider {
     const record = this.payments.get(input.providerReference);
 
     if (!record || record.status !== 'SUCCESS') {
-      return { providerRefundReference: `mock_rf_${randomBytes(6).toString('hex')}`, status: 'FAILED' };
+      return {
+        providerRefundReference: `mock_rf_${randomBytes(6).toString('hex')}`,
+        status: 'FAILED',
+      };
     }
 
     record.status = 'FAILED';

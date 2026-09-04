@@ -136,7 +136,9 @@ function Summary({ membership }: { membership: Membership }) {
         <div>
           <div className="flex items-center gap-2">
             <BadgeCheck
-              className={membership.status === "ACTIVE" ? "size-5 text-brand" : "size-5 text-slate-300"}
+              className={
+                membership.status === "ACTIVE" ? "size-5 text-brand" : "size-5 text-slate-300"
+              }
             />
             <h2 className="text-lg font-bold">
               {membership.status === "NONE" ? "No membership yet" : "Your membership"}

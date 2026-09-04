@@ -1,11 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import {
-  decryptField,
-  decryptNullable,
-  normaliseConsultationReference,
-} from '../../lib/crypto.ts';
+import { decryptField, decryptNullable, normaliseConsultationReference } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { VitalsReadings } from './clinical-record.service.ts';
@@ -98,7 +94,12 @@ export interface ArchivedConsultation {
     durationSeconds: number | null;
     outcome: string | null;
   };
-  patient: { fullName: string; age: number | null; sex: string | null; phone: string | null } | null;
+  patient: {
+    fullName: string;
+    age: number | null;
+    sex: string | null;
+    phone: string | null;
+  } | null;
   clinical: {
     notes: string | null;
     diagnosis: string | null;

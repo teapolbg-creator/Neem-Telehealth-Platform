@@ -12,20 +12,20 @@ The Lovable project is a **high-fidelity, non-functional UI prototype**. It is a
 
 ### 1.1 Stack as found
 
-| Concern | Actual |
-| --- | --- |
-| Framework | **TanStack Start** v1.168 (file-based routing, SSR) — *not* Next.js |
-| Build | Vite 8, wrapped by `@lovable.dev/vite-tanstack-config` v2.13.1 |
-| Server runtime | Nitro 3 beta, **default build target Cloudflare** |
-| UI | React 19.2, TypeScript 5.8 (`strict: true`) |
-| Styling | Tailwind CSS **v4** (CSS-first `@theme inline`, oklch tokens) |
-| Components | shadcn/ui "new-york", 47 Radix-based primitives |
-| Icons | lucide-react |
-| Data fetching | `@tanstack/react-query` v5 (installed, provider mounted, **never used**) |
-| Forms | react-hook-form + zod v3 + `@hookform/resolvers` (installed, **never used**) |
-| Charts | recharts (installed, **never used** — charts are hand-rolled divs) |
+| Concern         | Actual                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| Framework       | **TanStack Start** v1.168 (file-based routing, SSR) — _not_ Next.js           |
+| Build           | Vite 8, wrapped by `@lovable.dev/vite-tanstack-config` v2.13.1                |
+| Server runtime  | Nitro 3 beta, **default build target Cloudflare**                             |
+| UI              | React 19.2, TypeScript 5.8 (`strict: true`)                                   |
+| Styling         | Tailwind CSS **v4** (CSS-first `@theme inline`, oklch tokens)                 |
+| Components      | shadcn/ui "new-york", 47 Radix-based primitives                               |
+| Icons           | lucide-react                                                                  |
+| Data fetching   | `@tanstack/react-query` v5 (installed, provider mounted, **never used**)      |
+| Forms           | react-hook-form + zod v3 + `@hookform/resolvers` (installed, **never used**)  |
+| Charts          | recharts (installed, **never used** — charts are hand-rolled divs)            |
 | Package manager | **bun** (`bun.lock`, `bunfig.toml` with a 24h supply-chain release-age guard) |
-| Fonts | Plus Jakarta Sans (body), Nunito (display), self-hosted via `@fontsource` |
+| Fonts           | Plus Jakarta Sans (body), Nunito (display), self-hosted via `@fontsource`     |
 
 ### 1.2 What exists
 
@@ -49,14 +49,14 @@ Every screen renders from `src/lib/neem-data.ts` — 71 lines of hard-coded arra
 
 Verified by inspection of this machine:
 
-| Tool | Status | Needed for |
-| --- | --- | --- |
-| **Node.js** | not installed | Everything |
-| **bun** | not installed | The project's own package manager |
-| **Docker** | not installed | MySQL, MailHog |
-| **MySQL** | not installed | The database |
-| git | installed | — |
-| Python | Windows Store stub only | — |
+| Tool        | Status                  | Needed for                        |
+| ----------- | ----------------------- | --------------------------------- |
+| **Node.js** | not installed           | Everything                        |
+| **bun**     | not installed           | The project's own package manager |
+| **Docker**  | not installed           | MySQL, MailHog                    |
+| **MySQL**   | not installed           | The database                      |
+| git         | installed               | —                                 |
+| Python      | Windows Store stub only | —                                 |
 
 **Nothing in this repository can currently be installed, built, run, or tested.** Phase 1 cannot produce a running system until at minimum Node.js (or bun) and a MySQL instance exist. See Q5 in §6.
 
@@ -79,15 +79,15 @@ Consequences:
 
 Ranked by how much they change the build.
 
-### C1 — Framework: spec says Next.js, repo is TanStack Start *(architecture-changing)*
+### C1 — Framework: spec says Next.js, repo is TanStack Start _(architecture-changing)_
 
 Spec §6 states "React / Next.js"; §5 says preserve a superior compatible architecture where practical. Migrating to Next.js would discard the entire working Lovable frontend for no functional gain. **Resolution: keep TanStack Start for the web app.** The open question is where the backend lives — see Q4.
 
-### C2 — Who collects patient identity *(workflow-changing)*
+### C2 — Who collects patient identity _(workflow-changing)_
 
-The Lovable `/pharmacy/new` wizard collects *first name, age range, gender* **at the pharmacy counter** and explicitly promises "No phone number, ID, or medical history is stored on the pharmacy side."
+The Lovable `/pharmacy/new` wizard collects _first name, age range, gender_ **at the pharmacy counter** and explicitly promises "No phone number, ID, or medical history is stored on the pharmacy side."
 
-The spec (§10) requires the **patient** to enter *full name, age, sex, phone number* **on their own phone after scanning the QR** — and §18 lets the pharmacy then view those four fields for the active consultation only.
+The spec (§10) requires the **patient** to enter _full name, age, sex, phone number_ **on their own phone after scanning the QR** — and §18 lets the pharmacy then view those four fields for the active consultation only.
 
 These are incompatible. **Resolution: follow the spec.** The pharmacy wizard becomes: create consultation → take payment → show QR. Identity capture moves to the patient portal. The pharmacy consultation screen gains a read-only temporary patient panel.
 
@@ -95,13 +95,13 @@ These are incompatible. **Resolution: follow the spec.** The pharmacy wizard bec
 
 `About Neem.docx` §"Consultation Allocation System" says "The first available doctor to accept the consultation is connected." Its own §"Strategic Recommendation" then argues against exactly that, and the answers document confirms the smart queue with an explicit priority order. **Resolution: smart queue only. The first-to-click model is not implemented.**
 
-### C4 — Prescription retention purpose and third-party sharing *(privacy / regulatory — needs your decision)*
+### C4 — Prescription retention purpose and third-party sharing _(privacy / regulatory — needs your decision)_
 
 `About Neem.docx` says prescriptions are stored long-term "for research and quality assurance for Neem, the pharmacy once granted permission **and other 3rd party healthcare institutions if granted permission**."
 
 Spec §45 lists exactly four permitted readers — patient, issuing doctor, dispensing pharmacy, Neem Admin — and says other pharmacies cannot access. Third-party institutional sharing and secondary research use appear nowhere in the spec. **Category A. See Q1.**
 
-### C5 — Patient-facing clinical summary after consultation *(privacy)*
+### C5 — Patient-facing clinical summary after consultation _(privacy)_
 
 The Lovable patient portal's completion screen displays a clinical summary ("Suspected uncomplicated malaria. RDT positive…"). The spec requires diagnosis and clinical notes to be **deleted the moment the doctor completes the consultation** (§16, §101). A stored, retrievable patient-facing summary would be a retained clinical record and would contradict that. **Category A. See Q2.**
 
@@ -156,13 +156,13 @@ Full detail in `docs/architecture.md`. Headlines:
 
 All five were put to the product owner and resolved. Recorded as decisions D1, D13, D14, D15, D16 in `docs/decision-log.md`.
 
-| # | Question | Decision |
-| --- | --- | --- |
-| Q1 | Prescription third-party sharing / research use | **Four parties only.** Spec §45 governs. No third-party access, no research export in V1. `consents` / `disclosure_log` shaped but unused |
-| Q2 | What the patient keeps after completion | **Prescription/referral PDF only.** The clinical summary screen is removed; no `patientRemark` field |
-| Q3 | In-consultation chat and image upload | **Cut from MVP**, logged in the backlog |
-| Q4 | Repository layout | **Monorepo** — `apps/web` + `apps/api` + `packages/contracts` |
-| Q5 | Local runtime | **Node.js 22 LTS + Docker Desktop** (MySQL 8, MailHog, Adminer via compose) |
+| #   | Question                                        | Decision                                                                                                                                  |
+| --- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Prescription third-party sharing / research use | **Four parties only.** Spec §45 governs. No third-party access, no research export in V1. `consents` / `disclosure_log` shaped but unused |
+| Q2  | What the patient keeps after completion         | **Prescription/referral PDF only.** The clinical summary screen is removed; no `patientRemark` field                                      |
+| Q3  | In-consultation chat and image upload           | **Cut from MVP**, logged in the backlog                                                                                                   |
+| Q4  | Repository layout                               | **Monorepo** — `apps/web` + `apps/api` + `packages/contracts`                                                                             |
+| Q5  | Local runtime                                   | **Node.js 22 LTS + Docker Desktop** (MySQL 8, MailHog, Adminer via compose)                                                               |
 
 The original wording of each question is preserved below for the record.
 
@@ -174,19 +174,20 @@ Per spec §106 I stopped rather than assuming.
 
 **Q1 — Prescription retention purpose and third-party access (C4).**
 Your business document contemplates sharing prescriptions with third-party healthcare institutions and using them for research, with permission. The spec restricts access to four parties and says nothing about research use. Which governs the MVP?
-*Recommendation:* build the four-party model now, and shape a `consents` + `disclosure_log` table so third-party sharing can be added later without a migration rewrite — but ship no third-party access and no research export in V1.
+_Recommendation:_ build the four-party model now, and shape a `consents` + `disclosure_log` table so third-party sharing can be added later without a migration rewrite — but ship no third-party access and no research export in V1.
 
 **Q2 — What, if anything, does the patient keep after the consultation (C5)?**
 The prescription is permanent and downloadable — settled. But the Lovable UI also shows a clinical summary. Options:
-(a) patient receives **only** the prescription/referral PDF, no clinical summary — the strictest reading of your deletion rule (*recommended*);
+(a) patient receives **only** the prescription/referral PDF, no clinical summary — the strictest reading of your deletion rule (_recommended_);
 (b) the doctor may write a short patient-facing remark stored **on the prescription record** — your business document does mention "a short remark if necessary" alongside name/age/sex;
 (c) something else.
 Note that (b) makes a small amount of clinical text permanent. That is a policy choice, not an engineering one.
 
 **Q3 — In-consultation chat and image upload (C8).**
-Present in your Lovable UI, absent from the spec. Include in MVP or move to backlog? If included, I need a retention rule for uploaded images. *Recommendation:* cut both from MVP.
+Present in your Lovable UI, absent from the spec. Include in MVP or move to backlog? If included, I need a retention rule for uploaded images. _Recommendation:_ cut both from MVP.
 
 **Q4 — Repository layout (D1 in the decision log).**
+
 - **Option A — Monorepo:** move the app to `apps/web/`, add `apps/api/` and `packages/contracts/`. Cleanest long-term and standard. Cost: departs from Lovable's expected root layout, so round-tripping edits through the Lovable editor becomes impractical.
 - **Option B — Additive:** leave the web app exactly where it is at the repo root, add `server/` alongside it. Preserves Lovable compatibility. Cost: a slightly unusual layout.
 
@@ -199,22 +200,22 @@ You need Node.js 22 LTS and a MySQL 8 instance on this machine. For MySQL, Docke
 
 ## 7. Documents created in Phase 0
 
-| File | Contents |
-| --- | --- |
-| `docs/phase-0-findings.md` | This document |
-| `docs/architecture.md` | System architecture, module boundaries, folder structure, dependencies |
-| `docs/database.md` | Full ERD, retention classification per table |
-| `docs/api.md` | REST surface, response/error envelope conventions |
-| `docs/security.md` | Threat model, auth design, token design, control checklist |
-| `docs/data-retention.md` | Temporary vs permanent classification, deletion mechanism |
-| `docs/consultation-flow.md` | Consultation state machine and valid transitions |
-| `docs/queue-engine.md` | Smart allocation scoring, 90s window, reassignment, no-language-match path |
-| `docs/payment-flow.md` | Paystack sequence, webhook idempotency, revenue split, refunds |
-| `docs/decision-log.md` | Engineering decisions with rationale |
-| `docs/product-backlog.md` | MVP vs Post-MVP, explicit scope fence |
-| `docs/roadmap.md` | Phases 1–11 with deliverables and exit criteria |
-| `docs/compliance/README.md` | How the compliance register works, and its limits |
-| `docs/compliance/ghana-regulatory-register.md` | Candidate instruments, all marked UNVERIFIED, with verification tasks |
+| File                                           | Contents                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `docs/phase-0-findings.md`                     | This document                                                              |
+| `docs/architecture.md`                         | System architecture, module boundaries, folder structure, dependencies     |
+| `docs/database.md`                             | Full ERD, retention classification per table                               |
+| `docs/api.md`                                  | REST surface, response/error envelope conventions                          |
+| `docs/security.md`                             | Threat model, auth design, token design, control checklist                 |
+| `docs/data-retention.md`                       | Temporary vs permanent classification, deletion mechanism                  |
+| `docs/consultation-flow.md`                    | Consultation state machine and valid transitions                           |
+| `docs/queue-engine.md`                         | Smart allocation scoring, 90s window, reassignment, no-language-match path |
+| `docs/payment-flow.md`                         | Paystack sequence, webhook idempotency, revenue split, refunds             |
+| `docs/decision-log.md`                         | Engineering decisions with rationale                                       |
+| `docs/product-backlog.md`                      | MVP vs Post-MVP, explicit scope fence                                      |
+| `docs/roadmap.md`                              | Phases 1–11 with deliverables and exit criteria                            |
+| `docs/compliance/README.md`                    | How the compliance register works, and its limits                          |
+| `docs/compliance/ghana-regulatory-register.md` | Candidate instruments, all marked UNVERIFIED, with verification tasks      |
 
 ---
 

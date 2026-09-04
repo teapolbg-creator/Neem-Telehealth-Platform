@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LoginRequest, LoginResponse, SessionUser, Permission } from '@neem/contracts';
-import { api, ApiError } from '@/lib/api-client';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LoginRequest, LoginResponse, SessionUser, Permission } from "@neem/contracts";
+import { api, ApiError } from "@/lib/api-client";
 
 /**
  * Session state for the web app.
@@ -11,12 +11,12 @@ import { api, ApiError } from '@/lib/api-client';
  * (spec §92).
  */
 
-export const sessionQueryKey = ['auth', 'session'] as const;
+export const sessionQueryKey = ["auth", "session"] as const;
 
 export function useSession() {
   const query = useQuery({
     queryKey: sessionQueryKey,
-    queryFn: ({ signal }) => api.get<SessionUser | null>('/auth/me', signal),
+    queryFn: ({ signal }) => api.get<SessionUser | null>("/auth/me", signal),
     // The session is checked on every focus, so a suspension or a logout in
     // another tab is reflected quickly rather than after a stale cache expires.
     staleTime: 30_000,
@@ -41,9 +41,9 @@ export function useLogin() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: LoginRequest) => api.post<LoginResponse>('/auth/login', input),
+    mutationFn: (input: LoginRequest) => api.post<LoginResponse>("/auth/login", input),
     onSuccess: (result) => {
-      if (result.status === 'AUTHENTICATED') {
+      if (result.status === "AUTHENTICATED") {
         void queryClient.invalidateQueries({ queryKey: sessionQueryKey });
       }
     },
@@ -61,11 +61,11 @@ export interface TwoFactorEnrollment {
 export function useBeginTwoFactorEnrollment() {
   return useMutation({
     mutationFn: (challengeId: string) =>
-      api.post<TwoFactorEnrollment>('/auth/2fa/enroll', { challengeId }),
+      api.post<TwoFactorEnrollment>("/auth/2fa/enroll", { challengeId }),
   });
 }
 
-export interface TwoFactorResult extends Extract<LoginResponse, { status: 'AUTHENTICATED' }> {
+export interface TwoFactorResult extends Extract<LoginResponse, { status: "AUTHENTICATED" }> {
   /** Returned exactly once, at enrolment. There is no route to fetch them again. */
   recoveryCodes?: string[];
 }
@@ -75,7 +75,7 @@ export function useVerifyTwoFactor() {
 
   return useMutation({
     mutationFn: (input: { challengeId: string; code: string }) =>
-      api.post<TwoFactorResult>('/auth/2fa/verify', input),
+      api.post<TwoFactorResult>("/auth/2fa/verify", input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: sessionQueryKey });
     },
@@ -86,7 +86,7 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post<{ status: string }>('/auth/logout'),
+    mutationFn: () => api.post<{ status: string }>("/auth/logout"),
     onSettled: () => {
       // Clear everything, not just the session: cached dashboard data belongs
       // to the account that just signed out.
@@ -105,7 +105,7 @@ export function useLogout() {
 export function useRequestPasswordReset() {
   return useMutation({
     mutationFn: (email: string) =>
-      api.post<{ status: string; deliveryConfigured: boolean }>('/auth/password-reset/request', {
+      api.post<{ status: string; deliveryConfigured: boolean }>("/auth/password-reset/request", {
         email,
       }),
   });
@@ -114,6 +114,6 @@ export function useRequestPasswordReset() {
 export function useConfirmPasswordReset() {
   return useMutation({
     mutationFn: (input: { token: string; password: string }) =>
-      api.post<{ status: string }>('/auth/password-reset/confirm', input),
+      api.post<{ status: string }>("/auth/password-reset/confirm", input),
   });
 }

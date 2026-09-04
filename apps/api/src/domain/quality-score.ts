@@ -124,9 +124,7 @@ export function computeQualityScore(
   const auditOutcomes = audits === 0 ? 0.5 : unit(inputs.auditsPassed / audits);
 
   const prescriptionIssues =
-    inputs.prescriptions === 0
-      ? 0.5
-      : unit(1 - inputs.prescriptionIssues / inputs.prescriptions);
+    inputs.prescriptions === 0 ? 0.5 : unit(1 - inputs.prescriptionIssues / inputs.prescriptions);
 
   const score =
     rating * weights.rating +

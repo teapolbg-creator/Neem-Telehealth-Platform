@@ -99,22 +99,24 @@ export function AppShell({
         {navItems.length > 1 && (
           <div className="hidden min-w-0 flex-1 sm:flex justify-center overflow-x-auto">
             <div className="flex shrink-0 gap-1 bg-slate-100 p-1 rounded-xl">
-            {navItems.map((item) => {
-              const isActive =
-                item.to === pathname || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors",
-                    isActive ? "bg-white shadow-sm text-brand" : "text-slate-500 hover:bg-white/60",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+              {navItems.map((item) => {
+                const isActive =
+                  item.to === pathname || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+                      isActive
+                        ? "bg-white shadow-sm text-brand"
+                        : "text-slate-500 hover:bg-white/60",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

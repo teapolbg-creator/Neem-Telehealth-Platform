@@ -162,7 +162,7 @@ log and retention health) belongs with Phase 9.
   `COMPLAINT` opening a complaints row for Phase 9's console.
 - **The patient's session died at completion.** Found while building the
   above: `resolvePatientSession` gated on the states in which a patient may
-  *act*, so the phone got a 401 the moment the doctor completed. The
+  _act_, so the phone got a 401 the moment the doctor completed. The
   completion screen — carrying the consultation reference that D24 makes the
   patient's only route back to their own record — was unreachable, and had
   been since D24 was implemented. Reading and acting are now separate rights.
@@ -213,7 +213,7 @@ in force is stored so a later configuration change cannot rewrite history.
 
 Two state-machine changes were needed and are worth naming. `EXPIRED`,
 `CANCELLED` and `ABANDONED` became re-enterable, because all three are
-reachable *after* payment and a consultation that took money and delivered
+reachable _after_ payment and a consultation that took money and delivered
 nothing had no route by which the money could go back. `COMPLETED` was
 deliberately left terminal: a consultation that happened was delivered, and a
 patient unhappy with it has a complaint, not an automatic claim on the fee.
@@ -374,9 +374,10 @@ Full authorization audit · every §79 security test automated · retention veri
   doctors see a consultation history. They have no such route — the true
   position is stricter than the document claimed, but it was true by omission
   rather than by decision.
+
 - **The patient had no way to end their session.** Found by sweeping all 131
   routes for callers after the phase was otherwise done. `POST
-  /patient/session/leave` existed from Phase 3 and nothing invoked it — the
+/patient/session/leave` existed from Phase 3 and nothing invoked it — the
   portal's only "Leave" is the call's, which ends the video and lets
   the patient rejoin. So a handset going back over a pharmacy counter kept a
   live session until it expired. Worth saying plainly: D34 fixed that route's
@@ -405,14 +406,14 @@ Full authorization audit · every §79 security test automated · retention veri
 
   The refusal is the feature, so the screen shows exactly which rule was
   broken rather than a generic failure — the API returns one entry per broken
-  rule, and a body can name a dose *and* use a variable the notification
+  rule, and a body can name a dose _and_ use a variable the notification
   cannot fill. Verified against the live API and then in the browser: saving
   "Take 500mg twice daily for your diagnosis" is refused with both reasons
   named, an unknown `{{placeholder}}` is refused separately, and a valid edit
   saves and round-trips.
 
   The route was then made to match how the system actually works. It listed
-  the *table*, so a template with no row was invisible and its first edit
+  the _table_, so a template with no row was invisible and its first edit
   impossible — `update` on a row that does not exist fails, and every template
   starts without one. It now lists the **catalogue** and treats rows as the
   overrides they are, upserts on write, builds a created row from the
@@ -445,7 +446,7 @@ Full authorization audit · every §79 security test automated · retention veri
   after Phase 7 shipped. It now says plainly that the doctor was not charged.
 
 - **Backup and restore, rehearsed rather than documented.** `npm run
-  backup:rehearse` backs up the live database, restores it into a scratch
+backup:rehearse` backs up the live database, restores it into a scratch
   database, and compares row counts table by table — 60 tables, 17,229 audit
   rows, all matching. Comparing is the point: a restore that runs cleanly and
   produces an empty table is the failure worth catching, and it looks exactly
@@ -608,7 +609,7 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 - **Shift patterns can be turned on and off.** Night cover ships inactive —
   24-hour operation is a business decision — and `PATCH
-  /admin/shifts/definitions/:code` had existed since Phase 2 with no caller, so
+/admin/shifts/definitions/:code` had existed since Phase 2 with no caller, so
   the decision could only be made in the database. Found while writing the
   demonstration script, whose 40-hour walkthrough could not be performed as
   written.
@@ -744,7 +745,7 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 - **`npm run db:grants` did not exist.** `docker/mysql-init` tells the reader
   that the append-only audit account's grants are "applied by `npm run
-  db:grants`", and there was no such script; the `.sql` file it named sat
+db:grants`", and there was no such script; the `.sql` file it named sat
   unreferenced. So on any installation following this repository's own
   instructions, `neem_audit` existed with no privileges at all. The script now
   exists, runs as part of `setup`, and derives the database and account names

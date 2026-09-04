@@ -53,14 +53,14 @@ export async function joinMediaSession(
 ): Promise<MediaSessionView> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    include: { mediaSessions: { where: { endedAt: null }, orderBy: { startedAt: 'desc' }, take: 1 } },
+    include: {
+      mediaSessions: { where: { endedAt: null }, orderBy: { startedAt: 'desc' }, take: 1 },
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
   if (consultation.state !== 'DOCTOR_ACCEPTED' && consultation.state !== 'IN_PROGRESS') {
-    throw errors.businessRule(
-      `This consultation is ${consultation.state} and cannot be joined.`,
-    );
+    throw errors.businessRule(`This consultation is ${consultation.state} and cannot be joined.`);
   }
   if (!consultation.type) {
     throw errors.businessRule('No consultation type has been chosen.');

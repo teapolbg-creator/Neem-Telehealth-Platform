@@ -20,11 +20,7 @@ export function NeemLogo({
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <img
-        src={neemMark}
-        alt="Neem"
-        className={cn("size-9 object-contain", markClassName)}
-      />
+      <img src={neemMark} alt="Neem" className={cn("size-9 object-contain", markClassName)} />
       {showWordmark && (
         <span className="font-display font-bold tracking-[0.14em] uppercase text-brand leading-none">
           Neem

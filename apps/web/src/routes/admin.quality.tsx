@@ -43,8 +43,7 @@ const complaintsKey = ["admin", "complaints"] as const;
 function useComplaints(openOnly: boolean) {
   return useQuery({
     queryKey: [...complaintsKey, openOnly],
-    queryFn: ({ signal }) =>
-      api.get<Complaint[]>(`/admin/complaints?openOnly=${openOnly}`, signal),
+    queryFn: ({ signal }) => api.get<Complaint[]>(`/admin/complaints?openOnly=${openOnly}`, signal),
   });
 }
 

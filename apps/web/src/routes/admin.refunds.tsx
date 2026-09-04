@@ -85,7 +85,9 @@ function AdminRefunds() {
       )}
 
       <div className="space-y-4">
-        {refunds?.map((refund) => <RefundCard key={refund.publicId} refund={refund} />)}
+        {refunds?.map((refund) => (
+          <RefundCard key={refund.publicId} refund={refund} />
+        ))}
       </div>
     </AppShell>
   );

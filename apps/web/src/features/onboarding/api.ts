@@ -1,11 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   DoctorRegistration,
   DoctorSummary,
   PharmacyRegistration,
   PharmacySummary,
-} from '@neem/contracts';
-import { api, API_BASE_URL } from '@/lib/api-client';
+} from "@neem/contracts";
+import { api, API_BASE_URL } from "@/lib/api-client";
 
 /**
  * Onboarding, verification and scheduling queries.
@@ -23,8 +23,8 @@ export interface LanguageOption {
 
 export function useLanguages() {
   return useQuery({
-    queryKey: ['onboarding', 'languages'],
-    queryFn: ({ signal }) => api.get<LanguageOption[]>('/onboarding/languages', signal),
+    queryKey: ["onboarding", "languages"],
+    queryFn: ({ signal }) => api.get<LanguageOption[]>("/onboarding/languages", signal),
     staleTime: 5 * 60_000,
   });
 }
@@ -36,10 +36,10 @@ export interface CapabilityOption {
 
 export function useCapabilities() {
   return useQuery({
-    queryKey: ['onboarding', 'capabilities'],
+    queryKey: ["onboarding", "capabilities"],
     queryFn: ({ signal }) =>
       api.get<{ tests: CapabilityOption[]; equipment: CapabilityOption[] }>(
-        '/onboarding/capabilities',
+        "/onboarding/capabilities",
         signal,
       ),
     staleTime: 5 * 60_000,
@@ -55,14 +55,14 @@ export interface RegistrationResult {
 export function useRegisterPharmacy() {
   return useMutation({
     mutationFn: (input: PharmacyRegistration) =>
-      api.post<RegistrationResult>('/onboarding/pharmacy', input),
+      api.post<RegistrationResult>("/onboarding/pharmacy", input),
   });
 }
 
 export function useRegisterDoctor() {
   return useMutation({
     mutationFn: (input: DoctorRegistration) =>
-      api.post<RegistrationResult>('/onboarding/doctor', input),
+      api.post<RegistrationResult>("/onboarding/doctor", input),
   });
 }
 
@@ -113,12 +113,12 @@ export interface DoctorProfile {
   serviceHours: ServiceHours;
 }
 
-export const doctorProfileKey = ['doctor', 'profile'] as const;
+export const doctorProfileKey = ["doctor", "profile"] as const;
 
 export function useDoctorProfile() {
   return useQuery({
     queryKey: doctorProfileKey,
-    queryFn: ({ signal }) => api.get<DoctorProfile>('/doctor/profile', signal),
+    queryFn: ({ signal }) => api.get<DoctorProfile>("/doctor/profile", signal),
   });
 }
 
@@ -133,21 +133,21 @@ async function postDocument(
   input: { file: File; documentType: string },
 ): Promise<{ id: string; uploadedAt: string }> {
   const form = new FormData();
-  form.append('documentType', input.documentType);
-  form.append('file', input.file);
+  form.append("documentType", input.documentType);
+  form.append("file", input.file);
 
   const csrf = document.cookie.match(/(?:^|;\s*)neem_csrf=([^;]*)/)?.[1];
 
   const response = await fetch(`${API_BASE_URL}/api/v1${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: csrf ? { 'x-neem-csrf': decodeURIComponent(csrf) } : {},
+    method: "POST",
+    credentials: "include",
+    headers: csrf ? { "x-neem-csrf": decodeURIComponent(csrf) } : {},
     body: form,
   });
 
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error?.message ?? 'Upload failed.');
+    throw new Error(payload?.error?.message ?? "Upload failed.");
   }
   return payload.data as { id: string; uploadedAt: string };
 }
@@ -158,7 +158,7 @@ export function useUploadDocument() {
 
   return useMutation({
     mutationFn: (input: { file: File; documentType: string }) =>
-      postDocument('/doctor/documents', input),
+      postDocument("/doctor/documents", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: doctorProfileKey }),
   });
 }
@@ -168,7 +168,7 @@ export function useCaptureSignature() {
 
   return useMutation({
     mutationFn: (signatureDataUrl: string) =>
-      api.post<{ capturedAt: string }>('/doctor/signature', { signatureDataUrl }),
+      api.post<{ capturedAt: string }>("/doctor/signature", { signatureDataUrl }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: doctorProfileKey }),
   });
 }
@@ -184,9 +184,9 @@ export interface DoctorShift {
 
 export function useDoctorShifts() {
   return useQuery({
-    queryKey: ['doctor', 'shifts'],
+    queryKey: ["doctor", "shifts"],
     queryFn: ({ signal }) =>
-      api.get<{ serviceHours: ServiceHours; shifts: DoctorShift[] }>('/doctor/shifts', signal),
+      api.get<{ serviceHours: ServiceHours; shifts: DoctorShift[] }>("/doctor/shifts", signal),
   });
 }
 
@@ -195,7 +195,7 @@ export function useConfirmShift() {
 
   return useMutation({
     mutationFn: (id: string) => api.post(`/doctor/shifts/${id}/confirm`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['doctor', 'shifts'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["doctor", "shifts"] }),
   });
 }
 
@@ -211,15 +211,15 @@ export interface DirectoryFilters {
 
 function directoryParams(filters: DirectoryFilters): URLSearchParams {
   const params = new URLSearchParams();
-  if (filters.awaitingReview) params.set('awaitingReview', 'true');
-  if (filters.status) params.set('status', filters.status);
-  if (filters.search?.trim()) params.set('search', filters.search.trim());
+  if (filters.awaitingReview) params.set("awaitingReview", "true");
+  if (filters.status) params.set("status", filters.status);
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
   return params;
 }
 
 export function useAdminDoctors(filters: DirectoryFilters = {}) {
   return useQuery({
-    queryKey: ['admin', 'doctors', filters],
+    queryKey: ["admin", "doctors", filters],
     queryFn: ({ signal }) =>
       api.get<DoctorSummary[]>(`/admin/doctors?${directoryParams(filters)}`, signal),
     // Keeps the previous list on screen while a search refines, instead of
@@ -230,7 +230,7 @@ export function useAdminDoctors(filters: DirectoryFilters = {}) {
 
 export function useAdminPharmacies(filters: DirectoryFilters = {}) {
   return useQuery({
-    queryKey: ['admin', 'pharmacies', filters],
+    queryKey: ["admin", "pharmacies", filters],
     queryFn: ({ signal }) =>
       api.get<PharmacySummary[]>(`/admin/pharmacies?${directoryParams(filters)}`, signal),
     placeholderData: (previous) => previous,
@@ -239,7 +239,7 @@ export function useAdminPharmacies(filters: DirectoryFilters = {}) {
 
 export function useAdminDoctorDetail(publicId: string | null) {
   return useQuery({
-    queryKey: ['admin', 'doctor', publicId],
+    queryKey: ["admin", "doctor", publicId],
     queryFn: ({ signal }) => api.get<Record<string, unknown>>(`/doctors/${publicId}`, signal),
     enabled: Boolean(publicId),
   });
@@ -247,7 +247,7 @@ export function useAdminDoctorDetail(publicId: string | null) {
 
 export function useAdminPharmacyDetail(publicId: string | null) {
   return useQuery({
-    queryKey: ['admin', 'pharmacy', publicId],
+    queryKey: ["admin", "pharmacy", publicId],
     queryFn: ({ signal }) =>
       api.get<Record<string, unknown>>(`/admin/pharmacies/${publicId}`, signal),
     enabled: Boolean(publicId),
@@ -255,9 +255,9 @@ export function useAdminPharmacyDetail(publicId: string | null) {
 }
 
 /** The transitions the state machine currently permits, so the UI offers only those. */
-export function useAllowedTransitions(kind: 'doctors' | 'pharmacies', publicId: string | null) {
+export function useAllowedTransitions(kind: "doctors" | "pharmacies", publicId: string | null) {
   return useQuery({
-    queryKey: ['admin', kind, publicId, 'transitions'],
+    queryKey: ["admin", kind, publicId, "transitions"],
     queryFn: ({ signal }) =>
       api.get<{ current: string; allowed: string[] }>(
         `/admin/${kind}/${publicId}/transitions`,
@@ -267,7 +267,7 @@ export function useAllowedTransitions(kind: 'doctors' | 'pharmacies', publicId: 
   });
 }
 
-export function useChangeStatus(kind: 'doctors' | 'pharmacies') {
+export function useChangeStatus(kind: "doctors" | "pharmacies") {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -277,12 +277,12 @@ export function useChangeStatus(kind: 'doctors' | 'pharmacies') {
         reason: input.reason,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin'] });
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });
 }
 
-export function useVerifyDocument(kind: 'doctors' | 'pharmacies') {
+export function useVerifyDocument(kind: "doctors" | "pharmacies") {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -292,7 +292,7 @@ export function useVerifyDocument(kind: 'doctors' | 'pharmacies') {
         note: input.note,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin'] });
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });
 }
@@ -308,8 +308,8 @@ export interface ShiftDefinition {
 
 export function useShiftDefinitions() {
   return useQuery({
-    queryKey: ['admin', 'shift-definitions'],
-    queryFn: ({ signal }) => api.get<ShiftDefinition[]>('/admin/shifts/definitions', signal),
+    queryKey: ["admin", "shift-definitions"],
+    queryFn: ({ signal }) => api.get<ShiftDefinition[]>("/admin/shifts/definitions", signal),
     staleTime: 5 * 60_000,
   });
 }
@@ -331,7 +331,7 @@ export function useSetShiftActive() {
         isActive: input.isActive,
       }),
     onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'shift-definitions'] }),
+      void queryClient.invalidateQueries({ queryKey: ["admin", "shift-definitions"] }),
   });
 }
 
@@ -344,16 +344,16 @@ export function useAssignShift() {
         id: string;
         weeklyMinutesScheduled: number;
         weeklyLimitMinutes: number;
-      }>('/admin/shifts', input),
+      }>("/admin/shifts", input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin'] });
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });
 }
 
 export function useExpiringLicences() {
   return useQuery({
-    queryKey: ['admin', 'licences', 'expiring'],
+    queryKey: ["admin", "licences", "expiring"],
     queryFn: ({ signal }) =>
       api.get<
         Array<{
@@ -363,7 +363,7 @@ export function useExpiringLicences() {
           mdcExpiresAt: string;
           daysRemaining: number;
         }>
-      >('/admin/doctors/licences/expiring', signal),
+      >("/admin/doctors/licences/expiring", signal),
   });
 }
 
@@ -401,12 +401,12 @@ export interface PharmacyProfile {
   isDemo: boolean;
 }
 
-export const pharmacyProfileKey = ['pharmacy', 'profile'] as const;
+export const pharmacyProfileKey = ["pharmacy", "profile"] as const;
 
 export function usePharmacyProfile() {
   return useQuery({
     queryKey: pharmacyProfileKey,
-    queryFn: ({ signal }) => api.get<PharmacyProfile>('/pharmacy/profile', signal),
+    queryFn: ({ signal }) => api.get<PharmacyProfile>("/pharmacy/profile", signal),
   });
 }
 
@@ -415,7 +415,7 @@ export function useUploadPharmacyDocument() {
 
   return useMutation({
     mutationFn: (input: { file: File; documentType: string }) =>
-      postDocument('/pharmacy/documents', input),
+      postDocument("/pharmacy/documents", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pharmacyProfileKey }),
   });
 }

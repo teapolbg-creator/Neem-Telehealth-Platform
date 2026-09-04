@@ -4,11 +4,7 @@ import { PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
-import {
-  completeConsultation,
-  readWorkspace,
-  saveClinicalNotes,
-} from './clinical.service.ts';
+import { completeConsultation, readWorkspace, saveClinicalNotes } from './clinical.service.ts';
 import {
   createDraft,
   decideSubstitution,
@@ -535,7 +531,10 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
   app.get('/pharmacy/prescriptions', { preHandler: pharmacyOnly }, async (request, reply) => {
     const { pharmacyId } = requirePharmacy(request);
     const query = z
-      .object({ activeOnly: queryBoolean.optional(), limit: z.coerce.number().int().min(1).max(100).optional() })
+      .object({
+        activeOnly: queryBoolean.optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      })
       .parse(request.query);
 
     const prescriptions = await getPrisma().prescription.findMany({
@@ -543,7 +542,14 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
         pharmacyId,
         // A draft is not a document and the pharmacy never sees one.
         state: query.activeOnly
-          ? { in: ['ACTIVE', 'PENDING_SUBSTITUTION', 'SUBSTITUTION_APPROVED', 'SUBSTITUTION_REJECTED'] }
+          ? {
+              in: [
+                'ACTIVE',
+                'PENDING_SUBSTITUTION',
+                'SUBSTITUTION_APPROVED',
+                'SUBSTITUTION_REJECTED',
+              ],
+            }
           : { not: 'DRAFT' },
       },
       include: {

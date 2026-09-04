@@ -34,7 +34,8 @@ export function useLeavePatientMedia() {
 export function usePatientTimer(enabled: boolean) {
   return useQuery({
     queryKey: ["patient", "timer"],
-    queryFn: ({ signal }) => api.get<ConsultationTimer | null>("/patient/consultation/timer", signal),
+    queryFn: ({ signal }) =>
+      api.get<ConsultationTimer | null>("/patient/consultation/timer", signal),
     enabled,
     // Once a second would be needlessly chatty on a Ghanaian mobile
     // connection; the client counts the seconds between polls itself.
@@ -51,8 +52,7 @@ export function useJoinDoctorMedia(publicId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () =>
-      api.post<MediaSessionView>(`/doctor/consultations/${publicId}/media/join`),
+    mutationFn: () => api.post<MediaSessionView>(`/doctor/consultations/${publicId}/media/join`),
     // Joining starts the consultation, so its state is now stale.
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["doctor", "consultation", publicId] }),

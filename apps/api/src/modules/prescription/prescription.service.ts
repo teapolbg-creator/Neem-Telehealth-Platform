@@ -229,7 +229,10 @@ export async function issuePrescription(
       entityType: 'prescription',
       entityId: prescriptionId,
       // Counts only. What was prescribed is not audit-log material (spec §61).
-      metadata: { itemCount: prescription.items.length, consultationId: prescription.consultationId },
+      metadata: {
+        itemCount: prescription.items.length,
+        consultationId: prescription.consultationId,
+      },
     },
     db,
   );
@@ -422,9 +425,7 @@ export async function proposeSubstitution(
     );
   }
   if (!canProposeSubstitution(prescription.state)) {
-    throw errors.businessRule(
-      `A ${prescription.state} prescription cannot be substituted.`,
-    );
+    throw errors.businessRule(`A ${prescription.state} prescription cannot be substituted.`);
   }
 
   const request = await db.$transaction(async (tx) => {

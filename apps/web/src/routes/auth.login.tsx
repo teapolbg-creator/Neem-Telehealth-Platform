@@ -397,9 +397,7 @@ function RecoveryCodesStep({ codes, onContinue }: { codes: string[]; onContinue:
           onChange={(event) => setAcknowledged(event.target.checked)}
           className="mt-0.5 size-4 accent-[var(--brand)]"
         />
-        <span className="text-sm text-slate-600">
-          I have saved these codes somewhere safe.
-        </span>
+        <span className="text-sm text-slate-600">I have saved these codes somewhere safe.</span>
       </label>
 
       <button
@@ -460,9 +458,7 @@ function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
 
   const message =
-    error instanceof ApiError
-      ? error.message
-      : "Something went wrong. Please try again.";
+    error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 
   return (
     <div

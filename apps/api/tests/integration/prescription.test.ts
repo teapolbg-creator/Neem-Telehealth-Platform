@@ -236,7 +236,9 @@ describe('issuing a prescription', () => {
       data: { mdcExpiresAt: new Date('2020-01-01') },
     });
 
-    await expect(issuePrescription(draft.id, fixture.doctorId)).rejects.toThrow(/licence has expired/i);
+    await expect(issuePrescription(draft.id, fixture.doctorId)).rejects.toThrow(
+      /licence has expired/i,
+    );
   });
 
   it('refuses an empty prescription', async () => {
@@ -253,9 +255,9 @@ describe('issuing a prescription', () => {
 
     // 404, not 403 — the existence of another doctor's consultation is itself
     // not disclosed (spec §102).
-    await expect(
-      createDraft(fixture.consultationId, other.doctorId, [ITEM]),
-    ).rejects.toThrow(/not found/i);
+    await expect(createDraft(fixture.consultationId, other.doctorId, [ITEM])).rejects.toThrow(
+      /not found/i,
+    );
   });
 });
 
@@ -429,10 +431,16 @@ describe('substitution', () => {
     const prescription = await issuedPrescription(fixture);
     const item = prescription.items[0]!;
 
-    await proposeSubstitution(prescription.id, item.id, fixture.pharmacyId, fixture.pharmacyUserId, {
-      medication: 'Amoxil',
-      reason: 'Out of stock',
-    });
+    await proposeSubstitution(
+      prescription.id,
+      item.id,
+      fixture.pharmacyId,
+      fixture.pharmacyUserId,
+      {
+        medication: 'Amoxil',
+        reason: 'Out of stock',
+      },
+    );
 
     // The doctor would be answering a question that has already moved.
     await expect(
@@ -684,11 +692,17 @@ describe('the doctor’s substitution inbox', () => {
       where: { prescriptionId: prescription.id },
     });
 
-    await proposeSubstitution(prescription.id, item.id, fixture.pharmacyId, fixture.pharmacyUserId, {
-      medication: 'Amoxil',
-      strength: '500mg',
-      reason: 'Generic out of stock.',
-    });
+    await proposeSubstitution(
+      prescription.id,
+      item.id,
+      fixture.pharmacyId,
+      fixture.pharmacyUserId,
+      {
+        medication: 'Amoxil',
+        strength: '500mg',
+        reason: 'Generic out of stock.',
+      },
+    );
 
     const cookies = await signIn(fixture.doctorEmail, DOCTOR_PASSWORD);
     const response = await request<
@@ -724,10 +738,16 @@ describe('the doctor’s substitution inbox', () => {
     const item = await getPrisma().prescriptionItem.findFirstOrThrow({
       where: { prescriptionId: prescription.id },
     });
-    await proposeSubstitution(prescription.id, item.id, fixture.pharmacyId, fixture.pharmacyUserId, {
-      medication: 'Amoxil',
-      reason: 'Generic out of stock.',
-    });
+    await proposeSubstitution(
+      prescription.id,
+      item.id,
+      fixture.pharmacyId,
+      fixture.pharmacyUserId,
+      {
+        medication: 'Amoxil',
+        reason: 'Generic out of stock.',
+      },
+    );
 
     const other = await liveConsultation();
     const cookies = await signIn(other.doctorEmail, DOCTOR_PASSWORD);
@@ -1019,9 +1039,9 @@ describe('the consultation summary (decision D25)', () => {
     const fixture = await liveConsultation();
     await issueSummary(fixture.consultationId, fixture.doctorId, VALID);
 
-    await expect(
-      issueSummary(fixture.consultationId, fixture.doctorId, VALID),
-    ).rejects.toThrow(/already has a summary/i);
+    await expect(issueSummary(fixture.consultationId, fixture.doctorId, VALID)).rejects.toThrow(
+      /already has a summary/i,
+    );
   });
 
   it('keeps no clinical content in the audit log', async () => {

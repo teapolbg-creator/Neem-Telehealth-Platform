@@ -84,10 +84,7 @@ test.describe('scenario 3 — payment succeeds but no doctor is available', () =
     // The patient half runs in the BROWSER's context, so the page can then
     // render the portal. The seeded doctors are not online, so nobody is
     // eligible.
-    const publicId = await queueAConsultation(
-      { pharmacy: request, patient: page.request },
-      'en',
-    );
+    const publicId = await queueAConsultation({ pharmacy: request, patient: page.request }, 'en');
 
     const session = await page.request.get(`${API}/patient/session`);
     const view = await session.json();

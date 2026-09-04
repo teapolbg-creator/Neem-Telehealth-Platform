@@ -39,7 +39,9 @@ export interface ApiResponse<T = unknown> {
 }
 
 /** Parses Set-Cookie headers into a name → value map. */
-function parseCookies(response: Awaited<ReturnType<FastifyInstance['inject']>>): Record<string, string> {
+function parseCookies(
+  response: Awaited<ReturnType<FastifyInstance['inject']>>,
+): Record<string, string> {
   const result: Record<string, string> = {};
   for (const cookie of response.cookies as Array<{ name: string; value: string }>) {
     result[cookie.name] = cookie.value;
@@ -95,10 +97,7 @@ export async function request<T = unknown>(
  * authenticated principal. Only works for accounts without 2FA — admin
  * sign-in is exercised explicitly in the two-factor tests.
  */
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<Record<string, string>> {
+export async function signIn(email: string, password: string): Promise<Record<string, string>> {
   const response = await request('/auth/login', {
     method: 'POST',
     payload: { email, password },

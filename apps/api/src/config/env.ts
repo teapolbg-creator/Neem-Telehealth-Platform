@@ -139,7 +139,11 @@ const envSchema = z
 
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     STORAGE_LOCAL_PATH: z.string().default('./apps/api/uploads'),
-    UPLOAD_MAX_BYTES: z.coerce.number().int().min(1024).default(10 * 1024 * 1024),
+    UPLOAD_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .default(10 * 1024 * 1024),
 
     SEED_DEMO_DATA: bool(true),
     DEMO_ADMIN_EMAIL: z.string().email().default('admin@neem.demo'),
@@ -180,11 +184,7 @@ const envSchema = z
       require('TWILIO_SMS_NUMBER', env.TWILIO_SMS_NUMBER, 'when SMS_PROVIDER=twilio');
     }
     if (env.WHATSAPP_PROVIDER === 'twilio') {
-      require(
-        'TWILIO_WHATSAPP_NUMBER',
-        env.TWILIO_WHATSAPP_NUMBER,
-        'when WHATSAPP_PROVIDER=twilio',
-      );
+      require('TWILIO_WHATSAPP_NUMBER', env.TWILIO_WHATSAPP_NUMBER, 'when WHATSAPP_PROVIDER=twilio');
     }
     if (env.EMAIL_PROVIDER === 'smtp') {
       require('SMTP_HOST', env.SMTP_HOST, 'when EMAIL_PROVIDER=smtp');
@@ -334,7 +334,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = envSchema.safeParse(source);
 
   if (!parsed.success) {
-    const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`);
+    const lines = parsed.error.issues.map(
+      (i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`,
+    );
     throw new Error(
       `Invalid environment configuration:\n${lines.join('\n')}\n\n` +
         `Copy .env.example to .env and fill in the required values.`,

@@ -55,29 +55,29 @@ Five pharmacies, 10–12 doctors, a one-month pilot. Microservices would add dep
 
 Each is a folder under `apps/api/src/modules/<name>/` containing `*.routes.ts`, `*.service.ts`, `*.schema.ts` (zod), `*.repository.ts`, and tests.
 
-| Module | Owns |
-| --- | --- |
-| `auth` | Login, logout, sessions, password reset, TOTP 2FA, rate limiting, lockout |
-| `identity` | Users, roles, RBAC policy evaluation |
-| `pharmacy` | Pharmacy onboarding, profile, verification workflow, state machine |
-| `doctor` | Doctor onboarding, documents, credentials, licence tracking, signature, state machine |
-| `scheduling` | Shift definitions, shift assignment, confirmation, the 40-hour rule |
-| `subscription` | Doctor six-month membership, renewal, expiry → suspension |
-| `consultation` | Consultation lifecycle, state machine, access tokens, patient sessions, timer |
-| `queue` | Smart allocation scoring, offers, the 90s window, reassignment, admin alerts |
-| `clinical` | Vitals, point-of-care tests, clinical workspace, outcome capture |
-| `prescription` | Prescription lifecycle, versions, PDF, verification, dispensing, substitution |
-| `referral` | Referral creation and PDF |
-| `payment` | Paystack orchestration, webhooks, idempotency, refunds |
-| `finance` | Revenue allocation, pharmacy payouts, reconciliation, payroll calculation |
-| `feedback` | Ratings, categories, complaints |
-| `quality` | Doctor performance events, weighted quality score |
-| `notification` | Template rendering, channel dispatch, delivery tracking |
-| `analytics` | Aggregations over retained data only |
-| `settings` | System settings, change history, admin safety confirmations |
-| `audit` | Append-only audit log writer and reader |
-| `retention` | Deletion policy, purge execution, verification |
-| `realtime` | Socket.IO server, room membership, event fan-out |
+| Module         | Owns                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `auth`         | Login, logout, sessions, password reset, TOTP 2FA, rate limiting, lockout             |
+| `identity`     | Users, roles, RBAC policy evaluation                                                  |
+| `pharmacy`     | Pharmacy onboarding, profile, verification workflow, state machine                    |
+| `doctor`       | Doctor onboarding, documents, credentials, licence tracking, signature, state machine |
+| `scheduling`   | Shift definitions, shift assignment, confirmation, the 40-hour rule                   |
+| `subscription` | Doctor six-month membership, renewal, expiry → suspension                             |
+| `consultation` | Consultation lifecycle, state machine, access tokens, patient sessions, timer         |
+| `queue`        | Smart allocation scoring, offers, the 90s window, reassignment, admin alerts          |
+| `clinical`     | Vitals, point-of-care tests, clinical workspace, outcome capture                      |
+| `prescription` | Prescription lifecycle, versions, PDF, verification, dispensing, substitution         |
+| `referral`     | Referral creation and PDF                                                             |
+| `payment`      | Paystack orchestration, webhooks, idempotency, refunds                                |
+| `finance`      | Revenue allocation, pharmacy payouts, reconciliation, payroll calculation             |
+| `feedback`     | Ratings, categories, complaints                                                       |
+| `quality`      | Doctor performance events, weighted quality score                                     |
+| `notification` | Template rendering, channel dispatch, delivery tracking                               |
+| `analytics`    | Aggregations over retained data only                                                  |
+| `settings`     | System settings, change history, admin safety confirmations                           |
+| `audit`        | Append-only audit log writer and reader                                               |
+| `retention`    | Deletion policy, purge execution, verification                                        |
+| `realtime`     | Socket.IO server, room membership, event fan-out                                      |
 
 ### Cross-cutting
 
@@ -132,12 +132,12 @@ interface WhatsAppProvider { send(msg: OutboundMessage): Promise<DeliveryReceipt
 
 Socket.IO attached to the Fastify HTTP server. The handshake is authenticated with the same session cookie as REST — no separate token scheme. Rooms:
 
-| Room | Members | Events |
-| --- | --- | --- |
-| `consultation:<publicId>` | patient session, assigned doctor, owning pharmacy | state changes, participant join/leave, timer warnings |
-| `pharmacy:<publicId>` | that pharmacy's account | queue status, prescriptions, substitution decisions, referrals |
-| `doctor:<publicId>` | that doctor | assignment offers, countdown, substitution requests |
-| `admin` | all admins | queue depth, no-language-match alerts, payment anomalies, refunds, complaints, health |
+| Room                      | Members                                           | Events                                                                                |
+| ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `consultation:<publicId>` | patient session, assigned doctor, owning pharmacy | state changes, participant join/leave, timer warnings                                 |
+| `pharmacy:<publicId>`     | that pharmacy's account                           | queue status, prescriptions, substitution decisions, referrals                        |
+| `doctor:<publicId>`       | that doctor                                       | assignment offers, countdown, substitution requests                                   |
+| `admin`                   | all admins                                        | queue depth, no-language-match alerts, payment anomalies, refunds, complaints, health |
 
 Room membership is authorised server-side on join. Clinical content is **never** broadcast — events carry ids and states, and the client fetches authorised detail over REST.
 
@@ -147,20 +147,20 @@ Room membership is authorised server-side on join. Clinical content is **never**
 
 A single in-process scheduler (`node-cron`-style) plus a lightweight DB-backed work queue. No Redis in the MVP; the queue interface allows adding BullMQ later without touching callers.
 
-| Job | Cadence | Purpose |
-| --- | --- | --- |
-| `enforce-response-window` | every 5s | 90-second doctor offer timeout → reassign |
-| `process-waiting-queue` | every 10s | offer waiting consultations to available doctors |
-| `emit-timer-warnings` | every 10s | consultation duration warnings |
-| `expire-pending-payments` | every 30s | 5-minute payment window (spec §35) |
-| `expire-consultation-tokens` | every 60s | invalidate unused QR tokens |
-| `reap-stale-presence` | every 60s | drop doctors whose heartbeat stopped |
-| `retry-notifications` | every 60s | bounded retry with backoff |
-| `purge-expired-sessions` | every 15m | expired auth and patient sessions |
-| `recompute-quality-scores` | hourly | weighted doctor quality score |
-| `purge-expired-clinical-records` | hourly | destroy sealed records whose retention has elapsed (D23) |
-| `sweep-subscription-expiry` | hourly | membership expiry → grace → suspension (spec §27) |
-| `reconcile-payments` | hourly | Paystack vs local ledger drift |
+| Job                              | Cadence   | Purpose                                                  |
+| -------------------------------- | --------- | -------------------------------------------------------- |
+| `enforce-response-window`        | every 5s  | 90-second doctor offer timeout → reassign                |
+| `process-waiting-queue`          | every 10s | offer waiting consultations to available doctors         |
+| `emit-timer-warnings`            | every 10s | consultation duration warnings                           |
+| `expire-pending-payments`        | every 30s | 5-minute payment window (spec §35)                       |
+| `expire-consultation-tokens`     | every 60s | invalidate unused QR tokens                              |
+| `reap-stale-presence`            | every 60s | drop doctors whose heartbeat stopped                     |
+| `retry-notifications`            | every 60s | bounded retry with backoff                               |
+| `purge-expired-sessions`         | every 15m | expired auth and patient sessions                        |
+| `recompute-quality-scores`       | hourly    | weighted doctor quality score                            |
+| `purge-expired-clinical-records` | hourly    | destroy sealed records whose retention has elapsed (D23) |
+| `sweep-subscription-expiry`      | hourly    | membership expiry → grace → suspension (spec §27)        |
+| `reconcile-payments`             | hourly    | Paystack vs local ledger drift                           |
 
 **This table was wrong until Phase 11.** It listed `purge-temporary-data`, `check-licence-expiry` and `check-subscription-expiry`, none of which exist under those names, and omitted five jobs that do. `purge-temporary-data` described the pre-D23 design, where completion destroyed the clinical record; completion now **seals** it and schedules destruction, and `purge-expired-clinical-records` carries that out when the period elapses. Membership expiry is `sweep-subscription-expiry`, hourly rather than daily, because the boundary is a moment and a doctor suspended a day late is a doctor who took a day of consultations they were not entitled to.
 

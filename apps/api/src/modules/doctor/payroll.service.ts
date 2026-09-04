@@ -215,9 +215,7 @@ export async function doctorEarnings(
   const fullTimeMonthlyMinor = await getIntSetting(SETTING_KEYS.DOCTOR_FULL_TIME_MONTHLY_MINOR, db);
   const fullTimeHoursPerWeek = await getIntSetting(SETTING_KEYS.DOCTOR_MAX_HOURS_PER_WEEK, db);
 
-  const monthStart = new Date(
-    Date.UTC(clock.now().getUTCFullYear(), clock.now().getUTCMonth(), 1),
-  );
+  const monthStart = new Date(Date.UTC(clock.now().getUTCFullYear(), clock.now().getUTCMonth(), 1));
 
   return {
     period,

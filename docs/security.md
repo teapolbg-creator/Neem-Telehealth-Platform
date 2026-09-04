@@ -6,12 +6,12 @@
 
 ## 1. Principals
 
-| Principal | Authentication | Notes |
-| --- | --- | --- |
-| Patient | No account. Single-use consultation token exchanged for a device-bound session | Scoped to exactly one consultation |
-| Pharmacy | Email + password | One account per pharmacy; no sub-roles |
-| Doctor | Email + password | Must be `ACTIVE` to work |
-| Admin | Email + password + **mandatory TOTP 2FA** | |
+| Principal | Authentication                                                                 | Notes                                  |
+| --------- | ------------------------------------------------------------------------------ | -------------------------------------- |
+| Patient   | No account. Single-use consultation token exchanged for a device-bound session | Scoped to exactly one consultation     |
+| Pharmacy  | Email + password                                                               | One account per pharmacy; no sub-roles |
+| Doctor    | Email + password                                                               | Must be `ACTIVE` to work               |
+| Admin     | Email + password + **mandatory TOTP 2FA**                                      |                                        |
 
 ---
 
@@ -35,7 +35,7 @@ This is the most security-sensitive part of the product because it grants access
 
 **QR contents.** `https://<host>/s/<token>` and nothing else. No name, age, sex, phone, consultation id, pharmacy, price, or clinical data (spec §60).
 
-**Exchange.** First `GET /s/:token` swaps the token for a device-bound patient session cookie and marks it `consumedAt`. Subsequent presentations of the same token are rejected. The patient can refresh, background the browser, and return, because they hold the session cookie — reuse protection applies to the *token*, not the *session*.
+**Exchange.** First `GET /s/:token` swaps the token for a device-bound patient session cookie and marks it `consumedAt`. Subsequent presentations of the same token are rejected. The patient can refresh, background the browser, and return, because they hold the session cookie — reuse protection applies to the _token_, not the _session_.
 
 **Lost device.** The pharmacy can issue a replacement token, which increments `sequence`, revokes the previous one, and writes an audit entry. This is the only re-entry path, and it is deliberately visible.
 
@@ -49,16 +49,16 @@ This is the most security-sensitive part of the product because it grants access
 
 RBAC evaluated in middleware on **every** protected route — never in the client (spec §92). Beyond the role check, each resource carries an ownership predicate:
 
-| Resource | Rule |
-| --- | --- |
-| Consultation | Owning pharmacy, currently-assigned doctor, that patient's session, or admin |
-| Prescription | Issuing doctor, the consultation's pharmacy, that patient's session, or admin. **No other pharmacy, ever** (spec §45, §102) |
-| Substitution request | Requesting pharmacy or the prescribing doctor |
-| Patient temporary data | Owning pharmacy and assigned doctor, **only while the consultation is active** |
-| Doctor documents | Owning doctor and admin |
-| Feedback and ratings | Admin only. Doctors have no read path (spec §51) |
-| Quality score | Admin only |
-| Settings, payouts, refunds, audit | Admin only |
+| Resource                          | Rule                                                                                                                        |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Consultation                      | Owning pharmacy, currently-assigned doctor, that patient's session, or admin                                                |
+| Prescription                      | Issuing doctor, the consultation's pharmacy, that patient's session, or admin. **No other pharmacy, ever** (spec §45, §102) |
+| Substitution request              | Requesting pharmacy or the prescribing doctor                                                                               |
+| Patient temporary data            | Owning pharmacy and assigned doctor, **only while the consultation is active**                                              |
+| Doctor documents                  | Owning doctor and admin                                                                                                     |
+| Feedback and ratings              | Admin only. Doctors have no read path (spec §51)                                                                            |
+| Quality score                     | Admin only                                                                                                                  |
+| Settings, payouts, refunds, audit | Admin only                                                                                                                  |
 
 Object references are always `publicId`, so enumeration yields nothing. Failed authorization returns `404` where existence itself is sensitive, and `403` otherwise.
 
@@ -152,7 +152,7 @@ with a complete legitimate account on the other side:
    record and would be the most damaging IDOR the product could have.
 3. **Cross-patient** — including the structural half: **no patient route
    accepts an identifier at all**, asserted against the route tree. The cookie
-   *is* the scope, so there is nothing to enumerate.
+   _is_ the scope, so there is nothing to enumerate.
 4. **Privilege escalation** — no route writes a role, no non-admin reaches any
    of the 30-odd admin routes, and a password alone does not produce a session
    that can act before the second factor.
@@ -227,11 +227,11 @@ the result and what it caught.
 
 Controls that are real obligations of a deployment rather than properties of the code, listed here so that reading §1–§9 does not leave the impression they are already in force.
 
-| Obligation | Why it is not enforced here | What a deployment must do |
-| --- | --- | --- |
+| Obligation                                                                               | Why it is not enforced here                                                                                                                                                          | What a deployment must do                                                                                                                              |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **The application account should not hold `DROP`, or `UPDATE`/`DELETE` on `audit_logs`** | The development compose grants the app user everything on its schema, because Prisma Migrate needs DDL and MySQL has no way to subtract a table privilege from a database-wide grant | Run migrations as a separate migration account, and grant the runtime account per-table privileges that omit `audit_logs` write access beyond `INSERT` |
-| **TLS, HSTS, secure cookies** | §5 describes the production posture; the development server is plain HTTP on localhost | Terminate TLS in front of the API and set `NODE_ENV=production`, which the config loader already requires before it will accept a deployment |
-| **Database-level encryption at rest** | Application-level AES-256-GCM covers the identified fields; whole-disk and tablespace encryption is a hosting concern | Enable it on the managed instance, and encrypt backups — `BACKUP_ENCRYPTION_KEY` is required and refuses to equal `ENCRYPTION_KEY` |
-| **Key rotation** | `ENCRYPTION_KEY_PREVIOUS` exists and decryption falls back to it, so rotation is possible; nothing schedules or audits a rotation | Own a rotation schedule, and re-encrypt rather than relying on the fallback indefinitely |
+| **TLS, HSTS, secure cookies**                                                            | §5 describes the production posture; the development server is plain HTTP on localhost                                                                                               | Terminate TLS in front of the API and set `NODE_ENV=production`, which the config loader already requires before it will accept a deployment           |
+| **Database-level encryption at rest**                                                    | Application-level AES-256-GCM covers the identified fields; whole-disk and tablespace encryption is a hosting concern                                                                | Enable it on the managed instance, and encrypt backups — `BACKUP_ENCRYPTION_KEY` is required and refuses to equal `ENCRYPTION_KEY`                     |
+| **Key rotation**                                                                         | `ENCRYPTION_KEY_PREVIOUS` exists and decryption falls back to it, so rotation is possible; nothing schedules or audits a rotation                                                    | Own a rotation schedule, and re-encrypt rather than relying on the fallback indefinitely                                                               |
 
 Run `npm run check:production-config` against the environment file a deployment will use. It applies the production rules to it and reports what would refuse to boot, which catches a development configuration copied to a server before the server does.

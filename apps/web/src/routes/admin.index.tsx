@@ -72,7 +72,8 @@ function AdminOverview() {
         <div className="card-soft flex items-start gap-3 border-amber-300/60 bg-amber-50 p-5">
           <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-600" />
           <div className="text-sm leading-relaxed text-amber-900">
-            <strong className="font-bold">Demo mode.</strong> {health.data.mockedProviders.join(", ")}{" "}
+            <strong className="font-bold">Demo mode.</strong>{" "}
+            {health.data.mockedProviders.join(", ")}{" "}
             {health.data.mockedProviders.length === 1 ? "is" : "are"} mocked, so no money moves and
             no message leaves this system. The figures below are real records of simulated activity.
           </div>
@@ -83,8 +84,8 @@ function AdminOverview() {
         <div className="card-soft flex items-start gap-3 border-red-200 bg-red-50 p-5">
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
           <p className="text-sm text-red-700">
-            <strong className="font-bold">The database is unreachable.</strong> Consultations
-            cannot be created or paid for until it returns.
+            <strong className="font-bold">The database is unreachable.</strong> Consultations cannot
+            be created or paid for until it returns.
           </p>
         </div>
       )}
@@ -134,13 +135,9 @@ function AdminOverview() {
               icon={Wallet}
               label="Net revenue"
               value={
-                financial.data
-                  ? formatMinor(financial.data.netMinor, financial.data.currency)
-                  : "—"
+                financial.data ? formatMinor(financial.data.netMinor, financial.data.currency) : "—"
               }
-              hint={
-                financial.data ? `${financial.data.paidConsultations} paid consultations` : ""
-              }
+              hint={financial.data ? `${financial.data.paidConsultations} paid consultations` : ""}
             />
           </div>
 
@@ -391,9 +388,7 @@ function Satisfaction({
       </h2>
 
       {data.responses === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">
-          No feedback has been given in this period.
-        </p>
+        <p className="mt-4 text-sm text-slate-500">No feedback has been given in this period.</p>
       ) : (
         <>
           <div className="mt-4 flex gap-6">
@@ -411,9 +406,7 @@ function Satisfaction({
             <Row label="Responses" value={String(data.responses)} />
             <Row
               label="Response rate"
-              value={
-                data.responseRate === null ? "—" : `${Math.round(data.responseRate * 100)}%`
-              }
+              value={data.responseRate === null ? "—" : `${Math.round(data.responseRate * 100)}%`}
             />
             <Row label="Compliments" value={String(data.compliments)} />
             <Row label="Suggestions" value={String(data.suggestions)} />

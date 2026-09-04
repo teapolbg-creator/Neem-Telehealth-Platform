@@ -69,8 +69,8 @@ export function ClinicalWorkspace({
         <div className="text-sm text-slate-600">
           <p className="font-bold text-slate-900">This record is sealed.</p>
           <p className="mt-1 leading-relaxed">
-            The consultation has ended. Its clinical record is retained under a legal
-            record-keeping obligation and can no longer be opened here.
+            The consultation has ended. Its clinical record is retained under a legal record-keeping
+            obligation and can no longer be opened here.
           </p>
         </div>
       </div>
@@ -94,7 +94,9 @@ export function ClinicalWorkspace({
             onClick={() => setTab(item.key)}
             className={cn(
               "inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
-              tab === item.key ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:bg-white/60",
+              tab === item.key
+                ? "bg-white text-brand shadow-sm"
+                : "text-slate-500 hover:bg-white/60",
             )}
           >
             <item.icon className="size-4" />
@@ -126,7 +128,8 @@ function NotesPanel({
   workspace,
 }: {
   consultationPublicId: string;
-  workspace: { notes: string | null; diagnosis: string | null; treatment: string | null } | undefined;
+  workspace:
+    { notes: string | null; diagnosis: string | null; treatment: string | null } | undefined;
 }) {
   const save = useSaveNotes(consultationPublicId);
   const [form, setForm] = useState({
@@ -288,37 +291,51 @@ function PrescribePanel({ consultationPublicId }: { consultationPublicId: string
             <Input
               label="Medication"
               value={item.medication}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, medication: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, medication: v } : it)))
+              }
             />
             <Input
               label="Strength"
               value={item.strength ?? ""}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, strength: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, strength: v } : it)))
+              }
             />
             <Input
               label="Form"
               value={item.form ?? ""}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, form: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, form: v } : it)))
+              }
             />
             <Input
               label="Dose"
               value={item.dose}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, dose: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, dose: v } : it)))
+              }
             />
             <Input
               label="Frequency"
               value={item.frequency}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, frequency: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, frequency: v } : it)))
+              }
             />
             <Input
               label="Duration"
               value={item.durationText}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, durationText: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, durationText: v } : it)))
+              }
             />
             <Input
               label="Quantity"
               value={item.quantity}
-              onChange={(v) => setItems(items.map((it, i) => (i === index ? { ...it, quantity: v } : it)))}
+              onChange={(v) =>
+                setItems(items.map((it, i) => (i === index ? { ...it, quantity: v } : it)))
+              }
             />
             <div className="sm:col-span-2">
               <Input
@@ -707,7 +724,10 @@ function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
 
   return (
-    <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+    <div
+      role="alert"
+      className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3"
+    >
       <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
       <p className="text-sm text-red-700">
         {error instanceof ApiError ? error.message : "Something went wrong. Please try again."}

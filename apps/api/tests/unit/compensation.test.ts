@@ -113,9 +113,9 @@ describe('refusals', () => {
     // doctor somehow reaches this function over-contracted, that is a
     // scheduling bug, and multiplying their pay would turn it into a payroll
     // one.
-    expect(() =>
-      computeMonthlyCompensation({ ...FULL_TIME, contractedHoursPerWeek: 41 }),
-    ).toThrow(InvalidCompensationInput);
+    expect(() => computeMonthlyCompensation({ ...FULL_TIME, contractedHoursPerWeek: 41 })).toThrow(
+      InvalidCompensationInput,
+    );
   });
 
   it('refuses fractional pesewas', () => {

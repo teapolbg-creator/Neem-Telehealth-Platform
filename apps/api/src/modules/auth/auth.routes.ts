@@ -90,23 +90,19 @@ function emailDeliveryConfigured(): boolean {
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  app.post(
-    '/auth/login',
-    { config: { rateLimit: authRateLimit() } },
-    async (request, reply) => {
-      const input = loginRequestSchema.parse(request.body);
-      const outcome = await login(input, requestContext(request));
+  app.post('/auth/login', { config: { rateLimit: authRateLimit() } }, async (request, reply) => {
+    const input = loginRequestSchema.parse(request.body);
+    const outcome = await login(input, requestContext(request));
 
-      if (outcome.session) {
-        setSessionCookies(reply, outcome.session);
-      }
+    if (outcome.session) {
+      setSessionCookies(reply, outcome.session);
+    }
 
-      return reply.send({
-        data: outcome.response,
-        meta: { requestId: request.correlationId },
-      });
-    },
-  );
+    return reply.send({
+      data: outcome.response,
+      meta: { requestId: request.correlationId },
+    });
+  });
 
   /**
    * Starts TOTP enrolment. Returns the secret and otpauth URI exactly once;
@@ -177,7 +173,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     });
 
     clearSessionCookies(reply);
-    return reply.send({ data: { status: 'SIGNED_OUT' }, meta: { requestId: request.correlationId } });
+    return reply.send({
+      data: { status: 'SIGNED_OUT' },
+      meta: { requestId: request.correlationId },
+    });
   });
 
   /** The web app calls this on boot to resolve the current principal. */
@@ -200,16 +199,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       },
     });
 
-    const organisation =
-      user.doctor
-        ? { publicId: user.doctor.publicId, name: user.doctor.fullName, status: user.doctor.status }
-        : user.pharmacyMembership
-          ? {
-              publicId: user.pharmacyMembership.pharmacy.publicId,
-              name: user.pharmacyMembership.pharmacy.name,
-              status: user.pharmacyMembership.pharmacy.status,
-            }
-          : null;
+    const organisation = user.doctor
+      ? { publicId: user.doctor.publicId, name: user.doctor.fullName, status: user.doctor.status }
+      : user.pharmacyMembership
+        ? {
+            publicId: user.pharmacyMembership.pharmacy.publicId,
+            name: user.pharmacyMembership.pharmacy.name,
+            status: user.pharmacyMembership.pharmacy.status,
+          }
+        : null;
 
     const data: SessionUser = {
       publicId: user.publicId,

@@ -259,7 +259,11 @@ function CallMePanel({ publicId }: { publicId: string }) {
         onClick={() => place.mutate()}
         className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-brand/20 hover:brightness-110 disabled:opacity-40"
       >
-        {place.isPending ? <Loader2 className="size-5 animate-spin" /> : <Phone className="size-5" />}
+        {place.isPending ? (
+          <Loader2 className="size-5 animate-spin" />
+        ) : (
+          <Phone className="size-5" />
+        )}
         {place.isSuccess ? "Call placed" : "Place the call"}
       </button>
 
@@ -470,13 +474,7 @@ function readVitals(vitals: Record<string, unknown>): Array<{ label: string; val
  * States the retention outcome plainly. A doctor who has just written clinical
  * notes should know what happens to them, and "sealed" is not self-explanatory.
  */
-function CompletedNotice({
-  destroyAt,
-  onBack,
-}: {
-  destroyAt: string | null;
-  onBack: () => void;
-}) {
+function CompletedNotice({ destroyAt, onBack }: { destroyAt: string | null; onBack: () => void }) {
   return (
     <div className="card-soft p-8 text-center">
       <div className="mx-auto grid size-16 place-items-center rounded-full bg-brand/10">
@@ -486,9 +484,7 @@ function CompletedNotice({
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm leading-relaxed text-slate-500">
         The clinical record is sealed. It is retained under a legal record-keeping obligation, is
         not readable through Neem by anyone
-        {destroyAt
-          ? `, and is destroyed on ${new Date(destroyAt).toLocaleDateString()}.`
-          : "."}
+        {destroyAt ? `, and is destroyed on ${new Date(destroyAt).toLocaleDateString()}.` : "."}
       </p>
       <p className="mx-auto mt-3 max-w-md text-pretty text-xs leading-relaxed text-slate-400">
         Any prescription, referral or summary you issued stays available to the patient and the

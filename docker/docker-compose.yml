@@ -19,12 +19,13 @@ services:
       MYSQL_USER: ${MYSQL_USER:-neem}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-neem_dev}
     ports:
-      - '${MYSQL_PORT:-3307}:3306'
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - neem-mysql-data:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD:-neem_root_dev}']
+      test:
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-neem_root_dev}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -37,8 +38,8 @@ services:
     container_name: neem-mailhog
     restart: unless-stopped
     ports:
-      - '${MAILHOG_SMTP_PORT:-1025}:1025'
-      - '${MAILHOG_UI_PORT:-8025}:8025'
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
     logging:
       driver: none
 
@@ -48,12 +49,12 @@ services:
     image: adminer:4
     container_name: neem-adminer
     restart: unless-stopped
-    profiles: ['tools']
+    profiles: ["tools"]
     ports:
       # 8081, not 8080: the web dev server owns 8080 (WEB_PORT), so the two
       # collided for anyone who started the tools profile while developing —
       # and the README told them to do exactly that.
-      - '${ADMINER_PORT:-8081}:8080'
+      - "${ADMINER_PORT:-8081}:8080"
     environment:
       ADMINER_DEFAULT_SERVER: mysql
     depends_on:

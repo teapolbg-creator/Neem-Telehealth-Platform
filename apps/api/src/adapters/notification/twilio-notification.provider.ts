@@ -90,8 +90,7 @@ export class TwilioNotificationProvider implements NotificationProvider {
     }
 
     const body = (await response.json().catch(() => undefined)) as
-      | { sid?: string; code?: number; message?: string }
-      | undefined;
+      { sid?: string; code?: number; message?: string } | undefined;
 
     if (!response.ok) {
       const message = body?.message ?? `Twilio returned ${response.status}`;

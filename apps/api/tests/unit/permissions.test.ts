@@ -27,7 +27,7 @@ describe('role permissions', () => {
       expect(roleHasPermission('DOCTOR', PERMISSIONS.CONSULTATION_CREATE)).toBe(false);
     });
 
-    it('cannot dispense — dispensing is the pharmacy\'s act (spec §46)', () => {
+    it("cannot dispense — dispensing is the pharmacy's act (spec §46)", () => {
       expect(roleHasPermission('DOCTOR', PERMISSIONS.PRESCRIPTION_DISPENSE)).toBe(false);
     });
 

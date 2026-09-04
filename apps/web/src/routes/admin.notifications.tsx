@@ -112,9 +112,7 @@ function TemplateCard({ template }: { template: NotificationTemplate }) {
   // a body can name a dose *and* use a variable this notification cannot fill,
   // and fixing one at a time turns a single edit into three round trips.
   const problems =
-    update.error instanceof ApiError && update.error.details?.length
-      ? update.error.details
-      : null;
+    update.error instanceof ApiError && update.error.details?.length ? update.error.details : null;
 
   return (
     <section className="card-soft p-6">
@@ -136,9 +134,9 @@ function TemplateCard({ template }: { template: NotificationTemplate }) {
           )}
           {!template.hasProducer && (
             <p className="mt-1.5 max-w-xl text-pretty text-xs leading-relaxed text-amber-700">
-              Nothing in Neem sends this message yet. You can word it now and it
-              will be used the moment it is connected — but nobody is receiving
-              it today, and saving this will not change that.
+              Nothing in Neem sends this message yet. You can word it now and it will be used the
+              moment it is connected — but nobody is receiving it today, and saving this will not
+              change that.
             </p>
           )}
         </div>

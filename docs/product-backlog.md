@@ -38,22 +38,22 @@ Two of these are worth separating from the rest. **`doctor.licence.expiring`** h
 
 ## Post-MVP — architected for, deliberately not built
 
-| Item | What already accommodates it |
-| --- | --- |
-| Native mobile apps | REST API + `publicId` contracts are client-agnostic |
-| 24-hour operations / night shift | `shift_definitions` seeded inactive with `crossesMidnight` |
-| Specialist consultations | `doctors.specialty` exists; the queue filter is extensible |
-| Additional languages | `languages` table, admin-toggled |
-| Hospital referral network | `referrals` stores destination as free text today |
-| Pharmacy inventory | Explicitly out of scope (spec §19); substitution needs no stock data |
-| Automated pharmacy payouts | `PayoutProcessor` interface with a manual implementation |
-| Automated MDC licence verification | `doctor_documents` + manual verification; an adapter slot exists |
-| Connected medical devices | `consultation_vitals` is source-agnostic |
-| Insurance integration | Payment abstraction |
-| Additional payment providers | `PaymentProvider` interface |
-| Advanced / AI operational analytics | Aggregation layer over retained data only |
-| Multi-account pharmacy staff with roles | `pharmacy_users` join table already supports N accounts |
-| Patient-initiated consultations outside a pharmacy | Consultation creation is currently pharmacy-scoped by design |
+| Item                                               | What already accommodates it                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| Native mobile apps                                 | REST API + `publicId` contracts are client-agnostic                  |
+| 24-hour operations / night shift                   | `shift_definitions` seeded inactive with `crossesMidnight`           |
+| Specialist consultations                           | `doctors.specialty` exists; the queue filter is extensible           |
+| Additional languages                               | `languages` table, admin-toggled                                     |
+| Hospital referral network                          | `referrals` stores destination as free text today                    |
+| Pharmacy inventory                                 | Explicitly out of scope (spec §19); substitution needs no stock data |
+| Automated pharmacy payouts                         | `PayoutProcessor` interface with a manual implementation             |
+| Automated MDC licence verification                 | `doctor_documents` + manual verification; an adapter slot exists     |
+| Connected medical devices                          | `consultation_vitals` is source-agnostic                             |
+| Insurance integration                              | Payment abstraction                                                  |
+| Additional payment providers                       | `PaymentProvider` interface                                          |
+| Advanced / AI operational analytics                | Aggregation layer over retained data only                            |
+| Multi-account pharmacy staff with roles            | `pharmacy_users` join table already supports N accounts              |
+| Patient-initiated consultations outside a pharmacy | Consultation creation is currently pharmacy-scoped by design         |
 
 ---
 
@@ -61,14 +61,14 @@ Two of these are worth separating from the rest. **`doctor.licence.expiring`** h
 
 These were raised in Phase 0 and explicitly ruled out of V1. Each would be additive, not a rewrite.
 
-| Item | Decision | To revisit it, you need |
-| --- | --- | --- |
-| In-consultation text chat | D15 — cut | A retention rule for message content |
-| In-consultation image upload | D15 — cut | A retention rule for uploaded images, plus storage and scanning |
-| Third-party institutional prescription access | D13 — out | Consent capture, a lawful basis, and the `disclosure_log` activated |
-| Prescriptions used for research / QA analytics | D13 — out | Consent, a lawful basis, and an aggregation design |
+| Item                                                 | Decision              | To revisit it, you need                                                                                                                                                                                                         |
+| ---------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| In-consultation text chat                            | D15 — cut             | A retention rule for message content                                                                                                                                                                                            |
+| In-consultation image upload                         | D15 — cut             | A retention rule for uploaded images, plus storage and scanning                                                                                                                                                                 |
+| Third-party institutional prescription access        | D13 — out             | Consent capture, a lawful basis, and the `disclosure_log` activated                                                                                                                                                             |
+| Prescriptions used for research / QA analytics       | D13 — out             | Consent, a lawful basis, and an aggregation design                                                                                                                                                                              |
 | ~~Patient-facing clinical summary or doctor remark~~ | **REINSTATED by D25** | Nothing. D14 excluded it solely to protect the deletion guarantee; D23 established that guarantee was never lawful. A doctor-authored **consultation summary** is now mandatory for advice-only outcomes and optional otherwise |
-| Detailed epidemiological analysis over diagnoses | Still out | Records now persist, but sealed for a **legal** purpose. Mining them for insight is a different processing purpose needing its own lawful basis and consent. Never a quiet re-purposing of the archive (D23) |
+| Detailed epidemiological analysis over diagnoses     | Still out             | Records now persist, but sealed for a **legal** purpose. Mining them for insight is a different processing purpose needing its own lawful basis and consent. Never a quiet re-purposing of the archive (D23)                    |
 
 ---
 

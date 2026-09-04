@@ -43,8 +43,7 @@ export const adminRefundsKey = ["admin", "refunds"] as const;
 export function useAdminRefunds(openOnly = true) {
   return useQuery({
     queryKey: [...adminRefundsKey, openOnly],
-    queryFn: ({ signal }) =>
-      api.get<AdminRefund[]>(`/admin/refunds?openOnly=${openOnly}`, signal),
+    queryFn: ({ signal }) => api.get<AdminRefund[]>(`/admin/refunds?openOnly=${openOnly}`, signal),
     // Someone is waiting on their money.
     refetchInterval: 30_000,
   });
@@ -115,10 +114,10 @@ export function useMarkPayoutPaid() {
 
   return useMutation({
     mutationFn: (input: { publicId: string; paymentReference: string; note?: string }) =>
-      api.post<{ publicId: string; status: string }>(
-        `/admin/payouts/${input.publicId}/mark-paid`,
-        { paymentReference: input.paymentReference, note: input.note },
-      ),
+      api.post<{ publicId: string; status: string }>(`/admin/payouts/${input.publicId}/mark-paid`, {
+        paymentReference: input.paymentReference,
+        note: input.note,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminPayoutsKey }),
   });
 }

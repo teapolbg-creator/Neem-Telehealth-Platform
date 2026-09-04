@@ -1,24 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import type { PatientSessionView } from "@neem/contracts";
-import {
-  AlertCircle,
-  Check,
-  Loader2,
-  Lock,
-  Phone,
-  PhoneOutgoing,
-  Star,
-  Video,
-} from "lucide-react";
+import { AlertCircle, Check, Loader2, Lock, Phone, PhoneOutgoing, Star, Video } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
 import { CallStage } from "@/components/neem/CallStage";
 import { ApiError } from "@/lib/api-client";
-import {
-  useJoinPatientMedia,
-  useLeavePatientMedia,
-  usePatientTimer,
-} from "@/features/media/api";
+import { useJoinPatientMedia, useLeavePatientMedia, usePatientTimer } from "@/features/media/api";
 import {
   usePatientComplaintCategories,
   usePatientLanguages,
@@ -201,9 +188,7 @@ function IdentityStep() {
                   key={option}
                   type="button"
                   aria-pressed={form.sex === option}
-                  aria-label={
-                    option === "FEMALE" ? "Female" : option === "MALE" ? "Male" : "Other"
-                  }
+                  aria-label={option === "FEMALE" ? "Female" : option === "MALE" ? "Male" : "Other"}
                   onClick={() => setForm({ ...form, sex: option })}
                   className={cn(
                     "rounded-xl border-2 py-2.5 text-xs font-bold transition-colors",
@@ -339,7 +324,12 @@ function ModeStep() {
   const [chosen, setChosen] = useState<"AUDIO" | "VIDEO" | "CALL_ME" | null>(null);
 
   const options = [
-    { id: "VIDEO", icon: Video, title: "Video consultation", desc: "See and speak with the doctor." },
+    {
+      id: "VIDEO",
+      icon: Video,
+      title: "Video consultation",
+      desc: "See and speak with the doctor.",
+    },
     { id: "AUDIO", icon: Phone, title: "Audio consultation", desc: "Voice only — uses less data." },
     {
       id: "CALL_ME",
@@ -538,8 +528,7 @@ function AwaitingCallStep({ doctorName }: { doctorName: string }) {
         Keep your phone nearby. The call will show as coming from Neem.
       </p>
       <p className="mt-6 max-w-xs text-xs leading-relaxed text-slate-400">
-        Your number is never shared with the doctor, and theirs is never shared
-        with you.
+        Your number is never shared with the doctor, and theirs is never shared with you.
       </p>
     </div>
   );
@@ -658,8 +647,8 @@ function FinishOnThisPhone({
       )}
 
       <p className="mt-2 text-xs leading-relaxed text-slate-600">
-        This is the last time it is shown. Once you finish, this phone is cleared and the
-        reference cannot be shown again — the pharmacist can still find your consultation with it.
+        This is the last time it is shown. Once you finish, this phone is cleared and the reference
+        cannot be shown again — the pharmacist can still find your consultation with it.
       </p>
 
       {end.error && (

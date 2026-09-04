@@ -22,16 +22,20 @@
 **Success**
 
 ```json
-{ "data": { }, "meta": { "requestId": "01J...", "page": { "cursor": "…", "hasMore": true } } }
+{ "data": {}, "meta": { "requestId": "01J...", "page": { "cursor": "…", "hasMore": true } } }
 ```
 
 **Error**
 
 ```json
-{ "error": { "code": "INVALID_STATE_TRANSITION",
-             "message": "Consultation cannot move from COMPLETED to IN_PROGRESS.",
-             "details": [ { "field": "state", "issue": "…" } ] },
-  "meta": { "requestId": "01J..." } }
+{
+  "error": {
+    "code": "INVALID_STATE_TRANSITION",
+    "message": "Consultation cannot move from COMPLETED to IN_PROGRESS.",
+    "details": [{ "field": "state", "issue": "…" }]
+  },
+  "meta": { "requestId": "01J..." }
+}
 ```
 
 - Machine-readable `code` first; `message` is human-facing and never leaks internals.
@@ -42,7 +46,7 @@
 - Every request carries a correlation id, echoed in `meta.requestId` and in logs.
 - Validation is zod, shared with the web app through `packages/contracts`, so client and server cannot drift.
 
-**Status codes:** `400` validation, `401` unauthenticated, `403` authorised principal lacking permission, `404` not found *or* existence is itself sensitive, `409` state/uniqueness conflict, `422` business-rule violation, `429` rate limited, `503` provider unavailable.
+**Status codes:** `400` validation, `401` unauthenticated, `403` authorised principal lacking permission, `404` not found _or_ existence is itself sensitive, `409` state/uniqueness conflict, `422` business-rule violation, `429` rate limited, `503` provider unavailable.
 
 ---
 
@@ -237,7 +241,6 @@ A pharmacy **cannot be activated with nothing verified** — the same rule that 
 
 Neem performs no automated registration lookup, and no response here asserts a document is genuine (spec §78).
 
-
 ```
 POST   /pharmacy/consultations                       create → PENDING_PAYMENT
 POST   /pharmacy/consultations/:publicId/payment     initiate
@@ -422,13 +425,13 @@ names all 404 (decision D8).
 `POST /patient/consultation/media/join` and
 `POST /doctor/consultations/:id/media/join` return:
 
-| Field | Meaning |
-| --- | --- |
-| `kind` | `VIDEO`, `AUDIO`, or `VOICE_BRIDGE` |
-| `providerRoomRef` | The provider's room handle |
-| `joinToken` | Credential for the provider's SDK; expires |
-| `isMockProvider` | **True today.** Surfaced on screen — the remote pane says media is simulated (decision D18) |
-| `recordingEnabled` | Always `false` |
+| Field              | Meaning                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `kind`             | `VIDEO`, `AUDIO`, or `VOICE_BRIDGE`                                                         |
+| `providerRoomRef`  | The provider's room handle                                                                  |
+| `joinToken`        | Credential for the provider's SDK; expires                                                  |
+| `isMockProvider`   | **True today.** Surfaced on screen — the remote pane says media is simulated (decision D18) |
+| `recordingEnabled` | Always `false`                                                                              |
 
 Both are **idempotent**: rejoining after a reload or a dropped connection
 returns the same room with a fresh credential, so a patient does not lose their
@@ -448,7 +451,6 @@ read server-side and handed to the provider; the response carries only
 `callerIdShown`. Neither party's number appears in any payload either party can
 reach — including the doctor's own clinical panel, which omits the patient's
 number for exactly this reason (decision D19).
-
 
 ---
 
@@ -480,7 +482,6 @@ research purpose code (`data-retention.md` §4).
 The retrievals listing returns who opened what and why — **never what it
 said**. A screen rendering the records alongside would be the longitudinal
 history by another route.
-
 
 ---
 

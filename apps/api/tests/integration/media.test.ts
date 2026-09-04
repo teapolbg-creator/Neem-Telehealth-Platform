@@ -17,7 +17,11 @@ import { acceptOffer, offerNextDoctor } from '../../src/modules/queue/allocation
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
 import { generatePublicId, hashPassword, encryptField } from '../../src/lib/crypto.ts';
 import { fixedClock } from '../../src/lib/clock.ts';
-import { getTimer, joinMediaSession, endMediaSession } from '../../src/modules/media/media.service.ts';
+import {
+  getTimer,
+  joinMediaSession,
+  endMediaSession,
+} from '../../src/modules/media/media.service.ts';
 
 /**
  * The media layer against a real database (spec §15, §32, §33).
@@ -37,7 +41,9 @@ interface Fixture {
   patientCookies: Record<string, string>;
 }
 
-async function createOnlineDoctor(withPhone: boolean): Promise<{ doctorId: string; email: string }> {
+async function createOnlineDoctor(
+  withPhone: boolean,
+): Promise<{ doctorId: string; email: string }> {
   const prisma = getPrisma();
   const suffix = generatePublicId('x').slice(-8);
   const email = `${suffix}@doctor.test`;
@@ -67,7 +73,9 @@ async function createOnlineDoctor(withPhone: boolean): Promise<{ doctorId: strin
       status: 'ACTIVE',
       isDemo: true,
       phoneEnc: withPhone ? encryptField('+233240000111') : null,
-      languages: { create: languages.map((language) => ({ languageId: language.id, isPrimary: true })) },
+      languages: {
+        create: languages.map((language) => ({ languageId: language.id, isPrimary: true })),
+      },
     },
   });
 
@@ -106,7 +114,10 @@ async function acceptedConsultation(
   const prisma = getPrisma();
   const doctor = await createOnlineDoctor(options.doctorHasPhone ?? true);
 
-  const pharmacy = await createTestPharmacy(`Pharmacy ${generatePublicId('x').slice(-6)}`, 'ACTIVE');
+  const pharmacy = await createTestPharmacy(
+    `Pharmacy ${generatePublicId('x').slice(-6)}`,
+    'ACTIVE',
+  );
   const pharmacyUser = await createTestUser({
     email: `${generatePublicId('x').slice(-8)}@pharmacy.test`,
     password: PHARMACY_PASSWORD,
@@ -449,10 +460,10 @@ describe('Call Me', () => {
   it('refuses on a video consultation', async () => {
     const fixture = await acceptedConsultation('VIDEO');
 
-    const response = await request(
-      `/doctor/consultations/${fixture.consultationPublicId}/call`,
-      { method: 'POST', cookies: fixture.doctorCookies },
-    );
+    const response = await request(`/doctor/consultations/${fixture.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: fixture.doctorCookies,
+    });
 
     expect(response.status).toBe(422);
   });

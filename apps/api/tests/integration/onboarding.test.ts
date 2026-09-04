@@ -136,7 +136,11 @@ describe('pharmacy registration', () => {
   it('does not leave an orphan pharmacy when account creation fails', async () => {
     // A pre-existing user with the same email forces the second half of the
     // transaction to fail; the pharmacy must roll back with it.
-    await createTestUser({ email: 'clash@test.local', password: 'Whatever123456!', role: 'PHARMACY' });
+    await createTestUser({
+      email: 'clash@test.local',
+      password: 'Whatever123456!',
+      role: 'PHARMACY',
+    });
 
     const response = await request('/onboarding/pharmacy', {
       method: 'POST',
@@ -447,10 +451,11 @@ describe('pharmacy document verification', () => {
 
     const uploaded = await uploadCertificate(cookies);
 
-    const verified = await request(
-      `/admin/pharmacies/documents/${uploaded.body.data!.id}/verify`,
-      { method: 'POST', cookies: adminCookies, payload: { verified: true } },
-    );
+    const verified = await request(`/admin/pharmacies/documents/${uploaded.body.data!.id}/verify`, {
+      method: 'POST',
+      cookies: adminCookies,
+      payload: { verified: true },
+    });
     expect(verified.status).toBe(200);
 
     for (const status of ['UNDER_REVIEW', 'APPROVED', 'ACTIVE']) {

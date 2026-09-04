@@ -52,7 +52,8 @@ export async function initiatePayment(
     include: { payments: { orderBy: { createdAt: 'desc' } } },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
-  if (consultation.pharmacyId !== input.pharmacyId) throw errors.notFound('Consultation not found.');
+  if (consultation.pharmacyId !== input.pharmacyId)
+    throw errors.notFound('Consultation not found.');
 
   if (!isAwaitingPayment(consultation.state)) {
     throw errors.businessRule(
@@ -172,7 +173,9 @@ export async function settlePayment(
 ): Promise<{ status: string; consultationState: string }> {
   const payment = await db.payment.findUnique({
     where: { providerReference: verified.providerReference },
-    include: { consultation: { select: { id: true, state: true, netMinor: true, currency: true } } },
+    include: {
+      consultation: { select: { id: true, state: true, netMinor: true, currency: true } },
+    },
   });
 
   if (!payment) {
@@ -208,7 +211,11 @@ export async function settlePayment(
       },
     });
 
-    if (verified.status === 'FAILED' && consultation && consultation.state === 'PAYMENT_PROCESSING') {
+    if (
+      verified.status === 'FAILED' &&
+      consultation &&
+      consultation.state === 'PAYMENT_PROCESSING'
+    ) {
       await transition(
         consultation.id,
         'PAYMENT_FAILED',

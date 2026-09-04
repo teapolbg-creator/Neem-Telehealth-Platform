@@ -5,7 +5,11 @@ import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { NOTIFICATION_TEMPLATES, TEMPLATES_WITHOUT_PRODUCER, validateTemplateBody } from './templates.ts';
+import {
+  NOTIFICATION_TEMPLATES,
+  TEMPLATES_WITHOUT_PRODUCER,
+  validateTemplateBody,
+} from './templates.ts';
 
 /**
  * Notification template administration (spec §58, §60).

@@ -105,7 +105,6 @@ export async function recordTest(
   });
 }
 
-
 export interface ClinicalNotesInput {
   notes?: string | null;
   diagnosis?: string | null;
@@ -399,4 +398,3 @@ export async function overdueDestructions(
     },
   });
 }
-

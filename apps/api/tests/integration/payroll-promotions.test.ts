@@ -322,8 +322,12 @@ describe('promotions (spec §42)', () => {
     const admin = await adminCookies();
     const payload = { code: 'ONLYONCE', type: 'PERCENT' as const, valueBp: 1000, ...window() };
 
-    expect((await request('/admin/promotions', { method: 'POST', cookies: admin, payload })).status).toBe(201);
-    expect((await request('/admin/promotions', { method: 'POST', cookies: admin, payload })).status).toBe(409);
+    expect(
+      (await request('/admin/promotions', { method: 'POST', cookies: admin, payload })).status,
+    ).toBe(201);
+    expect(
+      (await request('/admin/promotions', { method: 'POST', cookies: admin, payload })).status,
+    ).toBe(409);
   });
 
   it('discounts a consultation and reports what the campaign cost', async () => {
@@ -359,10 +363,9 @@ describe('promotions (spec §42)', () => {
     expect(consultation.netMinor).toBe(consultation.priceMinor - consultation.discountMinor);
     expect(consultation.discountMinor).toBe(Math.floor(consultation.priceMinor / 2));
 
-    const listed = await request<Array<{ code: string; usedCount: number; discountedMinor: number }>>(
-      '/admin/promotions',
-      { cookies: admin },
-    );
+    const listed = await request<
+      Array<{ code: string; usedCount: number; discountedMinor: number }>
+    >('/admin/promotions', { cookies: admin });
     const promotion = listed.body.data!.find((row) => row.code === 'HALFOFF')!;
 
     expect(promotion.usedCount).toBe(1);

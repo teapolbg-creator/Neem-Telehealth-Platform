@@ -59,7 +59,7 @@ Status is **Proposed** until you approve Phase 0.
 **Issue.** Reconciling "single-use QR" (spec §10) with the reality that patients refresh, lock their phones, and switch apps mid-consultation.
 **Options.** (A) Token validated on every request — a refresh then locks the patient out. (B) Token exchanged once for a device-bound session cookie.
 **Selected.** B.
-**Rationale.** Single-use applies to the *token*; the *session* is what carries the patient through. This satisfies the security requirement without a hostile experience.
+**Rationale.** Single-use applies to the _token_; the _session_ is what carries the patient through. This satisfies the security requirement without a hostile experience.
 **Consequences.** A genuinely lost device needs a pharmacy-issued replacement token, which revokes the previous one and is audited. That path is deliberate and visible.
 
 ---
@@ -154,11 +154,11 @@ Status is **Proposed** until you approve Phase 0.
 
 ## Open items carried into Phase 1
 
-| Ref | Item | Blocking |
-| --- | --- | --- |
-| C9 | Twilio Programmable Video roadmap — verify with Twilio directly | The real media adapter. Phase 5 shipped on mocks (D18) |
+| Ref    | Item                                                             | Blocking                                                                                                                                      |
+| ------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| C9     | Twilio Programmable Video roadmap — verify with Twilio directly  | The real media adapter. Phase 5 shipped on mocks (D18)                                                                                        |
 | ~~G7~~ | ~~Minimum legal retention period for clinical records in Ghana~~ | **CLOSED 2026-08-29 — a minimum exists. See D23.** Six follow-on questions remain with counsel, tracked as G7a–G7f in `data-retention.md` §10 |
-| — | Node.js 22 + Docker Desktop installation | Any running code |
+| —      | Node.js 22 + Docker Desktop installation                         | Any running code                                                                                                                              |
 
 ---
 
@@ -224,11 +224,11 @@ Status is **Proposed** until you approve Phase 0.
 
 ### D23 — Clinical records are retained for 3 years under seal, not deleted at completion · 2026-08-29 · **DECIDED — reverses a core design assumption**
 
-**Issue.** G7, flagged in Phase 0 as *"would be architectural if a minimum retention period exists"*, was answered by the product owner on 2026-08-29 from Medical & Dental Council sources. A minimum does exist. Deleting consultation notes at completion breaches the record-keeping duty on registered practitioners under the Health Professions Regulatory Bodies Act, 2013 (Act 857), and destroys the evidence both parties need during the 3-year civil window for a negligence claim. The Data Protection Act, 2012 (Act 843) permits — and where another law mandates, requires — retention of health data.
+**Issue.** G7, flagged in Phase 0 as _"would be architectural if a minimum retention period exists"_, was answered by the product owner on 2026-08-29 from Medical & Dental Council sources. A minimum does exist. Deleting consultation notes at completion breaches the record-keeping duty on registered practitioners under the Health Professions Regulatory Bodies Act, 2013 (Act 857), and destroys the evidence both parties need during the 3-year civil window for a negligence claim. The Data Protection Act, 2012 (Act 843) permits — and where another law mandates, requires — retention of health data.
 
 **What this reverses.** Phases 0–5 were built on "clinical information exists only for the duration of the consultation" (spec §16, §62, §101). That is now wrong. The completion purge, which was the headline deliverable of Phase 6, does not survive in that form.
 
-**The distinction that decided the rest.** The finding contains two obligations that are routinely conflated: *record-keeping* (the records must exist) and *continuity of care* (a future clinician should read them). Only the second collides with spec §13. The first is satisfied by an archive nobody reads.
+**The distinction that decided the rest.** The finding contains two obligations that are routinely conflated: _record-keeping_ (the records must exist) and _continuity of care_ (a future clinician should read them). Only the second collides with spec §13. The first is satisfied by an archive nobody reads.
 
 **Selected.** Records retained **3 years from completion**, encrypted at rest, **readable through no product surface** — the "sealed archive" option. Configurable via `retention.clinicalRecordYears`.
 
@@ -239,7 +239,7 @@ Status is **Proposed** until you approve Phase 0.
 1. **Spec §13's "no medical history" ceases to be a guarantee about the data and becomes one about access.** A patient index must exist, because a subject-access request, an MDC inquiry, and a negligence claim all require producing a named patient's records. Per-consultation islands cannot service any of them. Restated in `data-retention.md` §3.
 2. **Vitals and point-of-care results are stored in plaintext.** Defensible when they lived for minutes; not over three years. They need field encryption like the notes already have.
 3. **Key management becomes load-bearing.** One `ENCRYPTION_KEY` with no rotation path is thin for data with a multi-year life.
-4. **The patient-facing deletion promise is now false.** *"Your details and everything discussed have been deleted"* must be replaced, and a notice stating the lawful basis added at capture — the product currently states no basis anywhere.
+4. **The patient-facing deletion promise is now false.** _"Your details and everything discussed have been deleted"_ must be replaced, and a notice stating the lawful basis added at capture — the product currently states no basis anywhere.
 5. **Subject access and erasure need a mechanism.** Neither exists, and erasure conflicts with a statutory retention duty in a way counsel must resolve.
 6. **Break-glass access must be built**: two-person authorisation, stated purpose recorded before access, append-only `clinical_record_access_log`, export rather than a browsable screen.
 7. **The spec §101 critical test changes shape** — from "absent after completion" to "still present, unreadable by every role, and gone after expiry."
@@ -264,11 +264,11 @@ The clinical model supports this and is the stronger argument. Neem is an **epis
 
 **Consequences.**
 
-1. **The reference identifies; it does not authorise.** Quoting a number tells Neem *which* sealed record is meant. Opening it still requires the two-person authorisation and stated purpose of Archived Consultation Retrieval (D27, renamed from break-glass on counsel's instruction). Otherwise a discarded prescription slip becomes a key to someone's clinical record.
+1. **The reference identifies; it does not authorise.** Quoting a number tells Neem _which_ sealed record is meant. Opening it still requires the two-person authorisation and stated purpose of Archived Consultation Retrieval (D27, renamed from break-glass on counsel's instruction). Otherwise a discarded prescription slip becomes a key to someone's clinical record.
 2. **Retrieval is reference-scoped**, not person-scoped. There is no "show me everything about this patient" path, by design.
 3. **Subject access becomes "quote your reference"** — a recognised privacy-preserving pattern, not an evasion.
 4. **Every consultation must put the reference in the patient's hands**, whatever the outcome. Advice-only consultations previously produced no artefact at all; D25 resolves that.
-5. **One caveat that must be stated accurately to counsel.** `prescriptions` permanently stores `patientName`, `patientAge` and `patientSex` by value, following spec §11 and predating this decision. A name search against that table is therefore technically possible for anyone with database access. What this decision removes is the **feature**: no product surface indexes by patient, and clinical notes are reachable only by consultation reference. Nobody should tell a regulator that Neem *cannot* search by patient.
+5. **One caveat that must be stated accurately to counsel.** `prescriptions` permanently stores `patientName`, `patientAge` and `patientSex` by value, following spec §11 and predating this decision. A name search against that table is therefore technically possible for anyone with database access. What this decision removes is the **feature**: no product surface indexes by patient, and clinical notes are reachable only by consultation reference. Nobody should tell a regulator that Neem _cannot_ search by patient.
 6. Phase 5.5 shrinks — the patient identity index and the person-scoped subject-access search both come out.
 
 ---
@@ -289,7 +289,7 @@ Permanence and a verification page follow from use: a patient may present this a
 
 1. **The doctor writes it. It is never generated.** A document carrying a practitioner's name and signature saying "you do not need medication" is a clinical opinion, and the first thing a lawyer reads if the patient deteriorates. Composing it automatically from the notes would put words in a doctor's mouth on a document they answer for. Structured fields with pick-lists and one or two short free-text boxes keep it inside the five-minute consultation.
 2. **Safety-netting is a required field.** "What to watch for" and "when to seek care urgently" must be present before the document can be issued. A summary that says only "no medication needed" reads as an all-clear from a remote five-minute assessment, and would be worse than issuing nothing.
-3. **It is not called a medical report.** In Ghana that phrase is used for employment, insurance and court purposes; naming it so invites it being presented as something it is not. It is a *consultation summary*. For the same reason it documents what the doctor found and advised — it does not justify the fee.
+3. **It is not called a medical report.** In Ghana that phrase is used for employment, insurance and court purposes; naming it so invites it being presented as something it is not. It is a _consultation summary_. For the same reason it documents what the doctor found and advised — it does not justify the fee.
 
 **G7g answered 2026-09-01: there is no mandated form or content.** The summary's fields are therefore entirely Neem's design, and the three constraints above are **product policy, not legal requirement**. That distinction is worth keeping straight in both directions. Nothing in the UI or documentation may present them as a regulatory obligation (spec §78) — and equally, "the law does not require it" is not an argument for dropping the safety-netting field, which exists because a remote five-minute assessment that says only "no medication needed" reads as an all-clear it cannot support.
 
@@ -323,7 +323,7 @@ The property that matters is that rotation needs **no flag day**: move the old k
 
 **What it changes.**
 
-1. **Retrieval is unblocked and is renamed.** Counsel is explicit: *"Do NOT build a conventional patient history feature. Instead, build an Archived Consultation Retrieval mechanism."* The term **break-glass is dropped** — it implies emergency clinical access by a treating clinician, which is precisely what this is not. This is controlled administrative retrieval. The architecture must stay open to a formal clinical break-glass workflow being added later *without redesign*, should counsel require one.
+1. **Retrieval is unblocked and is renamed.** Counsel is explicit: _"Do NOT build a conventional patient history feature. Instead, build an Archived Consultation Retrieval mechanism."_ The term **break-glass is dropped** — it implies emergency clinical access by a treating clinician, which is precisely what this is not. This is controlled administrative retrieval. The architecture must stay open to a formal clinical break-glass workflow being added later _without redesign_, should counsel require one.
 
 2. **Six permitted purposes, not four.** Counsel's list is wider than mine: legal or regulatory proceeding; a valid patient data-access request; an authorised clinical-record request where legitimately necessary; an approved quality or safety investigation; an approved research purpose, preferably de-identified; an authorised internal investigation or audit.
 
@@ -373,7 +373,7 @@ That alphabet is fine for a machine-handled identifier and poor for one a patien
 
 ### D30 — A patient session is readable after the consultation ends, and actable only while it runs · 2026-09-02 · **DECIDED (Category B)**
 
-**Issue.** `resolvePatientSession` gated on `patientSessionIsUsable`, the set of states in which a patient may still *do* something. That set stops at `IN_PROGRESS`, so the session stopped resolving the instant the doctor completed. The patient's phone polls every five seconds; the poll after completion returned 401 and the portal rendered "Session ended. Please ask the pharmacy for a new consultation code."
+**Issue.** `resolvePatientSession` gated on `patientSessionIsUsable`, the set of states in which a patient may still _do_ something. That set stops at `IN_PROGRESS`, so the session stopped resolving the instant the doctor completed. The patient's phone polls every five seconds; the poll after completion returned 401 and the portal rendered "Session ended. Please ask the pharmacy for a new consultation code."
 
 Two things were unreachable as a result, neither of them noticed because every route involved passed its own tests:
 
@@ -415,9 +415,9 @@ That left the clearest refund case in the product with no route at all. A consul
 
 Building Phase 8 made the consequence concrete: **a notification bell with a list of past messages cannot be built.** There is nothing to list. The obvious workarounds are all worse:
 
-- *Store the body for IN_APP only.* The channel a message went out on has nothing to do with how sensitive it is, and this would create exactly the archive the schema exists to prevent.
-- *Store the variables and re-render.* Identical in effect. `{ consultationReference, pharmacyName }` reconstitutes the message perfectly.
-- *Store nothing and show nothing.* Leaves a doctor who was offline with no way to learn what they missed.
+- _Store the body for IN_APP only._ The channel a message went out on has nothing to do with how sensitive it is, and this would create exactly the archive the schema exists to prevent.
+- _Store the variables and re-render._ Identical in effect. `{ consultationReference, pharmacyName }` reconstitutes the message perfectly.
+- _Store nothing and show nothing._ Leaves a doctor who was offline with no way to learn what they missed.
 
 **Decision.** In-app notification is **real-time only**, and the durable surface is the work queue itself.
 
@@ -441,7 +441,7 @@ have routes added for years after that day, and the failure this audit exists
 to prevent — a route registered without a guard — is precisely the one that
 announces nothing. It returns 200. It looks like it works.
 
-Auditing by reading is also how the *other* Phase 9 defect happened in reverse.
+Auditing by reading is also how the _other_ Phase 9 defect happened in reverse.
 Four routes existed with no caller and nobody noticed, because reading code
 tells you what is written, not what is reachable.
 

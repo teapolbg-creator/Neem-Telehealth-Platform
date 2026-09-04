@@ -77,7 +77,9 @@ function AdminVerification() {
             }}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-colors",
-              tab === item.key ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:bg-white/60",
+              tab === item.key
+                ? "bg-white text-brand shadow-sm"
+                : "text-slate-500 hover:bg-white/60",
             )}
           >
             <item.icon className="size-4" />
@@ -92,9 +94,7 @@ function AdminVerification() {
         reaches a specific doctor or pharmacy rather than scrolling for it.
       */}
       <label className="block max-w-md">
-        <span className="sr-only">
-          Search {tab === "doctors" ? "doctors" : "pharmacies"}
-        </span>
+        <span className="sr-only">Search {tab === "doctors" ? "doctors" : "pharmacies"}</span>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -238,7 +238,12 @@ function ReadinessRow({
         <FileText className="size-3" />
         {verified}/{total} verified
       </span>
-      <span className={cn("inline-flex items-center gap-1", hasSignature ? "text-brand" : "text-slate-400")}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1",
+          hasSignature ? "text-brand" : "text-slate-400",
+        )}
+      >
         {hasSignature ? <Check className="size-3" /> : <X className="size-3" />}
         Signature
       </span>
@@ -292,11 +297,7 @@ function DoctorDetail({ publicId }: { publicId: string }) {
         <Detail label="Signature" value={doctor.hasSignature ? "Captured" : "Not captured"} />
       </dl>
 
-      <DocumentReview
-        kind="doctors"
-        heading="Credential documents"
-        documents={doctor.documents}
-      />
+      <DocumentReview kind="doctors" heading="Credential documents" documents={doctor.documents} />
 
       <StatusActions kind="doctors" publicId={publicId} />
     </div>
@@ -592,9 +593,7 @@ function StatusActions({ kind, publicId }: { kind: "doctors" | "pharmacies"; pub
 
       {pending && (
         <div className="mt-4 rounded-2xl border border-border bg-slate-50 p-4">
-          <p className="text-sm font-semibold">
-            Move to {pending.replace("_", " ")}?
-          </p>
+          <p className="text-sm font-semibold">Move to {pending.replace("_", " ")}?</p>
           {pending === "ACTIVE" && kind === "doctors" && (
             <p className="mt-1 text-xs text-slate-600">
               Activation makes this doctor eligible for consultations and lets them sign

@@ -95,11 +95,7 @@ export const cancelConsultationSchema = z.object({
  */
 export const patientIdentitySchema = z.object({
   fullName: z.string().trim().min(2).max(160),
-  age: z
-    .number()
-    .int()
-    .min(0, 'Enter an age')
-    .max(120, 'Enter a valid age'),
+  age: z.number().int().min(0, 'Enter an age').max(120, 'Enter a valid age'),
   sex: z.enum(PATIENT_SEXES),
   phone: ghanaPhoneSchema,
   /** Recorded when the bill was paid from a different number (spec §36). */
@@ -162,7 +158,15 @@ export const patientSessionViewSchema = z.object({
   consultationPublicId: z.string(),
   state: z.enum(CONSULTATION_STATES),
   /** Which step the portal should render next. */
-  step: z.enum(['IDENTITY', 'LANGUAGE', 'MODE', 'WAITING', 'IN_CONSULTATION', 'COMPLETE', 'CLOSED']),
+  step: z.enum([
+    'IDENTITY',
+    'LANGUAGE',
+    'MODE',
+    'WAITING',
+    'IN_CONSULTATION',
+    'COMPLETE',
+    'CLOSED',
+  ]),
   pharmacyName: z.string(),
   identityCaptured: z.boolean(),
   language: z.object({ code: z.string(), label: z.string() }).nullable(),

@@ -134,8 +134,9 @@ async function liveConsultation(
 
   const doctorCsrf = await signIn(doctorApi, doctor);
   const shifts = await doctorApi.get(`${API}/doctor/shifts`);
-  const todays = ((await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>)
-    .find((shift) => shift.serviceDate === serviceDate);
+  const todays = (
+    (await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>
+  ).find((shift) => shift.serviceDate === serviceDate);
   if (!todays) return { skip: `No shift on ${serviceDate}.` };
 
   await doctorApi.post(`${API}/doctor/shifts/${todays.id}/confirm`, {
@@ -159,8 +160,7 @@ async function liveConsultation(
    * a diagnosable failure into a shrug.
    */
   const offer = (await offered.json()).data as
-    | { offered: boolean; reason?: string; languageStarved?: boolean; message?: string }
-    | undefined;
+    { offered: boolean; reason?: string; languageStarved?: boolean; message?: string } | undefined;
 
   if (!offer?.offered) {
     const presence = await doctorApi.get(`${API}/doctor/presence`);
@@ -260,7 +260,10 @@ test.describe('scenario 6 — a doctor prescribes and the pharmacy receives it',
 });
 
 test.describe('scenarios 7 and 8 — substitution', () => {
-  test('the doctor approves, and the record shows both medications', async ({ playwright, run }) => {
+  test('the doctor approves, and the record shows both medications', async ({
+    playwright,
+    run,
+  }) => {
     const live = await liveConsultation(playwright, run, 'b');
     if ('skip' in live) console.log('  skipped:', live.skip);
     test.skip('skip' in live, 'skip' in live ? live.skip : '');
@@ -280,8 +283,9 @@ test.describe('scenarios 7 and 8 — substitution', () => {
     });
 
     const list = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
-    const rx = ((await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>)
-      .find((entry) => entry.publicId === rxPublicId)!;
+    const rx = (
+      (await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>
+    ).find((entry) => entry.publicId === rxPublicId)!;
 
     const proposal = await live.pharmacyApi.post(
       `${API}/pharmacy/prescriptions/${rxPublicId}/substitutions`,
@@ -312,11 +316,13 @@ test.describe('scenarios 7 and 8 — substitution', () => {
     expect(decided.status(), await decided.text()).toBe(200);
 
     const after = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
-    const updated = ((await after.json()).data as Array<{
-      publicId: string;
-      state: string;
-      items: Array<{ medication: string }>;
-    }>).find((entry) => entry.publicId === rxPublicId)!;
+    const updated = (
+      (await after.json()).data as Array<{
+        publicId: string;
+        state: string;
+        items: Array<{ medication: string }>;
+      }>
+    ).find((entry) => entry.publicId === rxPublicId)!;
 
     expect(updated.state).toBe('SUBSTITUTION_APPROVED');
     // The active item is the replacement; the original is superseded, not gone.
@@ -347,8 +353,9 @@ test.describe('scenarios 7 and 8 — substitution', () => {
     });
 
     const list = await live.pharmacyApi.get(`${API}/pharmacy/prescriptions`);
-    const rx = ((await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>)
-      .find((entry) => entry.publicId === rxPublicId)!;
+    const rx = (
+      (await list.json()).data as Array<{ publicId: string; items: Array<{ id: string }> }>
+    ).find((entry) => entry.publicId === rxPublicId)!;
 
     const proposal = await live.pharmacyApi.post(
       `${API}/pharmacy/prescriptions/${rxPublicId}/substitutions`,
@@ -419,7 +426,10 @@ test.describe('scenarios 9 and 10 — revocation and its limit', () => {
     // Second prescription: dispensed, then revocation refused (scenario 10).
     const second = await live.doctorApi.post(
       `${API}/doctor/consultations/${live.publicId}/prescriptions`,
-      { headers: csrfHeaders(doctorCsrf), data: { items: [{ ...ITEM, medication: 'Azithromycin' }] } },
+      {
+        headers: csrfHeaders(doctorCsrf),
+        data: { items: [{ ...ITEM, medication: 'Azithromycin' }] },
+      },
     );
     const secondId = (await second.json()).data.publicId as string;
     await live.doctorApi.post(`${API}/doctor/prescriptions/${secondId}/issue`, {

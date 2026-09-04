@@ -98,7 +98,9 @@ function ProposalCard({ proposal }: { proposal: PendingSubstitution }) {
       */}
       <div className="mt-5 grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
         <div className="rounded-2xl border border-border p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">You prescribed</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            You prescribed
+          </p>
           <p className="mt-1.5 font-bold">
             {product([
               proposal.prescribed.medication,
@@ -173,7 +175,11 @@ function ProposalCard({ proposal }: { proposal: PendingSubstitution }) {
           }
           className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
         >
-          {decide.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {decide.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Check className="size-4" />
+          )}
           Approve the substitution
         </button>
         <button

@@ -2,5 +2,16 @@
   "printWidth": 100,
   "semi": true,
   "singleQuote": false,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": [
+        "apps/api/**/*.{ts,tsx}",
+        "packages/**/*.{ts,tsx}",
+        "e2e/**/*.ts",
+        "scripts/**/*.mjs"
+      ],
+      "options": { "singleQuote": true }
+    }
+  ]
 }

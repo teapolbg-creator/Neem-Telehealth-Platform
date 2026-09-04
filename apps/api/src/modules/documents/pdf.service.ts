@@ -117,7 +117,8 @@ async function drawHeader(doc: PDFKit.PDFDocument, chrome: DocumentChrome): Prom
       align: 'center',
     });
 
-  doc.moveTo(PAGE_MARGIN, PAGE_MARGIN + 108)
+  doc
+    .moveTo(PAGE_MARGIN, PAGE_MARGIN + 108)
     .lineTo(doc.page.width - PAGE_MARGIN, PAGE_MARGIN + 108)
     .strokeColor('#E2E8F0')
     .stroke();
@@ -132,12 +133,20 @@ function labelledRow(doc: PDFKit.PDFDocument, pairs: Array<[string, string]>): v
   const top = doc.y;
   pairs.forEach(([label, value], index) => {
     const x = PAGE_MARGIN + index * columnWidth;
-    doc.fillColor(MUTED).fontSize(7.5).font('Helvetica-Bold').text(label.toUpperCase(), x, top, {
-      width: columnWidth - 10,
-    });
-    doc.fillColor(INK).fontSize(10).font('Helvetica').text(value, x, top + 11, {
-      width: columnWidth - 10,
-    });
+    doc
+      .fillColor(MUTED)
+      .fontSize(7.5)
+      .font('Helvetica-Bold')
+      .text(label.toUpperCase(), x, top, {
+        width: columnWidth - 10,
+      });
+    doc
+      .fillColor(INK)
+      .fontSize(10)
+      .font('Helvetica')
+      .text(value, x, top + 11, {
+        width: columnWidth - 10,
+      });
   });
 
   doc.x = PAGE_MARGIN;
@@ -201,8 +210,16 @@ function drawSignature(
     }
   }
 
-  doc.moveTo(PAGE_MARGIN, top + 62).lineTo(PAGE_MARGIN + 200, top + 62).strokeColor('#94A3B8').stroke();
-  doc.fillColor(INK).fontSize(10).font('Helvetica-Bold').text(doctor.fullName, PAGE_MARGIN, top + 68);
+  doc
+    .moveTo(PAGE_MARGIN, top + 62)
+    .lineTo(PAGE_MARGIN + 200, top + 62)
+    .strokeColor('#94A3B8')
+    .stroke();
+  doc
+    .fillColor(INK)
+    .fontSize(10)
+    .font('Helvetica-Bold')
+    .text(doctor.fullName, PAGE_MARGIN, top + 68);
   doc
     .fillColor(MUTED)
     .fontSize(8)
@@ -238,17 +255,23 @@ function drawFooter(
     .strokeColor('#E2E8F0')
     .stroke();
 
-  doc.fillColor(MUTED).fontSize(7.5).font('Helvetica').text(note, PAGE_MARGIN, top + 8, { width });
+  doc
+    .fillColor(MUTED)
+    .fontSize(7.5)
+    .font('Helvetica')
+    .text(note, PAGE_MARGIN, top + 8, { width });
 
-  doc.fontSize(7.5).text(
-    `Consultation reference ${chrome.consultationReference}  ·  Issued ${chrome.issuedAt
-      .toISOString()
-      .slice(0, 10)}  ·  Verify at ${chrome.verificationUrl}` +
-      (pageLabel ? `  ·  Page ${pageLabel}` : ''),
-    PAGE_MARGIN,
-    top + 46,
-    { width },
-  );
+  doc
+    .fontSize(7.5)
+    .text(
+      `Consultation reference ${chrome.consultationReference}  ·  Issued ${chrome.issuedAt
+        .toISOString()
+        .slice(0, 10)}  ·  Verify at ${chrome.verificationUrl}` +
+        (pageLabel ? `  ·  Page ${pageLabel}` : ''),
+      PAGE_MARGIN,
+      top + 46,
+      { width },
+    );
 
   doc.page.margins.bottom = reserved;
 }
@@ -373,7 +396,6 @@ export function renderPrescriptionPdf(input: PrescriptionPdfInput): Promise<Buff
       input.doctor,
       input.signatureDataEnc ? decryptField(input.signatureDataEnc) : null,
     );
-
   });
 }
 
@@ -437,7 +459,6 @@ export function renderReferralPdf(input: ReferralPdfInput): Promise<Buffer> {
       input.doctor,
       input.signatureDataEnc ? decryptField(input.signatureDataEnc) : null,
     );
-
   });
 }
 
@@ -533,6 +554,5 @@ export function renderSummaryPdf(input: SummaryPdfInput): Promise<Buffer> {
       input.doctor,
       input.signatureDataEnc ? decryptField(input.signatureDataEnc) : null,
     );
-
   });
 }

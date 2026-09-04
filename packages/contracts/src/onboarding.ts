@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { passwordSchema, emailSchema } from './auth.ts';
-import {
-  DOCTOR_STATUSES,
-  PHARMACY_STATUSES,
-  EMPLOYMENT_TYPES,
-} from './enums.ts';
+import { DOCTOR_STATUSES, PHARMACY_STATUSES, EMPLOYMENT_TYPES } from './enums.ts';
 
 /**
  * Pharmacy and doctor onboarding contracts (spec §20, §21).
@@ -111,11 +107,7 @@ export const doctorRegistrationSchema = z.object({
   mdcIssuedAt: z.string().date().optional(),
   mdcExpiresAt: z.string().date(),
   qualifiedAt: z.string().date(),
-  yearsExperience: z
-    .number()
-    .int()
-    .min(0)
-    .max(70),
+  yearsExperience: z.number().int().min(0).max(70),
   specialty: z.string().trim().max(160).optional(),
   bio: z.string().trim().max(2000).optional(),
   phone: ghanaPhoneSchema,
@@ -221,8 +213,12 @@ export const accountStatusChangeSchema = z
     reason: z.string().trim().max(500).optional(),
   })
   .refine(
-    (value) => !['SUSPENDED', 'REJECTED', 'EXPIRED'].includes(value.status) || Boolean(value.reason),
-    { path: ['reason'], message: 'A reason is required when suspending, rejecting or expiring an account' },
+    (value) =>
+      !['SUSPENDED', 'REJECTED', 'EXPIRED'].includes(value.status) || Boolean(value.reason),
+    {
+      path: ['reason'],
+      message: 'A reason is required when suspending, rejecting or expiring an account',
+    },
   );
 export type AccountStatusChange = z.infer<typeof accountStatusChangeSchema>;
 
@@ -274,7 +270,12 @@ export type ShiftAssignmentRequest = z.infer<typeof shiftAssignmentSchema>;
 export const shiftAssignmentResultSchema = z.object({
   id: z.string(),
   serviceDate: z.string(),
-  shift: z.object({ code: z.string(), label: z.string(), startsAt: z.string(), endsAt: z.string() }),
+  shift: z.object({
+    code: z.string(),
+    label: z.string(),
+    startsAt: z.string(),
+    endsAt: z.string(),
+  }),
   status: z.string(),
   minutesPlanned: z.number().int(),
   weeklyMinutesScheduled: z.number().int(),

@@ -65,7 +65,14 @@ describe('eligibility — the hard gate', () => {
   });
 
   it('excludes a doctor who is not ACTIVE (spec §83)', () => {
-    for (const status of ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'SUSPENDED', 'EXPIRED', 'REJECTED']) {
+    for (const status of [
+      'PENDING',
+      'UNDER_REVIEW',
+      'APPROVED',
+      'SUSPENDED',
+      'EXPIRED',
+      'REJECTED',
+    ]) {
       const result = checkEligibility(candidate({ status }), 'en');
       expect(result.eligible, status).toBe(false);
       expect(result.reason).toBe('NOT_ACTIVE');
@@ -98,7 +105,11 @@ describe('eligibility — the hard gate', () => {
 });
 
 describe('scoring', () => {
-  const context = { medianServedThisShift: 4, maxCompletedLast24h: 10, maxMedianResponseSeconds: 60 };
+  const context = {
+    medianServedThisShift: 4,
+    maxCompletedLast24h: 10,
+    maxMedianResponseSeconds: 60,
+  };
 
   it('scores a primary-language match above a secondary one', () => {
     const primary = scoreCandidate(candidate(), 'en', DEFAULT_WEIGHTS, context);
@@ -117,7 +128,12 @@ describe('scoring', () => {
   });
 
   it('prefers the doctor with fewer consultations in the last 24 hours', () => {
-    const fresh = scoreCandidate(candidate({ completedLast24h: 0 }), 'en', DEFAULT_WEIGHTS, context);
+    const fresh = scoreCandidate(
+      candidate({ completedLast24h: 0 }),
+      'en',
+      DEFAULT_WEIGHTS,
+      context,
+    );
     const worked = scoreCandidate(
       candidate({ completedLast24h: 10 }),
       'en',
@@ -323,8 +339,8 @@ describe('weight validation', () => {
   });
 
   it('rejects a negative weight', () => {
-    expect(() =>
-      assertWeightsValid({ ...DEFAULT_WEIGHTS, quality: -0.05, language: 0.4 }),
-    ).toThrow(/negative/);
+    expect(() => assertWeightsValid({ ...DEFAULT_WEIGHTS, quality: -0.05, language: 0.4 })).toThrow(
+      /negative/,
+    );
   });
 });

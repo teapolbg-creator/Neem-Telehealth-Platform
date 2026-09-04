@@ -162,7 +162,7 @@ Destroyed when the retention period expires, not at completion (D23). It has to 
 
 ### 3.7 Prescriptions — PERMANENT
 
-**`prescriptions`** — `id`, `publicId`, `verificationCode` UNIQUE, `consultationId` FK, `doctorId` FK, `pharmacyId` FK, `state` ENUM(`DRAFT`,`ISSUED`,`ACTIVE`,`PENDING_SUBSTITUTION`,`SUBSTITUTION_APPROVED`,`SUBSTITUTION_REJECTED`,`DISPENSED`,`REVOKED`), `patientName`, `patientAge`, `patientSex`, `patientRemark` NULL *(pending decision Q2)*, `issuedAt`, `dispensedAt`, `dispensedByUserId`, `revokedAt`, `revokedReason`, `revokedByDoctorId`, `signatureId` FK, `pdfStorageKey`, `currentVersion`, `isDemo`.
+**`prescriptions`** — `id`, `publicId`, `verificationCode` UNIQUE, `consultationId` FK, `doctorId` FK, `pharmacyId` FK, `state` ENUM(`DRAFT`,`ISSUED`,`ACTIVE`,`PENDING_SUBSTITUTION`,`SUBSTITUTION_APPROVED`,`SUBSTITUTION_REJECTED`,`DISPENSED`,`REVOKED`), `patientName`, `patientAge`, `patientSex`, `patientRemark` NULL _(pending decision Q2)_, `issuedAt`, `dispensedAt`, `dispensedByUserId`, `revokedAt`, `revokedReason`, `revokedByDoctorId`, `signatureId` FK, `pdfStorageKey`, `currentVersion`, `isDemo`.
 Patient identity is stored **by value**, not by reference — the source `patient_sessions` row is gone by then. A DB-level rule plus a service-layer guard prevent `DISPENSED → REVOKED` (spec §46, §82).
 
 **`prescription_items`** — `id`, `prescriptionId` FK CASCADE, `version`, `medication`, `strength`, `form`, `dose`, `frequency`, `durationText`, `quantity`, `instructions`, `sortOrder`, `isActive`, `supersededByItemId` NULL.
@@ -230,12 +230,12 @@ No INSERT-only enforcement exists in MySQL itself. What enforces it, precisely: 
 
 **Revised by D23.** This table said "hard-deleted immediately" for everything clinical, because that was the design through Phase 5. Ghanaian law does not permit it. Completion now **seals** and schedules; destruction happens when the retention period expires.
 
-| Class | Tables | Fate at consultation completion |
-| --- | --- | --- |
-| **SEALED, THEN DESTROYED** | `patient_sessions`, `consultation_clinical_notes`, `consultation_vitals`, `consultation_tests` | Sealed at completion and unreachable by any clinician; hard-deleted when `retention_jobs.scheduledFor` passes, with the row counts recorded |
-| **DESTROYED AT COMPLETION** | `consultation_access_tokens` | Deleted immediately. A token is a credential, not a record: nothing about record-keeping requires keeping a key, and a live one would let a photographed QR reopen a finished consultation |
-| **PERMANENT** | `consultations`, `consultation_state_events`, `prescriptions` (+items/versions), `referrals`, `payments`, `revenue_allocations`, `refunds`, `feedback`, `audit_logs` | Retained |
-| **OPERATIONAL** | users, pharmacies, doctors, scheduling, settings, notifications, queue | Retained; subject to their own lifecycles |
+| Class                       | Tables                                                                                                                                                               | Fate at consultation completion                                                                                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **SEALED, THEN DESTROYED**  | `patient_sessions`, `consultation_clinical_notes`, `consultation_vitals`, `consultation_tests`                                                                       | Sealed at completion and unreachable by any clinician; hard-deleted when `retention_jobs.scheduledFor` passes, with the row counts recorded                                                |
+| **DESTROYED AT COMPLETION** | `consultation_access_tokens`                                                                                                                                         | Deleted immediately. A token is a credential, not a record: nothing about record-keeping requires keeping a key, and a live one would let a photographed QR reopen a finished consultation |
+| **PERMANENT**               | `consultations`, `consultation_state_events`, `prescriptions` (+items/versions), `referrals`, `payments`, `revenue_allocations`, `refunds`, `feedback`, `audit_logs` | Retained                                                                                                                                                                                   |
+| **OPERATIONAL**             | users, pharmacies, doctors, scheduling, settings, notifications, queue                                                                                               | Retained; subject to their own lifecycles                                                                                                                                                  |
 
 Backups will transiently contain purged rows. That is stated plainly in `data-retention.md` rather than pretended away (spec §62).
 

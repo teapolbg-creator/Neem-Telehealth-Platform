@@ -109,9 +109,7 @@ function median(values: number[]): number | null {
 
   // Even counts average the two middle values; an integer result is not
   // assumed, because a median of seconds legitimately lands on a half.
-  return sorted.length % 2 === 0
-    ? (sorted[middle - 1]! + sorted[middle]!) / 2
-    : sorted[middle]!;
+  return sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
 }
 
 /**
@@ -128,26 +126,28 @@ export async function operationalSummary(
 ): Promise<OperationalSummary> {
   const window = { gte: period.from, lte: period.to };
 
-  const [consultations, assignments, presence, doctors, pharmacies, waitingNow] = await Promise.all([
-    db.consultation.findMany({
-      where: { createdAt: window },
-      select: {
-        state: true,
-        durationSeconds: true,
-        pharmacyId: true,
-        queuedAt: true,
-        assignedAt: true,
-      },
-    }),
-    db.consultationAssignment.findMany({
-      where: { offeredAt: window },
-      select: { result: true },
-    }),
-    db.doctorPresence.count({ where: { onlineSince: { not: null } } }),
-    db.doctor.count({ where: { status: 'ACTIVE' } }),
-    db.pharmacy.count({ where: { status: 'ACTIVE' } }),
-    db.consultationQueueEntry.count({ where: { state: { in: ['WAITING', 'OFFERING'] } } }),
-  ]);
+  const [consultations, assignments, presence, doctors, pharmacies, waitingNow] = await Promise.all(
+    [
+      db.consultation.findMany({
+        where: { createdAt: window },
+        select: {
+          state: true,
+          durationSeconds: true,
+          pharmacyId: true,
+          queuedAt: true,
+          assignedAt: true,
+        },
+      }),
+      db.consultationAssignment.findMany({
+        where: { offeredAt: window },
+        select: { result: true },
+      }),
+      db.doctorPresence.count({ where: { onlineSince: { not: null } } }),
+      db.doctor.count({ where: { status: 'ACTIVE' } }),
+      db.pharmacy.count({ where: { status: 'ACTIVE' } }),
+      db.consultationQueueEntry.count({ where: { state: { in: ['WAITING', 'OFFERING'] } } }),
+    ],
+  );
 
   const counted = (state: string) => consultations.filter((row) => row.state === state).length;
 

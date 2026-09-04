@@ -67,7 +67,9 @@ export function render(body: string, variables: Record<string, string | number>)
 }
 
 function hashPayload(subject: string | undefined, body: string): string {
-  return createHash('sha256').update(`${subject ?? ''}\n${body}`).digest('hex');
+  return createHash('sha256')
+    .update(`${subject ?? ''}\n${body}`)
+    .digest('hex');
 }
 
 /** Which channels a provider actually sends; the rest are delivered in-app. */
@@ -150,7 +152,12 @@ function recipientRef(recipient: Recipient): string {
 }
 
 /** Real-time delivery for the channels that have no provider. */
-function emitInApp(recipient: Recipient, templateCode: string, subject: string | undefined, body: string): void {
+function emitInApp(
+  recipient: Recipient,
+  templateCode: string,
+  subject: string | undefined,
+  body: string,
+): void {
   const payload = { templateCode, subject, body, at: new Date().toISOString() };
 
   switch (recipient.type) {
@@ -360,7 +367,8 @@ export async function retryFailedNotifications(
   let retried = 0;
 
   for (const notification of failed) {
-    const waitMinutes = BACKOFF_MINUTES[Math.min(notification.attempts - 1, BACKOFF_MINUTES.length - 1)]!;
+    const waitMinutes =
+      BACKOFF_MINUTES[Math.min(notification.attempts - 1, BACKOFF_MINUTES.length - 1)]!;
     const dueAt = new Date(notification.createdAt.getTime() + waitMinutes * 60_000);
     if (dueAt > now) continue;
 
@@ -386,7 +394,9 @@ export async function retryFailedNotifications(
      * Codes that need variables are therefore not retried. Recording that
      * plainly beats sending a message with a placeholder in it.
      */
-    const definition = NOTIFICATION_TEMPLATES.find((entry) => entry.code === notification.templateCode);
+    const definition = NOTIFICATION_TEMPLATES.find(
+      (entry) => entry.code === notification.templateCode,
+    );
     if (!definition || definition.variables.length > 0) {
       await db.notification.update({
         where: { id: notification.id },

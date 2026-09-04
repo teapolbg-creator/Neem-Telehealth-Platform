@@ -13,22 +13,25 @@ let client: PrismaClient | undefined;
 
 function createClient(): PrismaClient {
   const env = getEnv();
-  const url = env.NODE_ENV === 'test' && env.TEST_DATABASE_URL ? env.TEST_DATABASE_URL : env.DATABASE_URL;
+  const url =
+    env.NODE_ENV === 'test' && env.TEST_DATABASE_URL ? env.TEST_DATABASE_URL : env.DATABASE_URL;
 
   const prisma = new PrismaClient({
     datasources: { db: { url } },
     log: [
       { emit: 'event', level: 'warn' },
       { emit: 'event', level: 'error' },
-      ...(env.LOG_LEVEL === 'trace'
-        ? ([{ emit: 'event', level: 'query' }] as const)
-        : []),
+      ...(env.LOG_LEVEL === 'trace' ? ([{ emit: 'event', level: 'query' }] as const) : []),
     ],
   });
 
   const log = getLogger();
-  prisma.$on('warn' as never, (e: Prisma.LogEvent) => log.warn({ prisma: e.message }, 'prisma warning'));
-  prisma.$on('error' as never, (e: Prisma.LogEvent) => log.error({ prisma: e.message }, 'prisma error'));
+  prisma.$on('warn' as never, (e: Prisma.LogEvent) =>
+    log.warn({ prisma: e.message }, 'prisma warning'),
+  );
+  prisma.$on('error' as never, (e: Prisma.LogEvent) =>
+    log.error({ prisma: e.message }, 'prisma error'),
+  );
 
   return prisma;
 }

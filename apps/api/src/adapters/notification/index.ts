@@ -31,15 +31,14 @@ export function getNotificationProvider(channel: NotificationChannel): Notificat
 
   switch (mode) {
     case 'mock':
+      provider = new MockNotificationProvider(channel);
+      break;
     // `mailhog` is a local catcher: real SMTP, delivered nowhere anyone reads
     // by accident. It is a development mode and the config loader refuses it
-    // in production, so it is grouped with the mock rather than treated as a
-    // delivery channel.
+    // in production, which is what makes it as safe as the mock — but it is a
+    // real SMTP send, so it gets the SMTP provider rather than the mock.
     case 'mailhog':
-      provider =
-        mode === 'mailhog'
-          ? new SmtpNotificationProvider()
-          : new MockNotificationProvider(channel);
+      provider = new SmtpNotificationProvider();
       break;
     case 'smtp':
       provider = new SmtpNotificationProvider();

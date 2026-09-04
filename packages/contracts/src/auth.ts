@@ -86,8 +86,6 @@ export const sessionUserSchema = z.object({
   /** Resolved permission strings — the UI hides what it must, the API enforces it. */
   permissions: z.array(z.string()),
   /** Present for DOCTOR and PHARMACY principals. */
-  organisation: z
-    .object({ publicId: z.string(), name: z.string(), status: z.string() })
-    .nullable(),
+  organisation: z.object({ publicId: z.string(), name: z.string(), status: z.string() }).nullable(),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;

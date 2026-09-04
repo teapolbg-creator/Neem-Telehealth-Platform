@@ -37,19 +37,28 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../sr
  * module name.
  */
 const CONSEQUENCES: Record<string, string> = {
-  'doctor.account.approved': 'an approved doctor is never told; they discover it by signing in and looking',
-  'pharmacy.account.approved': 'the same, for a pharmacy that has been waiting on manual verification',
-  'doctor.consultation.missed': 'the 90-second window lapses and the doctor is not told it counted against them',
+  'doctor.account.approved':
+    'an approved doctor is never told; they discover it by signing in and looking',
+  'pharmacy.account.approved':
+    'the same, for a pharmacy that has been waiting on manual verification',
+  'doctor.consultation.missed':
+    'the 90-second window lapses and the doctor is not told it counted against them',
   'doctor.shift.assigned': 'a doctor learns of a new shift only by opening the app',
-  'doctor.licence.expiring': 'no advance warning; the doctor discovers the lapse when a prescription is refused mid-consultation',
+  'doctor.licence.expiring':
+    'no advance warning; the doctor discovers the lapse when a prescription is refused mid-consultation',
   'doctor.membership.expiring': 'no warning before the subscription sweep suspends them',
   'doctor.membership.suspended': 'suspension arrives silently',
-  'pharmacy.substitution.decided': 'the doctor is told a substitution was proposed; the pharmacy is not told the answer, and dispensing stays blocked until it notices',
-  'pharmacy.prescription.revoked': 'refused server-side, so nobody is endangered — but the counter finds out by being refused',
-  'pharmacy.consultation.doctor-assigned': 'the counter cannot tell the patient a doctor has been found',
-  'pharmacy.consultation.no-doctor': 'admins get a socket alert; the pharmacy holding the waiting patient does not',
+  'pharmacy.substitution.decided':
+    'the doctor is told a substitution was proposed; the pharmacy is not told the answer, and dispensing stays blocked until it notices',
+  'pharmacy.prescription.revoked':
+    'refused server-side, so nobody is endangered — but the counter finds out by being refused',
+  'pharmacy.consultation.doctor-assigned':
+    'the counter cannot tell the patient a doctor has been found',
+  'pharmacy.consultation.no-doctor':
+    'admins get a socket alert; the pharmacy holding the waiting patient does not',
   'pharmacy.refund.decided': 'the pharmacy is not told the outcome of a refund on its consultation',
-  'patient.consultation.ready': 'the waiting-room screen polls, so a patient watching sees it; one who put the phone down does not',
+  'patient.consultation.ready':
+    'the waiting-room screen polls, so a patient watching sees it; one who put the phone down does not',
   'admin.queue.no-language-match': 'a live socket alert only — nothing for an admin who is away',
   'admin.payment.anomaly': 'the same',
   'admin.refund.requested': 'the same',

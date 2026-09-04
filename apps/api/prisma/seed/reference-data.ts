@@ -35,9 +35,30 @@ const LANGUAGES = [
  * future expansion, not part of the pilot (spec §25).
  */
 const SHIFTS = [
-  { code: 'MORNING', label: 'Morning (8:00 AM – 2:00 PM)', startsAt: '08:00', endsAt: '14:00', crossesMidnight: false, isActive: true },
-  { code: 'AFTERNOON', label: 'Afternoon (2:00 PM – 8:00 PM)', startsAt: '14:00', endsAt: '20:00', crossesMidnight: false, isActive: true },
-  { code: 'NIGHT', label: 'Night (8:00 PM – 8:00 AM)', startsAt: '20:00', endsAt: '08:00', crossesMidnight: true, isActive: false },
+  {
+    code: 'MORNING',
+    label: 'Morning (8:00 AM – 2:00 PM)',
+    startsAt: '08:00',
+    endsAt: '14:00',
+    crossesMidnight: false,
+    isActive: true,
+  },
+  {
+    code: 'AFTERNOON',
+    label: 'Afternoon (2:00 PM – 8:00 PM)',
+    startsAt: '14:00',
+    endsAt: '20:00',
+    crossesMidnight: false,
+    isActive: true,
+  },
+  {
+    code: 'NIGHT',
+    label: 'Night (8:00 PM – 8:00 AM)',
+    startsAt: '20:00',
+    endsAt: '08:00',
+    crossesMidnight: true,
+    isActive: false,
+  },
 ];
 
 const COMPLAINT_CATEGORIES = [
@@ -86,7 +107,9 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
     'Queue',
   );
   assertWeightsSumToOne(
-    DEFAULT_SETTINGS.filter((s) => s.key.startsWith('quality.weights.')).map((s) => Number(s.value)),
+    DEFAULT_SETTINGS.filter((s) => s.key.startsWith('quality.weights.')).map((s) =>
+      Number(s.value),
+    ),
     'Quality',
   );
 

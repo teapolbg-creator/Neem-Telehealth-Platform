@@ -152,5 +152,12 @@ export type PatientSex = (typeof PATIENT_SEXES)[number];
 export const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT'] as const;
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 
-export const NOTIFICATION_CHANNELS = ['IN_APP', 'BROWSER', 'SMS', 'EMAIL', 'WHATSAPP', 'PUSH'] as const;
+export const NOTIFICATION_CHANNELS = [
+  'IN_APP',
+  'BROWSER',
+  'SMS',
+  'EMAIL',
+  'WHATSAPP',
+  'PUSH',
+] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];

@@ -23,16 +23,23 @@ import {
 const WINDOW_DAYS = 90;
 
 export async function loadQualityWeights(db: Db = getPrisma()): Promise<QualityWeights> {
-  const [rating, complaints, responseTime, missedResponses, completionRate, auditOutcomes, prescriptionIssues] =
-    await Promise.all([
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RATING, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_COMPLAINTS, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RESPONSE_TIME, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_MISSED, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_COMPLETION, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_AUDIT, db),
-      getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RX_ISSUES, db),
-    ]);
+  const [
+    rating,
+    complaints,
+    responseTime,
+    missedResponses,
+    completionRate,
+    auditOutcomes,
+    prescriptionIssues,
+  ] = await Promise.all([
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RATING, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_COMPLAINTS, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RESPONSE_TIME, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_MISSED, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_COMPLETION, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_AUDIT, db),
+    getNumberSetting(SETTING_KEYS.QUALITY_WEIGHT_RX_ISSUES, db),
+  ]);
 
   return {
     rating,
@@ -86,9 +93,7 @@ export async function collectQualityInputs(
 
   return {
     meanRating:
-      ratings.length === 0
-        ? null
-        : ratings.reduce((sum, value) => sum + value, 0) / ratings.length,
+      ratings.length === 0 ? null : ratings.reduce((sum, value) => sum + value, 0) / ratings.length,
     ratingCount: ratings.length,
 
     complaints: feedback.filter((entry) => entry.category === 'COMPLAINT').length,
@@ -149,7 +154,9 @@ export async function recomputeQualityScores(
     })),
   );
 
-  const settled = computed.filter((entry) => !entry.breakdown.provisional).map((e) => e.breakdown.score);
+  const settled = computed
+    .filter((entry) => !entry.breakdown.provisional)
+    .map((e) => e.breakdown.score);
   const cohortMedian =
     settled.length === 0
       ? null

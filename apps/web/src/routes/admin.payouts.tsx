@@ -155,7 +155,9 @@ function AdminPayouts() {
       )}
 
       <div className="space-y-4">
-        {payouts?.map((payout) => <PayoutCard key={payout.publicId} payout={payout} />)}
+        {payouts?.map((payout) => (
+          <PayoutCard key={payout.publicId} payout={payout} />
+        ))}
       </div>
     </AppShell>
   );

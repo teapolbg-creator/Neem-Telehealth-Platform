@@ -101,7 +101,11 @@ export async function requestRefund(
     consultationState = await transition(
       consultationId,
       'REFUND_REQUESTED',
-      { actorType: input.requestedByType, actorId: input.requestedByRef, reason: 'refund_requested' },
+      {
+        actorType: input.requestedByType,
+        actorId: input.requestedByRef,
+        reason: 'refund_requested',
+      },
       db,
       clock,
     );

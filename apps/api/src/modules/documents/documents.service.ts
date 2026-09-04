@@ -53,9 +53,7 @@ export async function uploadDocument(
     ]);
   }
   if (!ALLOWED_UPLOAD_TYPES[input.mimeType]) {
-    throw errors.validation([
-      { field: 'file', issue: 'Upload a PDF, JPEG, PNG or WebP file' },
-    ]);
+    throw errors.validation([{ field: 'file', issue: 'Upload a PDF, JPEG, PNG or WebP file' }]);
   }
   // The declared type must match what the bytes actually are.
   if (!detectedTypeMatches(input.mimeType, input.body)) {

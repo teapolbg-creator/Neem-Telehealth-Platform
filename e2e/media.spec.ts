@@ -116,14 +116,18 @@ async function makeEligible(
     data: { doctorPublicId: doctor.publicId, shiftCode, serviceDate },
   });
   if (!assigned.ok()) {
-    return { ok: false, reason: `Could not assign the ${shiftCode} shift: ${await assigned.text()}` };
+    return {
+      ok: false,
+      reason: `Could not assign the ${shiftCode} shift: ${await assigned.text()}`,
+    };
   }
 
   const doctorCsrf = await signIn(doctorRequest, doctor);
 
   const shifts = await doctorRequest.get(`${API}/doctor/shifts`);
-  const todays = ((await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>)
-    .find((assignment) => assignment.serviceDate === serviceDate);
+  const todays = (
+    (await shifts.json()).data.shifts as Array<{ id: string; serviceDate: string }>
+  ).find((assignment) => assignment.serviceDate === serviceDate);
   if (!todays) return { ok: false, reason: `The doctor has no shift on ${serviceDate}.` };
 
   const confirmed = await doctorRequest.post(`${API}/doctor/shifts/${todays.id}/confirm`, {

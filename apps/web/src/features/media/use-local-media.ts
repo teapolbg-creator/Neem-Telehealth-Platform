@@ -13,12 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 export type LocalMediaStatus =
-  | "idle"
-  | "requesting"
-  | "ready"
-  | "denied"
-  | "unavailable"
-  | "insecure";
+  "idle" | "requesting" | "ready" | "denied" | "unavailable" | "insecure";
 
 export interface LocalMedia {
   status: LocalMediaStatus;

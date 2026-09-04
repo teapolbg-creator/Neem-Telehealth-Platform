@@ -36,12 +36,12 @@ Two rules shape almost every design decision:
 
 A modular monolith — two processes, one database.
 
-| Part | Stack |
-| --- | --- |
-| `apps/web` | TanStack Start, React 19, TypeScript, Tailwind v4 — the original Lovable design, preserved |
-| `apps/api` | Node 22+, Fastify, TypeScript, Prisma, Socket.IO |
-| `packages/contracts` | zod schemas and types shared by both, so client and server validation cannot drift |
-| Database | MySQL 8 |
+| Part                 | Stack                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `apps/web`           | TanStack Start, React 19, TypeScript, Tailwind v4 — the original Lovable design, preserved |
+| `apps/api`           | Node 22+, Fastify, TypeScript, Prisma, Socket.IO                                           |
+| `packages/contracts` | zod schemas and types shared by both, so client and server validation cannot drift         |
+| Database             | MySQL 8                                                                                    |
 
 Full detail: [`docs/architecture.md`](docs/architecture.md).
 
@@ -65,27 +65,27 @@ npm run dev
 
 `npm run setup` installs, starts the containers, migrates and seeds. The individual steps are `npm install`, `npm run docker:up`, `npm run db:migrate`, `npm run db:seed`.
 
-| Service | URL |
-| --- | --- |
-| Web | <http://localhost:8080> |
-| API | <http://localhost:4000> |
-| Mail (MailHog) | <http://localhost:8025> |
+| Service            | URL                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| Web                | <http://localhost:8080>                                                                       |
+| API                | <http://localhost:4000>                                                                       |
+| Mail (MailHog)     | <http://localhost:8025>                                                                       |
 | Adminer (optional) | <http://localhost:8081> — `docker compose -f docker/docker-compose.yml --profile tools up -d` |
 
 ### Demo accounts
 
 Printed by `npm run db:seed`. Every seeded row carries `isDemo: true` and a `.demo` email address, so demo and production data cannot be confused (spec §76). The seed refuses to run when `NODE_ENV=production`, and the config loader independently rejects `SEED_DEMO_DATA=true` there.
 
-| Role | Email | Note |
-| --- | --- | --- |
-| Admin | `admin@neem.demo` | Must enrol TOTP two-factor on first sign-in — it cannot be skipped |
-| Pharmacy | `akosua@pharmacy.demo` | ACTIVE — can initiate consultations |
-| Pharmacy | `healthfirst@pharmacy.demo` | ACTIVE — second tenant, for isolation |
-| Pharmacy | `kumasi@pharmacy.demo` | ACTIVE |
-| Pharmacy | `tamale@pharmacy.demo` | PENDING — exercises the approval queue |
-| Doctor | `ama@doctor.demo` | ACTIVE — English, Twi, Ga |
-| Doctor | `kwame@doctor.demo` | ACTIVE — English, Twi |
-| Doctor | `efua@doctor.demo` | PENDING — exercises credential verification |
+| Role     | Email                       | Note                                                               |
+| -------- | --------------------------- | ------------------------------------------------------------------ |
+| Admin    | `admin@neem.demo`           | Must enrol TOTP two-factor on first sign-in — it cannot be skipped |
+| Pharmacy | `akosua@pharmacy.demo`      | ACTIVE — can initiate consultations                                |
+| Pharmacy | `healthfirst@pharmacy.demo` | ACTIVE — second tenant, for isolation                              |
+| Pharmacy | `kumasi@pharmacy.demo`      | ACTIVE                                                             |
+| Pharmacy | `tamale@pharmacy.demo`      | PENDING — exercises the approval queue                             |
+| Doctor   | `ama@doctor.demo`           | ACTIVE — English, Twi, Ga                                          |
+| Doctor   | `kwame@doctor.demo`         | ACTIVE — English, Twi                                              |
+| Doctor   | `efua@doctor.demo`          | PENDING — exercises credential verification                        |
 
 Passwords are printed by the seed. **These are demonstration credentials and must never exist in production.**
 
@@ -95,23 +95,23 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 
 ## Commands
 
-| Command | Does |
-| --- | --- |
-| `npm run dev` | Web and API together |
-| `npm run dev:api` / `npm run dev:web` | One at a time |
-| `npm test` | Unit and integration tests (Vitest, against a real MySQL database) |
-| `npm run test:e2e` | End-to-end tests (Playwright) |
-| `npm run typecheck` | TypeScript across all workspaces |
-| `npm run lint` / `npm run format` | ESLint / Prettier |
-| `npm run db:migrate` | Apply migrations |
-| `npm run db:reset` | Drop, re-migrate, re-seed |
-| `npm run db:seed` | Reference and demo data |
-| `npm run db:reset-2fa` | Clear demo admin TOTP enrolment |
-| `npm run db:studio` | Prisma Studio |
-| `npm run backup` | Encrypted database backup |
-| `npm run restore -- <file>` | Restore one, verifying its signature first |
-| `npm run backup:rehearse` | Back up, restore to a scratch database, compare row by row |
-| `npm run docker:up` / `docker:down` / `docker:reset` | Local services |
+| Command                                              | Does                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `npm run dev`                                        | Web and API together                                               |
+| `npm run dev:api` / `npm run dev:web`                | One at a time                                                      |
+| `npm test`                                           | Unit and integration tests (Vitest, against a real MySQL database) |
+| `npm run test:e2e`                                   | End-to-end tests (Playwright)                                      |
+| `npm run typecheck`                                  | TypeScript across all workspaces                                   |
+| `npm run lint` / `npm run format`                    | ESLint / Prettier                                                  |
+| `npm run db:migrate`                                 | Apply migrations                                                   |
+| `npm run db:reset`                                   | Drop, re-migrate, re-seed                                          |
+| `npm run db:seed`                                    | Reference and demo data                                            |
+| `npm run db:reset-2fa`                               | Clear demo admin TOTP enrolment                                    |
+| `npm run db:studio`                                  | Prisma Studio                                                      |
+| `npm run backup`                                     | Encrypted database backup                                          |
+| `npm run restore -- <file>`                          | Restore one, verifying its signature first                         |
+| `npm run backup:rehearse`                            | Back up, restore to a scratch database, compare row by row         |
+| `npm run docker:up` / `docker:down` / `docker:reset` | Local services                                                     |
 
 ### Testing notes
 
@@ -127,19 +127,19 @@ Every variable is documented in [`.env.example`](.env.example). Configuration is
 
 **In production the API refuses to start** when a required credential is missing, when a secret still holds its development placeholder, when any provider is set to `mock`, or when `SEED_DEMO_DATA=true`. A half-configured payment provider is worse than a refusal to boot.
 
-**In development**, providers default to mock adapters. Mock mode is stamped on every log line and shown on the admin dashboard, so the system never claims a payment, call, or message occurred when it cannot verify it. The unauthenticated readiness probe deliberately does *not* report it — which providers a deployment uses is configuration, and `GET /admin/system-health` is where an administrator sees it.
+**In development**, providers default to mock adapters. Mock mode is stamped on every log line and shown on the admin dashboard, so the system never claims a payment, call, or message occurred when it cannot verify it. The unauthenticated readiness probe deliberately does _not_ report it — which providers a deployment uses is configuration, and `GET /admin/system-health` is where an administrator sees it.
 
 ### External integrations
 
 Each sits behind an interface in `apps/api/src/adapters/`, so changing provider changes one adapter, not the business logic. Development defaults to the mock in every case.
 
-| Concern | Provider | Adapter |
-| --- | --- | --- |
-| Payments | Paystack | **Built.** HMAC verified over the raw body, before parsing, idempotent |
-| SMS / WhatsApp | Twilio | **Built** |
-| Email | SMTP (MailHog locally) | **Built** |
-| Storage | Local filesystem | **Built** |
-| Video / voice | Twilio | **Interface and mock only.** Selecting `twilio` throws at boot with a message saying the adapter is not implemented — it does not silently fall back to the mock |
+| Concern        | Provider               | Adapter                                                                                                                                                          |
+| -------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payments       | Paystack               | **Built.** HMAC verified over the raw body, before parsing, idempotent                                                                                           |
+| SMS / WhatsApp | Twilio                 | **Built**                                                                                                                                                        |
+| Email          | SMTP (MailHog locally) | **Built**                                                                                                                                                        |
+| Storage        | Local filesystem       | **Built**                                                                                                                                                        |
+| Video / voice  | Twilio                 | **Interface and mock only.** Selecting `twilio` throws at boot with a message saying the adapter is not implemented — it does not silently fall back to the mock |
 
 The media flows are complete either side of that boundary: joining, rejoining, the timer, and Call Me bridging without exposing either party's number all work against the mock, and the real adapter is a drop-in. But a demonstration runs on simulated media, and the screens say so rather than implying a call took place.
 
@@ -149,22 +149,22 @@ The media flows are complete either side of that boundary: joining, rejoining, t
 
 ## Documentation
 
-| Document | Contents |
-| --- | --- |
-| [`docs/demonstration.md`](docs/demonstration.md) | A 15-minute walkthrough of the full business cycle on a seeded machine |
-| [`docs/roadmap.md`](docs/roadmap.md) | Phases 0–11, what each built, and what building it exposed |
-| [`docs/decision-log.md`](docs/decision-log.md) | D1–D34, engineering decisions with their reasoning |
-| [`docs/architecture.md`](docs/architecture.md) | Modules, layering, providers, folder structure |
-| [`docs/database.md`](docs/database.md) | Full schema with a retention class on every table |
-| [`docs/api.md`](docs/api.md) | REST surface, reconciled against the live router and kept that way by a test |
-| [`docs/security.md`](docs/security.md) | Auth design, RBAC, controls, and the §79 test plan |
-| [`docs/data-retention.md`](docs/data-retention.md) | What is kept, what is destroyed, how it is proved |
-| [`docs/consultation-flow.md`](docs/consultation-flow.md) | Consultation state machine and failure handling |
-| [`docs/queue-engine.md`](docs/queue-engine.md) | Smart allocation scoring and the 90-second window |
-| [`docs/payment-flow.md`](docs/payment-flow.md) | Paystack sequence, idempotency, revenue split, refunds |
-| [`docs/product-backlog.md`](docs/product-backlog.md) | MVP scope fence and what is deliberately post-MVP |
-| [`docs/phase-0-findings.md`](docs/phase-0-findings.md) | What the Lovable prototype was, and the conflicts found in it |
-| [`docs/compliance/`](docs/compliance/) | Ghanaian regulatory research — **all entries UNVERIFIED, not legal advice** |
+| Document                                                 | Contents                                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`docs/demonstration.md`](docs/demonstration.md)         | A 15-minute walkthrough of the full business cycle on a seeded machine       |
+| [`docs/roadmap.md`](docs/roadmap.md)                     | Phases 0–11, what each built, and what building it exposed                   |
+| [`docs/decision-log.md`](docs/decision-log.md)           | D1–D34, engineering decisions with their reasoning                           |
+| [`docs/architecture.md`](docs/architecture.md)           | Modules, layering, providers, folder structure                               |
+| [`docs/database.md`](docs/database.md)                   | Full schema with a retention class on every table                            |
+| [`docs/api.md`](docs/api.md)                             | REST surface, reconciled against the live router and kept that way by a test |
+| [`docs/security.md`](docs/security.md)                   | Auth design, RBAC, controls, and the §79 test plan                           |
+| [`docs/data-retention.md`](docs/data-retention.md)       | What is kept, what is destroyed, how it is proved                            |
+| [`docs/consultation-flow.md`](docs/consultation-flow.md) | Consultation state machine and failure handling                              |
+| [`docs/queue-engine.md`](docs/queue-engine.md)           | Smart allocation scoring and the 90-second window                            |
+| [`docs/payment-flow.md`](docs/payment-flow.md)           | Paystack sequence, idempotency, revenue split, refunds                       |
+| [`docs/product-backlog.md`](docs/product-backlog.md)     | MVP scope fence and what is deliberately post-MVP                            |
+| [`docs/phase-0-findings.md`](docs/phase-0-findings.md)   | What the Lovable prototype was, and the conflicts found in it                |
+| [`docs/compliance/`](docs/compliance/)                   | Ghanaian regulatory research — **all entries UNVERIFIED, not legal advice**  |
 
 ---
 

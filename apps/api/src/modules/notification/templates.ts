@@ -284,10 +284,7 @@ export interface TemplateProblem {
  * Used by the seed and by the admin template editor, so a template that would
  * carry clinical content cannot be saved — not merely cannot be sent.
  */
-export function validateTemplateBody(
-  body: string,
-  allowedVariables: string[],
-): TemplateProblem[] {
+export function validateTemplateBody(body: string, allowedVariables: string[]): TemplateProblem[] {
   const problems: TemplateProblem[] = [];
 
   const used = [...body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((match) => match[1]!);

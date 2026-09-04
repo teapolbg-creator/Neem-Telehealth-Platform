@@ -90,7 +90,10 @@ test.describe('required scenarios (spec §80)', () => {
     // report is a skip nobody reads, and this scenario silently not running
     // is exactly the failure worth being loud about.
     if (!onShift.ok) console.log('  skipped:', onShift.reason);
-    test.skip(!onShift.ok, onShift.ok ? '' : `Could not put the doctor on shift: ${onShift.reason}`);
+    test.skip(
+      !onShift.ok,
+      onShift.ok ? '' : `Could not put the doctor on shift: ${onShift.reason}`,
+    );
 
     // -----------------------------------------------------------------------
     // 1. The counter: create, take payment, print the code.
@@ -149,10 +152,15 @@ test.describe('required scenarios (spec §80)', () => {
     await expect(patient.getByRole('heading', { name: /choose your language/i })).toBeVisible({
       timeout: 20_000,
     });
-    await patient.getByRole('button', { name: /english/i }).first().click();
+    await patient
+      .getByRole('button', { name: /english/i })
+      .first()
+      .click();
     await patient.getByRole('button', { name: /^continue$/i }).click();
 
-    await expect(patient.getByRole('heading', { name: /how would you like to consult/i })).toBeVisible({
+    await expect(
+      patient.getByRole('heading', { name: /how would you like to consult/i }),
+    ).toBeVisible({
       timeout: 20_000,
     });
     await patient.getByRole('button', { name: /video/i }).first().click();
@@ -203,7 +211,10 @@ test.describe('required scenarios (spec §80)', () => {
       headers: csrfHeaders(onShift.ok ? onShift.csrf : ''),
       data: {},
     });
-    expect(accepted.ok(), `the doctor should be able to accept: ${await accepted.text()}`).toBeTruthy();
+    expect(
+      accepted.ok(),
+      `the doctor should be able to accept: ${await accepted.text()}`,
+    ).toBeTruthy();
 
     await gotoHydrated(doctorPage, `/doctor/consultations/${publicId}`);
 
@@ -299,11 +310,12 @@ test.describe('required scenarios (spec §80)', () => {
 
     // Activation is the server's word, not the browser's: the screen advances
     // only once its own status poll reports ACTIVATED (spec §34).
-    await expect(page.getByRole('heading', { name: /ask the patient to scan this code/i })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: /ask the patient to scan this code/i }),
+    ).toBeVisible({
       timeout: 30_000,
     });
   });
-
 
   /**
    * Scenario 14, through the screen an administrator actually uses.

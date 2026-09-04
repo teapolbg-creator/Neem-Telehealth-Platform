@@ -91,17 +91,13 @@ export async function collectCandidates(
   const alreadyOffered = new Set(offered.map((entry) => entry.doctorId));
 
   return doctors.map((doctor) => {
-    const accepted = doctor.assignments.filter(
-      (assignment) => assignment.acceptedAt !== null,
-    );
+    const accepted = doctor.assignments.filter((assignment) => assignment.acceptedAt !== null);
     const latencies = accepted
       .map((a) => (a.acceptedAt!.getTime() - a.offeredAt.getTime()) / 1000)
       .sort((a, b) => a - b);
 
     const medianResponseSeconds =
-      latencies.length === 0
-        ? null
-        : (latencies[Math.floor(latencies.length / 2)] ?? null);
+      latencies.length === 0 ? null : (latencies[Math.floor(latencies.length / 2)] ?? null);
 
     const subscription = doctor.subscriptions[0];
     const lastOffer = doctor.assignments
@@ -117,8 +113,7 @@ export async function collectCandidates(
     return {
       doctorId: doctor.id,
       languageCodes: doctor.languages.map((entry) => entry.language.code),
-      primaryLanguageCode:
-        doctor.languages.find((entry) => entry.isPrimary)?.language.code ?? null,
+      primaryLanguageCode: doctor.languages.find((entry) => entry.isPrimary)?.language.code ?? null,
       status: doctor.status,
       subscriptionUsable:
         !subscription || subscription.status === 'ACTIVE' || subscription.status === 'GRACE',
@@ -132,9 +127,7 @@ export async function collectCandidates(
       servedThisShift: accepted.length,
       completedLast24h: doctor.consultations.length,
       medianResponseSeconds,
-      qualityScore: doctor.qualityScores[0]
-        ? Number(doctor.qualityScores[0].score)
-        : null,
+      qualityScore: doctor.qualityScores[0] ? Number(doctor.qualityScores[0].score) : null,
       lastOfferedAt: lastOffer ?? null,
       alreadyOffered: alreadyOffered.has(doctor.id),
     } satisfies DoctorCandidate;
@@ -389,7 +382,11 @@ export async function acceptOffer(
   const consultation = await db.consultation.findUnique({
     where: { publicId: consultationPublicId },
     include: {
-      assignments: { where: { doctorId, result: 'PENDING' }, orderBy: { offeredAt: 'desc' }, take: 1 },
+      assignments: {
+        where: { doctorId, result: 'PENDING' },
+        orderBy: { offeredAt: 'desc' },
+        take: 1,
+      },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');

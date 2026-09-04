@@ -62,10 +62,7 @@ export function canTransition(from: PrescriptionState, to: PrescriptionState): b
   return TRANSITIONS[from].includes(to);
 }
 
-export function assertPrescriptionTransition(
-  from: PrescriptionState,
-  to: PrescriptionState,
-): void {
+export function assertPrescriptionTransition(from: PrescriptionState, to: PrescriptionState): void {
   if (!canTransition(from, to)) throw new InvalidPrescriptionTransition(from, to);
 }
 
@@ -93,9 +90,7 @@ export function canRevoke(state: PrescriptionState): boolean {
 /** Whether the pharmacy may dispense. */
 export function canDispense(state: PrescriptionState): boolean {
   return (
-    state === 'ACTIVE' ||
-    state === 'SUBSTITUTION_APPROVED' ||
-    state === 'SUBSTITUTION_REJECTED'
+    state === 'ACTIVE' || state === 'SUBSTITUTION_APPROVED' || state === 'SUBSTITUTION_REJECTED'
   );
 }
 
@@ -107,9 +102,7 @@ export function canDispense(state: PrescriptionState): boolean {
  */
 export function canProposeSubstitution(state: PrescriptionState): boolean {
   return (
-    state === 'ACTIVE' ||
-    state === 'SUBSTITUTION_APPROVED' ||
-    state === 'SUBSTITUTION_REJECTED'
+    state === 'ACTIVE' || state === 'SUBSTITUTION_APPROVED' || state === 'SUBSTITUTION_REJECTED'
   );
 }
 

@@ -83,19 +83,14 @@ function counts(target) {
   if (live.length === 0) return new Map(WITNESS_TABLES.map((table) => [table, null]));
 
   const countQuery = live
-    .map((table) => `SELECT '${table}' AS t, COUNT(*) AS n FROM \`${target.database}\`.\`${table}\``)
+    .map(
+      (table) => `SELECT '${table}' AS t, COUNT(*) AS n FROM \`${target.database}\`.\`${table}\``,
+    )
     .join(' UNION ALL ');
 
   const result = new Map(WITNESS_TABLES.map((table) => [table, null]));
-  const counted = mysqlArgv('mysql', target, [
-    '--skip-column-names',
-    '--batch',
-    '-e',
-    countQuery,
-  ]);
-  for (const line of run(counted.command, counted.args, { env: counted.env })
-    .trim()
-    .split('\n')) {
+  const counted = mysqlArgv('mysql', target, ['--skip-column-names', '--batch', '-e', countQuery]);
+  for (const line of run(counted.command, counted.args, { env: counted.env }).trim().split('\n')) {
     const [table, n] = line.split('\t');
     result.set(table, Number(n));
   }
@@ -191,7 +186,10 @@ async function main() {
 
     console.log(`\n3. restoring into ${SCRATCH}`);
     exec(scratch, `DROP DATABASE IF EXISTS \`${SCRATCH}\`;`);
-    exec(scratch, `CREATE DATABASE \`${SCRATCH}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;`);
+    exec(
+      scratch,
+      `CREATE DATABASE \`${SCRATCH}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;`,
+    );
     await node(path.join(import.meta.dirname, 'restore.mjs'), [
       backupPath,
       '--url',

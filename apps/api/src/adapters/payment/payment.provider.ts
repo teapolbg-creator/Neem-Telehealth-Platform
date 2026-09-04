@@ -103,7 +103,10 @@ export interface PaymentProvider {
    * MUST verify the signature against the RAW body before parsing. Throws
    * `WebhookSignatureError` when it does not check out.
    */
-  parseWebhook(rawBody: Buffer, headers: Record<string, string | string[] | undefined>): WebhookEvent;
+  parseWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string | string[] | undefined>,
+  ): WebhookEvent;
 
   refund(input: RefundInput): Promise<RefundResult>;
 }

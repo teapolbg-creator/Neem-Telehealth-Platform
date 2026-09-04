@@ -102,27 +102,29 @@ async function main() {
   const cipher = createCipheriv('aes-256-gcm', derived, iv);
 
   const invocation = mysqlArgv('mysqldump', target, [
-      '--single-transaction',
-      '--quick',
-      // A backup user should not need the server-wide PROCESS privilege, and
-      // a least-privilege one will not have it. Without this flag mysqldump
-      // asks for tablespace metadata and prints an access-denied error into
-      // the middle of an otherwise complete dump.
-      '--no-tablespaces',
-      // Routines and triggers travel with the data; a restore that silently
-      // dropped them would appear to work until something needed one.
-      '--routines',
-      '--triggers',
-      '--events',
-      // Without this a restore into a differently-named database fails on the
-      // embedded USE statement.
-      '--no-create-db',
-      '--default-character-set=utf8mb4',
-      target.database,
+    '--single-transaction',
+    '--quick',
+    // A backup user should not need the server-wide PROCESS privilege, and
+    // a least-privilege one will not have it. Without this flag mysqldump
+    // asks for tablespace metadata and prints an access-denied error into
+    // the middle of an otherwise complete dump.
+    '--no-tablespaces',
+    // Routines and triggers travel with the data; a restore that silently
+    // dropped them would appear to work until something needed one.
+    '--routines',
+    '--triggers',
+    '--events',
+    // Without this a restore into a differently-named database fails on the
+    // embedded USE statement.
+    '--no-create-db',
+    '--default-character-set=utf8mb4',
+    target.database,
   ]);
 
   if (invocation.viaDocker) {
-    console.log(`(no local mysqldump; using the client in ${process.env.NEEM_MYSQL_CONTAINER ?? 'neem-mysql'})`);
+    console.log(
+      `(no local mysqldump; using the client in ${process.env.NEEM_MYSQL_CONTAINER ?? 'neem-mysql'})`,
+    );
   }
 
   const dump = spawn(invocation.command, invocation.args, {

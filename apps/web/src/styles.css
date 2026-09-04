@@ -75,13 +75,13 @@
   --ring: oklch(0.58 0.13 175);
 
   /* Neem brand tokens */
-  --brand: oklch(0.58 0.13 175);           /* teal-green primary */
+  --brand: oklch(0.58 0.13 175); /* teal-green primary */
   --brand-foreground: oklch(1 0 0);
   --brand-soft: oklch(0.95 0.04 175);
-  --medical: oklch(0.55 0.17 255);         /* medical blue */
+  --medical: oklch(0.55 0.17 255); /* medical blue */
   --medical-foreground: oklch(1 0 0);
   --medical-soft: oklch(0.95 0.03 255);
-  --warning: oklch(0.72 0.16 55);          /* orange, warnings only */
+  --warning: oklch(0.72 0.16 55); /* orange, warnings only */
   --warning-foreground: oklch(1 0 0);
   --warning-soft: oklch(0.96 0.04 65);
 }

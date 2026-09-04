@@ -225,15 +225,13 @@ const REQUIRED_INDEXES: Array<{ table: string; columns: string; why: string }> =
   {
     table: 'audit_logs',
     columns: 'entityType,entityId',
-    why: "the audit trail for one record, which is how a disclosure question gets answered",
+    why: 'the audit trail for one record, which is how a disclosure question gets answered',
   },
 ];
 
 describe('indexes on the request path', () => {
   it('has every index the hot paths depend on', async () => {
-    const rows = await getPrisma().$queryRaw<
-      Array<{ TABLE_NAME: string; cols: string }>
-    >`
+    const rows = await getPrisma().$queryRaw<Array<{ TABLE_NAME: string; cols: string }>>`
       SELECT TABLE_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
       FROM information_schema.STATISTICS
       WHERE TABLE_SCHEMA = DATABASE()

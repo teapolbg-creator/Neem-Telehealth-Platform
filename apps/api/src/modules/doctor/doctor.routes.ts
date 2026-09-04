@@ -53,7 +53,15 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
       include: {
         languages: { include: { language: { select: { code: true, label: true } } } },
         documents: {
-          select: { id: true, type: true, uploadedAt: true, verifiedAt: true, note: true, mimeType: true, sizeBytes: true },
+          select: {
+            id: true,
+            type: true,
+            uploadedAt: true,
+            verifiedAt: true,
+            note: true,
+            mimeType: true,
+            sizeBytes: true,
+          },
           orderBy: { uploadedAt: 'desc' },
         },
         signatures: { where: { isActive: true }, select: { capturedAt: true } },
@@ -171,7 +179,11 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
     const { doctorId } = requireDoctor(request);
     const input = doctorSignatureSchema.parse(request.body);
 
-    const result = await captureSignature(doctorId, input.signatureDataUrl, requestContext(request));
+    const result = await captureSignature(
+      doctorId,
+      input.signatureDataUrl,
+      requestContext(request),
+    );
 
     return reply.send({
       data: { capturedAt: result.capturedAt.toISOString() },
@@ -269,31 +281,37 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
    * as the pharmacy's payment screen does. It settles nothing on its own —
    * `verifyAndSettle` asks the provider and applies the answer.
    */
-  app.get('/doctor/membership/payment/status', { preHandler: doctorOnly }, async (request, reply) => {
-    const { doctorId } = requireDoctor(request);
+  app.get(
+    '/doctor/membership/payment/status',
+    { preHandler: doctorOnly },
+    async (request, reply) => {
+      const { doctorId } = requireDoctor(request);
 
-    const payment = await getPrisma().payment.findFirst({
-      where: { doctorSubscription: { doctorId } },
-      orderBy: { createdAt: 'desc' },
-      select: { providerReference: true, status: true },
-    });
+      const payment = await getPrisma().payment.findFirst({
+        where: { doctorSubscription: { doctorId } },
+        orderBy: { createdAt: 'desc' },
+        select: { providerReference: true, status: true },
+      });
 
-    if (!payment) {
+      if (!payment) {
+        return reply.send({
+          data: { status: 'NONE', membership: await membershipView(doctorId) },
+          meta: { requestId: request.correlationId },
+        });
+      }
+
+      if (payment.status === 'PENDING' || payment.status === 'PROCESSING') {
+        await verifyAndSettle(payment.providerReference, { actorType: 'SYSTEM' }).catch(
+          () => undefined,
+        );
+      }
+
       return reply.send({
-        data: { status: 'NONE', membership: await membershipView(doctorId) },
+        data: { status: payment.status, membership: await membershipView(doctorId) },
         meta: { requestId: request.correlationId },
       });
-    }
-
-    if (payment.status === 'PENDING' || payment.status === 'PROCESSING') {
-      await verifyAndSettle(payment.providerReference, { actorType: 'SYSTEM' }).catch(() => undefined);
-    }
-
-    return reply.send({
-      data: { status: payment.status, membership: await membershipView(doctorId) },
-      meta: { requestId: request.correlationId },
-    });
-  });
+    },
+  );
 
   app.get('/doctor/shifts', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
@@ -351,53 +369,57 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Public-facing doctor summary, used by admin screens. */
-  app.get('/doctors/:publicId', { preHandler: guard({ roles: ['ADMIN'] }) }, async (request, reply) => {
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
-    const doctor = await getDoctorByPublicId(publicId);
+  app.get(
+    '/doctors/:publicId',
+    { preHandler: guard({ roles: ['ADMIN'] }) },
+    async (request, reply) => {
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+      const doctor = await getDoctorByPublicId(publicId);
 
-    return reply.send({
-      data: {
-        publicId: doctor.publicId,
-        fullName: doctor.fullName,
-        mdcNumber: doctor.mdcNumber,
-        mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
-        qualifiedAt: doctor.qualifiedAt?.toISOString() ?? null,
-        yearsExperience: doctor.yearsExperience,
-        specialty: doctor.specialty,
-        bio: doctor.bio,
-        status: doctor.status,
-        statusReason: doctor.statusReason,
-        email: doctor.user.email,
-        lastLoginAt: doctor.user.lastLoginAt?.toISOString() ?? null,
-        languages: doctor.languages.map((entry) => ({
-          code: entry.language.code,
-          label: entry.language.label,
-          isPrimary: entry.isPrimary,
-        })),
-        documents: doctor.documents.map((document) => ({
-          id: document.id,
-          type: document.type,
-          mimeType: document.mimeType,
-          sizeBytes: document.sizeBytes,
-          uploadedAt: document.uploadedAt.toISOString(),
-          verified: document.verifiedAt !== null,
-          note: document.note,
-        })),
-        hasSignature: doctor.signatures.length > 0,
-        employmentType: doctor.employmentType,
-        contractedHoursPerWeek: doctor.contractedHoursPerWeek,
-        hourlyRateMinor: doctor.hourlyRateMinor,
-        monthlySalaryMinor: doctor.monthlySalaryMinor,
-        subscription: doctor.subscriptions[0]
-          ? {
-              status: doctor.subscriptions[0].status,
-              periodEnd: doctor.subscriptions[0].periodEnd.toISOString(),
-            }
-          : null,
-        createdAt: doctor.createdAt.toISOString(),
-        isDemo: doctor.isDemo,
-      },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: {
+          publicId: doctor.publicId,
+          fullName: doctor.fullName,
+          mdcNumber: doctor.mdcNumber,
+          mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
+          qualifiedAt: doctor.qualifiedAt?.toISOString() ?? null,
+          yearsExperience: doctor.yearsExperience,
+          specialty: doctor.specialty,
+          bio: doctor.bio,
+          status: doctor.status,
+          statusReason: doctor.statusReason,
+          email: doctor.user.email,
+          lastLoginAt: doctor.user.lastLoginAt?.toISOString() ?? null,
+          languages: doctor.languages.map((entry) => ({
+            code: entry.language.code,
+            label: entry.language.label,
+            isPrimary: entry.isPrimary,
+          })),
+          documents: doctor.documents.map((document) => ({
+            id: document.id,
+            type: document.type,
+            mimeType: document.mimeType,
+            sizeBytes: document.sizeBytes,
+            uploadedAt: document.uploadedAt.toISOString(),
+            verified: document.verifiedAt !== null,
+            note: document.note,
+          })),
+          hasSignature: doctor.signatures.length > 0,
+          employmentType: doctor.employmentType,
+          contractedHoursPerWeek: doctor.contractedHoursPerWeek,
+          hourlyRateMinor: doctor.hourlyRateMinor,
+          monthlySalaryMinor: doctor.monthlySalaryMinor,
+          subscription: doctor.subscriptions[0]
+            ? {
+                status: doctor.subscriptions[0].status,
+                periodEnd: doctor.subscriptions[0].periodEnd.toISOString(),
+              }
+            : null,
+          createdAt: doctor.createdAt.toISOString(),
+          isDemo: doctor.isDemo,
+        },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 }

@@ -75,8 +75,7 @@ export interface OutcomeMix {
 export function useOperationalSummary() {
   return useQuery({
     queryKey: ["admin", "analytics", "operational"],
-    queryFn: ({ signal }) =>
-      api.get<OperationalSummary>("/admin/analytics/operational", signal),
+    queryFn: ({ signal }) => api.get<OperationalSummary>("/admin/analytics/operational", signal),
     refetchInterval: 30_000,
   });
 }
@@ -91,8 +90,7 @@ export function useFinancialSummary() {
 export function useSatisfactionSummary() {
   return useQuery({
     queryKey: ["admin", "analytics", "satisfaction"],
-    queryFn: ({ signal }) =>
-      api.get<SatisfactionSummary>("/admin/analytics/satisfaction", signal),
+    queryFn: ({ signal }) => api.get<SatisfactionSummary>("/admin/analytics/satisfaction", signal),
   });
 }
 
@@ -150,8 +148,7 @@ export interface SettingChange {
 export function useSettingHistory(key: string, enabled: boolean) {
   return useQuery({
     queryKey: ["admin", "settings", key, "history"],
-    queryFn: ({ signal }) =>
-      api.get<SettingChange[]>(`/admin/settings/${key}/history`, signal),
+    queryFn: ({ signal }) => api.get<SettingChange[]>(`/admin/settings/${key}/history`, signal),
     enabled,
   });
 }
@@ -175,7 +172,7 @@ export interface NotificationTemplate {
   hasProducer: boolean;
 }
 
-const templatesKey = ['admin', 'notification-templates'];
+const templatesKey = ["admin", "notification-templates"];
 
 /**
  * The notification catalogue (spec §58, §60, §96).
@@ -188,7 +185,8 @@ const templatesKey = ['admin', 'notification-templates'];
 export function useNotificationTemplates() {
   return useQuery({
     queryKey: templatesKey,
-    queryFn: ({ signal }) => api.get<NotificationTemplate[]>('/admin/notification-templates', signal),
+    queryFn: ({ signal }) =>
+      api.get<NotificationTemplate[]>("/admin/notification-templates", signal),
   });
 }
 

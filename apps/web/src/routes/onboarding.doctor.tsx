@@ -104,8 +104,21 @@ function DoctorApplication() {
         </div>
 
         <Section title="About you">
-          <Field label="Full name" value={form.fullName} onChange={set("fullName")} error={fieldErrors.fullName} required />
-          <Field label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErrors.email} required />
+          <Field
+            label="Full name"
+            value={form.fullName}
+            onChange={set("fullName")}
+            error={fieldErrors.fullName}
+            required
+          />
+          <Field
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={set("email")}
+            error={fieldErrors.email}
+            required
+          />
           <Field
             label="Password"
             type="password"
@@ -126,7 +139,13 @@ function DoctorApplication() {
         </Section>
 
         <Section title="Credentials">
-          <Field label="MDC number" value={form.mdcNumber} onChange={set("mdcNumber")} error={fieldErrors.mdcNumber} required />
+          <Field
+            label="MDC number"
+            value={form.mdcNumber}
+            onChange={set("mdcNumber")}
+            error={fieldErrors.mdcNumber}
+            required
+          />
           <Field
             label="Licence expires"
             type="date"
@@ -151,7 +170,12 @@ function DoctorApplication() {
             error={fieldErrors.yearsExperience}
             required
           />
-          <Field label="Specialty" value={form.specialty} onChange={set("specialty")} help="Optional." />
+          <Field
+            label="Specialty"
+            value={form.specialty}
+            onChange={set("specialty")}
+            help="Optional."
+          />
         </Section>
 
         <div>
@@ -173,7 +197,9 @@ function DoctorApplication() {
                   onClick={() => toggleLanguage(language.code)}
                   className={cn(
                     "rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-colors",
-                    chosen ? "border-brand bg-brand-soft text-brand" : "border-border hover:border-slate-300",
+                    chosen
+                      ? "border-brand bg-brand-soft text-brand"
+                      : "border-border hover:border-slate-300",
                   )}
                 >
                   {language.label}
@@ -276,7 +302,10 @@ function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
 
   return (
-    <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3">
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3"
+    >
       <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
       <p className="text-sm text-red-700">
         {error instanceof ApiError ? error.message : "Something went wrong. Please try again."}

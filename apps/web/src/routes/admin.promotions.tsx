@@ -237,7 +237,11 @@ function PromotionRow({ promotion }: { promotion: Promotion }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm font-bold">{promotion.code}</span>
           <Chip tone={promotion.redeemable ? "medical" : "muted"}>
-            {promotion.redeemable ? "redeemable" : promotion.isActive ? "not in window" : "withdrawn"}
+            {promotion.redeemable
+              ? "redeemable"
+              : promotion.isActive
+                ? "not in window"
+                : "withdrawn"}
           </Chip>
         </div>
         <p className="mt-1 text-sm text-slate-600">

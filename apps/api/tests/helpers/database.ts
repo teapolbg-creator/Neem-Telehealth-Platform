@@ -80,7 +80,10 @@ export async function createTestUser(options: TestUserOptions) {
   });
 }
 
-export async function createTestPharmacy(name = 'Test Pharmacy', status: 'ACTIVE' | 'PENDING' = 'ACTIVE') {
+export async function createTestPharmacy(
+  name = 'Test Pharmacy',
+  status: 'ACTIVE' | 'PENDING' = 'ACTIVE',
+) {
   const prisma = getPrisma();
   const suffix = generatePublicId('x').slice(-8);
 
@@ -102,7 +105,10 @@ export async function createTestPharmacy(name = 'Test Pharmacy', status: 'ACTIVE
   });
 }
 
-export async function createTestDoctor(fullName = 'Dr. Test', status: 'ACTIVE' | 'PENDING' = 'ACTIVE') {
+export async function createTestDoctor(
+  fullName = 'Dr. Test',
+  status: 'ACTIVE' | 'PENDING' = 'ACTIVE',
+) {
   const prisma = getPrisma();
   const suffix = generatePublicId('x').slice(-8);
 

@@ -26,7 +26,10 @@ test.describe('sign-in', () => {
     await expect(page.getByText('Akosua Pharmacy').first()).toBeVisible();
   });
 
-  test('shows a safe error for a wrong password and issues no session', async ({ page, context }) => {
+  test('shows a safe error for a wrong password and issues no session', async ({
+    page,
+    context,
+  }) => {
     await signInThroughUi(page, { email: DEMO.pharmacy.email, password: 'WrongPassword123!' });
 
     await expect(page.getByRole('alert')).toContainText(/not correct/i);
@@ -44,7 +47,10 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('alert')).toContainText(/not correct/i);
   });
 
-  test('keeps the session cookie httpOnly, so scripts cannot read it', async ({ page, context }) => {
+  test('keeps the session cookie httpOnly, so scripts cannot read it', async ({
+    page,
+    context,
+  }) => {
     await signInThroughUi(page, DEMO.pharmacy);
     await expect(page).toHaveURL(/\/pharmacy/);
 
@@ -82,9 +88,7 @@ test.describe('admin two-factor authentication', () => {
     await signInThroughUi(page, DEMO.admin);
 
     // A 2FA step must appear, and no session may exist yet.
-    await expect(
-      page.getByRole('heading', { name: /two-factor/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /two-factor/i })).toBeVisible();
 
     const cookies = await context.cookies();
     expect(
@@ -125,7 +129,9 @@ test.describe('admin two-factor authentication', () => {
 
     await expect(page.getByRole('heading', { name: /recovery codes/i })).toBeVisible();
     // Ten single-use codes, shown exactly once.
-    await expect(page.locator('li').filter({ hasText: /^[0-9A-F]{5}-[0-9A-F]{5}$/ })).toHaveCount(10);
+    await expect(page.locator('li').filter({ hasText: /^[0-9A-F]{5}-[0-9A-F]{5}$/ })).toHaveCount(
+      10,
+    );
 
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: /continue to neem/i }).click();
@@ -202,4 +208,3 @@ test.describe('password reset from the sign-in page', () => {
     await expect(page.getByRole('button', { name: 'Change my password' })).toHaveCount(0);
   });
 });
-

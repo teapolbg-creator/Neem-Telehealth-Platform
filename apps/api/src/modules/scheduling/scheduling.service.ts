@@ -94,7 +94,11 @@ export async function assignShift(
       });
       const currentMinutes = counter?.minutesScheduled ?? 0;
 
-      const check = checkServiceHours({ currentMinutes, requestedMinutes: minutesPlanned, maxHoursPerWeek: maxHours });
+      const check = checkServiceHours({
+        currentMinutes,
+        requestedMinutes: minutesPlanned,
+        maxHoursPerWeek: maxHours,
+      });
 
       if (!check.allowed) {
         throw errors.businessRule(
@@ -150,7 +154,11 @@ export async function assignShift(
         create: { doctorId: doctor.id, isoYear, isoWeek, minutesScheduled: minutesPlanned },
       });
 
-      return { assignment, weeklyMinutesScheduled: check.resultingMinutes, limitMinutes: check.limitMinutes };
+      return {
+        assignment,
+        weeklyMinutesScheduled: check.resultingMinutes,
+        limitMinutes: check.limitMinutes,
+      };
     });
 
     await recordAudit(
@@ -169,7 +177,12 @@ export async function assignShift(
     return {
       id: result.assignment.id,
       serviceDate: input.serviceDate,
-      shift: { code: shift.code, label: shift.label, startsAt: shift.startsAt, endsAt: shift.endsAt },
+      shift: {
+        code: shift.code,
+        label: shift.label,
+        startsAt: shift.startsAt,
+        endsAt: shift.endsAt,
+      },
       status: result.assignment.status,
       minutesPlanned,
       weeklyMinutesScheduled: result.weeklyMinutesScheduled,
@@ -238,7 +251,12 @@ export async function confirmShift(
 /** Cancelling releases the hours back into the doctor's weekly budget. */
 export async function cancelShift(
   assignmentId: string,
-  context: { actorType: 'ADMIN' | 'DOCTOR'; actorId: string; reason?: string; correlationId?: string },
+  context: {
+    actorType: 'ADMIN' | 'DOCTOR';
+    actorId: string;
+    reason?: string;
+    correlationId?: string;
+  },
   db: PrismaClient = getPrisma(),
 ): Promise<void> {
   const assignment = await db.doctorShiftAssignment.findUnique({ where: { id: assignmentId } });

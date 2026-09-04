@@ -201,9 +201,7 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
         className="flex w-full flex-wrap items-baseline justify-between gap-3 text-left"
       >
         <div className="min-w-0">
-          <code
-            className={cn("font-mono text-xs font-bold", failed && "text-red-600")}
-          >
+          <code className={cn("font-mono text-xs font-bold", failed && "text-red-600")}>
             {entry.action}
           </code>
           <p className="mt-0.5 text-xs text-slate-500">

@@ -104,8 +104,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
     // Paystack returns its errors as JSON with a 4xx, so the body is read
     // either way — the message is what tells an operator what went wrong.
     const envelope = (await response.json().catch(() => undefined)) as
-      | PaystackEnvelope<T>
-      | undefined;
+      PaystackEnvelope<T> | undefined;
 
     if (!response.ok || !envelope?.status) {
       throw new PaymentProviderError(
@@ -147,7 +146,11 @@ export class PaystackPaymentProvider implements PaymentProvider {
           // Shown in the Paystack dashboard. Deliberately no name, no phone,
           // and nothing clinical (spec §60).
           custom_fields: [
-            { display_name: 'Neem reference', variable_name: 'neem_reference', value: input.reference },
+            {
+              display_name: 'Neem reference',
+              variable_name: 'neem_reference',
+              value: input.reference,
+            },
           ],
         },
       },
@@ -258,12 +261,14 @@ export class PaystackPaymentProvider implements PaymentProvider {
       providerEventId: `${payload.event ?? 'event'}:${payload.data?.id ?? `${reference}:${status}`}`,
       eventType: payload.event ?? 'charge.success',
       providerReference: reference,
-      refundReference: isRefund && payload.data?.id !== undefined ? String(payload.data.id) : undefined,
+      refundReference:
+        isRefund && payload.data?.id !== undefined ? String(payload.data.id) : undefined,
       status,
       amountMinor: payload.data?.amount ?? 0,
       currency: payload.data?.currency ?? 'GHS',
       channel: payload.data?.channel,
-      paidAt: status === 'SUCCESS' && payload.data?.paid_at ? new Date(payload.data.paid_at) : undefined,
+      paidAt:
+        status === 'SUCCESS' && payload.data?.paid_at ? new Date(payload.data.paid_at) : undefined,
       raw: payload,
     };
   }

@@ -1,8 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import {
-  doctorRegistrationSchema,
-  pharmacyRegistrationSchema,
-} from '@neem/contracts';
+import { doctorRegistrationSchema, pharmacyRegistrationSchema } from '@neem/contracts';
 import { getEnv } from '../../config/env.ts';
 import { getPrisma } from '../../db/prisma.ts';
 import { requestContext } from '../../middleware/context.ts';

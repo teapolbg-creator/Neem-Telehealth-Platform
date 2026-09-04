@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ErrorCode } from '@neem/contracts';
+import { ERROR_CODES, type ErrorCode } from "@neem/contracts";
 
 /**
  * API client.
@@ -12,11 +12,11 @@ import { ERROR_CODES, type ErrorCode } from '@neem/contracts';
  * appears to apply is independently enforced server-side (spec §92).
  */
 
-const CSRF_COOKIE = 'neem_csrf';
-const CSRF_HEADER = 'x-neem-csrf';
+const CSRF_COOKIE = "neem_csrf";
+const CSRF_HEADER = "x-neem-csrf";
 
 export const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:4000";
 
 export class ApiError extends Error {
   readonly code: ErrorCode | string;
@@ -32,7 +32,7 @@ export class ApiError extends Error {
     requestId?: string;
   }) {
     super(params.message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.code = params.code;
     this.status = params.status;
     this.details = params.details;
@@ -55,28 +55,28 @@ export class ApiError extends Error {
 }
 
 function readCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
+  if (typeof document === "undefined") return undefined;
   const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
   return match?.[1] ? decodeURIComponent(match[1]) : undefined;
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const method = options.method ?? 'GET';
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const method = options.method ?? "GET";
+  const headers: Record<string, string> = { accept: "application/json" };
 
   if (options.body !== undefined) {
-    headers['content-type'] = 'application/json';
+    headers["content-type"] = "application/json";
   }
 
   // Double-submit CSRF token. The cookie is readable by design; the server
   // compares it against the hash stored on the session (docs/security.md §6).
-  if (method !== 'GET') {
+  if (method !== "GET") {
     const csrf = readCookie(CSRF_COOKIE);
     if (csrf) headers[CSRF_HEADER] = csrf;
   }
@@ -88,7 +88,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       headers,
       // Sends the httpOnly session cookie cross-origin in development, where
       // the web app and API are on different ports.
-      credentials: 'include',
+      credentials: "include",
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: options.signal,
     });
@@ -96,8 +96,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     // A network failure must surface as a definite state, never as a silent
     // hang or an ambiguous success (spec §67).
     throw new ApiError({
-      code: 'NETWORK_ERROR',
-      message: 'Could not reach Neem. Check your connection and try again.',
+      code: "NETWORK_ERROR",
+      message: "Could not reach Neem. Check your connection and try again.",
       status: 0,
     });
   }
@@ -112,7 +112,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   } catch {
     throw new ApiError({
       code: ERROR_CODES.INTERNAL_ERROR,
-      message: 'Neem returned an unexpected response.',
+      message: "Neem returned an unexpected response.",
       status: response.status,
     });
   }
@@ -126,7 +126,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (!response.ok || envelope.error) {
     throw new ApiError({
       code: envelope.error?.code ?? ERROR_CODES.INTERNAL_ERROR,
-      message: envelope.error?.message ?? 'That request could not be completed.',
+      message: envelope.error?.message ?? "That request could not be completed.",
       status: response.status,
       details: envelope.error?.details,
       requestId: envelope.meta?.requestId,
@@ -137,9 +137,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 }
 
 export const api = {
-  get: <T>(path: string, signal?: AbortSignal) => apiRequest<T>(path, { method: 'GET', signal }),
-  post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'POST', body }),
-  patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PATCH', body }),
-  put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: 'PUT', body }),
-  delete: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),
+  get: <T>(path: string, signal?: AbortSignal) => apiRequest<T>(path, { method: "GET", signal }),
+  post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "POST", body }),
+  patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PATCH", body }),
+  put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PUT", body }),
+  delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 };

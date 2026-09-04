@@ -1,6 +1,6 @@
 # Ghana Regulatory Register — UNVERIFIED
 
-> **Read `README.md` first.** Every entry below is a *candidate* identified from general background knowledge, not from an official source. Titles, numbers, current amendments, and applicability are all unconfirmed. This is not legal advice.
+> **Read `README.md` first.** Every entry below is a _candidate_ identified from general background knowledge, not from an official source. Titles, numbers, current amendments, and applicability are all unconfirmed. This is not legal advice.
 
 **Verification status: one question answered, the rest NONE.** Open question 7 (clinical-record retention) was answered on 2026-08-29 by the product owner citing Medical & Dental Council sources, and the product design was changed to match (decision D23). That answer has **not** been confirmed by a qualified lawyer, and six follow-on questions it raises remain open. Everything else below is unverified background, not legal advice.
 
@@ -8,19 +8,19 @@
 
 ## 1. Candidate instruments
 
-| # | Candidate instrument | Why it may apply to Neem | Confidence that it exists | Status |
-| --- | --- | --- | --- | --- |
-| G1 | Data Protection Act, 2012 (Act 843) — Data Protection Commission | Patient personal and health data; controller registration; consent; retention; cross-border transfer | Moderate–high | UNVERIFIED |
-| G2 | Health Professions Regulatory Bodies Act, 2013 (Act 857) — establishes the Medical & Dental Council and the Pharmacy Council | Doctor licensing; pharmacy and pharmacist regulation; scope of practice | Moderate | UNVERIFIED |
-| G3 | Health Institutions and Facilities Act, 2011 (Act 829) — HeFRA | Whether a telemedicine service constitutes a regulated health facility requiring licensing | Moderate | UNVERIFIED |
-| G4 | Electronic Transactions Act, 2008 (Act 772) | Legal effect of electronic records and electronic signatures — directly relevant to e-prescriptions | Moderate | UNVERIFIED |
-| G5 | Cybersecurity Act, 2020 (Act 1038) — Cyber Security Authority | Critical information infrastructure designation; incident reporting | Moderate | UNVERIFIED |
-| G6 | Payment Systems and Services Act, 2019 (Act 987) — Bank of Ghana | Payment aggregation and mobile money; whether Neem's flow needs its own licence or is covered by Paystack's | Moderate | UNVERIFIED |
-| G12 | Public Health Act, 2012 (Act 851) | Medicines control; possible notifiable-disease reporting obligations | Moderate | UNVERIFIED |
-| G8 | MDC telemedicine practice guidelines (if any) | Standards for remote consultation, remote prescribing, identity verification, record-keeping | Low — existence unknown | UNVERIFIED |
-| G9 | Pharmacy Council dispensing rules for electronic prescriptions | Whether an e-prescription is dispensable, what it must contain, substitution rules | Low — existence unknown | UNVERIFIED |
-| G10 | National Communications Authority / consumer protection rules on SMS and WhatsApp messaging | Consent for transactional and marketing messages | Low | UNVERIFIED |
-| G11 | Advertising rules for healthcare services | Constraints on how Neem may be marketed to patients | Low | UNVERIFIED |
+| #   | Candidate instrument                                                                                                         | Why it may apply to Neem                                                                                    | Confidence that it exists | Status     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------- | ---------- |
+| G1  | Data Protection Act, 2012 (Act 843) — Data Protection Commission                                                             | Patient personal and health data; controller registration; consent; retention; cross-border transfer        | Moderate–high             | UNVERIFIED |
+| G2  | Health Professions Regulatory Bodies Act, 2013 (Act 857) — establishes the Medical & Dental Council and the Pharmacy Council | Doctor licensing; pharmacy and pharmacist regulation; scope of practice                                     | Moderate                  | UNVERIFIED |
+| G3  | Health Institutions and Facilities Act, 2011 (Act 829) — HeFRA                                                               | Whether a telemedicine service constitutes a regulated health facility requiring licensing                  | Moderate                  | UNVERIFIED |
+| G4  | Electronic Transactions Act, 2008 (Act 772)                                                                                  | Legal effect of electronic records and electronic signatures — directly relevant to e-prescriptions         | Moderate                  | UNVERIFIED |
+| G5  | Cybersecurity Act, 2020 (Act 1038) — Cyber Security Authority                                                                | Critical information infrastructure designation; incident reporting                                         | Moderate                  | UNVERIFIED |
+| G6  | Payment Systems and Services Act, 2019 (Act 987) — Bank of Ghana                                                             | Payment aggregation and mobile money; whether Neem's flow needs its own licence or is covered by Paystack's | Moderate                  | UNVERIFIED |
+| G12 | Public Health Act, 2012 (Act 851)                                                                                            | Medicines control; possible notifiable-disease reporting obligations                                        | Moderate                  | UNVERIFIED |
+| G8  | MDC telemedicine practice guidelines (if any)                                                                                | Standards for remote consultation, remote prescribing, identity verification, record-keeping                | Low — existence unknown   | UNVERIFIED |
+| G9  | Pharmacy Council dispensing rules for electronic prescriptions                                                               | Whether an e-prescription is dispensable, what it must contain, substitution rules                          | Low — existence unknown   | UNVERIFIED |
+| G10 | National Communications Authority / consumer protection rules on SMS and WhatsApp messaging                                  | Consent for transactional and marketing messages                                                            | Low                       | UNVERIFIED |
+| G11 | Advertising rules for healthcare services                                                                                    | Constraints on how Neem may be marketed to patients                                                         | Low                       | UNVERIFIED |
 
 ---
 
@@ -64,15 +64,15 @@
 
 ## 3. Engineering implications
 
-| Regulatory outcome | Impact on the build |
-| --- | --- |
+| Regulatory outcome                                    | Impact on the build                                                                                                                                                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | A **minimum clinical-record retention period exists** | **Architectural.** The completion purge would have to become a scheduled purge after the mandated period, with encrypted retention and strict access control in the interim. Flagged now precisely so it does not surface late |
-| Data-controller registration required | Operational, not architectural |
-| Cross-border transfer restricted | May force in-country hosting and/or a different payment or telecoms provider — the provider abstractions absorb this |
-| Drawn signature insufficient | Would require a certificate-based signing integration; the `signatureId` indirection on prescriptions and referrals already isolates this |
-| E-prescriptions not dispensable electronically | Printed prescription becomes the primary artefact — already supported |
-| Specific prescription content mandated | Field additions to `prescriptions` / `prescription_items` and the PDF template |
-| CII designation | Incident reporting and monitoring obligations; the audit log and structured logging already provide the substrate |
+| Data-controller registration required                 | Operational, not architectural                                                                                                                                                                                                 |
+| Cross-border transfer restricted                      | May force in-country hosting and/or a different payment or telecoms provider — the provider abstractions absorb this                                                                                                           |
+| Drawn signature insufficient                          | Would require a certificate-based signing integration; the `signatureId` indirection on prescriptions and referrals already isolates this                                                                                      |
+| E-prescriptions not dispensable electronically        | Printed prescription becomes the primary artefact — already supported                                                                                                                                                          |
+| Specific prescription content mandated                | Field additions to `prescriptions` / `prescription_items` and the PDF template                                                                                                                                                 |
+| CII designation                                       | Incident reporting and monitoring obligations; the audit log and structured logging already provide the substrate                                                                                                              |
 
 ---
 

@@ -162,10 +162,7 @@ export function buildScoringContext(candidates: DoctorCandidate[]): ScoringConte
   return {
     medianServedThisShift,
     maxCompletedLast24h: Math.max(...candidates.map((c) => c.completedLast24h), 0),
-    maxMedianResponseSeconds: Math.max(
-      ...candidates.map((c) => c.medianResponseSeconds ?? 0),
-      0,
-    ),
+    maxMedianResponseSeconds: Math.max(...candidates.map((c) => c.medianResponseSeconds ?? 0), 0),
   };
 }
 
@@ -279,7 +276,9 @@ export function rankDoctors(
 
     // Longest idle first. A doctor never offered anything is the most idle.
     const leftIdle = left.lastOfferedAt ? now.getTime() - left.lastOfferedAt.getTime() : Infinity;
-    const rightIdle = right.lastOfferedAt ? now.getTime() - right.lastOfferedAt.getTime() : Infinity;
+    const rightIdle = right.lastOfferedAt
+      ? now.getTime() - right.lastOfferedAt.getTime()
+      : Infinity;
     if (leftIdle !== rightIdle) return rightIdle - leftIdle;
 
     if (left.completedLast24h !== right.completedLast24h) {

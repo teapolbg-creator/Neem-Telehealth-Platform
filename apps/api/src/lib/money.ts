@@ -103,8 +103,7 @@ export function splitRevenue(
 }
 
 export type DiscountRule =
-  | { type: 'PERCENT'; valueBp: number }
-  | { type: 'FIXED'; valueMinor: number };
+  { type: 'PERCENT'; valueBp: number } | { type: 'FIXED'; valueMinor: number };
 
 /**
  * Computes a discount, clamped so the net can never go below zero and a

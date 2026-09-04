@@ -142,9 +142,7 @@ describe('paying for a membership', () => {
     await verifyAndSettle(reference, { actorType: 'SYSTEM' });
     await verifyAndSettle(reference, { actorType: 'SYSTEM' });
 
-    expect(
-      await getPrisma().doctorSubscription.count({ where: { doctorId: doctor.id } }),
-    ).toBe(1);
+    expect(await getPrisma().doctorSubscription.count({ where: { doctorId: doctor.id } })).toBe(1);
   });
 
   it('reuses an attempt already in flight rather than charging twice', async () => {
@@ -162,7 +160,9 @@ describe('paying for a membership', () => {
     });
 
     expect(second.body.data!.paymentPublicId).toBe(first.body.data!.paymentPublicId);
-    expect(await getPrisma().payment.count({ where: { doctorSubscription: { doctorId: doctor.id } } })).toBe(1);
+    expect(
+      await getPrisma().payment.count({ where: { doctorSubscription: { doctorId: doctor.id } } }),
+    ).toBe(1);
   });
 
   it('refuses a rejected account — membership is maintained, not bought', async () => {

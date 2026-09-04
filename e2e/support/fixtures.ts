@@ -370,13 +370,16 @@ export async function openSecondPage(
   page: Page,
   options: { viewport?: { width: number; height: number } } = {},
 ): Promise<Page> {
-  const context = await page.context().browser()!.newContext({
-    baseURL: process.env.E2E_WEB_URL ?? 'http://localhost:8080',
-    permissions: ['camera', 'microphone'],
-    // The patient portal is phone-first (spec §69) and its layout differs
-    // enough that driving it at desktop width tests a screen no patient sees.
-    ...(options.viewport ? { viewport: options.viewport } : {}),
-  });
+  const context = await page
+    .context()
+    .browser()!
+    .newContext({
+      baseURL: process.env.E2E_WEB_URL ?? 'http://localhost:8080',
+      permissions: ['camera', 'microphone'],
+      // The patient portal is phone-first (spec §69) and its layout differs
+      // enough that driving it at desktop width tests a screen no patient sees.
+      ...(options.viewport ? { viewport: options.viewport } : {}),
+    });
 
   return context.newPage();
 }

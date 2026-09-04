@@ -266,14 +266,14 @@ describe('failure and retry', () => {
     });
 
     // Too soon: the first backoff is a minute.
-    expect(
-      await retryFailedNotifications(prisma, fixedClock(new Date(Date.now() + 10_000))),
-    ).toBe(0);
+    expect(await retryFailedNotifications(prisma, fixedClock(new Date(Date.now() + 10_000)))).toBe(
+      0,
+    );
 
     // Past it.
-    expect(
-      await retryFailedNotifications(prisma, fixedClock(new Date(Date.now() + 120_000))),
-    ).toBe(1);
+    expect(await retryFailedNotifications(prisma, fixedClock(new Date(Date.now() + 120_000)))).toBe(
+      1,
+    );
 
     const after = await prisma.notification.findUniqueOrThrow({ where: { id: notification.id } });
     expect(after.attempts).toBe(2);
@@ -525,11 +525,14 @@ describe('template administration (spec §58)', () => {
   it('accepts a reworded template', async () => {
     const cookies = await adminCookies();
 
-    const response = await request('/admin/notification-templates/doctor.membership.suspended/EMAIL', {
-      method: 'PATCH',
-      cookies,
-      payload: { body: 'Your account is no longer active. Renew in Neem to continue.' },
-    });
+    const response = await request(
+      '/admin/notification-templates/doctor.membership.suspended/EMAIL',
+      {
+        method: 'PATCH',
+        cookies,
+        payload: { body: 'Your account is no longer active. Renew in Neem to continue.' },
+      },
+    );
 
     expect(response.status).toBe(200);
   });

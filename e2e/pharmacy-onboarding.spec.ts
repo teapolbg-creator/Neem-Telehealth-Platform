@@ -129,10 +129,10 @@ test.describe('pharmacy verification', () => {
     expect(file.status()).toBe(200);
     expect(file.headers()['content-type']).toBe('image/png');
 
-    const verified = await request.post(
-      `${API}/admin/pharmacies/documents/${documentId}/verify`,
-      { headers: csrfHeaders(adminCsrf), data: { verified: true } },
-    );
+    const verified = await request.post(`${API}/admin/pharmacies/documents/${documentId}/verify`, {
+      headers: csrfHeaders(adminCsrf),
+      data: { verified: true },
+    });
     expect(verified.ok()).toBeTruthy();
 
     const activated = await request.post(`${API}/admin/pharmacies/${applicant.publicId}/status`, {

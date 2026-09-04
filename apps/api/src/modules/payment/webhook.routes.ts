@@ -21,10 +21,8 @@ import { handleWebhookEvent } from './payment.service.ts';
  */
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   // Preserve the raw bytes for signature verification.
-  app.addContentTypeParser(
-    'application/json',
-    { parseAs: 'buffer' },
-    (_request, body, done) => done(null, body),
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_request, body, done) =>
+    done(null, body),
   );
 
   app.post('/webhooks/payment', async (request, reply) => {

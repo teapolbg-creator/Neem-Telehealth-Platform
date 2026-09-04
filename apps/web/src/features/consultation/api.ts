@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PatientIdentity, PatientSessionView } from '@neem/contracts';
-import { api } from '@/lib/api-client';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { PatientIdentity, PatientSessionView } from "@neem/contracts";
+import { api } from "@/lib/api-client";
 
 /**
  * Consultation queries for the pharmacy and patient portals.
@@ -16,9 +16,9 @@ export interface Money {
 }
 
 export function formatMoney(value: Money | undefined): string {
-  if (!value) return '—';
-  return new Intl.NumberFormat('en-GH', {
-    style: 'currency',
+  if (!value) return "—";
+  return new Intl.NumberFormat("en-GH", {
+    style: "currency",
     currency: value.currency,
     minimumFractionDigits: 2,
   }).format(value.amountMinor / 100);
@@ -43,8 +43,8 @@ export function useCreateConsultation() {
 
   return useMutation({
     mutationFn: (input: { promotionCode?: string } = {}) =>
-      api.post<CreatedConsultation>('/pharmacy/consultations', input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pharmacy', 'consultations'] }),
+      api.post<CreatedConsultation>("/pharmacy/consultations", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pharmacy", "consultations"] }),
   });
 }
 
@@ -78,7 +78,7 @@ export function useInitiatePayment() {
  */
 export function usePaymentStatus(publicId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ['pharmacy', 'payment', publicId],
+    queryKey: ["pharmacy", "payment", publicId],
     queryFn: ({ signal }) =>
       api.get<PaymentView>(`/pharmacy/consultations/${publicId}/payment`, signal),
     enabled: Boolean(publicId) && enabled,
@@ -91,11 +91,11 @@ export function useSimulatePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { publicId: string; outcome: 'SUCCESS' | 'FAILED' }) =>
+    mutationFn: (input: { publicId: string; outcome: "SUCCESS" | "FAILED" }) =>
       api.post(`/pharmacy/consultations/${input.publicId}/payment/simulate`, {
         outcome: input.outcome,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pharmacy'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pharmacy"] }),
   });
 }
 
@@ -148,7 +148,7 @@ export interface PharmacyConsultation {
 
 export function useConsultation(publicId: string | null, poll = false) {
   return useQuery({
-    queryKey: ['pharmacy', 'consultation', publicId],
+    queryKey: ["pharmacy", "consultation", publicId],
     queryFn: ({ signal }) =>
       api.get<PharmacyConsultation>(`/pharmacy/consultations/${publicId}`, signal),
     enabled: Boolean(publicId),
@@ -158,7 +158,7 @@ export function useConsultation(publicId: string | null, poll = false) {
 
 export function usePharmacyConsultations(activeOnly = true) {
   return useQuery({
-    queryKey: ['pharmacy', 'consultations', { activeOnly }],
+    queryKey: ["pharmacy", "consultations", { activeOnly }],
     queryFn: ({ signal }) =>
       api.get<PharmacyConsultation[]>(
         `/pharmacy/consultations?activeOnly=${activeOnly}&limit=25`,
@@ -177,7 +177,7 @@ export function useCancelConsultation() {
         `/pharmacy/consultations/${input.publicId}/cancel`,
         { reason: input.reason },
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pharmacy'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pharmacy"] }),
   });
 }
 
@@ -185,7 +185,7 @@ export function useCancelConsultation() {
 // Patient
 // ---------------------------------------------------------------------------
 
-export const patientSessionKey = ['patient', 'session'] as const;
+export const patientSessionKey = ["patient", "session"] as const;
 
 /**
  * Exchanges the QR token for a session.
@@ -196,19 +196,19 @@ export const patientSessionKey = ['patient', 'session'] as const;
 export function useExchangeToken() {
   return useMutation({
     mutationFn: (token: string) =>
-      api.post<{ consultationPublicId: string }>('/s/exchange', { token }),
+      api.post<{ consultationPublicId: string }>("/s/exchange", { token }),
   });
 }
 
 export function usePatientSession(enabled = true) {
   return useQuery({
     queryKey: patientSessionKey,
-    queryFn: ({ signal }) => api.get<PatientSessionView>('/patient/session', signal),
+    queryFn: ({ signal }) => api.get<PatientSessionView>("/patient/session", signal),
     enabled,
     // Keeps the waiting room current without the patient refreshing. Replaced
     // by a socket subscription in Phase 4.
     refetchInterval: (query) =>
-      query.state.data?.step === 'WAITING' || query.state.data?.step === 'IN_CONSULTATION'
+      query.state.data?.step === "WAITING" || query.state.data?.step === "IN_CONSULTATION"
         ? 5000
         : false,
     retry: false,
@@ -217,10 +217,10 @@ export function usePatientSession(enabled = true) {
 
 export function usePatientLanguages(enabled = true) {
   return useQuery({
-    queryKey: ['patient', 'languages'],
+    queryKey: ["patient", "languages"],
     queryFn: ({ signal }) =>
       api.get<Array<{ code: string; label: string; subtitle: string | null }>>(
-        '/patient/languages',
+        "/patient/languages",
         signal,
       ),
     enabled,
@@ -231,9 +231,9 @@ export function usePatientLanguages(enabled = true) {
 /** What a complaint may be about — only needed once the form is open. */
 export function usePatientComplaintCategories(enabled = false) {
   return useQuery({
-    queryKey: ['patient', 'complaint-categories'],
+    queryKey: ["patient", "complaint-categories"],
     queryFn: ({ signal }) =>
-      api.get<Array<{ code: string; label: string }>>('/patient/complaint-categories', signal),
+      api.get<Array<{ code: string; label: string }>>("/patient/complaint-categories", signal),
     enabled,
     staleTime: 5 * 60_000,
   });
@@ -242,7 +242,7 @@ export function usePatientComplaintCategories(enabled = false) {
 export interface PatientFeedbackInput {
   doctorRating: number;
   neemRating: number;
-  category: 'COMPLAINT' | 'COMPLIMENT' | 'SUGGESTION';
+  category: "COMPLAINT" | "COMPLIMENT" | "SUGGESTION";
   complaintCategoryCode?: string;
   comment?: string;
 }
@@ -259,7 +259,7 @@ export function useSubmitFeedback() {
 
   return useMutation({
     mutationFn: (input: PatientFeedbackInput) =>
-      api.post<{ submitted: boolean }>('/patient/feedback', input),
+      api.post<{ submitted: boolean }>("/patient/feedback", input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: patientSessionKey }),
   });
 }
@@ -277,7 +277,7 @@ export function useRequestRefund() {
 
   return useMutation({
     mutationFn: (reason: string) =>
-      api.post<{ publicId: string; state: string }>('/patient/refund-request', { reason }),
+      api.post<{ publicId: string; state: string }>("/patient/refund-request", { reason }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: patientSessionKey }),
   });
 }
@@ -301,7 +301,7 @@ export function useEndPatientSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post<{ state: string; message: string }>('/patient/session/leave', {}),
+    mutationFn: () => api.post<{ state: string; message: string }>("/patient/session/leave", {}),
     onSuccess: () => queryClient.removeQueries({ queryKey: patientSessionKey }),
   });
 }
@@ -315,8 +315,8 @@ function usePatientStep<TInput>(path: string) {
   });
 }
 
-export const useSubmitIdentity = () => usePatientStep<PatientIdentity>('/patient/session/identity');
+export const useSubmitIdentity = () => usePatientStep<PatientIdentity>("/patient/session/identity");
 export const useSelectLanguage = () =>
-  usePatientStep<{ languageCode: string }>('/patient/session/language');
+  usePatientStep<{ languageCode: string }>("/patient/session/language");
 export const useSelectMode = () =>
-  usePatientStep<{ type: 'AUDIO' | 'VIDEO' | 'CALL_ME' }>('/patient/session/mode');
+  usePatientStep<{ type: "AUDIO" | "VIDEO" | "CALL_ME" }>("/patient/session/mode");

@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
 /**
  * End-to-end tests (spec §80).
@@ -16,11 +16,11 @@ import { defineConfig, devices } from '@playwright/test';
  * `neem_test`, so the two layers complement rather than duplicate each other.
  */
 
-const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:8080';
+const WEB_URL = process.env.E2E_WEB_URL ?? "http://localhost:8080";
 
 export default defineConfig({
-  testDir: './e2e',
-  outputDir: './test-results',
+  testDir: "./e2e",
+  outputDir: "./test-results",
 
   // Fixtures are unique per run, but several specs sign in as the single
   // seeded admin, so files run one at a time to avoid fighting over it.
@@ -33,14 +33,14 @@ export default defineConfig({
   expect: { timeout: 15_000 },
 
   reporter: process.env.CI
-    ? [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
-    : [['list']],
+    ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    : [["list"]],
 
   use: {
     baseURL: WEB_URL,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
     // The patient portal is phone-first (spec §69); the staff portals are
     // desktop-first. Specs that need a phone viewport set it themselves.
     viewport: { width: 1280, height: 900 },
@@ -48,9 +48,9 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium',
+      name: "chromium",
       use: {
-        ...devices['Desktop Chrome'],
+        ...devices["Desktop Chrome"],
         /**
          * The consultation screens use the real `getUserMedia`, so the browser
          * needs a camera and a granted permission. Chromium's fake device
@@ -60,12 +60,9 @@ export default defineConfig({
          * A build agent has no webcam; this is what makes the media path
          * genuinely exercised rather than skipped.
          */
-        permissions: ['camera', 'microphone'],
+        permissions: ["camera", "microphone"],
         launchOptions: {
-          args: [
-            '--use-fake-device-for-media-stream',
-            '--use-fake-ui-for-media-stream',
-          ],
+          args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
         },
       },
     },
@@ -77,11 +74,11 @@ export default defineConfig({
    * config, so the URL is not configurable here without changing that.
    */
   webServer: {
-    command: 'npm run dev',
+    command: "npm run dev",
     url: WEB_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
+    stdout: "ignore",
+    stderr: "pipe",
   },
 });

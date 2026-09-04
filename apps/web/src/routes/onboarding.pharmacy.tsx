@@ -118,7 +118,13 @@ function PharmacyApplication() {
         <ErrorNotice error={register.error} />
 
         <Section title="The pharmacy">
-          <Field label="Pharmacy name" value={form.name} onChange={set("name")} error={fieldErrors.name} required />
+          <Field
+            label="Pharmacy name"
+            value={form.name}
+            onChange={set("name")}
+            error={fieldErrors.name}
+            required
+          />
           <Field
             label="Pharmacy Council registration number"
             value={form.councilRegistrationNo}
@@ -126,7 +132,13 @@ function PharmacyApplication() {
             error={fieldErrors.councilRegistrationNo}
             required
           />
-          <Field label="Owner’s name" value={form.ownerName} onChange={set("ownerName")} error={fieldErrors.ownerName} required />
+          <Field
+            label="Owner’s name"
+            value={form.ownerName}
+            onChange={set("ownerName")}
+            error={fieldErrors.ownerName}
+            required
+          />
           <Field
             label="Responsible pharmacist"
             value={form.responsiblePharmacistName}
@@ -144,9 +156,27 @@ function PharmacyApplication() {
         </Section>
 
         <Section title="Where you are">
-          <Field label="Street address" value={form.addressLine1} onChange={set("addressLine1")} error={fieldErrors.addressLine1} required />
-          <Field label="City or town" value={form.city} onChange={set("city")} error={fieldErrors.city} required />
-          <Field label="Region" value={form.region} onChange={set("region")} error={fieldErrors.region} required />
+          <Field
+            label="Street address"
+            value={form.addressLine1}
+            onChange={set("addressLine1")}
+            error={fieldErrors.addressLine1}
+            required
+          />
+          <Field
+            label="City or town"
+            value={form.city}
+            onChange={set("city")}
+            error={fieldErrors.city}
+            required
+          />
+          <Field
+            label="Region"
+            value={form.region}
+            onChange={set("region")}
+            error={fieldErrors.region}
+            required
+          />
           <Field
             label="Phone"
             value={form.phone}
@@ -158,7 +188,14 @@ function PharmacyApplication() {
         </Section>
 
         <Section title="Your Neem account">
-          <Field label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErrors.email} required />
+          <Field
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={set("email")}
+            error={fieldErrors.email}
+            required
+          />
           <Field
             label="Password"
             type="password"
@@ -325,7 +362,10 @@ function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
 
   return (
-    <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3">
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3"
+    >
       <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
       <p className="text-sm text-red-700">
         {error instanceof ApiError ? error.message : "Something went wrong. Please try again."}

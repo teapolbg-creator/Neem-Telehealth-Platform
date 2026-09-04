@@ -159,7 +159,10 @@ export function generateConsultationReference(): string {
  * so that an older `cons_...` id still resolves.
  */
 export function normaliseConsultationReference(input: string): string {
-  const cleaned = input.trim().toUpperCase().replace(/[^0-9A-Z]/g, '');
+  const cleaned = input
+    .trim()
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '');
 
   const withoutPrefix = cleaned.startsWith('NEEM') ? cleaned.slice(4) : cleaned;
   if (withoutPrefix.length !== REFERENCE_CHARACTERS) return input.trim();

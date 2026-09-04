@@ -195,7 +195,12 @@ export async function changePharmacyStatus(
 
     if (next === 'SUSPENDED' || next === 'REJECTED') {
       for (const membership of pharmacy.users) {
-        await revokeAllSessionsForUser(membership.userId, `pharmacy_${next.toLowerCase()}`, tx, clock);
+        await revokeAllSessionsForUser(
+          membership.userId,
+          `pharmacy_${next.toLowerCase()}`,
+          tx,
+          clock,
+        );
       }
     }
   });

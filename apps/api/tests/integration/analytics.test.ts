@@ -49,7 +49,10 @@ async function adminCookies() {
 /** A completed consultation with money allocated against it. */
 async function completedConsultation(options: { outcome?: string; destroyed?: boolean } = {}) {
   const prisma = getPrisma();
-  const pharmacy = await createTestPharmacy(`Analytics ${generatePublicId('x').slice(-6)}`, 'ACTIVE');
+  const pharmacy = await createTestPharmacy(
+    `Analytics ${generatePublicId('x').slice(-6)}`,
+    'ACTIVE',
+  );
 
   const consultation = await prisma.consultation.create({
     data: {

@@ -49,9 +49,9 @@ function AdminArchive() {
         <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
         <h1 className="text-3xl font-bold tracking-tight">Archived records</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
-          Clinical records are sealed when a consultation completes and cannot be opened through
-          any ordinary part of Neem. They can be retrieved here for a named purpose, and every
-          retrieval is recorded permanently.
+          Clinical records are sealed when a consultation completes and cannot be opened through any
+          ordinary part of Neem. They can be retrieved here for a named purpose, and every retrieval
+          is recorded permanently.
         </p>
       </header>
 
@@ -77,9 +77,7 @@ function AdminArchive() {
       )}
 
       {health.data && health.data.overdueDestructions === 0 && (
-        <p className="text-sm text-slate-500">
-          No record is past its destruction date.
-        </p>
+        <p className="text-sm text-slate-500">No record is past its destruction date.</p>
       )}
 
       <RetrievalForm retrieve={retrieve} />
@@ -106,18 +104,16 @@ function AdminArchive() {
         )}
 
         <ul className="mt-4 divide-y divide-border">
-          {retrievals.data?.map((entry) => <LogRow key={entry.id} entry={entry} />)}
+          {retrievals.data?.map((entry) => (
+            <LogRow key={entry.id} entry={entry} />
+          ))}
         </ul>
       </section>
     </AppShell>
   );
 }
 
-function RetrievalForm({
-  retrieve,
-}: {
-  retrieve: ReturnType<typeof useRetrieveArchived>;
-}) {
+function RetrievalForm({ retrieve }: { retrieve: ReturnType<typeof useRetrieveArchived> }) {
   const [consultationPublicId, setConsultationPublicId] = useState("");
   const [purpose, setPurpose] = useState<RetrievalPurpose>("LEGAL_OR_REGULATORY_PROCEEDING");
   const [reference, setReference] = useState("");

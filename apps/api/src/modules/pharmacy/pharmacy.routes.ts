@@ -175,7 +175,9 @@ function buildOutstanding(status: string, verifiedDocumentCount: number): string
     );
   }
   if (status === 'PENDING' || status === 'UNDER_REVIEW') {
-    outstanding.push('Wait for Neem to complete verification. No pharmacy is activated automatically.');
+    outstanding.push(
+      'Wait for Neem to complete verification. No pharmacy is activated automatically.',
+    );
   }
   if (status === 'SUSPENDED' || status === 'REJECTED') {
     outstanding.push('Contact Neem administration about the status of this account.');

@@ -120,9 +120,7 @@ function ResetPassword() {
                     className="mt-1.5 w-full rounded-xl border border-border px-3 py-2.5 text-sm"
                   />
                   {mismatch && (
-                    <span className="mt-1 block text-xs text-red-600">
-                      These do not match.
-                    </span>
+                    <span className="mt-1 block text-xs text-red-600">These do not match.</span>
                   )}
                 </label>
 

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 
 /**
  * Doctor queue and presence.
@@ -19,13 +19,13 @@ export interface PresenceView {
   blockedBy: string | null;
 }
 
-export const presenceKey = ['doctor', 'presence'] as const;
-export const queueKey = ['doctor', 'queue'] as const;
+export const presenceKey = ["doctor", "presence"] as const;
+export const queueKey = ["doctor", "queue"] as const;
 
 export function usePresence() {
   return useQuery({
     queryKey: presenceKey,
-    queryFn: ({ signal }) => api.get<PresenceView>('/doctor/presence', signal),
+    queryFn: ({ signal }) => api.get<PresenceView>("/doctor/presence", signal),
     refetchInterval: 20_000,
   });
 }
@@ -34,7 +34,7 @@ export function useGoOnline() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post('/doctor/presence/online'),
+    mutationFn: () => api.post("/doctor/presence/online"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 }
@@ -43,7 +43,7 @@ export function useGoOffline() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post('/doctor/presence/offline'),
+    mutationFn: () => api.post("/doctor/presence/offline"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 }
@@ -60,7 +60,7 @@ export function useHeartbeat(enabled: boolean, intervalMs = 30_000): void {
     if (!enabled) return;
 
     const send = () => {
-      void api.post('/doctor/presence/heartbeat').catch(() => undefined);
+      void api.post("/doctor/presence/heartbeat").catch(() => undefined);
     };
 
     send();
@@ -83,7 +83,7 @@ export function useQueue(enabled: boolean) {
   return useQuery({
     queryKey: queueKey,
     queryFn: ({ signal }) =>
-      api.get<{ offer: QueueOffer | null; windowSeconds: number }>('/doctor/queue', signal),
+      api.get<{ offer: QueueOffer | null; windowSeconds: number }>("/doctor/queue", signal),
     enabled,
     // Polled while online. Replaced by the socket subscription where one is
     // connected; polling remains the fallback.
@@ -153,8 +153,8 @@ export interface AdminQueueEntry {
 
 export function useAdminQueue() {
   return useQuery({
-    queryKey: ['admin', 'queue'],
-    queryFn: ({ signal }) => api.get<AdminQueueEntry[]>('/admin/queue', signal),
+    queryKey: ["admin", "queue"],
+    queryFn: ({ signal }) => api.get<AdminQueueEntry[]>("/admin/queue", signal),
     refetchInterval: 5000,
   });
 }
@@ -167,7 +167,7 @@ export function useReallocate() {
       api.post<{ offered: boolean; languageStarved: boolean; message: string }>(
         `/admin/queue/${publicId}/reallocate`,
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'queue'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "queue"] }),
   });
 }
 
@@ -185,7 +185,7 @@ export function useReallocate() {
 export interface DoctorConsultation {
   publicId: string;
   state: string;
-  type: 'AUDIO' | 'VIDEO' | 'CALL_ME' | null;
+  type: "AUDIO" | "VIDEO" | "CALL_ME" | null;
   language: { code: string; label: string } | null;
   pharmacy: { name: string; city: string };
   patient: { fullName: string; age: number; sex: string } | null;
@@ -203,12 +203,13 @@ export interface DoctorConsultation {
 }
 
 export const doctorConsultationKey = (publicId: string) =>
-  ['doctor', 'consultation', publicId] as const;
+  ["doctor", "consultation", publicId] as const;
 
 export function useDoctorConsultation(publicId: string) {
   return useQuery({
     queryKey: doctorConsultationKey(publicId),
-    queryFn: ({ signal }) => api.get<DoctorConsultation>(`/doctor/consultations/${publicId}`, signal),
+    queryFn: ({ signal }) =>
+      api.get<DoctorConsultation>(`/doctor/consultations/${publicId}`, signal),
     retry: false,
   });
 }

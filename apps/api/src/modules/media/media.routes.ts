@@ -9,12 +9,7 @@ import {
   resolvePatientSession,
   type PatientPrincipal,
 } from '../consultation/access-token.service.ts';
-import {
-  getTimer,
-  joinMediaSession,
-  leaveMediaSession,
-  placeCallMe,
-} from './media.service.ts';
+import { getTimer, joinMediaSession, leaveMediaSession, placeCallMe } from './media.service.ts';
 
 /**
  * Media routes (spec §32, §33).

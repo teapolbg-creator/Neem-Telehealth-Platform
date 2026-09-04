@@ -203,7 +203,11 @@ describe('shift cancellation', () => {
     );
 
     const { cancelShift } = await import('../../src/modules/scheduling/scheduling.service.ts');
-    await cancelShift(assignment.id, { actorType: 'ADMIN', actorId: ADMIN_ID, reason: 'Rota change' });
+    await cancelShift(assignment.id, {
+      actorType: 'ADMIN',
+      actorId: ADMIN_ID,
+      reason: 'Rota change',
+    });
 
     const hours = await getPrisma().doctorServiceHours.findFirstOrThrow();
     expect(hours.minutesScheduled).toBe(0);

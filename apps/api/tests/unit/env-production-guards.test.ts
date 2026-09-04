@@ -15,9 +15,7 @@ import { loadEnv } from '../../src/config/env.ts';
 /** A configuration that is valid in production, as a baseline to spoil. */
 // `undefined` is meaningful in an override: it removes a variable the baseline
 // sets, which is how the "required when ..." guards are exercised.
-function productionEnv(
-  overrides: Record<string, string | undefined> = {},
-): NodeJS.ProcessEnv {
+function productionEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
     DATABASE_URL: 'mysql://neem:secret@db:3306/neem',
@@ -78,9 +76,7 @@ describe('rate limits raised for development', () => {
   }
 
   it('names the file to look at, so the fix is obvious from the message', () => {
-    expect(() => loadEnv(productionEnv({ RATE_LIMIT_AUTH_MAX: '500' }))).toThrow(
-      /\.env\.example/,
-    );
+    expect(() => loadEnv(productionEnv({ RATE_LIMIT_AUTH_MAX: '500' }))).toThrow(/\.env\.example/);
   });
 
   it('accepts the values shipped in .env.example', () => {

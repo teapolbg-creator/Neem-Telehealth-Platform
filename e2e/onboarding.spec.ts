@@ -210,9 +210,7 @@ test.describe('admin verification', () => {
 
     // Search rather than scan the first page: the directory accumulates
     // applicants across runs and the list is paginated.
-    const list = await request.get(
-      `${API}/admin/doctors?search=MDC-E2E-V-${run}`,
-    );
+    const list = await request.get(`${API}/admin/doctors?search=MDC-E2E-V-${run}`);
     const applicant = (await list.json()).data.find(
       (entry: { mdcNumber: string }) => entry.mdcNumber === `MDC-E2E-V-${run}`,
     );
@@ -228,10 +226,10 @@ test.describe('admin verification', () => {
     // Verify each document, then walk the legitimate path.
     const detail = await (await request.get(`${API}/doctors/${applicant.publicId}`)).json();
     for (const document of detail.data.documents) {
-      const verified = await request.post(
-        `${API}/admin/doctors/documents/${document.id}/verify`,
-        { headers: csrfHeaders(adminCsrf), data: { verified: true } },
-      );
+      const verified = await request.post(`${API}/admin/doctors/documents/${document.id}/verify`, {
+        headers: csrfHeaders(adminCsrf),
+        data: { verified: true },
+      });
       expect(verified.ok()).toBeTruthy();
     }
 

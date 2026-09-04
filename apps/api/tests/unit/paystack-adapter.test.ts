@@ -153,6 +153,8 @@ describe('status mapping', () => {
   it('does not report a paidAt for anything but a success', () => {
     const { raw, signature } = signed({ ...CHARGE, data: { ...CHARGE.data, status: 'failed' } });
 
-    expect(provider.parseWebhook(raw, { 'x-paystack-signature': signature }).paidAt).toBeUndefined();
+    expect(
+      provider.parseWebhook(raw, { 'x-paystack-signature': signature }).paidAt,
+    ).toBeUndefined();
   });
 });

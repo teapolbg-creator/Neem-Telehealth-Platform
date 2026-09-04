@@ -104,9 +104,7 @@ async function main(): Promise<void> {
     }
 
     if (busy.length > 0) {
-      console.log(
-        `leaving ${busy.length} alone — touched within the last ${IDLE_MINUTES} minutes`,
-      );
+      console.log(`leaving ${busy.length} alone — touched within the last ${IDLE_MINUTES} minutes`);
     }
 
     if (stranded.length === 0) {

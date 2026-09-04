@@ -105,7 +105,10 @@ async function createEligibleDoctor(options: {
 /** Drives a consultation to WAITING_FOR_DOCTOR in the given language. */
 async function queuedConsultation(languageCode: string): Promise<{ id: string; publicId: string }> {
   const prisma = getPrisma();
-  const pharmacy = await createTestPharmacy(`Pharmacy ${generatePublicId('x').slice(-6)}`, 'ACTIVE');
+  const pharmacy = await createTestPharmacy(
+    `Pharmacy ${generatePublicId('x').slice(-6)}`,
+    'ACTIVE',
+  );
   const user = await createTestUser({
     email: `${generatePublicId('x').slice(-8)}@pharmacy.test`,
     password: PHARMACY.password,
@@ -174,7 +177,10 @@ afterAll(async () => {
 
 describe('offering a consultation', () => {
   it('offers it to an eligible doctor and records the score breakdown', async () => {
-    const doctor = await createEligibleDoctor({ name: 'Dr. Available', languageCodes: ['en', 'tw'] });
+    const doctor = await createEligibleDoctor({
+      name: 'Dr. Available',
+      languageCodes: ['en', 'tw'],
+    });
     const consultation = await queuedConsultation('tw');
 
     const result = await offerNextDoctor(consultation.id);
@@ -380,7 +386,10 @@ describe('scenario 4 — missed response window', () => {
     const consultation = await queuedConsultation('en');
     await offerNextDoctor(consultation.id);
 
-    const swept = await enforceResponseWindow(getPrisma(), fixedClock(new Date(Date.now() + 91_000)));
+    const swept = await enforceResponseWindow(
+      getPrisma(),
+      fixedClock(new Date(Date.now() + 91_000)),
+    );
 
     expect(swept.missed).toBe(1);
     expect(swept.reoffered).toBe(0);
@@ -398,7 +407,10 @@ describe('scenario 4 — missed response window', () => {
     await offerNextDoctor(consultation.id);
 
     // 30 seconds in — well inside 90.
-    const swept = await enforceResponseWindow(getPrisma(), fixedClock(new Date(Date.now() + 30_000)));
+    const swept = await enforceResponseWindow(
+      getPrisma(),
+      fixedClock(new Date(Date.now() + 30_000)),
+    );
 
     expect(swept.missed).toBe(0);
   });

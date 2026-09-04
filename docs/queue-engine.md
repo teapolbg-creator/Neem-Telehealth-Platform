@@ -26,14 +26,14 @@ Language is a filter, never a weight. A doctor who does not speak the selected l
 
 Eligible doctors are ranked by a weighted sum of six normalised sub-scores, each in `[0,1]`, with weights read from `system_settings` and configurable by Admin (spec §28).
 
-| Factor | Direction | Default weight | Computed from |
-| --- | --- | --- | --- |
-| Language proficiency | higher better | 0.30 | Primary vs secondary language for that doctor |
-| Availability headroom | higher better | 0.20 | `1 − (currentLoad / maxLoad)` |
-| Workload balance | lower load better | 0.20 | Consultations served this shift vs the shift median |
-| Response time | faster better | 0.15 | Rolling median offer→accept latency |
-| Recent consultation count | fewer better | 0.10 | Completed in the trailing 24h, for fair distribution |
-| Quality score | higher better | 0.05 | `doctor_quality_scores.score` |
+| Factor                    | Direction         | Default weight | Computed from                                        |
+| ------------------------- | ----------------- | -------------- | ---------------------------------------------------- |
+| Language proficiency      | higher better     | 0.30           | Primary vs secondary language for that doctor        |
+| Availability headroom     | higher better     | 0.20           | `1 − (currentLoad / maxLoad)`                        |
+| Workload balance          | lower load better | 0.20           | Consultations served this shift vs the shift median  |
+| Response time             | faster better     | 0.15           | Rolling median offer→accept latency                  |
+| Recent consultation count | fewer better      | 0.10           | Completed in the trailing 24h, for fair distribution |
+| Quality score             | higher better     | 0.05           | `doctor_quality_scores.score`                        |
 
 ```
 total = Σ (weightᵢ × subScoreᵢ)      weights sum to 1.0
@@ -71,11 +71,11 @@ There is no decline endpoint (spec §30).
 
 ## 4. Escalation
 
-| Attempts | Action |
-| --- | --- |
-| 1–2 | Silent reassignment |
-| 3 | Admin alert: repeated non-response on one consultation |
-| Any, no eligible doctor | Admin alert `NO_LANGUAGE_MATCH` with language, wait time, pharmacy |
+| Attempts                            | Action                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1–2                                 | Silent reassignment                                                                         |
+| 3                                   | Admin alert: repeated non-response on one consultation                                      |
+| Any, no eligible doctor             | Admin alert `NO_LANGUAGE_MATCH` with language, wait time, pharmacy                          |
 | Wait exceeds a configured threshold | Admin alert `QUEUE_DELAY`; the patient is offered the option to cancel and request a refund |
 
 Admin can intervene: manually assign an eligible doctor, activate an off-shift doctor, or approve a refund. Manual assignment is audited and still cannot bypass the language requirement.
@@ -88,15 +88,15 @@ The patient sees waiting status and elapsed time only — never queue position m
 
 Computed hourly from `doctor_performance_events` over a rolling window. Inputs and default weights, all admin-configurable:
 
-| Input | Weight | Effect |
-| --- | --- | --- |
-| Mean patient rating | 0.30 | ↑ |
-| Complaint rate | 0.20 | ↓ |
-| Median response time | 0.15 | ↑ when faster |
-| Missed-response rate | 0.15 | ↓ |
-| Completion rate | 0.10 | ↑ |
-| Clinical/admin audit outcomes | 0.05 | ↑/↓ |
-| Prescription issues (revocations, rejected substitutions) | 0.05 | ↓ |
+| Input                                                     | Weight | Effect        |
+| --------------------------------------------------------- | ------ | ------------- |
+| Mean patient rating                                       | 0.30   | ↑             |
+| Complaint rate                                            | 0.20   | ↓             |
+| Median response time                                      | 0.15   | ↑ when faster |
+| Missed-response rate                                      | 0.15   | ↓             |
+| Completion rate                                           | 0.10   | ↑             |
+| Clinical/admin audit outcomes                             | 0.05   | ↑/↓           |
+| Prescription issues (revocations, rejected substitutions) | 0.05   | ↓             |
 
 New doctors start at the cohort median rather than zero, so the engine does not starve them of work before they have a record.
 

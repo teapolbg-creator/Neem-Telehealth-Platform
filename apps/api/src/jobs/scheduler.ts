@@ -3,10 +3,7 @@ import { getEnv } from '../config/env.ts';
 import { expirePendingPayments } from '../modules/payment/payment.service.ts';
 import { expireStaleTokens } from '../modules/consultation/access-token.service.ts';
 import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
-import {
-  enforceResponseWindow,
-  processWaitingQueue,
-} from '../modules/queue/allocation.service.ts';
+import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 import { runSubscriptionExpirySweep } from '../modules/subscription/subscription.service.ts';

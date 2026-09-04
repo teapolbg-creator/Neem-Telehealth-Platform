@@ -144,9 +144,7 @@ describe('rendering', () => {
 
   it('renders every catalogue template when given its declared variables', () => {
     for (const template of NOTIFICATION_TEMPLATES) {
-      const variables = Object.fromEntries(
-        template.variables.map((name) => [name, `<${name}>`]),
-      );
+      const variables = Object.fromEntries(template.variables.map((name) => [name, `<${name}>`]));
 
       // Proves the two halves agree: nothing in a body needs a variable the
       // template does not declare.

@@ -105,7 +105,11 @@ describe('creating a consultation', () => {
 
     const events = await getPrisma().consultationStateEvent.findMany();
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ fromState: null, toState: 'PENDING_PAYMENT', accepted: true });
+    expect(events[0]).toMatchObject({
+      fromState: null,
+      toState: 'PENDING_PAYMENT',
+      accepted: true,
+    });
   });
 });
 

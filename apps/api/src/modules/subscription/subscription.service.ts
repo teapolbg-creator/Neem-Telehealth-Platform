@@ -109,7 +109,8 @@ export async function runSubscriptionExpirySweep(
 
   for (const subscription of lapsed) {
     const graceEndsAt =
-      subscription.graceEndsAt ?? new Date(subscription.periodEnd.getTime() + graceDays * 86_400_000);
+      subscription.graceEndsAt ??
+      new Date(subscription.periodEnd.getTime() + graceDays * 86_400_000);
 
     if (now < graceEndsAt) {
       if (subscription.status !== 'GRACE') {
@@ -169,7 +170,15 @@ export async function runSubscriptionExpirySweep(
 export async function findExpiringLicences(
   db: Db = getPrisma(),
   clock: Clock = systemClock,
-): Promise<Array<{ publicId: string; fullName: string; mdcNumber: string; mdcExpiresAt: Date; daysRemaining: number }>> {
+): Promise<
+  Array<{
+    publicId: string;
+    fullName: string;
+    mdcNumber: string;
+    mdcExpiresAt: Date;
+    daysRemaining: number;
+  }>
+> {
   const warningDays = await getIntSetting(SETTING_KEYS.DOCTOR_LICENCE_WARNING_DAYS, db);
   const now = clock.now();
   const threshold = new Date(now.getTime() + warningDays * 86_400_000);

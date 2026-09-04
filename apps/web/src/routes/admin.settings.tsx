@@ -213,9 +213,7 @@ function SettingRow({ setting }: { setting: Setting }) {
             </button>
           </div>
 
-          {invalid && (
-            <p className="mt-2 text-xs text-red-600">That is not a number.</p>
-          )}
+          {invalid && <p className="mt-2 text-xs text-red-600">That is not a number.</p>}
         </div>
       )}
 

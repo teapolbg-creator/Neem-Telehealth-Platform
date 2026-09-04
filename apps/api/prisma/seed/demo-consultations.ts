@@ -5,16 +5,26 @@ import {
   getPaymentProvider,
   setPaymentProviderForTesting,
 } from '../../src/adapters/payment/index.ts';
-import { createConsultation, transition } from '../../src/modules/consultation/consultation.service.ts';
+import {
+  createConsultation,
+  transition,
+} from '../../src/modules/consultation/consultation.service.ts';
 import { initiatePayment, verifyAndSettle } from '../../src/modules/payment/payment.service.ts';
-import { issueAccessToken, exchangeAccessToken } from '../../src/modules/consultation/access-token.service.ts';
+import {
+  issueAccessToken,
+  exchangeAccessToken,
+} from '../../src/modules/consultation/access-token.service.ts';
 import {
   captureIdentity,
   selectLanguage,
   selectModeAndEnterQueue,
   submitFeedback,
 } from '../../src/modules/consultation/patient-session.service.ts';
-import { recordVitals, recordTest, saveClinicalNotes } from '../../src/modules/retention/clinical-record.service.ts';
+import {
+  recordVitals,
+  recordTest,
+  saveClinicalNotes,
+} from '../../src/modules/retention/clinical-record.service.ts';
 import { completeConsultation } from '../../src/modules/clinical/clinical.service.ts';
 import {
   createDraft,
@@ -163,11 +173,17 @@ async function walkConsultation(
   );
 
   if (options.stopAt === 'CANCELLED') {
-    await transition(consultation.id, 'CANCELLED', {
-      actorType: 'PHARMACY',
-      actorId: cast.pharmacyUserId,
-      reason: 'The patient could not wait.',
-    }, prisma, clock);
+    await transition(
+      consultation.id,
+      'CANCELLED',
+      {
+        actorType: 'PHARMACY',
+        actorId: cast.pharmacyUserId,
+        reason: 'The patient could not wait.',
+      },
+      prisma,
+      clock,
+    );
     return { consultationId: consultation.id, publicId: consultation.publicId };
   }
 
@@ -215,7 +231,13 @@ async function walkConsultation(
     data: { doctorId: options.doctorId },
   });
   for (const state of ['ASSIGNED', 'DOCTOR_ACCEPTED', 'IN_PROGRESS'] as const) {
-    await transition(consultation.id, state, { actorType: 'SYSTEM', reason: 'demo seed' }, prisma, clock);
+    await transition(
+      consultation.id,
+      state,
+      { actorType: 'SYSTEM', reason: 'demo seed' },
+      prisma,
+      clock,
+    );
   }
 
   if (options.withVitals) {
@@ -259,7 +281,8 @@ async function walkConsultation(
         presentingComplaint: 'Sore throat and mild fever for three days.',
         assessment: 'Viral upper respiratory infection. No red flags on history.',
         advice: 'Rest, fluids, and paracetamol for discomfort. No antibiotic is needed.',
-        safetyNetting: 'Return to the pharmacy or seek care if breathing becomes difficult, if the fever passes three days, or if you cannot swallow fluids.',
+        safetyNetting:
+          'Return to the pharmacy or seek care if breathing becomes difficult, if the fever passes three days, or if you cannot swallow fluids.',
       },
       prisma,
       clock,
@@ -268,7 +291,13 @@ async function walkConsultation(
 
   let prescriptionId: string | undefined;
   if (options.prescription) {
-    const draft = await createDraft(consultation.id, options.doctorId, [options.prescription], prisma, clock);
+    const draft = await createDraft(
+      consultation.id,
+      options.doctorId,
+      [options.prescription],
+      prisma,
+      clock,
+    );
     const issuedRx = await issuePrescription(draft.id, options.doctorId, prisma, clock);
     prescriptionId = issuedRx.id;
   }
@@ -453,7 +482,8 @@ export async function seedDemoConsultations(
                 doctorRating: index % 5 === 0 ? 4 : 5,
                 neemRating: 5,
                 category: index % 4 === 1 ? 'SUGGESTION' : 'COMPLIMENT',
-                comment: index % 4 === 1 ? 'It would help to know how long the wait will be.' : undefined,
+                comment:
+                  index % 4 === 1 ? 'It would help to know how long the wait will be.' : undefined,
               },
           prisma,
         );
@@ -466,7 +496,12 @@ export async function seedDemoConsultations(
       if (!entry.prescriptionId) continue;
 
       if (index < 4) {
-        await dispensePrescription(entry.prescriptionId, cast.pharmacyId, cast.pharmacyUserId, prisma);
+        await dispensePrescription(
+          entry.prescriptionId,
+          cast.pharmacyId,
+          cast.pharmacyUserId,
+          prisma,
+        );
         summary.dispensed += 1;
       } else if (index === 4) {
         // One awaiting a doctor's decision, so the substitution inbox is not

@@ -46,20 +46,20 @@ mark dispensed                                     patient leaves feedback
 
 ## 2. States
 
-| State | Meaning |
-| --- | --- |
-| `PENDING_PAYMENT` | Consultation created; payment window open (default 300s) |
-| `PAYMENT_PROCESSING` | Payment initiated with the provider; awaiting confirmation |
-| `PAID` | Payment verified **server-side**. Never entered on a client claim |
-| `ACTIVATED` | Paid and ready; the pharmacy may now issue the QR. The token is minted when the QR is requested, because only a hash is stored and the code can be rendered exactly once |
-| `WAITING_FOR_PATIENT` | Token issued, not yet consumed |
-| `PATIENT_JOINED` | Token consumed, identity captured, language and mode chosen |
-| `WAITING_FOR_DOCTOR` | In the allocation queue |
-| `ASSIGNED` | Offered to a specific doctor; 90s window running |
-| `DOCTOR_ACCEPTED` | Doctor accepted; media session being established |
-| `IN_PROGRESS` | Clinical interaction underway; timer running |
-| `COMPLETING` | Doctor submitted the outcome; the completion transaction is running |
-| `COMPLETED` | Terminal. Permanent records written, clinical record sealed and its destruction scheduled (D23) |
+| State                 | Meaning                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PENDING_PAYMENT`     | Consultation created; payment window open (default 300s)                                                                                                                 |
+| `PAYMENT_PROCESSING`  | Payment initiated with the provider; awaiting confirmation                                                                                                               |
+| `PAID`                | Payment verified **server-side**. Never entered on a client claim                                                                                                        |
+| `ACTIVATED`           | Paid and ready; the pharmacy may now issue the QR. The token is minted when the QR is requested, because only a hash is stored and the code can be rendered exactly once |
+| `WAITING_FOR_PATIENT` | Token issued, not yet consumed                                                                                                                                           |
+| `PATIENT_JOINED`      | Token consumed, identity captured, language and mode chosen                                                                                                              |
+| `WAITING_FOR_DOCTOR`  | In the allocation queue                                                                                                                                                  |
+| `ASSIGNED`            | Offered to a specific doctor; 90s window running                                                                                                                         |
+| `DOCTOR_ACCEPTED`     | Doctor accepted; media session being established                                                                                                                         |
+| `IN_PROGRESS`         | Clinical interaction underway; timer running                                                                                                                             |
+| `COMPLETING`          | Doctor submitted the outcome; the completion transaction is running                                                                                                      |
+| `COMPLETED`           | Terminal. Permanent records written, clinical record sealed and its destruction scheduled (D23)                                                                          |
 
 Alternate and terminal states: `PAYMENT_FAILED`, `EXPIRED`, `CANCELLED`, `REASSIGNING`, `ABANDONED`, `REFUND_REQUESTED`, `REFUNDED`.
 
@@ -112,17 +112,17 @@ Transitions are executed by a single guarded function. The service layer never a
 
 ## 5. Failure handling
 
-| Failure | Behaviour |
-| --- | --- |
-| Payment fails | Patient retries within the 5-minute window; after that `EXPIRED` and the payment session is cleaned up |
-| Webhook arrives late | Processed if the consultation is still valid; otherwise flagged for admin reconciliation. Never creates a second consultation |
-| Duplicate webhook | Rejected by the `providerEventId` unique constraint; acknowledged 200 without re-processing |
-| Patient never scans | Token expires; consultation `EXPIRED`; refund path available |
-| QR reused | Rejected. The token is consumed on first exchange; the patient's own device continues on its session cookie. A lost device requires a pharmacy-issued replacement token, which is audited |
-| Doctor misses 90s | `MISSED_RESPONSE` recorded, reassignment, patient keeps waiting with status updates |
-| No language match | Patient stays queued **and** an admin alert fires. No doctor without the language is ever assigned (spec §29) |
-| Twilio failure | Media session marked failed; patient offered the remaining modes; consultation state is untouched |
-| Patient disconnects | Session survives for a reconnect grace period; doctor sees "patient disconnected"; doctor decides whether to complete or wait |
-| Doctor disconnects | Consultation returns to `REASSIGNING` after a grace period; the patient is told a new doctor is being found |
-| Browser permission denied | Explicit guidance plus a fallback to audio or Call Me |
-| Prescription PDF fails | Prescription stays `ISSUED` and the PDF is regenerated on demand; the clinical record is never lost to a rendering failure |
+| Failure                   | Behaviour                                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment fails             | Patient retries within the 5-minute window; after that `EXPIRED` and the payment session is cleaned up                                                                                    |
+| Webhook arrives late      | Processed if the consultation is still valid; otherwise flagged for admin reconciliation. Never creates a second consultation                                                             |
+| Duplicate webhook         | Rejected by the `providerEventId` unique constraint; acknowledged 200 without re-processing                                                                                               |
+| Patient never scans       | Token expires; consultation `EXPIRED`; refund path available                                                                                                                              |
+| QR reused                 | Rejected. The token is consumed on first exchange; the patient's own device continues on its session cookie. A lost device requires a pharmacy-issued replacement token, which is audited |
+| Doctor misses 90s         | `MISSED_RESPONSE` recorded, reassignment, patient keeps waiting with status updates                                                                                                       |
+| No language match         | Patient stays queued **and** an admin alert fires. No doctor without the language is ever assigned (spec §29)                                                                             |
+| Twilio failure            | Media session marked failed; patient offered the remaining modes; consultation state is untouched                                                                                         |
+| Patient disconnects       | Session survives for a reconnect grace period; doctor sees "patient disconnected"; doctor decides whether to complete or wait                                                             |
+| Doctor disconnects        | Consultation returns to `REASSIGNING` after a grace period; the patient is told a new doctor is being found                                                                               |
+| Browser permission denied | Explicit guidance plus a fallback to audio or Call Me                                                                                                                                     |
+| Prescription PDF fails    | Prescription stays `ISSUED` and the PDF is regenerated on demand; the clinical record is never lost to a rendering failure                                                                |

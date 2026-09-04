@@ -202,7 +202,10 @@ describe('encryption key rotation', () => {
     useKeys('key-one-value-000000000000000000000000001');
     const first = encryptField('oldest');
 
-    useKeys('key-two-value-000000000000000000000000001', 'key-one-value-000000000000000000000000001');
+    useKeys(
+      'key-two-value-000000000000000000000000001',
+      'key-one-value-000000000000000000000000001',
+    );
     const second = encryptField('middle');
 
     useKeys(
@@ -247,16 +250,16 @@ describe('encryption key rotation', () => {
  */
 describe('the consultation reference', () => {
   it('reads as NEEM- followed by three groups of four', () => {
-    expect(generateConsultationReference()).toMatch(
-      /^NEEM-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/,
-    );
+    expect(generateConsultationReference()).toMatch(/^NEEM-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
   });
 
   it('omits the characters people misread', () => {
     // Crockford's Base32 drops I, L, O and U precisely because they are read
     // as 1, 1, 0 and V. A reference containing them would defeat the point.
     for (let attempt = 0; attempt < 300; attempt += 1) {
-      const body = generateConsultationReference().replace(/^NEEM-/, '').replace(/-/g, '');
+      const body = generateConsultationReference()
+        .replace(/^NEEM-/, '')
+        .replace(/-/g, '');
       expect(body).not.toMatch(/[ILOU]/);
     }
   });
@@ -273,7 +276,9 @@ describe('the consultation reference', () => {
     // A modulo bug that clipped the alphabet would still look random.
     const characters = new Set<string>();
     for (let attempt = 0; attempt < 3_000; attempt += 1) {
-      for (const character of generateConsultationReference().replace(/[^0-9A-Z]/g, '').slice(4)) {
+      for (const character of generateConsultationReference()
+        .replace(/[^0-9A-Z]/g, '')
+        .slice(4)) {
         characters.add(character);
       }
     }

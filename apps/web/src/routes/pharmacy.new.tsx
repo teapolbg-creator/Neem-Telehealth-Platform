@@ -182,10 +182,7 @@ function CreateStep({ onCreated }: { onCreated: (created: CreatedConsultation) =
         type="button"
         disabled={create.isPending}
         onClick={() =>
-          create.mutate(
-            promotionCode ? { promotionCode } : {},
-            { onSuccess: onCreated },
-          )
+          create.mutate(promotionCode ? { promotionCode } : {}, { onSuccess: onCreated })
         }
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:brightness-110 disabled:opacity-50"
       >
@@ -251,7 +248,9 @@ function PaymentStep({
         <span className="text-sm font-semibold">
           {expired ? "Payment window closed" : "Time remaining to pay"}
         </span>
-        <span className={cn("font-mono text-lg font-bold", expired ? "text-red-600" : "text-brand")}>
+        <span
+          className={cn("font-mono text-lg font-bold", expired ? "text-red-600" : "text-brand")}
+        >
           {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
         </span>
       </div>
@@ -467,8 +466,8 @@ function QrStep({
         <div className="mx-auto max-w-md rounded-2xl border border-warning/30 bg-warning-soft p-4 text-left">
           <p className="text-sm font-bold text-warning">Replace this code?</p>
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            The code above will stop working immediately. Only do this if the patient cannot use it —
-            for example if they lost their phone.
+            The code above will stop working immediately. Only do this if the patient cannot use it
+            — for example if they lost their phone.
           </p>
           <div className="mt-3 flex gap-2">
             <button

@@ -76,10 +76,7 @@ export async function heartbeat(
   });
 }
 
-export async function goOffline(
-  doctorId: string,
-  db: Db = getPrisma(),
-): Promise<void> {
+export async function goOffline(doctorId: string, db: Db = getPrisma()): Promise<void> {
   await db.doctorPresence.updateMany({
     where: { doctorId },
     data: { onlineSince: null, lastHeartbeatAt: null },

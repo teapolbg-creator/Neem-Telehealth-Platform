@@ -110,11 +110,7 @@ function PharmacyDashboard() {
               ? formatMinor(finance.data.awaitingPayoutMinor, finance.data.currency)
               : "—"
           }
-          hint={
-            finance.data
-              ? `${finance.data.consultations30Days} consultations in 30 days`
-              : ""
-          }
+          hint={finance.data ? `${finance.data.consultations30Days} consultations in 30 days` : ""}
           to="/pharmacy/finance"
         />
       </div>
@@ -165,7 +161,9 @@ function PharmacyDashboard() {
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-border">
-            {live.data?.map((row) => <ConsultationRow key={row.publicId} row={row} />)}
+            {live.data?.map((row) => (
+              <ConsultationRow key={row.publicId} row={row} />
+            ))}
           </ul>
         )}
       </section>

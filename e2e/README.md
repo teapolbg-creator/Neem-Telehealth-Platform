@@ -23,10 +23,10 @@ only touches accounts flagged `isDemo`.
 The suite reuses an already-running `npm run dev`; otherwise Playwright starts
 the stack itself.
 
-| Command | |
-| --- | --- |
-| `npm run test:e2e` | Run everything |
-| `npm run test:e2e:ui` | Interactive runner |
+| Command                   |                           |
+| ------------------------- | ------------------------- |
+| `npm run test:e2e`        | Run everything            |
+| `npm run test:e2e:ui`     | Interactive runner        |
 | `npm run test:e2e:report` | Open the last HTML report |
 
 ## Isolation
@@ -62,8 +62,8 @@ The auth and onboarding limiters are deliberately strict — 10 sign-ins per 15
 minutes is right for production. A suite that signs in dozens of times in a
 minute would be throttled, so the local `.env` raises
 `RATE_LIMIT_AUTH_MAX` / `RATE_LIMIT_ONBOARDING_MAX`. `.env.example` keeps the
-production-appropriate defaults. This is the limit being *configured per
-environment*, not disabled: `tests/integration/rate-limit.test.ts` builds an
+production-appropriate defaults. This is the limit being _configured per
+environment_, not disabled: `tests/integration/rate-limit.test.ts` builds an
 app with a low limit and proves the limiter still engages.
 
 ## The 16 required scenarios

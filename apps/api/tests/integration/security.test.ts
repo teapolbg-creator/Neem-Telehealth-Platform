@@ -133,10 +133,11 @@ async function buildWorld(label: string): Promise<World> {
   // point a code can be issued — `acceptsPatientArrival` refuses once the
   // consultation is under way, which is correct and is why the fixture has
   // to follow the real order rather than a convenient one.
-  const qr = await request<{ url: string }>(
-    `/pharmacy/consultations/${consultationPublicId}/qr`,
-    { method: 'POST', cookies: pharmacyCookies, payload: {} },
-  );
+  const qr = await request<{ url: string }>(`/pharmacy/consultations/${consultationPublicId}/qr`, {
+    method: 'POST',
+    cookies: pharmacyCookies,
+    payload: {},
+  });
   if (qr.status !== 200) throw new Error(`QR issue failed: ${qr.status}`);
 
   const token = qr.body.data!.url.split('/s/')[1]!;
@@ -510,18 +511,16 @@ describe('§102 (1) cross-pharmacy access', () => {
     const alpha = await buildWorld('Alpha');
     const beta = await buildWorld('Beta');
 
-    const consultations = await request<Array<{ publicId: string }>>(
-      '/pharmacy/consultations',
-      { cookies: beta.pharmacyCookies },
-    );
+    const consultations = await request<Array<{ publicId: string }>>('/pharmacy/consultations', {
+      cookies: beta.pharmacyCookies,
+    });
     const ids = (consultations.body.data ?? []).map((row) => row.publicId);
     expect(ids).not.toContain(alpha.consultationPublicId);
     expect(ids).toContain(beta.consultationPublicId);
 
-    const prescriptions = await request<Array<{ publicId: string }>>(
-      '/pharmacy/prescriptions',
-      { cookies: beta.pharmacyCookies },
-    );
+    const prescriptions = await request<Array<{ publicId: string }>>('/pharmacy/prescriptions', {
+      cookies: beta.pharmacyCookies,
+    });
     const rxIds = (prescriptions.body.data ?? []).map((row) => row.publicId);
     expect(rxIds).not.toContain(alpha.prescriptionPublicId);
   });
@@ -605,10 +604,11 @@ describe('§102 (2) cross-doctor access', () => {
     const alpha = await buildWorld('Alpha');
     const beta = await buildWorld('Beta');
 
-    const response = await request(
-      `/doctor/prescriptions/${alpha.prescriptionPublicId}/revoke`,
-      { method: 'POST', cookies: beta.doctorCookies, payload: { reason: 'Wrong medication' } },
-    );
+    const response = await request(`/doctor/prescriptions/${alpha.prescriptionPublicId}/revoke`, {
+      method: 'POST',
+      cookies: beta.doctorCookies,
+      payload: { reason: 'Wrong medication' },
+    });
     expect([400, 403, 404]).toContain(response.status);
 
     const after = await getPrisma().prescription.findUniqueOrThrow({
@@ -617,7 +617,7 @@ describe('§102 (2) cross-doctor access', () => {
     expect(after.state).toBe('ACTIVE');
   });
 
-  it('is not offered another doctor\'s consultation in its own queue', async () => {
+  it("is not offered another doctor's consultation in its own queue", async () => {
     const alpha = await buildWorld('Alpha');
     const beta = await buildWorld('Beta');
 
@@ -764,7 +764,11 @@ describe('§102 (4) admin privilege escalation', () => {
     // There is no route that writes a role — the escalation would have to go
     // through one of these, and none of them accept it.
     const attempts: Array<[Record<string, string>, string, unknown]> = [
-      [world.pharmacyCookies, '/auth/password', { currentPassword: PASSWORD, newPassword: 'Another1!Password', role: 'ADMIN' }],
+      [
+        world.pharmacyCookies,
+        '/auth/password',
+        { currentPassword: PASSWORD, newPassword: 'Another1!Password', role: 'ADMIN' },
+      ],
       [world.doctorCookies, '/doctor/profile', { role: 'ADMIN' }],
       [world.pharmacyCookies, '/pharmacy/profile', { role: 'ADMIN' }],
     ];
@@ -927,10 +931,9 @@ describe('SQL injection (spec §79)', () => {
     const world = await buildWorld('Alpha');
 
     for (const payload of SQL_PAYLOADS) {
-      const response = await request(
-        `/pharmacy/consultations/${encodeURIComponent(payload)}`,
-        { cookies: world.pharmacyCookies },
-      );
+      const response = await request(`/pharmacy/consultations/${encodeURIComponent(payload)}`, {
+        cookies: world.pharmacyCookies,
+      });
 
       // Not found or rejected — never 200, and never a 500, which would mean
       // the payload reached the database and confused it.
@@ -1305,7 +1308,10 @@ describe('payment manipulation (spec §79)', () => {
     // a reconciliation problem nobody notices until the month closes.
     expect(await prisma.payment.count({ where: { providerReference: reference } })).toBe(1);
     const events = await prisma.consultationStateEvent.count({
-      where: { consultationId: (await prisma.consultation.findUniqueOrThrow({ where: { publicId } })).id, toState: 'PAID' },
+      where: {
+        consultationId: (await prisma.consultation.findUniqueOrThrow({ where: { publicId } })).id,
+        toState: 'PAID',
+      },
     });
     expect(events).toBeLessThanOrEqual(1);
   });

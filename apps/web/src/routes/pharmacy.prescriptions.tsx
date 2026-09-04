@@ -1,14 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-  AlertCircle,
-  ArrowLeftRight,
-  Ban,
-  Check,
-  FileText,
-  Loader2,
-  Pill,
-} from "lucide-react";
+import { AlertCircle, ArrowLeftRight, Ban, Check, FileText, Loader2, Pill } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { API_BASE_URL, ApiError } from "@/lib/api-client";

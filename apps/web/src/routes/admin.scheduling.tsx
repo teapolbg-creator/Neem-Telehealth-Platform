@@ -74,8 +74,8 @@ function AdminScheduling() {
         <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
         <h1 className="text-3xl font-bold tracking-tight">Scheduling</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
-          Put a doctor on a shift. No doctor may be scheduled beyond 40 hours in a week — the
-          API refuses it, and refuses it whatever this screen shows.
+          Put a doctor on a shift. No doctor may be scheduled beyond 40 hours in a week — the API
+          refuses it, and refuses it whatever this screen shows.
         </p>
       </header>
 
@@ -116,9 +116,7 @@ function AdminScheduling() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Shift
-            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Shift</span>
             <select
               value={shiftCode}
               onChange={(event) => setShiftCode(event.target.value)}
@@ -134,9 +132,7 @@ function AdminScheduling() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Date
-            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Date</span>
             <input
               type="date"
               value={serviceDate}
@@ -165,17 +161,14 @@ function AdminScheduling() {
 
         {chosenDoctor && chosenDoctor.contractedHoursPerWeek !== null && (
           <p className="mt-3 text-xs text-slate-500">
-            {chosenDoctor.fullName} is contracted for {chosenDoctor.contractedHoursPerWeek}h a
-            week.
+            {chosenDoctor.fullName} is contracted for {chosenDoctor.contractedHoursPerWeek}h a week.
           </p>
         )}
 
         <button
           type="button"
           disabled={!ready || assign.isPending}
-          onClick={() =>
-            assign.mutate({ doctorPublicId, shiftCode, serviceDate })
-          }
+          onClick={() => assign.mutate({ doctorPublicId, shiftCode, serviceDate })}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
         >
           {assign.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -229,9 +222,9 @@ function AdminScheduling() {
         {definitions.data && (
           <>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              A doctor can only be put on an active shift. Night cover is seeded off — turning it
-              on is a business decision, so it is a decision someone makes here rather than a
-              value in the database.
+              A doctor can only be put on an active shift. Night cover is seeded off — turning it on
+              is a business decision, so it is a decision someone makes here rather than a value in
+              the database.
             </p>
 
             <ul className="mt-4 divide-y divide-border">

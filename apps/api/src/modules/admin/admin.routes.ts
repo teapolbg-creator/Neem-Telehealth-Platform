@@ -27,11 +27,12 @@ import {
 } from '../pharmacy/pharmacy.service.ts';
 import { readDocument, verifyDocument } from '../documents/documents.service.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { assignShift, cancelShift, listShiftDefinitions } from '../scheduling/scheduling.service.ts';
 import {
-  createSubscription,
-  findExpiringLicences,
-} from '../subscription/subscription.service.ts';
+  assignShift,
+  cancelShift,
+  listShiftDefinitions,
+} from '../scheduling/scheduling.service.ts';
+import { createSubscription, findExpiringLicences } from '../subscription/subscription.service.ts';
 import { queryBoolean } from '../../lib/query.ts';
 
 /**
@@ -82,58 +83,70 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * verified documents, a captured signature, an unexpired licence — are
    * enforced in the service, not here (spec §83).
    */
-  app.post('/admin/doctors/:publicId/status', { preHandler: doctorAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
-    const body = accountStatusChangeSchema.parse(request.body);
+  app.post(
+    '/admin/doctors/:publicId/status',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+      const body = accountStatusChangeSchema.parse(request.body);
 
-    const status = z.enum(DOCTOR_STATUSES).parse(body.status);
+      const status = z.enum(DOCTOR_STATUSES).parse(body.status);
 
-    const result = await changeDoctorStatus(publicId, status, {
-      adminId: principal.userId,
-      reason: body.reason,
-      correlationId: request.correlationId,
-    });
+      const result = await changeDoctorStatus(publicId, status, {
+        adminId: principal.userId,
+        reason: body.reason,
+        correlationId: request.correlationId,
+      });
 
-    return reply.send({
-      data: { publicId, from: result.from, to: result.to },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { publicId, from: result.from, to: result.to },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   /** The transitions currently permitted, so the UI offers only valid actions. */
-  app.get('/admin/doctors/:publicId/transitions', { preHandler: doctorAdmin }, async (request, reply) => {
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+  app.get(
+    '/admin/doctors/:publicId/transitions',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
 
-    const doctor = await getPrisma().doctor.findUnique({
-      where: { publicId },
-      select: { status: true },
-    });
-    if (!doctor) throw errors.notFound('Doctor not found.');
+      const doctor = await getPrisma().doctor.findUnique({
+        where: { publicId },
+        select: { status: true },
+      });
+      if (!doctor) throw errors.notFound('Doctor not found.');
 
-    return reply.send({
-      data: { current: doctor.status, allowed: doctorTransitionOptions(doctor.status) },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { current: doctor.status, allowed: doctorTransitionOptions(doctor.status) },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
-  app.patch('/admin/doctors/:publicId/compensation', { preHandler: doctorAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
-    const body = doctorCompensationSchema.parse(request.body);
+  app.patch(
+    '/admin/doctors/:publicId/compensation',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+      const body = doctorCompensationSchema.parse(request.body);
 
-    const compensation = await setDoctorCompensation(publicId, body, {
-      adminId: principal.userId,
-      correlationId: request.correlationId,
-    });
+      const compensation = await setDoctorCompensation(publicId, body, {
+        adminId: principal.userId,
+        correlationId: request.correlationId,
+      });
 
-    // Returned so the admin sees what the formula produced, rather than saving
-    // a figure they never saw (decision D28).
-    return reply.send({
-      data: { publicId, compensation },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      // Returned so the admin sees what the formula produced, rather than saving
+      // a figure they never saw (decision D28).
+      return reply.send({
+        data: { publicId, compensation },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   /** Reads a doctor's credential document. Every read is audited. */
   app.get('/admin/doctors/documents/:id', { preHandler: doctorAdmin }, async (request, reply) => {
@@ -154,37 +167,45 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .send(file.body);
   });
 
-  app.post('/admin/doctors/documents/:id/verify', { preHandler: doctorAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const body = documentVerificationSchema.parse(request.body);
+  app.post(
+    '/admin/doctors/documents/:id/verify',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = documentVerificationSchema.parse(request.body);
 
-    await verifyDocument('doctor', id, body, {
-      adminId: principal.userId,
-      correlationId: request.correlationId,
-    });
+      await verifyDocument('doctor', id, body, {
+        adminId: principal.userId,
+        correlationId: request.correlationId,
+      });
 
-    return reply.send({
-      data: { id, verified: body.verified },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { id, verified: body.verified },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   /** MDC licences approaching expiry (spec §22). Reporting only. */
-  app.get('/admin/doctors/licences/expiring', { preHandler: doctorAdmin }, async (request, reply) => {
-    const expiring = await findExpiringLicences();
+  app.get(
+    '/admin/doctors/licences/expiring',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const expiring = await findExpiringLicences();
 
-    return reply.send({
-      data: expiring.map((entry) => ({
-        publicId: entry.publicId,
-        fullName: entry.fullName,
-        mdcNumber: entry.mdcNumber,
-        mdcExpiresAt: entry.mdcExpiresAt.toISOString(),
-        daysRemaining: entry.daysRemaining,
-      })),
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: expiring.map((entry) => ({
+          publicId: entry.publicId,
+          fullName: entry.fullName,
+          mdcNumber: entry.mdcNumber,
+          mdcExpiresAt: entry.mdcExpiresAt.toISOString(),
+          daysRemaining: entry.daysRemaining,
+        })),
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   /**
    * Granting a membership period without payment.
@@ -200,31 +221,35 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * a button that makes it a click. It stays reachable for a support case
    * with a person deciding, and it is audited like everything else here.
    */
-  app.post('/admin/doctors/:publicId/subscription', { preHandler: doctorAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+  app.post(
+    '/admin/doctors/:publicId/subscription',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
 
-    const result = await createSubscription(publicId, {
-      adminId: principal.userId,
-      correlationId: request.correlationId,
-    });
+      const result = await createSubscription(publicId, {
+        adminId: principal.userId,
+        correlationId: request.correlationId,
+      });
 
-    return reply.status(201).send({
-      data: {
-        periodStart: result.periodStart.toISOString(),
-        periodEnd: result.periodEnd.toISOString(),
-        amountMinor: result.amountMinor,
-        // Creating the period is not the same as being paid, and this route
-        // takes no money: it is a grant. The note said payment "is integrated
-        // in Phase 7" until Phase 10 — Phase 7 had shipped three phases
-        // earlier, so the response was telling an administrator something
-        // untrue about the money.
-        status: 'PENDING',
-        note: 'Subscription period granted without payment. The doctor was not charged; nothing was collected for this period.',
-      },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.status(201).send({
+        data: {
+          periodStart: result.periodStart.toISOString(),
+          periodEnd: result.periodEnd.toISOString(),
+          amountMinor: result.amountMinor,
+          // Creating the period is not the same as being paid, and this route
+          // takes no money: it is a grant. The note said payment "is integrated
+          // in Phase 7" until Phase 10 — Phase 7 had shipped three phases
+          // earlier, so the response was telling an administrator something
+          // untrue about the money.
+          status: 'PENDING',
+          note: 'Subscription period granted without payment. The doctor was not charged; nothing was collected for this period.',
+        },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Pharmacies
@@ -294,39 +319,47 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  app.post('/admin/pharmacies/:publicId/status', { preHandler: pharmacyAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
-    const body = accountStatusChangeSchema.parse(request.body);
+  app.post(
+    '/admin/pharmacies/:publicId/status',
+    { preHandler: pharmacyAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+      const body = accountStatusChangeSchema.parse(request.body);
 
-    const status = z.enum(PHARMACY_STATUSES).parse(body.status);
+      const status = z.enum(PHARMACY_STATUSES).parse(body.status);
 
-    const result = await changePharmacyStatus(publicId, status, {
-      adminId: principal.userId,
-      reason: body.reason,
-      correlationId: request.correlationId,
-    });
+      const result = await changePharmacyStatus(publicId, status, {
+        adminId: principal.userId,
+        reason: body.reason,
+        correlationId: request.correlationId,
+      });
 
-    return reply.send({
-      data: { publicId, from: result.from, to: result.to },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { publicId, from: result.from, to: result.to },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
-  app.get('/admin/pharmacies/:publicId/transitions', { preHandler: pharmacyAdmin }, async (request, reply) => {
-    const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+  app.get(
+    '/admin/pharmacies/:publicId/transitions',
+    { preHandler: pharmacyAdmin },
+    async (request, reply) => {
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
 
-    const pharmacy = await getPrisma().pharmacy.findUnique({
-      where: { publicId },
-      select: { status: true },
-    });
-    if (!pharmacy) throw errors.notFound('Pharmacy not found.');
+      const pharmacy = await getPrisma().pharmacy.findUnique({
+        where: { publicId },
+        select: { status: true },
+      });
+      if (!pharmacy) throw errors.notFound('Pharmacy not found.');
 
-    return reply.send({
-      data: { current: pharmacy.status, allowed: pharmacyTransitionOptions(pharmacy.status) },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { current: pharmacy.status, allowed: pharmacyTransitionOptions(pharmacy.status) },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   /**
    * Streams a pharmacy document to the reviewing administrator.
@@ -334,39 +367,47 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
    * Verification means a human looked at the file. Without this route the
    * verify endpoint below was a decision made blind.
    */
-  app.get('/admin/pharmacies/documents/:id', { preHandler: pharmacyAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+  app.get(
+    '/admin/pharmacies/documents/:id',
+    { preHandler: pharmacyAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
 
-    const file = await readDocument(
-      'pharmacy',
-      id,
-      { type: 'ADMIN', id: principal.userId },
-      request.correlationId,
-    );
+      const file = await readDocument(
+        'pharmacy',
+        id,
+        { type: 'ADMIN', id: principal.userId },
+        request.correlationId,
+      );
 
-    return reply
-      .header('content-type', file.mimeType)
-      .header('content-disposition', 'inline')
-      .header('cache-control', 'private, no-store')
-      .send(file.body);
-  });
+      return reply
+        .header('content-type', file.mimeType)
+        .header('content-disposition', 'inline')
+        .header('cache-control', 'private, no-store')
+        .send(file.body);
+    },
+  );
 
-  app.post('/admin/pharmacies/documents/:id/verify', { preHandler: pharmacyAdmin }, async (request, reply) => {
-    const principal = requireAuth(request);
-    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const body = documentVerificationSchema.parse(request.body);
+  app.post(
+    '/admin/pharmacies/documents/:id/verify',
+    { preHandler: pharmacyAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const body = documentVerificationSchema.parse(request.body);
 
-    await verifyDocument('pharmacy', id, body, {
-      adminId: principal.userId,
-      correlationId: request.correlationId,
-    });
+      await verifyDocument('pharmacy', id, body, {
+        adminId: principal.userId,
+        correlationId: request.correlationId,
+      });
 
-    return reply.send({
-      data: { id, verified: body.verified },
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: { id, verified: body.verified },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Shifts (spec §25)
@@ -462,14 +503,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       correlationId: request.correlationId,
     });
 
-    return reply.send({ data: { id, status: 'CANCELLED' }, meta: { requestId: request.correlationId } });
+    return reply.send({
+      data: { id, status: 'CANCELLED' },
+      meta: { requestId: request.correlationId },
+    });
   });
 
   // -------------------------------------------------------------------------
   // Audit log (spec §61) — admin-only, read-only
   // -------------------------------------------------------------------------
 
-  app.get('/admin/audit-logs', { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.AUDIT_READ] }) },
+  app.get(
+    '/admin/audit-logs',
+    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.AUDIT_READ] }) },
     async (request, reply) => {
       const query = paginationQuerySchema
         .extend({

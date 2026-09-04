@@ -66,7 +66,11 @@ function main() {
     [],
   );
 
-  const result = spawnSync(command, args, { env, input: sql, stdio: ['pipe', 'inherit', 'inherit'] });
+  const result = spawnSync(command, args, {
+    env,
+    input: sql,
+    stdio: ['pipe', 'inherit', 'inherit'],
+  });
 
   if (result.status !== 0) {
     console.error(

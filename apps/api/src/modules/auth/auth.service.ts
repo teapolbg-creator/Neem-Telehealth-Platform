@@ -13,11 +13,7 @@ import {
   verifyPassword,
 } from '../../lib/crypto.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import {
-  createSession,
-  revokeAllSessionsForUser,
-  type IssuedSession,
-} from './session.service.ts';
+import { createSession, revokeAllSessionsForUser, type IssuedSession } from './session.service.ts';
 import {
   MAX_CHALLENGE_ATTEMPTS,
   decryptTotpSecret,

@@ -14,10 +14,7 @@ import {
   useQueue,
   type QueueOffer,
 } from "@/features/queue/api";
-import {
-  useRealtimeEvent,
-  useRealtimeInvalidation,
-} from "@/features/realtime/socket";
+import { useRealtimeEvent, useRealtimeInvalidation } from "@/features/realtime/socket";
 import {
   dismissNotificationPrompt,
   useNotificationPermission,
@@ -62,17 +59,17 @@ function DoctorQueue() {
    * arrives in the first second, and the 90-second window is short enough for
    * that to decide whether the patient is seen.
    */
-  useRealtimeInvalidation('queue.offer', ['doctor', 'queue'], online);
+  useRealtimeInvalidation("queue.offer", ["doctor", "queue"], online);
 
   useRealtimeEvent<{ consultationPublicId: string }>(
-    'queue.offer',
+    "queue.offer",
     () => {
       // A sound and a browser notification, for the doctor who is not looking
       // at this tab. Nothing clinical in either — a browser notification is
       // rendered by the operating system and visible to anyone nearby.
       alert({
-        title: 'A consultation is waiting',
-        body: 'Open Neem to accept it before the window closes.',
+        title: "A consultation is waiting",
+        body: "Open Neem to accept it before the window closes.",
       });
     },
     online,
@@ -120,9 +117,7 @@ function DoctorQueue() {
         <div className="card-soft flex items-start gap-3 border-red-200 bg-red-50 p-4">
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
           <p className="text-sm text-red-700">
-            {goOnline.error instanceof ApiError
-              ? goOnline.error.message
-              : "Could not go online."}
+            {goOnline.error instanceof ApiError ? goOnline.error.message : "Could not go online."}
           </p>
         </div>
       )}

@@ -43,7 +43,10 @@ const PHARMACY_PASSWORD = 'PharmacyPassword123!';
 
 async function liveConsultation(): Promise<{ id: string; publicId: string; userId: string }> {
   const prisma = getPrisma();
-  const pharmacy = await createTestPharmacy(`Pharmacy ${generatePublicId('x').slice(-6)}`, 'ACTIVE');
+  const pharmacy = await createTestPharmacy(
+    `Pharmacy ${generatePublicId('x').slice(-6)}`,
+    'ACTIVE',
+  );
   const user = await createTestUser({
     email: `${generatePublicId('x').slice(-8)}@pharmacy.test`,
     password: PHARMACY_PASSWORD,
@@ -430,12 +433,12 @@ describe('destruction when the retention period elapses', () => {
     expect(
       await prisma.consultationVitals.count({ where: { consultationId: consultation.id } }),
     ).toBe(0);
-    expect(await prisma.consultationTest.count({ where: { consultationId: consultation.id } })).toBe(
+    expect(
+      await prisma.consultationTest.count({ where: { consultationId: consultation.id } }),
+    ).toBe(0);
+    expect(await prisma.patientSession.count({ where: { consultationId: consultation.id } })).toBe(
       0,
     );
-    expect(
-      await prisma.patientSession.count({ where: { consultationId: consultation.id } }),
-    ).toBe(0);
 
     // The operational record survives — a consultation happened, and that fact
     // is not clinical (spec §12).

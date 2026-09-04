@@ -54,8 +54,12 @@ describe('component scoring', () => {
   });
 
   it('measures response time against the configured window, not the pool', () => {
-    const fast = computeQualityScore(inputs({ medianResponseSeconds: 9, responseWindowSeconds: 90 }));
-    const slow = computeQualityScore(inputs({ medianResponseSeconds: 81, responseWindowSeconds: 90 }));
+    const fast = computeQualityScore(
+      inputs({ medianResponseSeconds: 9, responseWindowSeconds: 90 }),
+    );
+    const slow = computeQualityScore(
+      inputs({ medianResponseSeconds: 81, responseWindowSeconds: 90 }),
+    );
 
     expect(fast.responseTime).toBeCloseTo(0.9, 2);
     expect(slow.responseTime).toBeCloseTo(0.1, 2);
@@ -130,9 +134,9 @@ describe('component scoring', () => {
 describe('provisional scores', () => {
   it('marks a doctor with little history as provisional', () => {
     expect(computeQualityScore(inputs({ consultations: 3 })).provisional).toBe(true);
-    expect(
-      computeQualityScore(inputs({ consultations: PROVISIONAL_THRESHOLD })).provisional,
-    ).toBe(false);
+    expect(computeQualityScore(inputs({ consultations: PROVISIONAL_THRESHOLD })).provisional).toBe(
+      false,
+    );
   });
 
   it('blends a provisional score toward the cohort median', () => {
@@ -165,8 +169,8 @@ describe('weight validation', () => {
   });
 
   it('rejects weights that do not sum to 1', () => {
-    expect(() =>
-      assertQualityWeightsValid({ ...DEFAULT_QUALITY_WEIGHTS, rating: 0.9 }),
-    ).toThrow(/sum to 1/);
+    expect(() => assertQualityWeightsValid({ ...DEFAULT_QUALITY_WEIGHTS, rating: 0.9 })).toThrow(
+      /sum to 1/,
+    );
   });
 });

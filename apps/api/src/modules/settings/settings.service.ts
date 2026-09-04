@@ -28,10 +28,7 @@ function fallbackFor(key: SettingKey): unknown {
   return definition.value;
 }
 
-export async function getSetting<T = unknown>(
-  key: SettingKey,
-  db: Db = getPrisma(),
-): Promise<T> {
+export async function getSetting<T = unknown>(key: SettingKey, db: Db = getPrisma()): Promise<T> {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) {
     return cached.value as T;

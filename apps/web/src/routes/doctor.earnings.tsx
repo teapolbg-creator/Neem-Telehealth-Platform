@@ -73,7 +73,8 @@ function DoctorEarnings() {
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
                     {data.contractedHoursPerWeek} hours a week
-                    {data.employmentType && ` · ${data.employmentType.toLowerCase().replace(/_/g, " ")}`}
+                    {data.employmentType &&
+                      ` · ${data.employmentType.toLowerCase().replace(/_/g, " ")}`}
                   </p>
                 </>
               )}
@@ -91,8 +92,11 @@ function DoctorEarnings() {
 
             <p className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
               Neem calculates this figure and does not transfer it — payment is made separately
-              (spec §26). Your membership fee is not deducted from it; that is billed on its own,
-              on your <Link to="/doctor/membership" className="font-semibold text-brand">membership</Link>{" "}
+              (spec §26). Your membership fee is not deducted from it; that is billed on its own, on
+              your{" "}
+              <Link to="/doctor/membership" className="font-semibold text-brand">
+                membership
+              </Link>{" "}
               page.
             </p>
           </>
@@ -102,15 +106,7 @@ function DoctorEarnings() {
   );
 }
 
-function Stat({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Wallet;
-  label: string;
-  value: string;
-}) {
+function Stat({ icon: Icon, label, value }: { icon: typeof Wallet; label: string; value: string }) {
   return (
     <div className="card-soft p-5">
       <div className="flex items-center gap-2 text-slate-400">

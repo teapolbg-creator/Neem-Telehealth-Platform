@@ -67,13 +67,13 @@ Webhooks are also validated for signature **before** the body is parsed, and an 
 
 ## 4. Failure and expiry
 
-| Event | Behaviour |
-| --- | --- |
-| Payment declined | Patient retries inside the 5-minute window; the consultation stays `PAYMENT_FAILED` and is retryable |
-| Window elapses | `EXPIRED`; provider session abandoned; temporary payment data cleaned up |
-| Late webhook after expiry | Payment recorded, consultation **not** revived, admin alert raised for reconciliation or refund |
-| Paystack unreachable | Consultation stays `PENDING_PAYMENT`; the pharmacy sees an explicit provider-unavailable state, never a false success |
-| Amount mismatch | Rejected, admin alert. The expected amount is recomputed server-side and compared |
+| Event                     | Behaviour                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Payment declined          | Patient retries inside the 5-minute window; the consultation stays `PAYMENT_FAILED` and is retryable                  |
+| Window elapses            | `EXPIRED`; provider session abandoned; temporary payment data cleaned up                                              |
+| Late webhook after expiry | Payment recorded, consultation **not** revived, admin alert raised for reconciliation or refund                       |
+| Paystack unreachable      | Consultation stays `PENDING_PAYMENT`; the pharmacy sees an explicit provider-unavailable state, never a false success |
+| Amount mismatch           | Rejected, admin alert. The expected amount is recomputed server-side and compared                                     |
 
 ---
 

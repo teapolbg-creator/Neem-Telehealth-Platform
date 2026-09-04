@@ -154,9 +154,13 @@ function ConsultationMonitor() {
                   </label>
 
                   {/* Spec §37 — a paid consultation is never silently discarded. */}
-                  {["PAID", "ACTIVATED", "WAITING_FOR_PATIENT", "PATIENT_JOINED", "WAITING_FOR_DOCTOR"].includes(
-                    consultation.state,
-                  ) && (
+                  {[
+                    "PAID",
+                    "ACTIVATED",
+                    "WAITING_FOR_PATIENT",
+                    "PATIENT_JOINED",
+                    "WAITING_FOR_DOCTOR",
+                  ].includes(consultation.state) && (
                     <p className="mt-2 text-xs text-slate-600">
                       This consultation has been paid for. Cancelling raises a refund request for
                       Neem administration to review.
@@ -245,8 +249,8 @@ function ConsultationMonitor() {
             <div className="flex items-start gap-3">
               <Lock className="mt-0.5 size-4 shrink-0 text-medical" />
               <p className="text-xs leading-relaxed text-slate-600">
-                <span className="font-bold text-medical">The consultation is private.</span> You will
-                receive a prescription or referral if the doctor issues one. Clinical notes and
+                <span className="font-bold text-medical">The consultation is private.</span> You
+                will receive a prescription or referral if the doctor issues one. Clinical notes and
                 diagnoses are never shared with the pharmacy, and are sealed when the consultation
                 ends.
               </p>
@@ -286,10 +290,7 @@ function Timeline({ consultation }: { consultation: PharmacyConsultation }) {
       {stages.map((stage) => (
         <li key={stage.label} className="flex items-center gap-3">
           <div
-            className={cn(
-              "size-2.5 shrink-0 rounded-full",
-              stage.at ? "bg-brand" : "bg-slate-200",
-            )}
+            className={cn("size-2.5 shrink-0 rounded-full", stage.at ? "bg-brand" : "bg-slate-200")}
           />
           <span className={cn("flex-1 text-sm", stage.at ? "font-medium" : "text-slate-400")}>
             {stage.label}

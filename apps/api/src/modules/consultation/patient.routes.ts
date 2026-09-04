@@ -94,9 +94,7 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const { token } = z
-        .object({ token: z.string().min(20).max(200) })
-        .parse(request.body);
+      const { token } = z.object({ token: z.string().min(20).max(200) }).parse(request.body);
 
       const grant = await exchangeAccessToken(token, requestContext(request));
       setPatientCookie(reply, grant.sessionToken, grant.expiresAt);
@@ -204,9 +202,7 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
     const body = patientFeedbackSchema.parse(request.body);
 
     if (principal.consultationState !== 'COMPLETED') {
-      throw errors.businessRule(
-        'Feedback can only be left once the consultation is complete.',
-      );
+      throw errors.businessRule('Feedback can only be left once the consultation is complete.');
     }
 
     await submitFeedback(principal, body);

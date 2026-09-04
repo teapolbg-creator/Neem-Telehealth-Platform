@@ -170,10 +170,9 @@ export function useCreatePrescription(consultationPublicId: string) {
 
   return useMutation({
     mutationFn: (items: PrescriptionItemInput[]) =>
-      api.post<DoctorPrescription>(
-        `/doctor/consultations/${consultationPublicId}/prescriptions`,
-        { items },
-      ),
+      api.post<DoctorPrescription>(`/doctor/consultations/${consultationPublicId}/prescriptions`, {
+        items,
+      }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: doctorPrescriptionsKey(consultationPublicId) }),
   });
@@ -215,7 +214,11 @@ export function useIssueReferral(consultationPublicId: string) {
       department: string;
       reasonText: string;
       urgency?: string;
-    }) => api.post<{ publicId: string }>(`/doctor/consultations/${consultationPublicId}/referrals`, input),
+    }) =>
+      api.post<{ publicId: string }>(
+        `/doctor/consultations/${consultationPublicId}/referrals`,
+        input,
+      ),
   });
 }
 
@@ -233,7 +236,11 @@ export function useIssueSummary(consultationPublicId: string) {
       assessment: string;
       advice: string;
       safetyNetting: string;
-    }) => api.post<{ publicId: string }>(`/doctor/consultations/${consultationPublicId}/summary`, input),
+    }) =>
+      api.post<{ publicId: string }>(
+        `/doctor/consultations/${consultationPublicId}/summary`,
+        input,
+      ),
   });
 }
 
@@ -241,12 +248,7 @@ export function useIssueSummary(consultationPublicId: string) {
 // Completion — the only path (spec §16)
 // ---------------------------------------------------------------------------
 
-export type Outcome =
-  | "ADVICE_ONLY"
-  | "PRESCRIPTION"
-  | "REFERRAL"
-  | "EMERGENCY_REFERRAL"
-  | "OTHER";
+export type Outcome = "ADVICE_ONLY" | "PRESCRIPTION" | "REFERRAL" | "EMERGENCY_REFERRAL" | "OTHER";
 
 export interface CompletionResult {
   state: "COMPLETED";
@@ -317,10 +319,7 @@ export function usePharmacyPrescriptions(activeOnly = false) {
   return useQuery({
     queryKey: [...pharmacyPrescriptionsKey, activeOnly],
     queryFn: ({ signal }) =>
-      api.get<PharmacyPrescription[]>(
-        `/pharmacy/prescriptions?activeOnly=${activeOnly}`,
-        signal,
-      ),
+      api.get<PharmacyPrescription[]>(`/pharmacy/prescriptions?activeOnly=${activeOnly}`, signal),
     // A doctor may revoke while the pharmacist is looking at the screen, and
     // dispensing a revoked prescription is exactly what must not happen.
     refetchInterval: 20_000,
@@ -332,9 +331,7 @@ export function useDispense() {
 
   return useMutation({
     mutationFn: (publicId: string) =>
-      api.post<{ publicId: string; state: string }>(
-        `/pharmacy/prescriptions/${publicId}/dispense`,
-      ),
+      api.post<{ publicId: string; state: string }>(`/pharmacy/prescriptions/${publicId}/dispense`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pharmacyPrescriptionsKey }),
   });
 }

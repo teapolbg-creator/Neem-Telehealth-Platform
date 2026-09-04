@@ -1,14 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import {
-  AlertCircle,
-  Check,
-  Clock,
-  FileText,
-  Loader2,
-  ShieldCheck,
-  Upload,
-} from "lucide-react";
+import { AlertCircle, Check, Clock, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { SignaturePad } from "@/components/neem/SignaturePad";
@@ -104,7 +96,9 @@ function DoctorOnboarding() {
         <p className="mb-1 text-sm font-semibold text-brand">Doctor onboarding</p>
         <h1 className="text-3xl font-bold tracking-tight">{profile.fullName}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Chip tone={STATUS_TONE[profile.status] ?? "muted"}>{profile.status.replace("_", " ")}</Chip>
+          <Chip tone={STATUS_TONE[profile.status] ?? "muted"}>
+            {profile.status.replace("_", " ")}
+          </Chip>
           <span className="font-mono text-xs text-slate-500">{profile.mdcNumber}</span>
         </div>
       </header>
@@ -267,7 +261,9 @@ function StatusBanner({
           {readyForReview
             ? "Everything required has been submitted. A Neem administrator will verify your credentials before your account is activated."
             : `Still needed: ${[
-                outstandingCount > 0 ? `${outstandingCount} required document${outstandingCount > 1 ? "s" : ""}` : null,
+                outstandingCount > 0
+                  ? `${outstandingCount} required document${outstandingCount > 1 ? "s" : ""}`
+                  : null,
                 hasSignature ? null : "your digital signature",
               ]
                 .filter(Boolean)

@@ -7,11 +7,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { getStorageProvider } from '../../adapters/storage/local-storage.provider.ts';
 import { buildStorageKey } from '../../adapters/storage/storage.provider.ts';
 import { emitToPharmacy } from '../realtime/realtime.service.ts';
-import {
-  renderPrescriptionPdf,
-  renderReferralPdf,
-  renderSummaryPdf,
-} from './pdf.service.ts';
+import { renderPrescriptionPdf, renderReferralPdf, renderSummaryPdf } from './pdf.service.ts';
 
 /**
  * Issuing the documents a patient carries away (spec §43, §49, decision D25).
@@ -234,7 +230,11 @@ export async function issueSummary(
 ) {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    include: { patientSession: true, summary: true, pharmacy: { select: { name: true, city: true } } },
+    include: {
+      patientSession: true,
+      summary: true,
+      pharmacy: { select: { name: true, city: true } },
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
   if (consultation.doctorId !== doctorId) throw errors.notFound('Consultation not found.');

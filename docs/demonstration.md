@@ -21,9 +21,9 @@ npm run db:reset
 
 The end-to-end suite creates real doctors, real consultations and real shifts, because that is the only honest way to test them. It leaves them behind: after one run the admin directory holds twenty-five doctors called "Dr. Media 3e1b8849g", and night cover — which ships off — has been switched on. None of that is broken, and all of it makes a demonstration look like a test harness.
 
-| | |
-| --- | --- |
-| Web | <http://localhost:8080> |
+|      |                         |
+| ---- | ----------------------- |
+| Web  | <http://localhost:8080> |
 | Mail | <http://localhost:8025> |
 
 The seed prints the demo accounts and what it created. Every row it makes carries `isDemo: true`.
@@ -54,7 +54,7 @@ The screen now shows a QR code. **Copy the link** and open it in the phone-sized
 
 1. **Details**: name, age, sex, phone. This is the first time the patient's identity exists anywhere.
 2. **Language**. The patient will only be matched with a doctor who speaks it.
-3. **How would you like to consult** — audio, video, or *Call Me*.
+3. **How would you like to consult** — audio, video, or _Call Me_.
 4. They land in the waiting room.
 
 Three things to point at:
@@ -122,17 +122,17 @@ Sign in as **`admin@neem.demo`**. It will require **TOTP enrolment on first sign
 
 Worth showing, in this order:
 
-| Screen | What it demonstrates |
-| --- | --- |
-| **Overview** | Real figures over 30 days, and a demo-mode banner naming which providers are mocked |
-| **Live queue** | Waiting consultations and manual reallocation |
-| **Scheduling** | **Turn on** the Night shift — it ships off, because 24-hour operation is a business decision rather than a default. Then assign the same doctor **four night shifts in one week**: the fourth is refused, because 40 hours is a fatigue rule the API enforces whatever this screen shows. Search by name or MDC number; the directory is paged |
-| **Refunds** | A request from the seed, awaiting a decision. Money is reversed, never deleted |
-| **Quality** | Doctor scores with the breakdown behind each — admin-only, never shown to a doctor |
+| Screen            | What it demonstrates                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**      | Real figures over 30 days, and a demo-mode banner naming which providers are mocked                                                                                                                                                                                                                                                                                                                                          |
+| **Live queue**    | Waiting consultations and manual reallocation                                                                                                                                                                                                                                                                                                                                                                                |
+| **Scheduling**    | **Turn on** the Night shift — it ships off, because 24-hour operation is a business decision rather than a default. Then assign the same doctor **four night shifts in one week**: the fourth is refused, because 40 hours is a fatigue rule the API enforces whatever this screen shows. Search by name or MDC number; the directory is paged                                                                               |
+| **Refunds**       | A request from the seed, awaiting a decision. Money is reversed, never deleted                                                                                                                                                                                                                                                                                                                                               |
+| **Quality**       | Doctor scores with the breakdown behind each — admin-only, never shown to a doctor                                                                                                                                                                                                                                                                                                                                           |
 | **Notifications** | Reword any message. **Try typing a dose or a diagnosis into one** — it is refused when you save it, not when it is sent (spec §60). Most rows are marked **"not sent yet"**: 17 of the 21 messages have no producer, and the screen says so rather than letting an administrator word something nobody will receive. Point at it — a product that admits what it has not connected is worth more than one that does not know |
-| **Settings** | Change the consultation price. A sensitive setting requires a written reason, and the previous value is kept |
-| **Audit** | Everything above, appended. Read-only: there is no edit and no delete route behind this screen |
-| **Archive** | Retrieval of a sealed consultation — needs the reference, a stated purpose, and **a second administrator**. Self-authorisation is refused |
+| **Settings**      | Change the consultation price. A sensitive setting requires a written reason, and the previous value is kept                                                                                                                                                                                                                                                                                                                 |
+| **Audit**         | Everything above, appended. Read-only: there is no edit and no delete route behind this screen                                                                                                                                                                                                                                                                                                                               |
+| **Archive**       | Retrieval of a sealed consultation — needs the reference, a stated purpose, and **a second administrator**. Self-authorisation is refused                                                                                                                                                                                                                                                                                    |
 
 > **The archive is the one to linger on.** It is the narrow door counsel required: no search, no patient lookup, no list. Retrieval takes exactly one known reference and is itself logged as a disclosure.
 
@@ -150,15 +150,15 @@ Worth showing, in this order:
 
 ## Things that will look like bugs and are not
 
-| What you see | Why |
-| --- | --- |
-| "No money has moved" on the payment screen | Mock provider. The product refuses to imply a payment it cannot verify |
-| The video pane says media is simulated | The Twilio adapter is not implemented; selecting it throws at boot rather than silently mocking |
-| The doctor's queue is empty | They have no confirmed shift today. Admin → Scheduling |
-| A completed consultation shows no clinical notes | Correct. It is sealed — that is the whole design (D23) |
-| The admin cannot retrieve an archived record alone | Correct. It needs a second administrator (D27) |
-| Analytics shows no diagnosis or medication data | There is deliberately no such route, in aggregate or otherwise (spec §13) |
-| Most notification templates say "not sent yet" | True, and deliberately visible. 17 of 21 have no producer — see `product-backlog.md`. The four that do fire during this demonstration |
+| What you see                                       | Why                                                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| "No money has moved" on the payment screen         | Mock provider. The product refuses to imply a payment it cannot verify                                                                |
+| The video pane says media is simulated             | The Twilio adapter is not implemented; selecting it throws at boot rather than silently mocking                                       |
+| The doctor's queue is empty                        | They have no confirmed shift today. Admin → Scheduling                                                                                |
+| A completed consultation shows no clinical notes   | Correct. It is sealed — that is the whole design (D23)                                                                                |
+| The admin cannot retrieve an archived record alone | Correct. It needs a second administrator (D27)                                                                                        |
+| Analytics shows no diagnosis or medication data    | There is deliberately no such route, in aggregate or otherwise (spec §13)                                                             |
+| Most notification templates say "not sent yet"     | True, and deliberately visible. 17 of 21 have no producer — see `product-backlog.md`. The four that do fire during this demonstration |
 
 ---
 

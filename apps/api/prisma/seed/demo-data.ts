@@ -1,10 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { hashPassword, generatePublicId, encryptField } from '../../src/lib/crypto.ts';
 import { POINT_OF_CARE_TESTS, VITAL_EQUIPMENT } from './reference-data.ts';
-import {
-  seedDemoConsultations,
-  type DemoConsultationSummary,
-} from './demo-consultations.ts';
+import { seedDemoConsultations, type DemoConsultationSummary } from './demo-consultations.ts';
 
 /**
  * Demo data.
@@ -159,8 +156,16 @@ export async function seedDemoData(
         },
         capabilities: {
           create: [
-            ...POINT_OF_CARE_TESTS.map((t) => ({ kind: 'TEST' as const, code: t.code, label: t.label })),
-            ...VITAL_EQUIPMENT.map((e) => ({ kind: 'EQUIPMENT' as const, code: e.code, label: e.label })),
+            ...POINT_OF_CARE_TESTS.map((t) => ({
+              kind: 'TEST' as const,
+              code: t.code,
+              label: t.label,
+            })),
+            ...VITAL_EQUIPMENT.map((e) => ({
+              kind: 'EQUIPMENT' as const,
+              code: e.code,
+              label: e.label,
+            })),
           ],
         },
         payoutDetails: {
@@ -343,13 +348,43 @@ export async function seedDemoData(
         password: options.adminPassword,
         note: 'Must enrol TOTP two-factor on first sign-in — it cannot be skipped',
       },
-      { role: 'PHARMACY', email: 'akosua@pharmacy.demo', password: DEMO_PASSWORD, note: 'ACTIVE — can initiate consultations' },
-      { role: 'PHARMACY', email: 'healthfirst@pharmacy.demo', password: DEMO_PASSWORD, note: 'ACTIVE — second pharmacy, for cross-tenant isolation tests' },
+      {
+        role: 'PHARMACY',
+        email: 'akosua@pharmacy.demo',
+        password: DEMO_PASSWORD,
+        note: 'ACTIVE — can initiate consultations',
+      },
+      {
+        role: 'PHARMACY',
+        email: 'healthfirst@pharmacy.demo',
+        password: DEMO_PASSWORD,
+        note: 'ACTIVE — second pharmacy, for cross-tenant isolation tests',
+      },
       { role: 'PHARMACY', email: 'kumasi@pharmacy.demo', password: DEMO_PASSWORD, note: 'ACTIVE' },
-      { role: 'PHARMACY', email: 'tamale@pharmacy.demo', password: DEMO_PASSWORD, note: 'PENDING — awaiting admin approval' },
-      { role: 'DOCTOR', email: 'ama@doctor.demo', password: DEMO_PASSWORD, note: 'ACTIVE — English, Twi, Ga' },
-      { role: 'DOCTOR', email: 'kwame@doctor.demo', password: DEMO_PASSWORD, note: 'ACTIVE — English, Twi' },
-      { role: 'DOCTOR', email: 'efua@doctor.demo', password: DEMO_PASSWORD, note: 'PENDING — awaiting credential verification' },
+      {
+        role: 'PHARMACY',
+        email: 'tamale@pharmacy.demo',
+        password: DEMO_PASSWORD,
+        note: 'PENDING — awaiting admin approval',
+      },
+      {
+        role: 'DOCTOR',
+        email: 'ama@doctor.demo',
+        password: DEMO_PASSWORD,
+        note: 'ACTIVE — English, Twi, Ga',
+      },
+      {
+        role: 'DOCTOR',
+        email: 'kwame@doctor.demo',
+        password: DEMO_PASSWORD,
+        note: 'ACTIVE — English, Twi',
+      },
+      {
+        role: 'DOCTOR',
+        email: 'efua@doctor.demo',
+        password: DEMO_PASSWORD,
+        note: 'PENDING — awaiting credential verification',
+      },
     ],
   };
 }

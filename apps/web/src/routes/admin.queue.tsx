@@ -38,8 +38,8 @@ function AdminQueue() {
         <div className="card-soft border-red-200 bg-red-50 p-4">
           <p className="flex items-center gap-2 text-sm font-bold text-red-700">
             <Languages className="size-4" />
-            {starved.length} patient{starved.length > 1 ? "s" : ""} waiting with no
-            language-matched doctor
+            {starved.length} patient{starved.length > 1 ? "s" : ""} waiting with no language-matched
+            doctor
           </p>
           <p className="mt-1 text-xs leading-relaxed text-red-700">
             No doctor currently on shift speaks their language. Neem will never assign a doctor who
@@ -105,7 +105,8 @@ function QueueRow({ entry }: { entry: AdminQueueEntry }) {
             {entry.language.label} · {entry.offerAttempts} offer
             {entry.offerAttempts === 1 ? "" : "s"} made
             {/* The fairness audit trail: why this doctor, and how strong a match. */}
-            {entry.lastOfferScore !== null && ` · last match score ${entry.lastOfferScore.toFixed(2)}`}
+            {entry.lastOfferScore !== null &&
+              ` · last match score ${entry.lastOfferScore.toFixed(2)}`}
           </p>
         </div>
 

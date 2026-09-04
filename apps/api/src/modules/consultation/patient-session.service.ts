@@ -3,7 +3,12 @@ import { Prisma } from '@prisma/client';
 import type { PatientFeedback, PatientIdentity, PatientSessionView } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { encryptField, decryptNullable, encryptNullable, generatePublicId } from '../../lib/crypto.ts';
+import {
+  encryptField,
+  decryptNullable,
+  encryptNullable,
+  generatePublicId,
+} from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
@@ -187,14 +192,14 @@ export async function buildSessionView(
       : consultation.state === 'COMPLETING'
         ? 'COMPLETE'
         : !identityCaptured
-        ? 'IDENTITY'
-        : !consultation.languageId
-          ? 'LANGUAGE'
-          : !consultation.type
-            ? 'MODE'
-            : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
-              ? 'IN_CONSULTATION'
-              : 'WAITING';
+          ? 'IDENTITY'
+          : !consultation.languageId
+            ? 'LANGUAGE'
+            : !consultation.type
+              ? 'MODE'
+              : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
+                ? 'IN_CONSULTATION'
+                : 'WAITING';
 
   const waitingSince = consultation.queueEntry?.enqueuedAt;
 
@@ -320,10 +325,7 @@ export async function submitFeedback(
       });
     });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw errors.conflict('Feedback has already been given for this consultation.');
     }
     throw error;

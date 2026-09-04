@@ -99,9 +99,7 @@ function PharmacyOnboarding() {
           <Chip tone={STATUS_TONE[profile.status] ?? "muted"}>
             {profile.status.replace("_", " ")}
           </Chip>
-          <span className="font-mono text-xs text-slate-500">
-            {profile.councilRegistrationNo}
-          </span>
+          <span className="font-mono text-xs text-slate-500">{profile.councilRegistrationNo}</span>
         </div>
       </header>
 

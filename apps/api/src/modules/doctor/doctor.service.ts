@@ -7,10 +7,7 @@ import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { revokeAllSessionsForUser } from '../auth/session.service.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
-import {
-  computeMonthlyCompensation,
-  type Compensation,
-} from '../../domain/compensation.ts';
+import { computeMonthlyCompensation, type Compensation } from '../../domain/compensation.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import {
   canDoctorTransition,
@@ -59,7 +56,10 @@ export async function registerDoctor(
     const known = new Set(languages.map((language) => language.code));
     const unknown = input.languageCodes.filter((code) => !known.has(code));
     throw errors.validation(
-      unknown.map((code) => ({ field: 'languageCodes', issue: `"${code}" is not an available language` })),
+      unknown.map((code) => ({
+        field: 'languageCodes',
+        issue: `"${code}" is not an available language`,
+      })),
     );
   }
 
@@ -114,7 +114,10 @@ export async function registerDoctor(
         entityId: doctor.id,
         ipHash: hashIp(context.ip),
         correlationId: context.correlationId,
-        metadata: { languageCount: input.languageCodes.length, yearsExperience: input.yearsExperience },
+        metadata: {
+          languageCount: input.languageCodes.length,
+          yearsExperience: input.yearsExperience,
+        },
       },
       db,
     );
@@ -360,7 +363,8 @@ export async function listDoctors(filters: DoctorListFilters, db: Db = getPrisma
       contractedHoursPerWeek: doctor.contractedHoursPerWeek,
       hasSignature: doctor.signatures.length > 0,
       documentCount: doctor.documents.length,
-      verifiedDocumentCount: doctor.documents.filter((document) => document.verifiedAt !== null).length,
+      verifiedDocumentCount: doctor.documents.filter((document) => document.verifiedAt !== null)
+        .length,
       subscriptionStatus: doctor.subscriptions[0]?.status ?? null,
       subscriptionEndsAt: doctor.subscriptions[0]?.periodEnd.toISOString() ?? null,
       createdAt: doctor.createdAt.toISOString(),
@@ -395,10 +399,7 @@ export async function setDoctorCompensation(
   if (!doctor) throw errors.notFound('Doctor not found.');
 
   const fullTimeHoursPerWeek = await getIntSetting(SETTING_KEYS.DOCTOR_MAX_HOURS_PER_WEEK, db);
-  const fullTimeMonthlyMinor = await getIntSetting(
-    SETTING_KEYS.DOCTOR_FULL_TIME_MONTHLY_MINOR,
-    db,
-  );
+  const fullTimeMonthlyMinor = await getIntSetting(SETTING_KEYS.DOCTOR_FULL_TIME_MONTHLY_MINOR, db);
 
   if (input.contractedHoursPerWeek > fullTimeHoursPerWeek) {
     throw errors.businessRule(
@@ -428,9 +429,7 @@ export async function setDoctorCompensation(
       // Derived for reporting. Null when a full week is zero hours, which the
       // domain function has already refused, but the guard costs nothing.
       hourlyRateMinor:
-        fullTimeHoursPerWeek > 0
-          ? Math.floor(fullTimeMonthlyMinor / fullTimeHoursPerWeek)
-          : null,
+        fullTimeHoursPerWeek > 0 ? Math.floor(fullTimeMonthlyMinor / fullTimeHoursPerWeek) : null,
     },
   });
 

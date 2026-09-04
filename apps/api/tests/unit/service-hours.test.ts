@@ -111,9 +111,10 @@ describe('checkServiceHours — the 40-hour ceiling', () => {
   it('refuses a seventh six-hour shift in one week', () => {
     // Six 6-hour shifts is 36h; a seventh would be 42h.
     const afterSix = 6 * 360;
-    expect(checkServiceHours({ currentMinutes: afterSix, requestedMinutes: 360, maxHoursPerWeek: LIMIT }).allowed).toBe(
-      false,
-    );
+    expect(
+      checkServiceHours({ currentMinutes: afterSix, requestedMinutes: 360, maxHoursPerWeek: LIMIT })
+        .allowed,
+    ).toBe(false);
   });
 
   it('reports remaining capacity so the UI can explain the refusal', () => {
@@ -147,28 +148,40 @@ describe('checkServiceHours — the 40-hour ceiling', () => {
   });
 
   it('rejects nonsensical inputs instead of producing a wrong answer', () => {
-    expect(() => checkServiceHours({ currentMinutes: 0, requestedMinutes: -60, maxHoursPerWeek: LIMIT })).toThrow();
-    expect(() => checkServiceHours({ currentMinutes: 0, requestedMinutes: 60, maxHoursPerWeek: 0 })).toThrow();
+    expect(() =>
+      checkServiceHours({ currentMinutes: 0, requestedMinutes: -60, maxHoursPerWeek: LIMIT }),
+    ).toThrow();
+    expect(() =>
+      checkServiceHours({ currentMinutes: 0, requestedMinutes: 60, maxHoursPerWeek: 0 }),
+    ).toThrow();
   });
 });
 
 describe('shiftsOverlap', () => {
   it('detects an exact clash', () => {
-    expect(shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '08:00', endsAt: '14:00' })).toBe(true);
+    expect(
+      shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '08:00', endsAt: '14:00' }),
+    ).toBe(true);
   });
 
   it('detects a partial clash', () => {
-    expect(shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '13:00', endsAt: '18:00' })).toBe(true);
+    expect(
+      shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '13:00', endsAt: '18:00' }),
+    ).toBe(true);
   });
 
   it('treats back-to-back shifts as non-overlapping', () => {
     // Morning ends exactly when Afternoon begins — that is a legitimate
     // 12-hour day, not a double booking.
-    expect(shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '14:00', endsAt: '20:00' })).toBe(false);
+    expect(
+      shiftsOverlap({ startsAt: '08:00', endsAt: '14:00' }, { startsAt: '14:00', endsAt: '20:00' }),
+    ).toBe(false);
   });
 
   it('treats separated shifts as non-overlapping', () => {
-    expect(shiftsOverlap({ startsAt: '08:00', endsAt: '12:00' }, { startsAt: '14:00', endsAt: '20:00' })).toBe(false);
+    expect(
+      shiftsOverlap({ startsAt: '08:00', endsAt: '12:00' }, { startsAt: '14:00', endsAt: '20:00' }),
+    ).toBe(false);
   });
 });
 

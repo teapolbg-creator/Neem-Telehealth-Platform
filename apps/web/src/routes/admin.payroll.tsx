@@ -123,7 +123,9 @@ function AdminPayroll() {
                       </td>
                       <td className="px-5 py-3 text-slate-600">{line.scheduledLabel}</td>
                       <td className="px-5 py-3">
-                        <span className={line.shortOfContract ? "text-amber-700" : "text-slate-600"}>
+                        <span
+                          className={line.shortOfContract ? "text-amber-700" : "text-slate-600"}
+                        >
                           {line.servedLabel}
                         </span>
                         {/*

@@ -28,7 +28,8 @@ afterAll(async () => {
 });
 
 /** Path-ish tokens belonging to the API rather than to a file or a heading. */
-const API_PATH = /^\/(admin|doctor|doctors|pharmacy|patient|auth|onboarding|webhooks|documents|verify|s|health)\b/;
+const API_PATH =
+  /^\/(admin|doctor|doctors|pharmacy|patient|auth|onboarding|webhooks|documents|verify|s|health)\b/;
 
 /** `:publicId` and `:id` differ only in taste; compare shapes, not names. */
 function normalise(path: string): string {
@@ -53,7 +54,12 @@ async function liveRoutes(): Promise<Set<string>> {
 
     stack.length = depth;
     stack[depth] = match[1]!;
-    paths.push(stack.slice(0, depth + 1).join('').replace('/api/v1', ''));
+    paths.push(
+      stack
+        .slice(0, depth + 1)
+        .join('')
+        .replace('/api/v1', ''),
+    );
   }
 
   return new Set(paths.map(normalise));
