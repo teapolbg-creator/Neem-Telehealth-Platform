@@ -2,7 +2,7 @@
 
 Pharmacy-based telemedicine for Ghana. Patients at a participating pharmacy consult a licensed doctor by audio, video, or a platform-placed call, and receive an electronic prescription dispensed on the spot.
 
-> **Status: Phases 0–10 complete. Phase 11 (demo readiness) in progress.** [`docs/roadmap.md`](docs/roadmap.md) records what each phase built and what it found.
+> **Status: Phases 0–11 complete.** [`docs/roadmap.md`](docs/roadmap.md) records what each phase built and what it found — including the defects each phase found in the one before it. Known gaps that sit above the scope fence are in [`docs/product-backlog.md`](docs/product-backlog.md); five questions remain open with counsel, two of which block launch.
 
 ---
 

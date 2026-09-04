@@ -556,7 +556,19 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
 
 **Exit:** you can run the full business cycle end to end on this machine from a clean checkout.
 
-**In progress.**
+**Met, and executed rather than reasoned about.** The MySQL volume was
+destroyed, the repository cloned to a scratch directory, and the README
+followed literally. `npm run setup` completed, both schemas migrated, the
+audit grants applied, and the seed produced its history and today's shifts.
+The end-to-end suite then ran against that checkout: **48 passed, 1 skipped**
+(scenario 15's documented `fixme`), **0 failed**, with no `P2034` anywhere in
+the API log.
+
+Getting there took four fixes, because the first three attempts did not work
+— `setup` aborted on an un-migrated test database, the suite could not
+authenticate against the shipped rate limits, and the queue lost offers to a
+deadlock. Each is described below. None of them would have been found by
+reading the instructions.
 
 - **Running the suites found three tests that had been passing for the wrong
   reason.** The demo seed left one consultation `WAITING_FOR_DOCTOR` so the
