@@ -136,6 +136,26 @@ export async function signIn(
   credentials: { email: string; password: string },
 ): Promise<string> {
   const response = await request.post(`${API}/auth/login`, { data: credentials });
+
+  /**
+   * A 429 here is a configuration problem, not a test failure.
+   *
+   * The suite signs in as several roles dozens of times from one address, and
+   * `.env.example` ships production-shaped auth limits. A machine that copied
+   * it verbatim is refused part-way through the run, and every test after that
+   * fails on something unrelated to what it was testing — which is exactly how
+   * a clean checkout of this repository behaved until somebody read the
+   * status code.
+   */
+  if (response.status() === 429) {
+    throw new Error(
+      `Sign-in for ${credentials.email} was rate-limited (429).\n\n` +
+        'This is your .env, not the product. The end-to-end suite needs the\n' +
+        'raised development rate limits — see the "Running the end-to-end\n' +
+        'suite" block in .env.example for the four values to set.',
+    );
+  }
+
   expect(response.ok(), `sign-in should succeed for ${credentials.email}`).toBeTruthy();
 
   const body = await response.json();

@@ -63,7 +63,9 @@ npm run setup
 npm run dev
 ```
 
-`npm run setup` installs, starts the containers, migrates and seeds. The individual steps are `npm install`, `npm run docker:up`, `npm run db:migrate`, `npm run db:seed`.
+`npm run setup` installs, starts the containers, migrates and seeds. The individual steps are `npm install`, `npm run docker:up`, `npm run db:migrate`, `npm run db:migrate:test`, `npm run db:grants`, `npm run db:seed`.
+
+`docker:up` waits for MySQL to report healthy rather than merely started, because on a first run the server is still initialising when the migration would otherwise begin. The test database is migrated too: `npm test` runs against `neem_test`, which the container creates empty and nothing else fills.
 
 | Service            | URL                                                                                           |
 | ------------------ | --------------------------------------------------------------------------------------------- |
@@ -104,6 +106,8 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 | `npm run typecheck`                                  | TypeScript across all workspaces                                   |
 | `npm run lint` / `npm run format`                    | ESLint / Prettier                                                  |
 | `npm run db:migrate`                                 | Apply migrations                                                   |
+| `npm run db:migrate:test`                            | Apply migrations to the test database (`neem_test`)                |
+| `npm run db:grants`                                  | Grant the append-only audit account its privileges                 |
 | `npm run db:reset`                                   | Drop, re-migrate, re-seed                                          |
 | `npm run db:seed`                                    | Reference and demo data                                            |
 | `npm run db:reset-2fa`                               | Clear demo admin TOTP enrolment                                    |
@@ -118,6 +122,10 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 `npm test` runs against a real MySQL database (`neem_test`), not mocks — a large part of what it verifies lives in the database itself: unique constraints, foreign keys, transactional atomicity. It takes roughly 45 minutes.
 
 `npm run test:e2e` drives the running dev server. Because that server watches for file changes, **anything that touches the working tree during a run — an editor save, a `git checkout`, a merge — restarts the API and fails tests that were not broken.** Run it against a quiet tree.
+
+**It also needs the raised rate limits.** The suite signs in as several roles dozens of times from one address, and the values `.env.example` ships are production-shaped: a verbatim copy is refused with 429 part-way through, and everything after that fails for a reason unrelated to what it was testing. `.env.example` carries the four development values in a commented block, and the suite now recognises a 429 and says so rather than failing twenty tests silently. The safe numbers are the ones that ship, because that file is also a deployment's starting point.
+
+Both suites are also affected by the demo admin's second factor — see the note above `npm run db:reset-2fa`.
 
 ---
 
