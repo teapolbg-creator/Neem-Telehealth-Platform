@@ -70,9 +70,11 @@ Object references are always `publicId`, so enumeration yields nothing. Failed a
 
 **At rest:** application-level AES-256-GCM for patient name and phone, doctor signatures, pharmacy payout details, and TOTP secrets. Keys come from the environment and are never committed. Database-level encryption is a deployment concern documented for the cloud phase.
 
-**Minimisation:** the pharmacy sees four patient fields and only during the active consultation. The doctor sees demographics, vitals, and tests — not any history. Nobody but the doctor sees clinical notes, and those are deleted at completion.
+**Minimisation:** the pharmacy sees four patient fields and only during the active consultation. The doctor sees demographics, vitals, and tests — not any history. Nobody but the doctor sees clinical notes, and at completion they are **sealed**: unreachable by the doctor who wrote them, by the pharmacy, and by any administrator browsing the console. Retrieval takes a known consultation reference, a stated purpose, and a second administrator (D27), and is itself logged as a disclosure. They are destroyed when the retention period expires (D23).
 
-**Never stored:** raw card data, CVV, patient clinical notes past completion, consultation audio or video (no recording capability exists — see `architecture.md` §4).
+> This paragraph said "deleted at completion" until D23, which established that Ghanaian law does not permit that deletion. The sentence is the one a security reviewer reads first, so it is worth being explicit that the guarantee changed rather than leaving the old wording standing.
+
+**Never stored:** raw card data, CVV, consultation audio or video (no recording capability exists — see `architecture.md` §4).
 
 **Never in URLs, query strings, logs, QR codes, or public pages:** names, phone numbers, clinical content, tokens (spec §60).
 
@@ -91,7 +93,7 @@ Object references are always `publicId`, so enumeration yields nothing. Failed a
 - **Rate limiting:** global, per-IP, and stricter per-route on login, token exchange, password reset, and payment initiation.
 - **File uploads:** type and magic-byte validation, size caps, stored outside the web root with generated names, served only through an authorised endpoint, never executed.
 - **PDF generation:** server-side PDFKit from structured data — no template injection surface, no headless browser.
-- **Least privilege:** the application database user has no `DROP`; the audit writer is a separate user with `INSERT`/`SELECT` on `audit_logs` only.
+- **Least privilege:** a separate `neem_audit` account holds `INSERT`/`SELECT` on `audit_logs` and nothing else — verified: it is refused `DELETE` on that table and refused `SELECT` on `patient_sessions`. It is created by `docker/mysql-init` and granted by `npm run db:grants`, because MySQL will not grant on a table before migrations create it. **It is not the application's writer**: audit rows commit in the same transaction as the change they record, and a second connection cannot join that transaction, so transactional audit was kept and the append-only guarantee rests on the service surface (no update or delete method, no route, asserted by test). The application account itself holds full privileges on its schema in the development compose, `DROP` included, because Prisma Migrate needs DDL. **Narrowing it is a deployment task and is not done here** — see §10.
 
 ---
 
@@ -218,3 +220,18 @@ Documented in Phase 1, exercised in Phase 10: automated MySQL backups, retention
 restores it into a scratch database under a different name, compares row counts
 table by table, and drops the scratch database. See `data-retention.md` §7 for
 the result and what it caught.
+
+---
+
+## 10. What this repository does not enforce
+
+Controls that are real obligations of a deployment rather than properties of the code, listed here so that reading §1–§9 does not leave the impression they are already in force.
+
+| Obligation | Why it is not enforced here | What a deployment must do |
+| --- | --- | --- |
+| **The application account should not hold `DROP`, or `UPDATE`/`DELETE` on `audit_logs`** | The development compose grants the app user everything on its schema, because Prisma Migrate needs DDL and MySQL has no way to subtract a table privilege from a database-wide grant | Run migrations as a separate migration account, and grant the runtime account per-table privileges that omit `audit_logs` write access beyond `INSERT` |
+| **TLS, HSTS, secure cookies** | §5 describes the production posture; the development server is plain HTTP on localhost | Terminate TLS in front of the API and set `NODE_ENV=production`, which the config loader already requires before it will accept a deployment |
+| **Database-level encryption at rest** | Application-level AES-256-GCM covers the identified fields; whole-disk and tablespace encryption is a hosting concern | Enable it on the managed instance, and encrypt backups — `BACKUP_ENCRYPTION_KEY` is required and refuses to equal `ENCRYPTION_KEY` |
+| **Key rotation** | `ENCRYPTION_KEY_PREVIOUS` exists and decryption falls back to it, so rotation is possible; nothing schedules or audits a rotation | Own a rotation schedule, and re-encrypt rather than relying on the fallback indefinitely |
+
+Run `npm run check:production-config` against the environment file a deployment will use. It applies the production rules to it and reports what would refuse to boot, which catches a development configuration copied to a server before the server does.

@@ -149,17 +149,22 @@ A single in-process scheduler (`node-cron`-style) plus a lightweight DB-backed w
 
 | Job | Cadence | Purpose |
 | --- | --- | --- |
+| `enforce-response-window` | every 5s | 90-second doctor offer timeout → reassign |
+| `process-waiting-queue` | every 10s | offer waiting consultations to available doctors |
+| `emit-timer-warnings` | every 10s | consultation duration warnings |
 | `expire-pending-payments` | every 30s | 5-minute payment window (spec §35) |
 | `expire-consultation-tokens` | every 60s | invalidate unused QR tokens |
-| `enforce-response-window` | every 5s | 90-second doctor offer timeout → reassign |
-| `purge-temporary-data` | every 60s + on completion | execute retention policy |
-| `check-licence-expiry` | daily | flag MDC licences nearing expiry |
-| `check-subscription-expiry` | daily | membership expiry → Active→Suspended |
-| `recompute-quality-scores` | hourly | weighted doctor quality score |
-| `reconcile-payments` | hourly | Paystack vs local ledger drift |
+| `reap-stale-presence` | every 60s | drop doctors whose heartbeat stopped |
 | `retry-notifications` | every 60s | bounded retry with backoff |
+| `purge-expired-sessions` | every 15m | expired auth and patient sessions |
+| `recompute-quality-scores` | hourly | weighted doctor quality score |
+| `purge-expired-clinical-records` | hourly | destroy sealed records whose retention has elapsed (D23) |
+| `sweep-subscription-expiry` | hourly | membership expiry → grace → suspension (spec §27) |
+| `reconcile-payments` | hourly | Paystack vs local ledger drift |
 
-Purge runs **immediately** on consultation completion (spec §15 answer: "Immediately when doctor clicks Complete Consultation"); the periodic job is a safety net that catches crashed completions, and it records what it found.
+**This table was wrong until Phase 11.** It listed `purge-temporary-data`, `check-licence-expiry` and `check-subscription-expiry`, none of which exist under those names, and omitted five jobs that do. `purge-temporary-data` described the pre-D23 design, where completion destroyed the clinical record; completion now **seals** it and schedules destruction, and `purge-expired-clinical-records` carries that out when the period elapses. Membership expiry is `sweep-subscription-expiry`, hourly rather than daily, because the boundary is a moment and a doctor suspended a day late is a doctor who took a day of consultations they were not entitled to.
+
+MDC licence expiry has no job. `findExpiringLicences` exists and an admin route surfaces it, so the warning is a pull rather than a push — see `product-backlog.md`.
 
 ---
 

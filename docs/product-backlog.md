@@ -18,6 +18,24 @@ Per spec §108. The purpose of this file is to hold a scope fence: nothing below
 
 ---
 
+## MVP items that are not finished
+
+Not a backlog. These sit **above** the scope fence and are listed here because the alternative is a phase reported complete over a gap.
+
+### Notifications reach four of the twenty-one events they are written for
+
+"Notifications across five channels" is in the MVP list above. The module is built and correct: five channel adapters, a catalogue that will not interpolate a variable it was not given, a rendered-payload hash instead of a body (D32), retry with backoff, and an admin screen to reword any message.
+
+What is missing is the calls. `notify()` is invoked from four places — the doctor's offer, the doctor's substitution request, the pharmacy's prescription-issued notice, and the patient's completion message. The other seventeen templates have no producer at all.
+
+The consequences are ordinary rather than dramatic, which is why this survived three phases: nothing is unsafe, because every rule that matters is enforced server-side at the point of use. A revoked prescription is still refused at the counter; an expired licence still blocks a prescription; a lapsed membership still suspends. What is lost is that people are not **told** — an approved doctor discovers it by signing in and looking, a pharmacy blocked on a substitution decision has to keep checking for the answer, and a doctor learns their MDC licence lapsed when a prescription is refused mid-consultation.
+
+Two of these are worth separating from the rest. **`doctor.licence.expiring`** has a warning threshold in settings (`DOCTOR_LICENCE_WARNING_DAYS`, 60 days), a query behind an admin route, an audit action reserved for it, and a written message — everything except the thing that sends it, so the warning is a pull an admin has to remember rather than a push. And the **admin alerts** (`admin.payment.anomaly`, `admin.queue.no-language-match`, `admin.refund.requested`) do reach a signed-in admin over the socket, so the gap there is specifically the administrator who is not looking.
+
+**How it is tracked, rather than remembered.** `TEMPLATES_WITHOUT_PRODUCER` in `templates.ts` names all seventeen. `GET /admin/notification-templates` marks them, and the admin screen says plainly that wording them changes nothing yet. `tests/integration/notification-producers.test.ts` checks the set against the actual source in both directions: a new template with no producer fails until it is listed with a stated consequence, and a listed one fails once something sends it. Wiring a producer is finished when its entry is deleted.
+
+---
+
 ## Post-MVP — architected for, deliberately not built
 
 | Item | What already accommodates it |

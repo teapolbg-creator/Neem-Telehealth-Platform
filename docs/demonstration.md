@@ -129,7 +129,7 @@ Worth showing, in this order:
 | **Scheduling** | **Turn on** the Night shift — it ships off, because 24-hour operation is a business decision rather than a default. Then assign the same doctor **four night shifts in one week**: the fourth is refused, because 40 hours is a fatigue rule the API enforces whatever this screen shows. Search by name or MDC number; the directory is paged |
 | **Refunds** | A request from the seed, awaiting a decision. Money is reversed, never deleted |
 | **Quality** | Doctor scores with the breakdown behind each — admin-only, never shown to a doctor |
-| **Notifications** | Reword any message. **Try typing a dose or a diagnosis into one** — it is refused when you save it, not when it is sent (spec §60) |
+| **Notifications** | Reword any message. **Try typing a dose or a diagnosis into one** — it is refused when you save it, not when it is sent (spec §60). Most rows are marked **"not sent yet"**: 17 of the 21 messages have no producer, and the screen says so rather than letting an administrator word something nobody will receive. Point at it — a product that admits what it has not connected is worth more than one that does not know |
 | **Settings** | Change the consultation price. A sensitive setting requires a written reason, and the previous value is kept |
 | **Audit** | Everything above, appended. Read-only: there is no edit and no delete route behind this screen |
 | **Archive** | Retrieval of a sealed consultation — needs the reference, a stated purpose, and **a second administrator**. Self-authorisation is refused |
@@ -158,6 +158,7 @@ Worth showing, in this order:
 | A completed consultation shows no clinical notes | Correct. It is sealed — that is the whole design (D23) |
 | The admin cannot retrieve an archived record alone | Correct. It needs a second administrator (D27) |
 | Analytics shows no diagnosis or medication data | There is deliberately no such route, in aggregate or otherwise (spec §13) |
+| Most notification templates say "not sent yet" | True, and deliberately visible. 17 of 21 have no producer — see `product-backlog.md`. The four that do fire during this demonstration |
 
 ---
 

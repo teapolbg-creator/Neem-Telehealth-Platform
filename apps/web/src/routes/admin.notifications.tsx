@@ -40,6 +40,16 @@ const CHANNEL_TONE: Record<string, "brand" | "medical" | "warning" | "muted"> = 
  * **It never lists what was sent.** There is nothing to list: `notifications`
  * stores a hash, not a body (D32). This edits what *will* be said, and the
  * absence of a history is deliberate rather than missing.
+ *
+ * **And it says which messages are not sent at all.** Phase 11 found that 17
+ * of the 21 templates had no producer: complete wording, channels, variables
+ * and an editor, and nothing anywhere calling `notify()` with the code. This
+ * screen was the sharp end of that — it invited an administrator to word a
+ * message with care and told them nothing about whether it would be
+ * delivered. Those now carry a "not sent yet" chip and a sentence saying so.
+ * The set behind it is `TEMPLATES_WITHOUT_PRODUCER`, checked against the real
+ * source by test, so this screen cannot go on claiming a message is silent
+ * after somebody connects it.
  */
 function AdminNotifications() {
   const templates = useNotificationTemplates();
@@ -117,10 +127,18 @@ function TemplateCard({ template }: { template: NotificationTemplate }) {
             </Chip>
             {!template.isDefault && <Chip tone="warning">edited</Chip>}
             {!template.isActive && <Chip tone="muted">off</Chip>}
+            {!template.hasProducer && <Chip tone="muted">not sent yet</Chip>}
           </div>
           {template.description && (
             <p className="mt-1.5 max-w-xl text-pretty text-xs leading-relaxed text-slate-500">
               {template.description}
+            </p>
+          )}
+          {!template.hasProducer && (
+            <p className="mt-1.5 max-w-xl text-pretty text-xs leading-relaxed text-amber-700">
+              Nothing in Neem sends this message yet. You can word it now and it
+              will be used the moment it is connected — but nobody is receiving
+              it today, and saving this will not change that.
             </p>
           )}
         </div>

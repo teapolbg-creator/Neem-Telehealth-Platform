@@ -42,7 +42,7 @@
         │                                       │    │        payment_webhook_events
    doctor_documents                             │    │
    doctor_languages          ┌──────────────────▼──┐ │
-   doctor_signatures         │ TEMPORARY (purged)  │ │
+   doctor_signatures         │ SEALED AT COMPLETION│ │
    doctor_subscriptions      │ patient_sessions    │ │
    doctor_shift_assignments  │ clinical_notes      │ │
    doctor_service_hours      │ consultation_vitals │ │
@@ -130,7 +130,7 @@ Compensation fields are configurable and **nullable** — the part-time formula 
 **`consultations`** — PERMANENT (operational fields only)
 `id`, `publicId`, `pharmacyId` FK, `doctorId` FK NULL, `state`, `type` ENUM(`AUDIO`,`VIDEO`,`CALL_ME`) NULL until chosen, `languageId` FK NULL until chosen, `priceMinor`, `discountMinor`, `netMinor`, `currency`, `promotionId` NULL, `createdAt`, `paymentDeadlineAt`, `activatedAt`, `patientJoinedAt`, `queuedAt`, `assignedAt`, `startedAt`, `completedAt`, `durationSeconds`, `outcome` ENUM(`ADVICE_ONLY`,`PRESCRIPTION`,`REFERRAL`,`EMERGENCY_REFERRAL`,`OTHER`) NULL, `hasPrescription`, `hasReferral`, `cancellationReason`, `isDemo`.
 Indexes: (`pharmacyId`,`createdAt`), (`doctorId`,`createdAt`), (`state`), (`publicId` UNIQUE).
-**No clinical column lives here.** After purge this row is a complete, honest operational record and nothing more (spec §12).
+**No clinical column lives here.** Once the sealed record has been destroyed, this row is a complete, honest operational record and nothing more (spec §12).
 
 **`consultation_state_events`** — PERMANENT, append-only
 `id`, `consultationId`, `fromState`, `toState`, `actorType`, `actorId`, `reason`, `occurredAt`. Every transition, including rejected ones, is recorded.
@@ -138,12 +138,12 @@ Indexes: (`pharmacyId`,`createdAt`), (`doctorId`,`createdAt`), (`state`), (`publ
 **`consultation_access_tokens`** — TEMPORARY
 `id`, `consultationId`, `tokenHash` UNIQUE, `sequence`, `issuedByUserId`, `expiresAt`, `consumedAt`, `revokedAt`, `createdAt`. The raw token exists only inside the QR image and is never stored, logged, or returned twice. Single use, expiring, invalidated on completion (spec §10).
 
-**`patient_sessions`** — TEMPORARY
+**`patient_sessions`** — RETAINED UNDER SEAL
 `id`, `consultationId` UNIQUE, `fullNameEnc`, `age`, `sex`, `phoneEnc`, `paymentPhoneEnc`, `deviceSessionTokenHash`, `deviceBoundAt`, `createdAt`, `purgedAt`.
-Deleted at completion — except that name, age, and sex are **copied by value** onto any prescription or referral issued, which is the sole permitted exception (spec §11).
+Destroyed when the retention period expires, not at completion (D23). It has to survive completion for a second reason as well as the legal one: the patient reads their consultation reference off this session, and it is the only copy they get. Name, age, and sex are additionally **copied by value** onto any prescription or referral issued, so those documents outlive the destruction (spec §11).
 
-**`consultation_clinical_notes`** — TEMPORARY
-`id`, `consultationId` UNIQUE, `notesEnc`, `diagnosisEnc`, `treatmentEnc`, `updatedAt`. Hard-deleted the instant the doctor completes.
+**`consultation_clinical_notes`** — RETAINED UNDER SEAL
+`id`, `consultationId` UNIQUE, `notesEnc`, `diagnosisEnc`, `treatmentEnc`, `updatedAt`. Sealed the instant the doctor completes — unreachable by any clinician, retrievable only through the four-eyes archive route (D27) — and hard-deleted when the retention period expires.
 
 **`consultation_vitals`** — TEMPORARY
 `id`, `consultationId`, `bpSystolic`, `bpDiastolic`, `pulseBpm`, `temperatureC`, `weightKg`, `spo2Percent`, `recordedByUserId`, `recordedAt`.
@@ -216,7 +216,11 @@ Seeded keys include `consultation.priceMinor`, `consultation.durationSeconds` (d
 Stores a **hash**, not the rendered body, so notification history never becomes a shadow copy of clinical or personal data (spec §60).
 
 **`audit_logs`** — append-only: `id`, `occurredAt`, `correlationId`, `actorType`, `actorId`, `action`, `entityType`, `entityId`, `ipHash`, `userAgent`, `metadata` JSON, `outcome`.
-No INSERT-only enforcement exists in MySQL itself, so it is enforced by a dedicated DB user with `INSERT`+`SELECT` only on this table, plus a service that exposes no update or delete path. `metadata` is schema-restricted to non-clinical fields — the audit log must not become a back-door medical history (spec §61).
+No INSERT-only enforcement exists in MySQL itself. What enforces it, precisely: the audit service exposes no update or delete method, no route reaches one, and a test asserts the metadata sanitiser. A dedicated `neem_audit` account holding `INSERT`+`SELECT` on this table and nothing else is created by `docker/mysql-init` and granted by `npm run db:grants`.
+
+**That account is not the application's writer, and the distinction matters.** Audit rows are written on the same connection and inside the same transaction as the business change they record, so the entry and the thing it describes commit together or not at all. A second connection cannot join that transaction. Transactional audit was judged the better property; the consequence is that the application's own account can still reach this table, and the append-only guarantee in the running system rests on the service surface rather than on MySQL. The `neem_audit` account is for the operator and for anything reading the log out of band.
+
+`metadata` is schema-restricted to non-clinical fields — the audit log must not become a back-door medical history (spec §61).
 
 **`retention_jobs`** — `id`, `consultationId`, `scheduledFor`, `startedAt`, `completedAt`, `status`, `rowsPurged` JSON, `verifiedAt`, `error`. Proves deletion happened and lets §101 be demonstrated rather than asserted.
 
@@ -224,9 +228,12 @@ No INSERT-only enforcement exists in MySQL itself, so it is enforced by a dedica
 
 ## 4. Retention summary
 
+**Revised by D23.** This table said "hard-deleted immediately" for everything clinical, because that was the design through Phase 5. Ghanaian law does not permit it. Completion now **seals** and schedules; destruction happens when the retention period expires.
+
 | Class | Tables | Fate at consultation completion |
 | --- | --- | --- |
-| **TEMPORARY** | `patient_sessions`, `consultation_clinical_notes`, `consultation_vitals`, `consultation_tests`, `consultation_access_tokens` | Hard-deleted immediately; recorded in `retention_jobs` |
+| **SEALED, THEN DESTROYED** | `patient_sessions`, `consultation_clinical_notes`, `consultation_vitals`, `consultation_tests` | Sealed at completion and unreachable by any clinician; hard-deleted when `retention_jobs.scheduledFor` passes, with the row counts recorded |
+| **DESTROYED AT COMPLETION** | `consultation_access_tokens` | Deleted immediately. A token is a credential, not a record: nothing about record-keeping requires keeping a key, and a live one would let a photographed QR reopen a finished consultation |
 | **PERMANENT** | `consultations`, `consultation_state_events`, `prescriptions` (+items/versions), `referrals`, `payments`, `revenue_allocations`, `refunds`, `feedback`, `audit_logs` | Retained |
 | **OPERATIONAL** | users, pharmacies, doctors, scheduling, settings, notifications, queue | Retained; subject to their own lifecycles |
 

@@ -5,7 +5,7 @@ import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { NOTIFICATION_TEMPLATES, validateTemplateBody } from './templates.ts';
+import { NOTIFICATION_TEMPLATES, TEMPLATES_WITHOUT_PRODUCER, validateTemplateBody } from './templates.ts';
 
 /**
  * Notification template administration (spec §58, §60).
@@ -66,6 +66,14 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
           variables: definition.variables,
           /** True when the wording still matches what Neem shipped. */
           isDefault: body === definition.body && subject === (definition.subject ?? null),
+          /**
+           * False when nothing in Neem sends this message today.
+           *
+           * Reported because the alternative is a screen that invites an
+           * administrator to word a notification with care and never tells
+           * them it will not be delivered. See TEMPLATES_WITHOUT_PRODUCER.
+           */
+          hasProducer: !TEMPLATES_WITHOUT_PRODUCER.has(definition.code),
         };
       }),
     );

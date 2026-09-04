@@ -311,3 +311,43 @@ export function validateTemplateBody(
 
   return problems;
 }
+
+/**
+ * Templates the catalogue declares but nothing in the application sends.
+ *
+ * Found in Phase 11: 17 of the 21 templates below had no producer. Every one
+ * was complete — subject, body, channels, variables, and an admin screen to
+ * reword them on — and nothing anywhere called `notify()` with the code. An
+ * administrator could word a message with care and it would never reach
+ * anyone, and the product said nothing about it.
+ *
+ * This set is exported for two consumers, which is the point of it existing
+ * here rather than in either of them:
+ *
+ *  - `GET /admin/notification-templates` marks these rows, so the screen tells
+ *    the truth about what editing them achieves today;
+ *  - `tests/integration/notification-producers.test.ts` checks it against the
+ *    actual source, so it cannot quietly go stale in either direction.
+ *
+ * It is a debt register. Wiring a producer means deleting the entry, and the
+ * test fails until it is deleted.
+ */
+export const TEMPLATES_WITHOUT_PRODUCER: ReadonlySet<string> = new Set([
+  'doctor.consultation.missed',
+  'doctor.shift.assigned',
+  'doctor.membership.expiring',
+  'doctor.membership.suspended',
+  'doctor.licence.expiring',
+  'doctor.account.approved',
+  'pharmacy.consultation.doctor-assigned',
+  'pharmacy.prescription.revoked',
+  'pharmacy.substitution.decided',
+  'pharmacy.consultation.no-doctor',
+  'pharmacy.refund.decided',
+  'pharmacy.account.approved',
+  'patient.consultation.ready',
+  'admin.queue.no-language-match',
+  'admin.payment.anomaly',
+  'admin.refund.requested',
+  'admin.retention.overdue',
+]);

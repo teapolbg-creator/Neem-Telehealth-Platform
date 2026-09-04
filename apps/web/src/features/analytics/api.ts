@@ -171,6 +171,8 @@ export interface NotificationTemplate {
   variables: string[];
   /** False once the wording has been changed from what Neem shipped. */
   isDefault: boolean;
+  /** False when nothing in Neem sends this message today. */
+  hasProducer: boolean;
 }
 
 const templatesKey = ['admin', 'notification-templates'];

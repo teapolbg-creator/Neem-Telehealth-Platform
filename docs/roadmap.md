@@ -699,6 +699,72 @@ Seeded demo environment clearly marked DEMO and isolated from production config 
   directory, `db:migrate` raced it. The healthcheck was already there and
   nothing waited on it; `--wait` does.
 
+- **Four of twenty-one notifications are actually sent.** Checking the job
+  table against the scheduler led to a setting with no reader, which led to a
+  template with no sender, which led to counting them: `notify()` is called
+  from four places, and the other seventeen templates have a subject, a body,
+  channels, a variable list and an admin screen to reword them on, and nothing
+  anywhere that sends them.
+
+  Nothing is unsafe, which is why it survived three phases — every rule that
+  matters is enforced server-side at the point of use, so a revoked
+  prescription is still refused at the counter and an expired licence still
+  blocks a prescription. What is lost is that people are not told. An approved
+  doctor discovers it by signing in and looking. A pharmacy blocked on a
+  substitution decision has to keep checking for the answer, because the
+  doctor is told there is a question and the pharmacy is never told the reply.
+
+  **Wiring seventeen producers is a phase, not a Phase 11 item**, so I have
+  not done it. What I have done is make it impossible to lose again:
+  `TEMPLATES_WITHOUT_PRODUCER` names all seventeen, the admin screen marks
+  them "not sent yet" and says in a sentence that wording them changes nothing
+  today, and `notification-producers.test.ts` checks the set against the real
+  source in both directions — an unlisted silent template fails, and a listed
+  one fails once something sends it. The register cannot overstate or
+  understate the debt.
+
+  The test caught me while I was writing it: I had listed
+  `doctor.substitution.requested` as unwired and it is one of the four.
+
+- **`docs/security.md` still carried the pre-D23 deletion promise**, in §5,
+  the paragraph a security reviewer reads first: "Nobody but the doctor sees
+  clinical notes, and those are deleted at completion." The README pass
+  earlier in this phase corrected exactly this sentence in the README and
+  stopped there. It was also in `database.md` ("Hard-deleted the instant the
+  doctor completes"), in `consultation-flow.md` (the completion transaction
+  "purging temporary data", and a retention table whose only column was "fate
+  at completion"), and in `architecture.md`. Corrected in all four, each
+  noting what the sentence used to say, because a document that silently
+  changes its mind about patient data teaches the reader nothing.
+
+- **`architecture.md`'s job table listed three jobs that do not exist** —
+  `purge-temporary-data`, `check-licence-expiry`, `check-subscription-expiry`
+  — and omitted five that do. Rewritten from the scheduler. `check-licence-expiry`
+  was the thread that led to the notification finding above.
+
+- **`npm run db:grants` did not exist.** `docker/mysql-init` tells the reader
+  that the append-only audit account's grants are "applied by `npm run
+  db:grants`", and there was no such script; the `.sql` file it named sat
+  unreferenced. So on any installation following this repository's own
+  instructions, `neem_audit` existed with no privileges at all. The script now
+  exists, runs as part of `setup`, and derives the database and account names
+  from the environment rather than hard-coding them, so an installation that
+  renamed its schema still grants against the right one. Verified rather than
+  asserted: the account is refused `DELETE` on `audit_logs` and refused
+  `SELECT` on `patient_sessions`.
+
+  **And the docs overstated what it buys.** `security.md` §6 and `database.md`
+  both said the append-only guarantee rests on that account. It does not —
+  nothing connects as it. Audit rows are written on the same connection and
+  inside the same transaction as the business change they record, which is the
+  better property and the reason a second connection cannot be used, so the
+  guarantee in the running system rests on the service surface: no update or
+  delete method, no route, asserted by test. Both documents now say that, and
+  a new `security.md` §10 lists the controls that are a deployment's
+  obligation rather than the code's — narrowing the application account,
+  TLS, encryption at rest, key rotation — so that reading §1–§9 does not leave
+  the impression they are already in force.
+
 - **One claim I wrote and had to correct before committing.** The new
   integrations table said the Twilio video and voice adapters were built. They
   are not: selecting `twilio` throws at boot saying so. The table now says

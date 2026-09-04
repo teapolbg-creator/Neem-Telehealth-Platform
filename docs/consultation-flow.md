@@ -28,12 +28,12 @@ scan QR ───────────────▶ token exchange → devi
                                                 ASSIGNED → DOCTOR_ACCEPTED
                          ◀────────────── media session established ──▶
                          IN_PROGRESS · 5-min timer, warning only
-vitals/tests entry ────▶ (temporary)  ◀── doctor reads
+vitals/tests entry ────▶ (sealed at end) ◀── doctor reads
                                                       doctor records outcome
                                                       prescription / referral
                                               COMPLETING
                                               ├─ persist permanent records
-                                              ├─ purge temporary data
+                                              ├─ seal record + schedule destruction
                                               ├─ invalidate token + QR
                                               └─ end media session
                                               COMPLETED
@@ -59,7 +59,7 @@ mark dispensed                                     patient leaves feedback
 | `DOCTOR_ACCEPTED` | Doctor accepted; media session being established |
 | `IN_PROGRESS` | Clinical interaction underway; timer running |
 | `COMPLETING` | Doctor submitted the outcome; the completion transaction is running |
-| `COMPLETED` | Terminal. Permanent records written, temporary data purged |
+| `COMPLETED` | Terminal. Permanent records written, clinical record sealed and its destruction scheduled (D23) |
 
 Alternate and terminal states: `PAYMENT_FAILED`, `EXPIRED`, `CANCELLED`, `REASSIGNING`, `ABANDONED`, `REFUND_REQUESTED`, `REFUNDED`.
 
@@ -104,7 +104,9 @@ Transitions are executed by a single guarded function. The service layer never a
 
 **Patients are never abandoned.** Every path out of `WAITING_FOR_DOCTOR` is either assignment, an explicit patient cancellation with a refund request, or an admin action. Queue depth and no-language-match conditions raise admin alerts (spec §29, §37).
 
-**Completion is one transaction.** Writing permanent records, purging temporary data, invalidating tokens, and ending the media session either all happen or none do. If the purge fails, the transaction rolls back and `retention_jobs` retries — completion is never reported while clinical data survives (spec §16, §101).
+**Completion is one transaction.** Writing permanent records, sealing the clinical record, scheduling its destruction, invalidating tokens, and ending the media session either all happen or none do. If any part fails, the transaction rolls back — a consultation is never reported complete with an unsealed record or no scheduled destruction (spec §16, §101).
+
+> Until D23 this paragraph said the transaction **purged** clinical data, and that a failed purge rolled back so "completion is never reported while clinical data survives". Ghanaian law does not permit that deletion. What completion destroys now is the access token — a credential, not a record — and what it schedules is destruction after the retention period.
 
 ---
 
