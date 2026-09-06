@@ -9,8 +9,22 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-export function loadDotEnv(file = path.join(process.cwd(), '.env')) {
+/**
+ * The repository root, found from this file rather than from the shell.
+ *
+ * It used to default to `process.cwd()`, which is correct under `npm run` —
+ * npm sets the working directory to the package root — and wrong every other
+ * way a script gets started. Running one from `scripts/`, or from an editor's
+ * run button, or from a subdirectory, silently found no `.env` at all: no
+ * error, just a script insisting a variable was unset when it is sitting in
+ * the file. There is exactly one `.env` and it is always here, so there is
+ * nothing for the shell to be right about.
+ */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+export function loadDotEnv(file = path.join(REPO_ROOT, '.env')) {
   if (!existsSync(file)) return;
 
   for (const line of readFileSync(file, 'utf8').split('\n')) {
