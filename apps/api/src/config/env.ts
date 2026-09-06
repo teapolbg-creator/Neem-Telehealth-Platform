@@ -37,15 +37,20 @@ export const PROVIDER_MODES = {
   payment: ['mock', 'paystack'],
   video: ['mock', 'whereby'],
   /**
-   * Voice has no real provider.
+   * Voice, where `none` means the capability is switched off.
    *
    * "Call Me" bridges two telephone legs so neither party learns the other's
-   * number (spec §33). Whereby cannot do it — it is browser-to-browser — and
-   * Twilio was removed in D36. Until a telephony provider is chosen, `mock`
-   * is the only honest value, and the enum says so rather than offering a
-   * name that would throw at boot.
+   * number (spec §33). Whereby cannot — it is browser-to-browser — and no
+   * Ghanaian provider checked so far publishes call bridging (D36, D37).
+   *
+   * `none` and `mock` are deliberately different states, and conflating them
+   * is what kept production from booting at all. A **mock pretends**: it
+   * reports a call that never happened, which is why production refuses it.
+   * **`none` does not pretend** — the mode is not offered to a patient, the
+   * routes refuse it, and nothing anywhere claims a call took place. That is a
+   * product decision a deployment is allowed to make (D38).
    */
-  voice: ['mock'],
+  voice: ['none', 'mock'],
   sms: ['mock', 'hubtel'],
   email: ['mock', 'mailhog', 'smtp'],
   whatsapp: ['mock'],
@@ -103,7 +108,7 @@ const envSchema = z
 
     PAYMENT_PROVIDER: z.enum(PROVIDER_MODES.payment).default('mock'),
     VIDEO_PROVIDER: z.enum(PROVIDER_MODES.video).default('mock'),
-    VOICE_PROVIDER: z.enum(PROVIDER_MODES.voice).default('mock'),
+    VOICE_PROVIDER: z.enum(PROVIDER_MODES.voice).default('none'),
     SMS_PROVIDER: z.enum(PROVIDER_MODES.sms).default('mock'),
     EMAIL_PROVIDER: z.enum(PROVIDER_MODES.email).default('mock'),
     WHATSAPP_PROVIDER: z.enum(PROVIDER_MODES.whatsapp).default('mock'),
@@ -270,8 +275,9 @@ const envSchema = z
        */
       const unbuilt: Record<string, string> = {
         VOICE_PROVIDER:
-          'no telephony provider is implemented, so "Call Me" cannot work. It dials both ' +
-          'parties and bridges them (spec §33); Whereby cannot, and Twilio was removed (D36)',
+          'no telephony provider is implemented. Set VOICE_PROVIDER=none to switch "Call Me" ' +
+          'off honestly — the mode is then not offered to patients and the routes refuse it, ' +
+          'rather than a mock reporting calls that never happened (D38)',
       };
 
       for (const [key, value] of mocked) {

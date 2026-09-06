@@ -308,7 +308,21 @@ test.describe('a video consultation', () => {
   });
 });
 
-test.describe('a Call Me consultation (spec §33)', () => {
+/**
+ * Call Me is switched off in this deployment (D38), so these do not run.
+ *
+ * `skip` rather than deletion, because the mode is deferred to the pilot
+ * rather than abandoned: no Ghanaian provider checked so far publishes call
+ * bridging, and whether Neem needs the mode at all is a question the pilot can
+ * answer with evidence. A scenario that vanishes looks like coverage nobody
+ * thought about — and the day a telephony provider is configured, the way back
+ * is to delete this line.
+ *
+ * The behaviour these covered is not uncovered: `media.test.ts` exercises the
+ * bridge against an injected provider, which is where it can be asserted
+ * without a phone ringing.
+ */
+test.describe.skip('a Call Me consultation (spec §33)', () => {
   test('bridges the call and shows neither party the other’s number', async ({
     page,
     request,

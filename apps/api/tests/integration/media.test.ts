@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestPharmacy, createTestUser, resetDatabase } from '../helpers/database.ts';
@@ -107,10 +107,14 @@ async function createOnlineDoctor(
 }
 
 /** A consultation the doctor has accepted, ready for media to start. */
-async function acceptedConsultation(
-  type: 'VIDEO' | 'AUDIO' | 'CALL_ME',
-  options: { doctorHasPhone?: boolean } = {},
-): Promise<Fixture> {
+/**
+ * A paid consultation with a patient who has given their details and language,
+ * and is at the point of choosing how to consult.
+ *
+ * Split out of `acceptedConsultation` so a test can stand exactly where the
+ * patient stands when the mode list is built (D38).
+ */
+async function patientChoosingMode(options: { doctorHasPhone?: boolean } = {}) {
   const prisma = getPrisma();
   const doctor = await createOnlineDoctor(options.doctorHasPhone ?? true);
 
@@ -163,9 +167,18 @@ async function acceptedConsultation(
     cookies: exchange.cookies,
     payload: { languageCode: 'en' },
   });
+  return { prisma, doctor, publicId, patientCookies: exchange.cookies };
+}
+
+async function acceptedConsultation(
+  type: 'VIDEO' | 'AUDIO' | 'CALL_ME',
+  options: { doctorHasPhone?: boolean } = {},
+): Promise<Fixture> {
+  const { prisma, doctor, publicId, patientCookies } = await patientChoosingMode(options);
+
   await request('/patient/session/mode', {
     method: 'POST',
-    cookies: exchange.cookies,
+    cookies: patientCookies,
     payload: { type },
   });
 
@@ -180,7 +193,7 @@ async function acceptedConsultation(
     consultationPublicId: publicId,
     doctorId: doctor.doctorId,
     doctorCookies: await signIn(doctor.email, DOCTOR_PASSWORD),
-    patientCookies: exchange.cookies,
+    patientCookies,
   };
 }
 
@@ -529,5 +542,64 @@ describe('ending a media session', () => {
       where: { consultationId: fixture.consultationId },
     });
     expect(session.endedAt).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Call Me switched off (decision D38)
+// ---------------------------------------------------------------------------
+
+describe('when Call Me is switched off', () => {
+  beforeEach(() => {
+    // The rest of this file injects a voice provider, which is how the Call Me
+    // tests above still exercise the mode. Clearing it is what "off" means.
+    setMediaProvidersForTesting({ video: new MockVideoProvider() });
+  });
+
+  afterEach(() => {
+    setMediaProvidersForTesting({ video: new MockVideoProvider(), voice: new MockVoiceProvider() });
+  });
+
+  it('does not offer the mode to the patient', async () => {
+    const fixture = await patientChoosingMode();
+
+    const response = await request<{ availableTypes: string[] }>('/patient/session', {
+      cookies: fixture.patientCookies,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data!.availableTypes).toEqual(['AUDIO', 'VIDEO']);
+  });
+
+  it('refuses it even when a client asks for it anyway', async () => {
+    /**
+     * The assertion that matters. Filtering the list is presentation; this is
+     * the boundary. A patient's screen is not what decides whether a mode is
+     * available, and a request naming CALL_ME is refused whatever the client
+     * believed (spec §7 — every rule the UI applies is enforced again here).
+     */
+    const fixture = await patientChoosingMode();
+
+    const response = await request('/patient/session/mode', {
+      method: 'POST',
+      cookies: fixture.patientCookies,
+      payload: { type: 'CALL_ME' },
+    });
+
+    expect(response.status).toBe(422);
+    expect(JSON.stringify(response.body)).toMatch(/not available/i);
+  });
+
+  it('still allows audio and video', async () => {
+    // "Off" must switch off one mode, not the consultation.
+    const fixture = await patientChoosingMode();
+
+    const response = await request('/patient/session/mode', {
+      method: 'POST',
+      cookies: fixture.patientCookies,
+      payload: { type: 'AUDIO' },
+    });
+
+    expect(response.status).toBe(200);
   });
 });

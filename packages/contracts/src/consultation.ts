@@ -50,6 +50,16 @@ export const consultationSummarySchema = z.object({
   publicId: z.string(),
   state: z.enum(CONSULTATION_STATES),
   type: z.enum(CONSULTATION_TYPES).nullable(),
+  /**
+   * The modes this deployment will actually accept.
+   *
+   * Sent so the patient's screen cannot offer a choice the server refuses.
+   * "Call Me" is switched off wherever no telephony provider is configured
+   * (D38), and a button that leads to a rejection is worse than no button —
+   * the patient is standing at a counter and cannot tell a product decision
+   * from a fault.
+   */
+  availableTypes: z.array(z.enum(CONSULTATION_TYPES)),
   language: z.object({ code: z.string(), label: z.string() }).nullable(),
   price: moneySchema,
   discount: moneySchema,
@@ -171,6 +181,16 @@ export const patientSessionViewSchema = z.object({
   identityCaptured: z.boolean(),
   language: z.object({ code: z.string(), label: z.string() }).nullable(),
   type: z.enum(CONSULTATION_TYPES).nullable(),
+  /**
+   * The modes this deployment will actually accept.
+   *
+   * Sent so the patient's screen cannot offer a choice the server refuses.
+   * "Call Me" is switched off wherever no telephony provider is configured
+   * (D38), and a button that leads to a rejection is worse than no button —
+   * the patient is standing at a counter and cannot tell a product decision
+   * from a fault.
+   */
+  availableTypes: z.array(z.enum(CONSULTATION_TYPES)),
   doctor: z.object({ fullName: z.string(), specialty: z.string().nullable() }).nullable(),
   waitingSinceSeconds: z.number().int().nullable(),
   /** Consultation length in seconds, so the client can show a timer. */

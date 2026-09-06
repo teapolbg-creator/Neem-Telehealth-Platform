@@ -11,6 +11,7 @@ import {
 } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
+import { isCallMeEnabled } from '../../adapters/media/index.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { transition } from './consultation.service.ts';
 import { isTerminal } from '../../domain/consultation-state.ts';
@@ -104,6 +105,17 @@ export async function selectModeAndEnterQueue(
   }
   if (!consultation.patientSession?.fullNameEnc) {
     throw errors.businessRule('Enter your details before selecting how to consult.');
+  }
+
+  /**
+   * The real boundary, not the UI's politeness.
+   *
+   * The mode list below is filtered for the patient's screen, and this is what
+   * makes that filtering more than cosmetic: a request naming a disabled mode
+   * is refused whatever the client believed (D38).
+   */
+  if (type === 'CALL_ME' && !isCallMeEnabled()) {
+    throw errors.businessRule('Call Me is not available. Choose audio or video instead.');
   }
 
   await db.$transaction(async (tx) => {
@@ -213,6 +225,13 @@ export async function buildSessionView(
       ? { code: consultation.language.code, label: consultation.language.label }
       : null,
     type: consultation.type,
+    /**
+     * Built here rather than listed in the client, so the two cannot disagree.
+     * "Call Me" drops out wherever no telephony provider is configured (D38).
+     */
+    availableTypes: isCallMeEnabled()
+      ? (['AUDIO', 'VIDEO', 'CALL_ME'] as const)
+      : (['AUDIO', 'VIDEO'] as const),
     // The patient is told who they will see, not how that doctor was chosen.
     doctor: consultation.doctor
       ? { fullName: consultation.doctor.fullName, specialty: consultation.doctor.specialty }

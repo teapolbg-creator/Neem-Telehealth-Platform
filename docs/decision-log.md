@@ -706,3 +706,55 @@ reports are requested (`RegisteredDelivery: true`) but nothing consumes them:
 there is no Hubtel callback route, so `notifications` records SENT meaning
 "the gateway accepted it". Closing that gap needs a webhook endpoint and is
 worth doing once real delivery rates are visible.
+
+---
+
+### D38 — "Call Me" is switched off, not mocked · 2026-09-06 · **DECIDED**
+
+**Issue.** [D37](#d37) left one thing blocking a deployment: `VOICE_PROVIDER`
+could only be `mock`, and production refuses a mock — so no production
+configuration could be completed at all. The product owner decided to defer
+Call Me to the pilot, which means the build needs a way to say "this capability
+is off" that is not the same as "this capability is pretending".
+
+**Selected.** `VOICE_PROVIDER=none`, and it is now the default.
+
+**`none` and `mock` are different states, and conflating them is what
+blocked the deploy.** A mock _pretends_: it reports a bridged call that never
+happened, which is exactly why production refuses it and must go on refusing
+it. `none` does not pretend — the mode is not offered to a patient, the
+server refuses it, and nothing anywhere claims a call took place. That is a
+product decision a deployment is entitled to make, and the configuration can
+now express it.
+
+**Where "off" is enforced.**
+
+`getVoiceProviderOrNull()` is the single place that decides, and everything
+else asks it — the patient's mode list, the routes, the guard. Nothing reads
+`VOICE_PROVIDER` on its own. It also honours a provider injected for testing,
+which is why the integration tests still exercise the bridge while the mode is
+off everywhere else.
+
+The patient's session view now carries `availableTypes`, built on the server,
+and the mode screen renders that rather than a constant of its own. A button
+that leads to a rejection is worse than no button: the patient is standing at a
+counter and cannot tell a product decision from a fault.
+
+**And the filtering is not the boundary.**
+`selectModeAndEnterQueue` refuses `CALL_ME` outright when it is off, so a
+request naming it is rejected whatever the client believed — the same rule as
+everywhere else in this system, that the UI decides what to render and the API
+decides what is allowed. A test asks for `CALL_ME` directly and asserts the 422.
+
+**What is not lost.** The `VoiceProvider` interface, the mock, the bridge
+service and its integration tests all stay. The end-to-end Call Me scenarios
+are `describe.skip` with the reason written above them rather than deleted,
+because a scenario that vanishes looks like coverage nobody thought about.
+Turning the mode back on is: implement an adapter, add it to the enum, set the
+variable, delete one `.skip`.
+
+**Consequence.** Production configuration is completable again — the remaining
+items are credentials and secrets rather than gaps in the build. Whether Call
+Me is needed at all is now a question the pilot answers with evidence: how many
+patients arrive at a counter unable to use the QR flow, and whether they need a
+conversation or only their consultation reference.

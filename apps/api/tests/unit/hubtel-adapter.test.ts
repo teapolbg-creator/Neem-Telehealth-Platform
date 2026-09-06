@@ -264,6 +264,10 @@ describe('the check script agrees with the adapter', () => {
      * trusted to stay in step, and the comment in the script saying they are
      * kept in step by a test is this test.
      */
+    // The operational scripts are plain `.mjs` with no declarations, which is
+    // deliberate — they must run without a build step. Typed at the boundary.
+    // @ts-expect-error — a plain .mjs with no declarations, deliberately: the
+    // operational scripts must run with no build step. Shape asserted below.
     const script = await import('../../../../scripts/hubtel-check.mjs');
     const scriptNormalise = script.toGhanaMsisdn as typeof toGhanaMsisdn;
 

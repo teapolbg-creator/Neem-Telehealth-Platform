@@ -1,4 +1,5 @@
 import { getEnv } from '../../config/env.ts';
+import { errors } from '../../lib/errors.ts';
 import type { VideoProvider, VoiceProvider } from './media.provider.ts';
 import { MockVideoProvider, MockVoiceProvider } from './mock-media.provider.ts';
 import { WherebyVideoProvider } from './whereby-media.provider.ts';
@@ -38,11 +39,26 @@ export function getVideoProvider(): VideoProvider {
   return video;
 }
 
-export function getVoiceProvider(): VoiceProvider {
+/**
+ * The voice provider, or null when "Call Me" is switched off (D38).
+ *
+ * Null rather than a throw, because "off" is an ordinary state that several
+ * callers need to ask about — the patient's mode list, the doctor's call
+ * button, the route guard — and none of them should be reading an environment
+ * variable of their own. This is the one place that decides.
+ *
+ * Note it consults the injected provider first. A test that injects a voice
+ * provider is exercising Call Me deliberately, and gets it whatever the
+ * environment says; that is why the integration tests still cover the mode
+ * while it is off everywhere else.
+ */
+export function getVoiceProviderOrNull(): VoiceProvider | null {
   if (!voice) {
     const env = getEnv();
 
     switch (env.VOICE_PROVIDER) {
+      case 'none':
+        return null;
       case 'mock':
         voice = new MockVoiceProvider();
         break;
@@ -51,6 +67,27 @@ export function getVoiceProvider(): VoiceProvider {
     }
   }
   return voice;
+}
+
+/**
+ * Whether a patient may choose "Call Me" at all.
+ *
+ * Read by the patient's mode list so a button is never offered that the server
+ * would refuse, and by the routes so the refusal is real rather than a matter
+ * of the UI being polite.
+ */
+export function isCallMeEnabled(): boolean {
+  return getVoiceProviderOrNull() !== null;
+}
+
+export function getVoiceProvider(): VoiceProvider {
+  const provider = getVoiceProviderOrNull();
+
+  if (!provider) {
+    throw errors.businessRule('Call Me is not available. Choose audio or video instead.');
+  }
+
+  return provider;
 }
 
 export function setMediaProvidersForTesting(

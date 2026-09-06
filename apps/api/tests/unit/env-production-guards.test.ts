@@ -33,8 +33,8 @@ function productionEnv(overrides: Record<string, string | undefined> = {}): Node
     HUBTEL_CLIENT_ID: 'a-real-hubtel-client-id',
     HUBTEL_CLIENT_SECRET: 'a-real-hubtel-client-secret',
     HUBTEL_SENDER_ID: 'Neem',
-    // Voice still has no provider at all, which is asserted below.
-    VOICE_PROVIDER: 'mock',
+    // Call Me is switched off rather than mocked (D38).
+    VOICE_PROVIDER: 'none',
     EMAIL_PROVIDER: 'smtp',
     SMTP_HOST: 'smtp.example.com',
     SMTP_PORT: '587',
@@ -68,41 +68,36 @@ function collectIssues(source: NodeJS.ProcessEnv): Array<{ path: string[] }> {
 
 describe('the production configuration baseline', () => {
   /**
-   * **This build still cannot be deployed to production — but for one reason
-   * now, not three.**
+   * **A production configuration is completable again.**
    *
-   * D36 removed Twilio and left voice, SMS and WhatsApp with no provider at
-   * all. D37 gave SMS one (Hubtel), which was the reason that blocked a
-   * launch: a patient's consultation reference reaches them by SMS and it is
-   * their only route back to their own record (D24).
+   * It was not, between D36 and D38. Removing Twilio left voice, SMS and
+   * WhatsApp with no provider, and production refuses a mock — so no value
+   * existed that it would accept. D37 gave SMS a real provider; D38 gave voice
+   * an honest "off".
    *
-   * Voice remains. "Call Me" dials both parties and bridges them (spec §33),
-   * and no Ghanaian provider checked so far publishes call bridging — so this
-   * is deferred to the pilot rather than pending a credential.
-   *
-   * When voice is resolved, or Call Me is dropped as a mode, this becomes
-   * `not.toThrow()`. Until then it is what stops "we are ready to deploy"
-   * being said by accident.
+   * That `none` is accepted where `mock` is refused is the whole point, and
+   * the two assertions below are what would notice if somebody collapsed the
+   * distinction to make a deploy go through.
    */
-  it('cannot be completed, because Call Me has no provider', () => {
-    expect(() => loadEnv(productionEnv())).toThrow(/nothing else to set it to/);
+  it('is valid, so a failure below is caused by the override', () => {
+    expect(() => loadEnv(productionEnv())).not.toThrow();
   });
 
-  it('says which capability is missing rather than blaming the config', () => {
-    // An operator told only "mock is not permitted" goes looking for a setting
-    // they got wrong. There isn't one.
-    expect(() => loadEnv(productionEnv())).toThrow(/gap in the build, not a mistake in this file/);
+  it('accepts Call Me switched off, because "off" is not "pretending"', () => {
+    // `none` reports no call. Nothing offers the mode to a patient and the
+    // routes refuse it (D38).
+    expect(collectIssues(productionEnv({ VOICE_PROVIDER: 'none' }))).toEqual([]);
   });
 
-  it('is blocked by voice and nothing else', () => {
+  it('still refuses a mocked voice provider', () => {
     /**
-     * The set of refusals, not merely that it throws. A `toThrow(/VOICE/)`
-     * would pass just as happily with SMS broken too — which is exactly the
-     * state this assertion is here to detect the end of.
+     * The distinction that makes `none` safe. A mock reports a bridged call
+     * that never happened; that must never run in production, and switching a
+     * capability off must not become a way to smuggle one in.
      */
-    const issues = collectIssues(productionEnv());
+    const issues = collectIssues(productionEnv({ VOICE_PROVIDER: 'mock' }));
 
-    expect(issues.map((issue) => issue.path.join('.')).sort()).toEqual(['VOICE_PROVIDER']);
+    expect(issues.map((issue) => issue.path.join('.'))).toEqual(['VOICE_PROVIDER']);
   });
 
   it('refuses Hubtel without the sender ID that makes it deliver', () => {

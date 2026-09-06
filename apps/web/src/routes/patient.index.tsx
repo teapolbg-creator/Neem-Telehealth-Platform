@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import type { PatientSessionView } from "@neem/contracts";
+import type { ConsultationType, PatientSessionView } from "@neem/contracts";
 import { AlertCircle, Check, Loader2, Lock, Phone, PhoneOutgoing, Star, Video } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
 import { CallStage } from "@/components/neem/CallStage";
@@ -80,7 +80,7 @@ function PatientPortal() {
     <PhoneFrame pharmacyName={session.pharmacyName}>
       {session.step === "IDENTITY" && <IdentityStep />}
       {session.step === "LANGUAGE" && <LanguageStep />}
-      {session.step === "MODE" && <ModeStep />}
+      {session.step === "MODE" && <ModeStep availableTypes={session.availableTypes} />}
       {session.step === "WAITING" && <WaitingStep session={session} />}
       {session.step === "IN_CONSULTATION" && <InConsultationStep session={session} />}
       {session.step === "COMPLETE" && (
@@ -319,11 +319,11 @@ function LanguageStep() {
   );
 }
 
-function ModeStep() {
+function ModeStep({ availableTypes }: { availableTypes: readonly ConsultationType[] }) {
   const select = useSelectMode();
   const [chosen, setChosen] = useState<"AUDIO" | "VIDEO" | "CALL_ME" | null>(null);
 
-  const options = [
+  const allOptions = [
     {
       id: "VIDEO",
       icon: Video,
@@ -338,6 +338,15 @@ function ModeStep() {
       desc: "The doctor calls you through Neem. Best for a weak connection.",
     },
   ] as const;
+
+  /**
+   * Filtered by what the server says it will accept, not by a constant here.
+   *
+   * "Call Me" is off wherever no telephony provider is configured (D38). A
+   * button that leads to a rejection is worse than no button: the patient is
+   * at a counter and cannot tell a product decision from a fault.
+   */
+  const options = allOptions.filter((option) => availableTypes.includes(option.id));
 
   return (
     <div className="flex flex-1 flex-col p-6">
