@@ -46,7 +46,7 @@ export const PROVIDER_MODES = {
    * name that would throw at boot.
    */
   voice: ['mock'],
-  sms: ['mock'],
+  sms: ['mock', 'hubtel'],
   email: ['mock', 'mailhog', 'smtp'],
   whatsapp: ['mock'],
 } as const;
@@ -128,6 +128,18 @@ const envSchema = z
      */
     WHEREBY_API_KEY: z.string().optional(),
     WHEREBY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+
+    /**
+     * Hubtel SMS (decision D37).
+     *
+     * Two credentials and a sender name. The sender is alphanumeric — Ghana's
+     * networks reject numeric international senders — and must be registered
+     * with the networks before anything it sends will be delivered.
+     */
+    HUBTEL_CLIENT_ID: z.string().optional(),
+    HUBTEL_CLIENT_SECRET: z.string().optional(),
+    HUBTEL_SENDER_ID: z.string().max(11).optional(),
+    HUBTEL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
     /**
      * Domain for the synthetic per-transaction address Paystack requires.
      *
@@ -199,6 +211,20 @@ const envSchema = z
       require('WHEREBY_API_KEY', env.WHEREBY_API_KEY, 'when VIDEO_PROVIDER=whereby');
     }
 
+    if (env.SMS_PROVIDER === 'hubtel') {
+      require('HUBTEL_CLIENT_ID', env.HUBTEL_CLIENT_ID, 'when SMS_PROVIDER=hubtel');
+      require('HUBTEL_CLIENT_SECRET', env.HUBTEL_CLIENT_SECRET, 'when SMS_PROVIDER=hubtel');
+      /**
+       * Required, not defaulted.
+       *
+       * Ghana's networks reject a numeric international sender outright and
+       * block unregistered alphanumeric ones. A default would boot cleanly and
+       * then deliver nothing — the worst shape of failure, because the
+       * deployment looks healthy while every patient's reference is dropped.
+       */
+      require('HUBTEL_SENDER_ID', env.HUBTEL_SENDER_ID, 'when SMS_PROVIDER=hubtel');
+    }
+
     if (env.NODE_ENV === 'production') {
       // A secret still holding the value shipped in .env.example is a secret
       // an attacker already has.
@@ -246,9 +272,6 @@ const envSchema = z
         VOICE_PROVIDER:
           'no telephony provider is implemented, so "Call Me" cannot work. It dials both ' +
           'parties and bridges them (spec §33); Whereby cannot, and Twilio was removed (D36)',
-        SMS_PROVIDER:
-          'no SMS provider is implemented. A patient receives their consultation reference ' +
-          'by SMS, and it is their only route back to their own record (D24)',
       };
 
       for (const [key, value] of mocked) {

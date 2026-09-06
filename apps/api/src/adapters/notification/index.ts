@@ -2,6 +2,7 @@ import { getEnv } from '../../config/env.ts';
 import type { NotificationChannel, NotificationProvider } from './notification.provider.ts';
 import { MockNotificationProvider } from './mock-notification.provider.ts';
 import { SmtpNotificationProvider } from './smtp-notification.provider.ts';
+import { HubtelNotificationProvider } from './hubtel-notification.provider.ts';
 
 /**
  * Notification provider selection (spec §91).
@@ -42,6 +43,9 @@ export function getNotificationProvider(channel: NotificationChannel): Notificat
     case 'smtp':
       provider = new SmtpNotificationProvider();
       break;
+    case 'hubtel':
+      provider = new HubtelNotificationProvider();
+      break;
     default:
       throw new Error(`Unknown provider mode for ${channel}: ${mode}`);
   }
@@ -66,3 +70,4 @@ export function resetNotificationProviders(): void {
 export * from './notification.provider.ts';
 export { MockNotificationProvider } from './mock-notification.provider.ts';
 export { SmtpNotificationProvider } from './smtp-notification.provider.ts';
+export { HubtelNotificationProvider } from './hubtel-notification.provider.ts';

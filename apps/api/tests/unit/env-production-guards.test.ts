@@ -29,10 +29,12 @@ function productionEnv(overrides: Record<string, string | undefined> = {}): Node
     PAYSTACK_WEBHOOK_SECRET: 'a-real-webhook-secret-value-00000000000001',
     VIDEO_PROVIDER: 'whereby',
     WHEREBY_API_KEY: 'a-real-whereby-api-key-value-000000001',
-    // Voice, SMS and WhatsApp have no real provider since D36 removed Twilio.
-    // A production environment therefore cannot select one, which is itself
-    // asserted below.
-    SMS_PROVIDER: 'mock',
+    SMS_PROVIDER: 'hubtel',
+    HUBTEL_CLIENT_ID: 'a-real-hubtel-client-id',
+    HUBTEL_CLIENT_SECRET: 'a-real-hubtel-client-secret',
+    HUBTEL_SENDER_ID: 'Neem',
+    // Voice still has no provider at all, which is asserted below.
+    VOICE_PROVIDER: 'mock',
     EMAIL_PROVIDER: 'smtp',
     SMTP_HOST: 'smtp.example.com',
     SMTP_PORT: '587',
@@ -66,23 +68,23 @@ function collectIssues(source: NodeJS.ProcessEnv): Array<{ path: string[] }> {
 
 describe('the production configuration baseline', () => {
   /**
-   * **This build cannot be deployed to production, and the test says so.**
+   * **This build still cannot be deployed to production — but for one reason
+   * now, not three.**
    *
-   * Removing Twilio (D36) left voice, SMS and WhatsApp with no real provider
-   * at all. Production refuses a mock adapter — correctly, because a mock
-   * reports messages that were never sent — so there is now no value for
-   * `VOICE_PROVIDER` or `SMS_PROVIDER` that a production environment accepts.
+   * D36 removed Twilio and left voice, SMS and WhatsApp with no provider at
+   * all. D37 gave SMS one (Hubtel), which was the reason that blocked a
+   * launch: a patient's consultation reference reaches them by SMS and it is
+   * their only route back to their own record (D24).
    *
-   * That is the honest state of the product rather than a broken test. SMS is
-   * load-bearing: a patient's consultation reference reaches them that way and
-   * it is their only route back to their own record (D24). Launching without
-   * it is a decision someone has to take deliberately.
+   * Voice remains. "Call Me" dials both parties and bridges them (spec §33),
+   * and no Ghanaian provider checked so far publishes call bridging — so this
+   * is deferred to the pilot rather than pending a credential.
    *
-   * When an SMS provider lands, this test becomes `not.toThrow()` again and
-   * the assertion below is deleted. Until then it is what stops "we are ready
-   * to deploy" being said by accident.
+   * When voice is resolved, or Call Me is dropped as a mode, this becomes
+   * `not.toThrow()`. Until then it is what stops "we are ready to deploy"
+   * being said by accident.
    */
-  it('cannot be completed, because voice and SMS have no provider', () => {
+  it('cannot be completed, because Call Me has no provider', () => {
     expect(() => loadEnv(productionEnv())).toThrow(/nothing else to set it to/);
   });
 
@@ -92,18 +94,32 @@ describe('the production configuration baseline', () => {
     expect(() => loadEnv(productionEnv())).toThrow(/gap in the build, not a mistake in this file/);
   });
 
-  it('is otherwise valid, so a failure below is caused by the override', () => {
+  it('is blocked by voice and nothing else', () => {
     /**
-     * The rest of the baseline still has to be sound, or every test after this
-     * one would pass for the wrong reason. Voice and SMS are the only things
-     * wrong with it, and this asserts exactly that.
+     * The set of refusals, not merely that it throws. A `toThrow(/VOICE/)`
+     * would pass just as happily with SMS broken too — which is exactly the
+     * state this assertion is here to detect the end of.
      */
     const issues = collectIssues(productionEnv());
 
-    expect(issues.map((issue) => issue.path.join('.')).sort()).toEqual([
-      'SMS_PROVIDER',
-      'VOICE_PROVIDER',
-    ]);
+    expect(issues.map((issue) => issue.path.join('.')).sort()).toEqual(['VOICE_PROVIDER']);
+  });
+
+  it('refuses Hubtel without the sender ID that makes it deliver', () => {
+    /**
+     * An unregistered or absent alphanumeric sender is accepted by Hubtel's
+     * API and dropped by the network, silently. Boot-time is the only place
+     * that failure can still be made loud.
+     */
+    expect(() => loadEnv(productionEnv({ HUBTEL_SENDER_ID: undefined }))).toThrow(
+      /HUBTEL_SENDER_ID/,
+    );
+  });
+
+  it('refuses Hubtel without its credentials', () => {
+    expect(() => loadEnv(productionEnv({ HUBTEL_CLIENT_SECRET: undefined }))).toThrow(
+      /HUBTEL_CLIENT_SECRET/,
+    );
   });
 });
 

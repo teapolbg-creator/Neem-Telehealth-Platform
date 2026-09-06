@@ -644,3 +644,65 @@ strong candidate for **SMS**, which is the more urgent gap.
 notification delivery — are not met and are reported as outstanding.
 `npm run check:production-config` now always fails, deliberately, until a
 provider is chosen for SMS at minimum.
+
+---
+
+### D37 — SMS is Hubtel; Call Me is deferred to the pilot · 2026-09-06 · **DECIDED**
+
+**Issue.** [D36](#d36) left SMS with no provider, which blocked a launch rather
+than merely removing a feature: a patient's consultation reference reaches them
+by SMS and it is their only route back to their own record ([D24](#d24)). Neem
+keeps no patient profile, so a message that does not arrive leaves the patient
+with no way at all to find what happened to them.
+
+**Selected.** Hubtel for SMS, chosen by the product owner on 2026-09-06.
+`POST https://smsc.hubtel.com/v1/messages/send`, HTTP Basic over a client id
+and secret, an alphanumeric sender ID.
+
+**Three things the adapter does that are not obvious.**
+
+**Credentials go in the header, never the query string.** Most of Hubtel's own
+examples pass `clientid` and `clientsecret` as query parameters. A query
+string reaches access logs, proxy logs and error reports, and these are account
+credentials.
+
+**A 200 with no message id is not a send.** An empty answer from a gateway is
+recorded FAILED rather than SENT. Recording it as sent would put a lie in the
+notification log, and a patient whose reference never arrived would be
+indistinguishable from one who got it.
+
+**A number that cannot be understood is refused before the call is made**, not
+retried. `toGhanaMsisdn` accepts `0244123456`, `233244123456` and
+`244123456`, and rejects everything else. This is the part of the adapter that
+matters most, and a test caught a real bug in it: the "no trunk zero" rule was
+`d{9}`, which also matched `024412345` — a local number one digit short —
+and turned it into `233024412345`. That is not the patient's number, may well
+be somebody's, and would have received their consultation reference.
+
+**Registration is the risk, not the code.** Ghana's networks reject numeric
+international senders outright and block unregistered alphanumeric ones — MTN
+began enforcing this in July 2026. An unregistered sender is **accepted by the
+API and dropped by the network, silently**, so the integration looks healthy
+and delivers nothing. `HUBTEL_SENDER_ID` is therefore required at boot rather
+than defaulted, and `npm run hubtel:check -- --to <number>` sends one real
+message so a handset, not a log line, confirms it works.
+
+**Call Me is deferred to the pilot**, deliberately and not for want of trying.
+It needs a provider that dials two legs and bridges them so neither party
+learns the other's number (spec §33). Checked and ruled out: **Hubtel**
+publishes no voice API at all; **Arkesel**'s Voice SMS is one-way broadcast
+("plays a recorded message down the line") and its VoiceConnect is a contact
+centre rather than a documented bridging API; **Africa's Talking** does not
+offer Voice in Ghana at all — its own country table lists Ghana as SMS, USSD
+and Airtime only. Twilio does support it and was removed in D36.
+
+So `VOICE_PROVIDER` remains `mock`-only, production still refuses to boot,
+and the reason is now one capability rather than three. Whether Call Me is
+needed is a question the pilot can answer with evidence — how many patients
+arrive at a counter unable to use the QR flow — rather than a guess made now.
+
+**Consequences.** WhatsApp still has no provider and is unused. Delivery
+reports are requested (`RegisteredDelivery: true`) but nothing consumes them:
+there is no Hubtel callback route, so `notifications` records SENT meaning
+"the gateway accepted it". Closing that gap needs a webhook endpoint and is
+worth doing once real delivery rates are visible.
