@@ -810,3 +810,58 @@ Arkesel answers a question that distinguishes the two. The question is recorded
 in `docs/compliance/README.md` alongside the other things awaiting an external
 answer, because a decision made on an ambiguous sentence from a chatbot is the
 kind that surfaces during a pilot with a patient waiting.
+
+---
+
+### D40 — The API is bundled with esbuild, not compiled with tsc · 2026-09-06 · **DECIDED**
+
+**Issue.** `npm run build` had never worked for the API, and nothing noticed
+because development never runs it. Three faults, stacked:
+
+1. `tsc -p tsconfig.build.json` failed with **462 `TS5097` errors**. Every
+   import in this codebase carries a `.ts` extension — which is what `tsx`
+   and Node's own type stripping require — and `tsc` cannot emit those.
+2. It emitted **anyway**, to `dist/apps/api/src/` rather than `dist/`, while
+   `npm start` ran `node dist/server.js`.
+3. The JavaScript it produced **still imported `.ts` paths**, so even run from
+   the right place it died on its first import with `ERR_MODULE_NOT_FOUND`.
+
+**Selected.** esbuild, bundling `src/server.ts` to a single
+`apps/api/dist/server.js`. It rewrites the specifiers as it bundles, which
+removes the problem at its root rather than rewriting several hundred import
+statements to satisfy a compiler nobody was using.
+
+**What is bundled and what is not.** `apps/api/src` and
+`packages/contracts/src` are bundled — contracts is published as TypeScript
+source with no build of its own, so it cannot survive as a runtime import.
+Every real dependency stays external and is resolved from `node_modules`,
+which matters most for `@prisma/client` (generated, with platform-specific
+query engines) and `@node-rs/argon2` (native). The external list is read from
+`apps/api/package.json` rather than written into the build script, so adding a
+dependency cannot silently start bundling it.
+
+**Types are checked separately, and that is deliberate.** esbuild strips types
+without checking them; `npm run typecheck` checks them. The old arrangement had
+the build acting as a second, differently-configured type check that disagreed
+with the first — which is how it accumulated 462 errors nobody saw.
+
+**The build found a second bug, which is the point of running things.**
+`load-dotenv.ts` resolved the repository root by counting directories:
+`../../../../.env` from `src/config`. The bundle puts that same code in
+`dist/`, where four levels up is a directory _outside_ the repository — so the
+built API loaded no configuration at all and refused to boot with
+"DATABASE_URL: Required", which reads like a missing variable rather than a
+build that moved the file. It now searches upward for the nearest `.env`,
+which is correct as source, correct as a bundle, and correct again for a
+deployment that puts a `.env` beside the artefact.
+
+**Verified by running it, not by the build exiting zero.** The bundle boots,
+loads configuration, connects to the database, answers `/health` and
+`/health/ready`, starts the scheduler and the realtime server — and the full
+end-to-end suite passes against it: **47 passed, 0 failed**, the two skips
+being Scenario 15's documented `fixme` and the Call Me suite disabled in
+[D38](#d38).
+
+**Still absent: continuous integration.** There is no `.github`, so nothing
+runs this build except a person choosing to. That is how it stayed broken, and
+a green build today is not a guarantee about tomorrow.

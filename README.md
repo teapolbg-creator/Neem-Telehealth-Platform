@@ -104,6 +104,7 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 | `npm run dev:api` / `npm run dev:web`                | One at a time                                                      |
 | `npm test`                                           | Unit and integration tests (Vitest, against a real MySQL database) |
 | `npm run test:e2e`                                   | End-to-end tests (Playwright)                                      |
+| `npm run build`                                      | Production build — API bundle and web output                       |
 | `npm run typecheck`                                  | TypeScript across all workspaces                                   |
 | `npm run lint` / `npm run format`                    | ESLint / Prettier                                                  |
 | `npm run db:migrate`                                 | Apply migrations                                                   |
