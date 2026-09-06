@@ -758,3 +758,55 @@ items are credentials and secrets rather than gaps in the build. Whether Call
 Me is needed at all is now a question the pilot answers with evidence: how many
 patients arrive at a counter unable to use the QR flow, and whether they need a
 conversation or only their consultation reference.
+
+---
+
+### D39 — SMS moves to Arkesel; Call Me stays unresolved · 2026-09-06 · **DECIDED / PARTLY OPEN**
+
+**Issue.** The product owner asked Arkesel's support about voice, and moved SMS
+to them on the strength of the answer.
+
+**SMS: selected, and built.** `POST https://sms.arkesel.com/api/v2/sms/send`,
+the key in an `api-key` header, `sender` / `message` / `recipients`.
+Arkesel distinguishes its failures by status code, so the adapter does too —
+401, 403 and 422 are permanent, 429 and 5xx are retried. Getting that boundary
+wrong is expensive in both directions: retrying a permanent failure buries the
+queue, and giving up on a transient one loses a patient's consultation
+reference.
+
+**Hubtel is kept, not deleted.** It is built, tested and working, and a second
+SMS provider is real resilience during a pilot in a market where one gateway
+can have a bad week. `SMS_PROVIDER` chooses. That is different from Twilio in
+[D36](#d36), which was removed because nothing was ever implemented for it — a
+name that could not be used. Both of these can.
+
+The Ghana number normaliser is now shared rather than copied per adapter, and
+the scripts' `.mjs` copy is compared to it case by case by a test. It is the
+function where being wrong is worst — a number guessed at does not fail to
+arrive, it arrives at a stranger.
+
+**Call Me: NOT selected, and the reason matters.** The support exchange does
+not establish the capability Neem needs, and it would be easy to read as if it
+does:
+
+> "So can a voice call be outbounded from my app to a customer's phone number?"
+> "Yes, with Arkesel's Voice Connect feature, you can make outbound voice calls
+> from your app to a customer's phone number."
+
+Two problems. The reply came from **"~ Arkesel Assist"**, an automated
+assistant, and it had already said of the first question that "the context does
+not specify the exact mechanics" — a hedge, carried into an answer that reads
+as a confirmation.
+
+More importantly, **"an outbound voice call from your app to a customer's
+phone" is exactly what Arkesel's documented Voice SMS already does** — it
+"plays a recorded message down the line to a number you supply". That sentence
+is true of a one-way broadcast and true of a bridged call, and Call Me needs
+the second: the patient's handset rings, **a doctor speaks live on the other
+end**, and neither party learns the other's number (spec §33).
+
+So Call Me remains `VOICE_PROVIDER=none` ([D38](#d38)) until a human at
+Arkesel answers a question that distinguishes the two. The question is recorded
+in `docs/compliance/README.md` alongside the other things awaiting an external
+answer, because a decision made on an ambiguous sentence from a chatbot is the
+kind that surfaces during a pilot with a patient waiting.

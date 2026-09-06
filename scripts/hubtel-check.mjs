@@ -24,25 +24,9 @@
  */
 import { pathToFileURL } from 'node:url';
 import { loadDotEnv } from './load-env.mjs';
+import { toGhanaMsisdn } from './ghana-msisdn.mjs';
 
 const ENDPOINT = 'https://smsc.hubtel.com/v1/messages/send';
-
-/**
- * The same normalisation the adapter uses.
- *
- * Duplicated because the operational scripts are plain `.mjs` and deliberately
- * do not import the application TypeScript. A duplicate that drifts is worse
- * than no duplicate, so `hubtel-adapter.test.ts` compares the two functions
- * case by case.
- */
-export function toGhanaMsisdn(raw) {
-  const digits = String(raw).replace(/[\s()+-]/g, '');
-  if (!/^\d+$/.test(digits)) return null;
-  if (/^0\d{9}$/.test(digits)) return `233${digits.slice(1)}`;
-  if (/^233\d{9}$/.test(digits)) return digits;
-  if (/^[1-9]\d{8}$/.test(digits)) return `233${digits}`;
-  return null;
-}
 
 async function main() {
   loadDotEnv();

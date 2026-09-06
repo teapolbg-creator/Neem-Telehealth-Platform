@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  HubtelNotificationProvider,
-  toGhanaMsisdn,
-} from '../../src/adapters/notification/hubtel-notification.provider.ts';
+import { HubtelNotificationProvider } from '../../src/adapters/notification/hubtel-notification.provider.ts';
+import { toGhanaMsisdn } from '../../src/adapters/notification/ghana-msisdn.ts';
 import { PermanentDeliveryError } from '../../src/adapters/notification/notification.provider.ts';
 
 /**
@@ -248,45 +246,5 @@ describe('what this adapter says it is', () => {
     expect(provider.isMock).toBe(false);
     expect(provider.channel).toBe('SMS');
     expect(provider.name).toBe('hubtel');
-  });
-});
-
-describe('the check script agrees with the adapter', () => {
-  it('normalises every case identically', async () => {
-    /**
-     * `scripts/hubtel-check.mjs` carries its own copy of `toGhanaMsisdn`,
-     * because the operational scripts are plain `.mjs` and deliberately do not
-     * import the application's TypeScript.
-     *
-     * A duplicate that drifts is worse than no duplicate: the check would
-     * report a number as sendable that the adapter then refuses, or — far
-     * worse — the other way round. So the two are compared here rather than
-     * trusted to stay in step, and the comment in the script saying they are
-     * kept in step by a test is this test.
-     */
-    // The operational scripts are plain `.mjs` with no declarations, which is
-    // deliberate — they must run without a build step. Typed at the boundary.
-    // @ts-expect-error — a plain .mjs with no declarations, deliberately: the
-    // operational scripts must run with no build step. Shape asserted below.
-    const script = await import('../../../../scripts/hubtel-check.mjs');
-    const scriptNormalise = script.toGhanaMsisdn as typeof toGhanaMsisdn;
-
-    const cases = [
-      '0244123456',
-      '233244123456',
-      '+233 24 412 3456',
-      '244123456',
-      '024412345',
-      '02441234567',
-      '+44 7700 900123',
-      'not-a-number',
-      '',
-    ];
-
-    for (const value of cases) {
-      expect(scriptNormalise(value), `disagreed on ${JSON.stringify(value)}`).toBe(
-        toGhanaMsisdn(value),
-      );
-    }
   });
 });

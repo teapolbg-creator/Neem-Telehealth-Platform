@@ -3,6 +3,7 @@ import type { NotificationChannel, NotificationProvider } from './notification.p
 import { MockNotificationProvider } from './mock-notification.provider.ts';
 import { SmtpNotificationProvider } from './smtp-notification.provider.ts';
 import { HubtelNotificationProvider } from './hubtel-notification.provider.ts';
+import { ArkeselNotificationProvider } from './arkesel-notification.provider.ts';
 
 /**
  * Notification provider selection (spec §91).
@@ -43,6 +44,9 @@ export function getNotificationProvider(channel: NotificationChannel): Notificat
     case 'smtp':
       provider = new SmtpNotificationProvider();
       break;
+    case 'arkesel':
+      provider = new ArkeselNotificationProvider();
+      break;
     case 'hubtel':
       provider = new HubtelNotificationProvider();
       break;
@@ -71,3 +75,5 @@ export * from './notification.provider.ts';
 export { MockNotificationProvider } from './mock-notification.provider.ts';
 export { SmtpNotificationProvider } from './smtp-notification.provider.ts';
 export { HubtelNotificationProvider } from './hubtel-notification.provider.ts';
+export { ArkeselNotificationProvider } from './arkesel-notification.provider.ts';
+export { toGhanaMsisdn } from './ghana-msisdn.ts';

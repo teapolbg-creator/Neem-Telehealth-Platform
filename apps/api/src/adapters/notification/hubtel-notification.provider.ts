@@ -6,6 +6,7 @@ import {
   type SendMessageInput,
   type SendMessageResult,
 } from './notification.provider.ts';
+import { toGhanaMsisdn } from './ghana-msisdn.ts';
 
 /**
  * Hubtel SMS (spec §57, §58, decision D37).
@@ -51,37 +52,6 @@ interface HubtelResponse {
   Message?: string;
   message?: string;
   Rate?: number;
-}
-
-/**
- * A Ghanaian mobile number in the form Hubtel expects.
- *
- * Returns null when the input cannot be made into one, which the caller turns
- * into a permanent failure. Deliberately strict: guessing at a number that is
- * nearly right risks sending a patient's consultation reference to a stranger.
- */
-export function toGhanaMsisdn(raw: string): string | null {
-  const digits = raw.replace(/[\s()+-]/g, '');
-  if (!/^\d+$/.test(digits)) return null;
-
-  // 0244123456 — the way a number is written and spoken in Ghana.
-  if (/^0\d{9}$/.test(digits)) return `233${digits.slice(1)}`;
-
-  // 233244123456 — already international.
-  if (/^233\d{9}$/.test(digits)) return digits;
-
-  /**
-   * 244123456 — no trunk zero, as some systems store it.
-   *
-   * The leading digit must not be zero, and that is not a tidiness rule. A
-   * plain `\d{9}` also matches `024412345` — a local number one digit short —
-   * and would turn it into `233024412345`: a number that is not the patient's,
-   * may well be somebody's, and would receive their consultation reference.
-   * Caught by a test rather than by review.
-   */
-  if (/^[1-9]\d{8}$/.test(digits)) return `233${digits}`;
-
-  return null;
 }
 
 export class HubtelNotificationProvider implements NotificationProvider {

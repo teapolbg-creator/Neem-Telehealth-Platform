@@ -51,7 +51,7 @@ export const PROVIDER_MODES = {
    * product decision a deployment is allowed to make (D38).
    */
   voice: ['none', 'mock'],
-  sms: ['mock', 'hubtel'],
+  sms: ['mock', 'arkesel', 'hubtel'],
   email: ['mock', 'mailhog', 'smtp'],
   whatsapp: ['mock'],
 } as const;
@@ -141,6 +141,17 @@ const envSchema = z
      * networks reject numeric international senders — and must be registered
      * with the networks before anything it sends will be delivered.
      */
+    /**
+     * Arkesel SMS (decision D39). The configured provider.
+     *
+     * One key and a sender name. The sender is alphanumeric and must be
+     * registered with the networks — Ghana blocks unregistered senders, and an
+     * unregistered one is accepted by the API and dropped by the network.
+     */
+    ARKESEL_API_KEY: z.string().optional(),
+    ARKESEL_SENDER_ID: z.string().max(11).optional(),
+    ARKESEL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+
     HUBTEL_CLIENT_ID: z.string().optional(),
     HUBTEL_CLIENT_SECRET: z.string().optional(),
     HUBTEL_SENDER_ID: z.string().max(11).optional(),
@@ -214,6 +225,19 @@ const envSchema = z
 
     if (env.VIDEO_PROVIDER === 'whereby') {
       require('WHEREBY_API_KEY', env.WHEREBY_API_KEY, 'when VIDEO_PROVIDER=whereby');
+    }
+
+    if (env.SMS_PROVIDER === 'arkesel') {
+      require('ARKESEL_API_KEY', env.ARKESEL_API_KEY, 'when SMS_PROVIDER=arkesel');
+      /**
+       * Required, not defaulted — the same reasoning as Hubtel's.
+       *
+       * Ghana's networks reject a numeric international sender outright and
+       * block unregistered alphanumeric ones. A default would boot cleanly and
+       * deliver nothing, which is the worst shape of failure: the deployment
+       * looks healthy while every patient's reference is dropped.
+       */
+      require('ARKESEL_SENDER_ID', env.ARKESEL_SENDER_ID, 'when SMS_PROVIDER=arkesel');
     }
 
     if (env.SMS_PROVIDER === 'hubtel') {
