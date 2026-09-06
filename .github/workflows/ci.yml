@@ -1,0 +1,253 @@
+# Continuous integration.
+#
+# There was none for eleven phases, and it showed: `npm run build` had never
+# worked for the API and nothing noticed, because development never runs the
+# build. That is the specific failure this exists to prevent — a check nobody
+# runs is a check that does not exist.
+#
+# Three jobs, ordered by how long you should wait for them:
+#
+#   check        ~5 min   lint, types, build, and the 337 database-free unit
+#                         tests. Runs on everything. This is the one that
+#                         would have caught the broken build on day one.
+#   integration  ~45 min  the real MySQL suite, plus a boot of the built
+#                         artefact. Slow because it is honest: unique
+#                         constraints and transaction behaviour are a large
+#                         part of what is under test, and a mock cannot show
+#                         them.
+#   e2e          ~10 min  Playwright against a running stack.
+#
+# `integration` and `e2e` wait for `check`, so a lint error does not burn an
+# hour of runner time before telling you.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So a dependency or a service breaking on its own is found on a Monday
+  # rather than during a deploy.
+  schedule:
+    - cron: '0 6 * * 1'
+
+# A new push supersedes an in-flight run on the same branch. The integration
+# job is long enough that queued duplicates matter.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The repository requires Node 22 or later (package.json engines).
+  NODE_VERSION: '22'
+
+jobs:
+  check:
+    name: Lint, types, build, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Prisma's client is generated, and the type check does not pass without
+      # it. Cheaper than it looks — the engines are cached with node_modules.
+      - name: Generate the Prisma client
+        run: npm run db:generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The step that was missing. The API build failed for eleven phases with
+      # 462 errors and emitted a bundle that could not run; nothing ran it.
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        # No database: verified by running them against an unreachable one.
+        # If this ever needs MySQL, it belongs in `integration` instead.
+        run: npx vitest run tests/unit
+        working-directory: apps/api
+
+  integration:
+    name: Integration tests (real MySQL)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 75
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: neem_root_dev
+          MYSQL_DATABASE: neem
+          MYSQL_USER: neem
+          MYSQL_PASSWORD: neem_dev
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pneem_root_dev"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Configure
+        run: cp .env.example .env
+
+      - name: Install a MySQL client
+        # `scripts/mysql-cli.mjs` otherwise falls back to `docker exec` against
+        # a container called `neem-mysql`, which is the compose name and not
+        # what a service container is called. `db:grants` needs a real client.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
+
+      - name: Create the test and shadow databases
+        # A service container cannot mount `docker/mysql-init`, so the same
+        # file is applied here rather than a second copy of the SQL.
+        run: mysql -h 127.0.0.1 -P 3307 -uroot -pneem_root_dev < docker/mysql-init/01-databases.sql
+
+      - name: Migrate
+        run: |
+          npm run db:migrate
+          npm run db:migrate:test
+
+      - name: Grant the append-only audit account
+        run: npm run db:grants
+
+      - name: Integration tests
+        run: npm test
+        working-directory: apps/api
+
+      # Building is checked in `check`; this is the part that was never
+      # checked at all — whether the artefact runs. It booted with no
+      # configuration for months because `load-dotenv` counted directories
+      # and the bundle moved the file (D40).
+      - name: Build and boot the artefact
+        run: |
+          npm run build --workspace @neem/api
+          node apps/api/dist/server.js &
+          for i in $(seq 1 30); do
+            sleep 1
+            curl -sf http://localhost:4000/api/v1/health && break
+          done
+          curl -sf http://localhost:4000/api/v1/health > /dev/null
+          curl -sf http://localhost:4000/api/v1/health/ready > /dev/null
+          echo "the built API boots, reads its configuration and reaches the database"
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 40
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: neem_root_dev
+          MYSQL_DATABASE: neem
+          MYSQL_USER: neem
+          MYSQL_PASSWORD: neem_dev
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pneem_root_dev"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Configure
+        # The suite signs in as several roles dozens of times from one address,
+        # and the shipped rate limits are production-shaped: a verbatim copy is
+        # refused with 429 part-way through, and every test after that fails
+        # for a reason unrelated to what it was testing. The commented block in
+        # `.env.example` explains this at length.
+        run: |
+          cp .env.example .env
+          sed -i \
+            -e 's/^RATE_LIMIT_MAX_PER_MINUTE=.*/RATE_LIMIT_MAX_PER_MINUTE=5000/' \
+            -e 's/^RATE_LIMIT_AUTH_MAX=.*/RATE_LIMIT_AUTH_MAX=500/' \
+            -e 's/^RATE_LIMIT_ONBOARDING_MAX=.*/RATE_LIMIT_ONBOARDING_MAX=500/' \
+            -e 's/^RATE_LIMIT_QR_EXCHANGE_MAX=.*/RATE_LIMIT_QR_EXCHANGE_MAX=500/' \
+            .env
+
+      - name: Install a MySQL client
+        # `scripts/mysql-cli.mjs` otherwise falls back to `docker exec` against
+        # a container called `neem-mysql`, which is the compose name and not
+        # what a service container is called. `db:grants` needs a real client.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
+
+      - name: Create the test and shadow databases
+        # A service container cannot mount `docker/mysql-init`, so the same
+        # file is applied here rather than a second copy of the SQL.
+        run: mysql -h 127.0.0.1 -P 3307 -uroot -pneem_root_dev < docker/mysql-init/01-databases.sql
+
+      - name: Migrate, grant and seed
+        run: |
+          npm run db:migrate
+          npm run db:grants
+          npm run db:seed
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the stack
+        run: |
+          npm run dev > dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            sleep 2
+            curl -sf http://localhost:4000/api/v1/health > /dev/null \
+              && curl -sf http://localhost:8080/ > /dev/null \
+              && break
+          done
+          curl -sf http://localhost:4000/api/v1/health > /dev/null
+          curl -sf http://localhost:8080/ > /dev/null
+
+      - name: End-to-end tests
+        run: npx playwright test
+
+      # A Playwright failure is close to unreadable without the trace, and the
+      # API log is where the cause usually is — see the deadlock found in
+      # Phase 11, which presented as tests skipping for unrelated reasons.
+      - name: Keep the evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            playwright-report/
+            test-results/
+            dev.log
+          retention-days: 7

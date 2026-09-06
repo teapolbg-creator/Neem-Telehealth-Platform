@@ -119,6 +119,18 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 | `npm run backup:rehearse`                            | Back up, restore to a scratch database, compare row by row         |
 | `npm run docker:up` / `docker:down` / `docker:reset` | Local services                                                     |
 
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request, and weekly on a schedule.
+
+| Job             | Runs                                                                                                  | Why it is separate                                                                                                         |
+| --------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **check**       | lint, typecheck, build, 337 unit tests                                                                | About five minutes, needs no database, and gates the other two — a lint error should not burn an hour of runner time first |
+| **integration** | the Vitest suite against a real MySQL 8.4 service, then boots the built artefact and checks `/health` | Slow and honest: unique constraints and transaction behaviour are much of what is under test                               |
+| **e2e**         | Playwright against a running stack, uploading the report and API log on failure                       |                                                                                                                            |
+
+**The build step is the reason this exists.** `npm run build` had never worked for the API and nothing noticed, because development never runs it ([D40](docs/decision-log.md)). A check nobody runs is a check that does not exist.
+
 ### Testing notes
 
 `npm test` runs against a real MySQL database (`neem_test`), not mocks — a large part of what it verifies lives in the database itself: unique constraints, foreign keys, transactional atomicity. It takes roughly 45 minutes.

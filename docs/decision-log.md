@@ -865,3 +865,46 @@ being Scenario 15's documented `fixme` and the Call Me suite disabled in
 **Still absent: continuous integration.** There is no `.github`, so nothing
 runs this build except a person choosing to. That is how it stayed broken, and
 a green build today is not a guarantee about tomorrow.
+
+---
+
+### D41 — Continuous integration, and what each job is for · 2026-09-06 · **DECIDED**
+
+**Issue.** [D40](#d40) fixed a build that had been broken for eleven phases and
+ended by naming the reason it stayed broken: nothing ran it except a person
+choosing to. A green build that day said nothing about the next one.
+
+**Selected.** GitHub Actions, three jobs, split by how long you should be
+willing to wait.
+
+`check` is lint, typecheck, build and the 337 unit tests — about five minutes,
+no database. Everything else waits on it, so a lint error does not burn an hour
+of runner time before reporting. **The build step is the point of the whole
+file**; the rest is worth having but would not have caught what was actually
+wrong.
+
+`integration` runs the Vitest suite against a real MySQL 8.4 service. It is
+slow — most of an hour — and that is a property of the tests rather than a
+problem to optimise away: unique constraints, transactional atomicity and
+payment idempotency are much of what is being asserted, and a mock cannot show
+any of them. It then **boots the built artefact and calls `/health` and
+`/health/ready`**, because building and running are different claims and only
+one of them was ever checked. That step exists specifically for the
+`load-dotenv` bug in D40, where the bundle compiled cleanly and then could not
+find its configuration.
+
+`e2e` runs Playwright, and uploads the report, the traces and the API log when
+it fails. A Playwright failure is close to unreadable without them, and the API
+log is usually where the cause is — the Phase 11 deadlock presented as tests
+skipping for reasons that had nothing to do with the deadlock.
+
+**Two details that would otherwise bite.** The unit job asserts no database,
+which was verified by running the suite against an unreachable one rather than
+assumed. And both database jobs install a MySQL client explicitly:
+`scripts/mysql-cli.mjs` falls back to `docker exec neem-mysql` when the host
+has none, and a service container is not called that.
+
+**Not addressed.** There is no deployment pipeline here, and no branch
+protection — CI reports, and nothing yet requires it to be green before a merge.
+That is a repository setting rather than a file, and it belongs to whoever owns
+the GitHub organisation.
