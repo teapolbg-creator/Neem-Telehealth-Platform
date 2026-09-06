@@ -558,9 +558,36 @@ which would otherwise outlive the sealing of the clinical record. The URL is
 never logged, never audited, and returned only to the authenticated participant
 it was minted for.
 
+**The browser embed.** `WherebyStage` renders Whereby's `<whereby-embed>`
+element and Neem's own controls drive it — the room URL carries `minimal=on`
+and `leaveButton=off` so there is only ever one set of controls. Three things
+about it were not obvious:
+
+- **It loads in the browser only.** The SDK touches `document` at module scope,
+  so a top-level import throws while TanStack Start renders the consultation
+  page on the server, taking down the whole screen rather than just the video.
+  The module is imported inside an effect and the element is withheld until it
+  is registered — an unregistered custom element renders as an inert empty box,
+  which would have looked like a camera that never started.
+- **Only one thing may hold the camera.** The mock path renders a local preview
+  through `getUserMedia`; the embed acquires devices in its own frame, and on
+  several Android browsers the second caller gets nothing. The two paths are
+  mutually exclusive, keyed on whether the server returned a `joinUrl`.
+- **Chat, screenshare, people and breakout are off.** Chat is not cosmetic:
+  in-consultation text was cut in [D15](#d15) for want of a retention rule, and
+  a chat panel inside the video is exactly that decision undone.
+
+**A recording alarm, because the guarantee is now partly operational.** The
+embed raises `recording_status_change`, and the stage turns any status other
+than "not recording" into a red banner telling both parties to stop. It
+prevents nothing — it makes visible the one thing the code can no longer
+prevent. The source-wide grep that forbids asking a provider to record now
+covers `apps/web` too, because `startRecording()` is a method the browser
+holds; that widening was verified by adding a call and watching the test fail.
+
 **Still unproven.** The adapter's tests stub `fetch`, so they establish what
 Neem asks for and not that Whereby agrees; `npm run whereby:check` exercises
-the real API with the operator's own key. And media has not been carried in the
-browser at all yet — the web app has no embed. Whether it holds up on Ghanaian
-mobile networks and low-end Android browsers is separate work that no adapter
-can stand in for.
+the real API with the operator's own key. **No consultation has yet carried
+real media** — that needs a key, which the build does not have. Whether it
+holds up on Ghanaian mobile networks and low-end Android browsers is separate
+work that no adapter can stand in for.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ConsultationTimer, MediaSessionView } from "@neem/contracts";
 import {
   AlertCircle,
@@ -12,6 +12,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useLocalMedia, useVideoElement } from "@/features/media/use-local-media";
+import { WherebyStage, type WherebyStageHandle } from "./WherebyStage";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +24,13 @@ import { cn } from "@/lib/utils";
  * The remote pane states plainly when media is simulated. An empty black pane
  * would read as a failed connection, and a clinician must never be left
  * guessing whether the patient can hear them (decision D18).
+ *
+ * **Two ways of showing a call, and only ever one at a time.** When the server
+ * returns a `joinUrl` the media is real and Whereby fills the stage; otherwise
+ * the mock path renders the local camera with a pane saying so. They are
+ * mutually exclusive because both want the camera: `useLocalMedia` calls
+ * `getUserMedia` on this page, the embed acquires devices in its own frame,
+ * and on several Android browsers the second one to ask gets nothing (D35).
  */
 
 export interface CallStageProps {
@@ -56,22 +64,57 @@ export function CallStage({
   children,
 }: CallStageProps) {
   const isVideo = session?.kind === "VIDEO";
-  const local = useLocalMedia({ video: isVideo, enabled: session !== null });
+  const embedded = Boolean(session?.joinUrl);
+
+  // Disabled entirely while the embed is up — see the note above.
+  const local = useLocalMedia({ video: isVideo, enabled: session !== null && !embedded });
   const videoRef = useVideoElement(local.stream);
   const [speakerOn, setSpeakerOn] = useState(true);
+
+  const [embed, setEmbed] = useState<WherebyStageHandle | null>(null);
+  const [embedMic, setEmbedMic] = useState(true);
+  const [embedCamera, setEmbedCamera] = useState(isVideo);
+  const [recordingDetected, setRecordingDetected] = useState(false);
+  const [unstable, setUnstable] = useState(false);
+
+  const onDeviceState = useCallback((state: { mic?: boolean; camera?: boolean }) => {
+    if (state.mic !== undefined) setEmbedMic(state.mic);
+    if (state.camera !== undefined) setEmbedCamera(state.camera);
+  }, []);
+  const onRecordingDetected = useCallback(() => setRecordingDetected(true), []);
+  const onConnectionUnstable = useCallback((value: boolean) => setUnstable(value), []);
+
+  // One set of controls, whichever stage is behind them.
+  const micEnabled = embedded ? embedMic : local.micEnabled;
+  const cameraEnabled = embedded ? embedCamera : local.cameraEnabled;
+  const controlsReady = embedded ? embed !== null : local.status === "ready";
+  const toggleMic = embedded ? () => embed?.toggleMic(!embedMic) : local.toggleMic;
+  const toggleCamera = embedded ? () => embed?.toggleCamera(!embedCamera) : local.toggleCamera;
 
   return (
     <div className="flex flex-1 flex-col">
       <div className="relative flex-1 overflow-hidden bg-slate-900">
-        <RemotePane
-          isMock={session?.isMockProvider ?? false}
-          connected={session !== null}
-          joining={joining}
-          name={remoteName}
-          role={role}
-        />
+        {embedded && session?.joinUrl ? (
+          <WherebyStage
+            roomUrl={session.joinUrl}
+            kind={isVideo ? "VIDEO" : "AUDIO"}
+            onDeviceState={onDeviceState}
+            onRecordingDetected={onRecordingDetected}
+            onConnectionUnstable={onConnectionUnstable}
+            handleRef={setEmbed}
+          />
+        ) : (
+          <RemotePane
+            isMock={session?.isMockProvider ?? false}
+            connected={session !== null}
+            joining={joining}
+            name={remoteName}
+            role={role}
+          />
+        )}
 
-        {isVideo && (
+        {/* The local preview belongs to the mock path; the embed draws its own. */}
+        {!embedded && isVideo && (
           <div className="absolute bottom-4 right-4 h-32 w-24 overflow-hidden rounded-xl border-2 border-white/20 bg-slate-800 shadow-lg">
             {local.status === "ready" && local.cameraEnabled ? (
               <video
@@ -98,7 +141,7 @@ export function CallStage({
         {timer && <TimerBadge timer={timer} />}
       </div>
 
-      {local.message && (
+      {!embedded && local.message && (
         <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">
           <AlertCircle className="mt-px size-4 shrink-0" />
           <div className="flex-1">
@@ -111,6 +154,33 @@ export function CallStage({
               Try again
             </button>
           </div>
+        </div>
+      )}
+
+      {recordingDetected && (
+        /**
+         * Neem never asks Whereby to record, and the room is created without a
+         * recording configuration — but recording can be switched on in the
+         * Whereby dashboard, which no code here can see (D35, security.md §10).
+         * If it ever happens, the two people in the room are the ones who need
+         * to know, and they need to know while it is happening.
+         */
+        <div
+          role="alert"
+          className="flex items-start gap-2 bg-red-600 px-5 py-3 text-xs font-bold leading-relaxed text-white"
+        >
+          <AlertCircle className="mt-px size-4 shrink-0" />
+          <p>
+            This consultation is being recorded. Neem does not record consultations — stop and
+            report this before continuing.
+          </p>
+        </div>
+      )}
+
+      {unstable && (
+        <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">
+          <AlertCircle className="mt-px size-4 shrink-0" />
+          <p>The connection is unstable. Audio may drop.</p>
         </div>
       )}
 
@@ -132,22 +202,22 @@ export function CallStage({
 
       <div className="flex items-center justify-center gap-3 border-t border-border bg-white px-5 py-4">
         <ControlButton
-          label={local.micEnabled ? "Mute microphone" : "Unmute microphone"}
-          active={local.micEnabled}
-          disabled={local.status !== "ready"}
-          onClick={local.toggleMic}
+          label={micEnabled ? "Mute microphone" : "Unmute microphone"}
+          active={micEnabled}
+          disabled={!controlsReady}
+          onClick={toggleMic}
         >
-          {local.micEnabled ? <Mic className="size-5" /> : <MicOff className="size-5" />}
+          {micEnabled ? <Mic className="size-5" /> : <MicOff className="size-5" />}
         </ControlButton>
 
         {isVideo && (
           <ControlButton
-            label={local.cameraEnabled ? "Turn camera off" : "Turn camera on"}
-            active={local.cameraEnabled}
-            disabled={local.status !== "ready"}
-            onClick={local.toggleCamera}
+            label={cameraEnabled ? "Turn camera off" : "Turn camera on"}
+            active={cameraEnabled}
+            disabled={!controlsReady}
+            onClick={toggleCamera}
           >
-            {local.cameraEnabled ? <Video className="size-5" /> : <VideoOff className="size-5" />}
+            {cameraEnabled ? <Video className="size-5" /> : <VideoOff className="size-5" />}
           </ControlButton>
         )}
 

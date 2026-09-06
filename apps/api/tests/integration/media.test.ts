@@ -236,8 +236,16 @@ describe('recordings are structurally impossible', () => {
   });
 
   it('has no source file that asks a provider to record', () => {
-    // A grep, deliberately: the guarantee is about the whole codebase, not
-    // about the one adapter that happens to be wired up today.
+    /**
+     * A grep, deliberately: the guarantee is about the whole codebase, not
+     * about the one adapter that happens to be wired up today.
+     *
+     * It covers the web app as well as the API, and that became necessary in
+     * Phase 11. Whereby's embed element exposes `startRecording()` to the
+     * browser, so for the first time a recording could be started from client
+     * code with no server route involved — the API-only scan this used to be
+     * would not have seen it (D35).
+     */
     const offenders: string[] = [];
     const pattern = /\b(startRecording|enableRecording|recordingRules|record(ing)?\s*:\s*true)\b/;
 
@@ -246,7 +254,11 @@ describe('recordings are structurally impossible', () => {
         const full = join(dir, entry);
         if (statSync(full).isDirectory()) {
           walk(full);
-        } else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) {
+        } else if (
+          (full.endsWith('.ts') || full.endsWith('.tsx')) &&
+          !full.endsWith('.test.ts') &&
+          !full.endsWith('.test.tsx')
+        ) {
           // Comments are stripped first: the interfaces document the absence
           // of these methods by naming them, and saying so must not trip the
           // check that enforces it.
@@ -259,8 +271,17 @@ describe('recordings are structurally impossible', () => {
       }
     };
 
-    walk(join(import.meta.dirname, '..', '..', 'src'));
-    expect(offenders).toEqual([]);
+    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+    walk(join(repoRoot, 'apps', 'api', 'src'));
+    walk(join(repoRoot, 'apps', 'web', 'src'));
+    walk(join(repoRoot, 'packages', 'contracts', 'src'));
+
+    expect(
+      offenders,
+      'A source file asks something to record. Consultations are never ' +
+        'recorded (spec §32) — if this is a false positive from wording, ' +
+        'reword it rather than relaxing the pattern.',
+    ).toEqual([]);
   });
 
   it('offers no API route that mentions recording', async () => {
