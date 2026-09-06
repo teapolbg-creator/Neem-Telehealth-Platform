@@ -1,7 +1,7 @@
 # Venture brief — how Neem operates, for counsel
 
 **Prepared 2026-09-06.** Shared with counsel as
-<https://claude.ai/code/artifact/c808ec91-e663-4f5f-95bc-1a2b169c8e1c>
+<https://claude.ai/code/artifact/c808ec91-e663-4f5f-95bc-1a2b19dc8e1c>
 (the published version is the one they read; this file is the source of record).
 
 ---
