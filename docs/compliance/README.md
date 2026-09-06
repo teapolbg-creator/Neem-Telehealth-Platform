@@ -24,3 +24,5 @@ Engineering research to identify which Ghanaian legal and regulatory instruments
 ## Verification status
 
 **Nothing in this folder has been verified.** No official source has been consulted, and no live research was performed during Phase 0. Verification is a named task and has not yet been done.
+
+- [](venture-brief.md) — how the system operates on every end, written for counsel so they can answer the questions in the register. Published 2026-09-06.
