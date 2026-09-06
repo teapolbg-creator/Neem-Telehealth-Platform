@@ -13,6 +13,18 @@ export const mediaSessionViewSchema = z.object({
   providerRoomRef: z.string().nullable(),
   /** Credential for the provider's SDK. Absent for a bridged voice call. */
   joinToken: z.string().nullable(),
+  /**
+   * Where the client connects, for a provider that works by URL rather than by
+   * SDK token — Whereby's credential *is* the room URL.
+   *
+   * A bearer capability: whoever holds it can join the consultation, and the
+   * doctor's carries a host key. It is returned only to the authenticated
+   * participant it was minted for, and must never be logged, put in an audit
+   * entry, or shown on a screen either party could photograph (spec §60).
+   *
+   * Null for a token-based provider and for the mock.
+   */
+  joinUrl: z.string().nullable(),
   tokenExpiresAt: z.string().nullable(),
   /**
    * True when no real media can flow. The screen says so plainly rather than

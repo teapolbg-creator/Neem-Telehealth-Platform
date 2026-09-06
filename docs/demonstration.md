@@ -150,14 +150,14 @@ Worth showing, in this order:
 
 ## Things that will look like bugs and are not
 
-| What you see                                       | Why                                                                                             |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| "No money has moved" on the payment screen         | Mock provider. The product refuses to imply a payment it cannot verify                          |
-| The video pane says media is simulated             | The Twilio adapter is not implemented; selecting it throws at boot rather than silently mocking |
-| The doctor's queue is empty                        | They have no confirmed shift today. Admin → Scheduling                                          |
-| A completed consultation shows no clinical notes   | Correct. It is sealed — that is the whole design (D23)                                          |
-| The admin cannot retrieve an archived record alone | Correct. It needs a second administrator (D27)                                                  |
-| Analytics shows no diagnosis or medication data    | There is deliberately no such route, in aggregate or otherwise (spec §13)                       |
+| What you see                                       | Why                                                                                                                                                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "No money has moved" on the payment screen         | Mock provider. The product refuses to imply a payment it cannot verify                                                                                                                                   |
+| The video pane says media is simulated             | `VIDEO_PROVIDER=mock`, which is the default. Set it to `whereby` with a key in `WHEREBY_API_KEY` for real media (D35); Call Me stays simulated either way, because Whereby cannot place a telephone call |
+| The doctor's queue is empty                        | They have no confirmed shift today. Admin → Scheduling                                                                                                                                                   |
+| A completed consultation shows no clinical notes   | Correct. It is sealed — that is the whole design (D23)                                                                                                                                                   |
+| The admin cannot retrieve an archived record alone | Correct. It needs a second administrator (D27)                                                                                                                                                           |
+| Analytics shows no diagnosis or medication data    | There is deliberately no such route, in aggregate or otherwise (spec §13)                                                                                                                                |
 
 ---
 

@@ -35,7 +35,7 @@ const port = z.coerce.number().int().min(1).max(65535);
 
 export const PROVIDER_MODES = {
   payment: ['mock', 'paystack'],
-  video: ['mock', 'twilio'],
+  video: ['mock', 'twilio', 'whereby'],
   voice: ['mock', 'twilio'],
   sms: ['mock', 'twilio'],
   email: ['mock', 'mailhog', 'smtp'],
@@ -108,6 +108,17 @@ const envSchema = z
      */
     PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
     PAYSTACK_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+
+    /**
+     * Whereby Embedded (decision D18).
+     *
+     * One credential: a Bearer API key from the Whereby dashboard. There is no
+     * second secret and no webhook signing key, because this adapter receives
+     * no webhooks — Neem's own state machine decides when a consultation is
+     * over, not the video provider.
+     */
+    WHEREBY_API_KEY: z.string().optional(),
+    WHEREBY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
     /**
      * Domain for the synthetic per-transaction address Paystack requires.
      *
@@ -189,6 +200,10 @@ const envSchema = z
     if (env.EMAIL_PROVIDER === 'smtp') {
       require('SMTP_HOST', env.SMTP_HOST, 'when EMAIL_PROVIDER=smtp');
       require('SMTP_FROM', env.SMTP_FROM, 'when EMAIL_PROVIDER=smtp');
+    }
+
+    if (env.VIDEO_PROVIDER === 'whereby') {
+      require('WHEREBY_API_KEY', env.WHEREBY_API_KEY, 'when VIDEO_PROVIDER=whereby');
     }
 
     const usesTwilio =

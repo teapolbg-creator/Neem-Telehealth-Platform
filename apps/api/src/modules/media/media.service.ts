@@ -29,6 +29,19 @@ export interface MediaSessionView {
   providerRoomRef: string | null;
   /** Credential for the provider's SDK. Absent for a bridged voice call. */
   joinToken: string | null;
+  /**
+   * Where the client connects, for a provider that works by URL.
+   *
+   * Whereby's credential *is* the room URL — there is no SDK token — so this
+   * is what the browser embeds. It is a bearer capability: whoever holds it
+   * can join, and the doctor's carries a host key. So it is returned only to
+   * the authenticated participant it was minted for, and never logged or
+   * audited (spec §60).
+   *
+   * Null for a token-based provider and for the mock, neither of which needs
+   * it.
+   */
+  joinUrl: string | null;
   tokenExpiresAt: string | null;
   /** True when no real media can flow — surfaced in the UI, never hidden. */
   isMockProvider: boolean;
@@ -131,6 +144,7 @@ export async function joinMediaSession(
     kind: session.kind,
     providerRoomRef: session.providerRoomRef,
     joinToken: token.token,
+    joinUrl: token.endpoint ?? null,
     tokenExpiresAt: token.expiresAt.toISOString(),
     isMockProvider: provider.isMock,
     startedAt: session.startedAt.toISOString(),

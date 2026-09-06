@@ -31,7 +31,7 @@ A **modular monolith** with two deployable processes and one database.
                   ┌─────────▼─────────┐     ┌──────────▼──────────────┐
                   │   MySQL 8         │     │  External providers     │
                   │   (Prisma)        │     │  Paystack   (payments)  │
-                  └───────────────────┘     │  Twilio     (video/voice)│
+                  └───────────────────┘     │  Whereby    (video/audio)│
                                             │  SMS/Email/WhatsApp     │
                                             └─────────────────────────┘
 ```
@@ -122,7 +122,7 @@ interface EmailProvider  { send(msg: OutboundEmail):   Promise<DeliveryReceipt>;
 interface WhatsAppProvider { send(msg: OutboundMessage): Promise<DeliveryReceipt>; }
 ```
 
-**Recording is disabled structurally, not by configuration.** The Twilio video adapter constructs rooms with recording off and has no code path that can enable it; a test asserts this (spec §32).
+**Recording is disabled structurally, and now also operationally.** `VideoProvider` has no method that could request a recording, and the Whereby adapter sends no `recording` object when it creates a room; `whereby-adapter.test.ts` asserts the request body has no such key (spec §32). What that no longer covers is Whereby's own dashboard, which can enable recording without touching this repository — see [D35](decision-log.md) and `security.md` §10.
 
 **Call Me** uses provider-side bridging so neither party sees the other's number: the platform dials both legs and connects them. No patient number is persisted beyond the consultation.
 

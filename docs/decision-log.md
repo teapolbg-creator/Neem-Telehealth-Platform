@@ -162,7 +162,7 @@ Status is **Proposed** until you approve Phase 0.
 
 ---
 
-### D18 — Video and voice ship on mock adapters until Twilio is confirmed · 2026-08-29 · **DECIDED**
+### D18 — Video and voice ship on mock adapters until Twilio is confirmed · 2026-08-29 · **DECIDED — video superseded by [D35](#d35)**
 
 **Issue.** Twilio has previously announced end-of-life plans for Programmable Video (finding C9). Its current status is unverified, and Neem will not build against an unconfirmed product.
 
@@ -507,3 +507,60 @@ then checks the same cookie fails would pass against the old implementation
 too, because the response cleared it. Copying the cookie first is the only
 version of this test that distinguishes the two behaviours, and it is worth
 saying out loud that the weaker test would have looked identical in the report.
+
+---
+
+### D35 — Video and in-browser audio move to Whereby; Call Me still has no provider · 2026-09-06 · **DECIDED**
+
+**Issue.** [D18](#d18) parked video on a mock rather than build against Twilio
+Programmable Video, whose end-of-life status was never confirmed. That was the
+right call and it left the product's central function simulated: two people
+could not see or hear each other. It was the largest single gap between "the
+build is complete" and "the product can be used".
+
+**Selected.** Whereby Embedded, chosen by the product owner on 2026-09-06 and
+subscribed on the Build plan.
+
+**What it costs.** $9.99/month including 2,000 participant-minutes, then
+$0.004 per participant-minute. Only two people join a room — the pharmacy
+does not — so an eight-minute consultation is sixteen participant-minutes,
+about six US cents against a GH₵40 fee. Media is not a constraint on this
+business at pilot scale.
+
+**What changed in the code.** One new adapter, `WherebyVideoProvider`. The
+`VideoProvider` interface did not change: it was written provider-agnostic in
+Phase 5 and the shape held. Two smaller things followed from Whereby being
+URL-based rather than token-based — `JoinToken.endpoint` (already in the
+interface, previously unused) now carries the room URL, and `MediaSessionView`
+gained `joinUrl` so the browser can reach it.
+
+**Three consequences worth stating plainly.**
+
+**Call Me is not solved.** Whereby is browser-to-browser and publishes no PSTN
+capability. Call Me dials both parties and bridges them so neither learns the
+other's number (spec §33); that still has no implementation, and it is the mode
+that works on a feature phone. `VOICE_PROVIDER` remains `mock`, and choosing
+anything else throws at boot rather than degrading quietly.
+
+**The no-recording guarantee is now part architectural, part operational.**
+`VideoProvider` has no method that could request a recording, and the adapter
+sends no `recording` object — `whereby-adapter.test.ts` asserts the request
+body has no such key. But Whereby's dashboard can enable recording
+independently of this repository. Consultations are never recorded (spec §32),
+and that guarantee is now only as strong as an account setting nothing in the
+code can see. Recorded in `docs/security.md` as an operational control, which
+is weaker than what it replaced and is said rather than hidden.
+
+**Room URLs are bearer capabilities.** Whoever holds one can join, and the
+doctor's carries a host key. So the room is deleted at completion rather than
+left to expire — Whereby keeps a room reachable for an hour past its end date,
+which would otherwise outlive the sealing of the clinical record. The URL is
+never logged, never audited, and returned only to the authenticated participant
+it was minted for.
+
+**Still unproven.** The adapter's tests stub `fetch`, so they establish what
+Neem asks for and not that Whereby agrees; `npm run whereby:check` exercises
+the real API with the operator's own key. And media has not been carried in the
+browser at all yet — the web app has no embed. Whether it holds up on Ghanaian
+mobile networks and low-end Android browsers is separate work that no adapter
+can stand in for.
