@@ -67,3 +67,6 @@ playwright-report/
 
 # Encrypted database backups are never committed.
 backups/
+
+# Written by `npm run whereby:check -- --keep`. Holds a host room key.
+.whereby-room.txt
