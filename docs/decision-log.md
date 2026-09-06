@@ -591,3 +591,56 @@ the real API with the operator's own key. **No consultation has yet carried
 real media** — that needs a key, which the build does not have. Whether it
 holds up on Ghanaian mobile networks and low-end Android browsers is separate
 work that no adapter can stand in for.
+
+---
+
+### D36 — Twilio is removed entirely, and voice has no provider · 2026-09-06 · **DECIDED**
+
+**Issue.** Twilio was named throughout the build as the intended provider for
+video, voice, SMS and WhatsApp, and implemented for none of them except
+notifications. [D35](#d35) moved video to Whereby. What remained was a set of
+pointers to a vendor the product is not going to use — in `.env.example`, in
+the provider enums, in the interface documentation — which reads as a plan
+rather than as the dead end it is.
+
+**Selected.** Remove it. `TwilioNotificationProvider` is deleted, every
+`TWILIO_*` variable is gone from configuration, and `twilio` is no longer a
+value any provider enum accepts.
+
+**A provider name that throws at boot is worse than no name at all**, which is
+the reasoning behind removing it from the enums rather than keeping it as a
+loud failure. `VOICE_PROVIDER=twilio` failing with "not implemented" reads as a
+capability that merely needs configuring. `VOICE_PROVIDER` accepting only
+`mock` states the truth: there is nothing to select.
+
+**The consequence, which is larger than the change.** Production refuses a mock
+adapter — a mock reports messages that were never sent — so with Twilio gone
+there is **no value for `VOICE_PROVIDER`, `SMS_PROVIDER` or
+`WHATSAPP_PROVIDER` that a production environment will accept. This build can
+no longer be deployed to production at all.**
+
+That is not a regression introduced by deleting code. Those capabilities were
+never implemented; what has changed is that the configuration now says so
+instead of naming a vendor and implying the work was a credential away. The
+production guard was given a second message for exactly this case, so an
+operator reads "there is nothing else to set it to: no SMS provider is
+implemented" rather than "mock is not permitted", and goes looking for a
+decision rather than for a setting they got wrong.
+
+**SMS is the one that blocks a launch.** A patient's consultation reference
+reaches them by SMS and it is their only route back to their own record
+([D24](#d24)). Call Me is a mode that can be dropped; SMS is load-bearing for a
+guarantee already made to patients.
+
+**Hubtel was considered for Call Me and does not offer it.** The product owner
+proposed Hubtel, a Ghanaian provider. Its developer portal and documentation
+index list Settlement, Payments, Customer Verification, Transactions and SMS —
+**no voice API, no call bridging, no IVR**. Call Me needs a provider that dials
+two legs and bridges them so neither party learns the other's number (spec
+§33), and nothing in Hubtel's published surface does that. Hubtel remains a
+strong candidate for **SMS**, which is the more urgent gap.
+
+**Consequences.** Two spec §100 acceptance criteria — patient Call Me, and
+notification delivery — are not met and are reported as outstanding.
+`npm run check:production-config` now always fails, deliberately, until a
+provider is chosen for SMS at minimum.

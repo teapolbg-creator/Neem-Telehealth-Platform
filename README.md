@@ -142,17 +142,22 @@ Every variable is documented in [`.env.example`](.env.example). Configuration is
 
 Each sits behind an interface in `apps/api/src/adapters/`, so changing provider changes one adapter, not the business logic. Development defaults to the mock in every case.
 
-| Concern        | Provider               | Adapter                                                                                                                                                          |
-| -------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Payments       | Paystack               | **Built.** HMAC verified over the raw body, before parsing, idempotent                                                                                           |
-| SMS / WhatsApp | Twilio                 | **Built**                                                                                                                                                        |
-| Email          | SMTP (MailHog locally) | **Built**                                                                                                                                                        |
-| Storage        | Local filesystem       | **Built**                                                                                                                                                        |
-| Video / voice  | Twilio                 | **Interface and mock only.** Selecting `twilio` throws at boot with a message saying the adapter is not implemented — it does not silently fall back to the mock |
+| Concern           | Provider               | Adapter                                                                                                                                                                                           |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payments          | Paystack               | **Built.** HMAC verified over the raw body, before parsing, idempotent                                                                                                                            |
+| SMS / WhatsApp    | **none chosen**        | **Not built.** Twilio was removed in D36 and nothing replaced it. A patient's consultation reference is sent by SMS and is their only route back to their own record (D24), so this blocks launch |
+| Email             | SMTP (MailHog locally) | **Built**                                                                                                                                                                                         |
+| Storage           | Local filesystem       | **Built**                                                                                                                                                                                         |
+| Video             | Whereby Embedded       | **Built, and confirmed carrying real media** between two participants (D35)                                                                                                                       |
+| Voice ("Call Me") | **none chosen**        | **Not built.** It dials both parties and bridges them so neither learns the other's number (spec §33). Whereby is browser-to-browser and cannot; Hubtel publishes no voice API                    |
 
-The media flows are complete either side of that boundary: joining, rejoining, the timer, and Call Me bridging without exposing either party's number all work against the mock, and the real adapter is a drop-in. But a demonstration runs on simulated media, and the screens say so rather than implying a call took place.
+**Video works.** Two people can see and hear each other through Whereby, with Neem's own controls driving the embed. Call Me still runs on the mock, and the screens say so rather than implying a call took place.
 
-**Consultations are never recorded.** This is structural, not configuration: the video adapter has no code path that can enable recording, `media_sessions.recordingEnabled` defaults false, and a test asserts both.
+**This build cannot be deployed to production yet.** Production refuses a mock adapter — correctly, since a mock reports messages that were never sent — and voice, SMS and WhatsApp have no real provider to select. `npm run check:production-config` names the missing capability rather than blaming the configuration.
+
+**Consultations are never recorded.** Structural: `VideoProvider` has no method that could request one, the Whereby adapter sends no `recording` object when creating a room, `media_sessions.recordingEnabled` defaults false, and tests assert all three — including a grep across `apps/web`, since the embed element exposes `startRecording()` to the browser.
+
+That guarantee is now **partly operational**: recording can be enabled in the Whereby dashboard, which no code here can see. The consultation screen raises a red banner if Whereby ever reports a recording in progress, and `security.md` §10 lists the account setting as a deployment obligation.
 
 ---
 

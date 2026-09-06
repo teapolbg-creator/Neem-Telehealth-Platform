@@ -35,11 +35,20 @@ const port = z.coerce.number().int().min(1).max(65535);
 
 export const PROVIDER_MODES = {
   payment: ['mock', 'paystack'],
-  video: ['mock', 'twilio', 'whereby'],
-  voice: ['mock', 'twilio'],
-  sms: ['mock', 'twilio'],
+  video: ['mock', 'whereby'],
+  /**
+   * Voice has no real provider.
+   *
+   * "Call Me" bridges two telephone legs so neither party learns the other's
+   * number (spec §33). Whereby cannot do it — it is browser-to-browser — and
+   * Twilio was removed in D36. Until a telephony provider is chosen, `mock`
+   * is the only honest value, and the enum says so rather than offering a
+   * name that would throw at boot.
+   */
+  voice: ['mock'],
+  sms: ['mock'],
   email: ['mock', 'mailhog', 'smtp'],
-  whatsapp: ['mock', 'twilio'],
+  whatsapp: ['mock'],
 } as const;
 
 const envSchema = z
@@ -127,16 +136,6 @@ const envSchema = z
      */
     PAYSTACK_RECEIPT_DOMAIN: z.string().min(3).default('receipts.neem.local'),
 
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
-    TWILIO_API_KEY_SID: z.string().optional(),
-    TWILIO_API_KEY_SECRET: z.string().optional(),
-    TWILIO_VOICE_NUMBER: z.string().optional(),
-    TWILIO_SMS_NUMBER: z.string().optional(),
-    /** The WhatsApp sender, without the `whatsapp:` prefix — the adapter adds it. */
-    TWILIO_WHATSAPP_NUMBER: z.string().optional(),
-    TWILIO_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
-
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: port.default(1025),
     SMTP_USER: z.string().optional(),
@@ -191,12 +190,6 @@ const envSchema = z
        */
     }
 
-    if (env.SMS_PROVIDER === 'twilio') {
-      require('TWILIO_SMS_NUMBER', env.TWILIO_SMS_NUMBER, 'when SMS_PROVIDER=twilio');
-    }
-    if (env.WHATSAPP_PROVIDER === 'twilio') {
-      require('TWILIO_WHATSAPP_NUMBER', env.TWILIO_WHATSAPP_NUMBER, 'when WHATSAPP_PROVIDER=twilio');
-    }
     if (env.EMAIL_PROVIDER === 'smtp') {
       require('SMTP_HOST', env.SMTP_HOST, 'when EMAIL_PROVIDER=smtp');
       require('SMTP_FROM', env.SMTP_FROM, 'when EMAIL_PROVIDER=smtp');
@@ -204,19 +197,6 @@ const envSchema = z
 
     if (env.VIDEO_PROVIDER === 'whereby') {
       require('WHEREBY_API_KEY', env.WHEREBY_API_KEY, 'when VIDEO_PROVIDER=whereby');
-    }
-
-    const usesTwilio =
-      env.VIDEO_PROVIDER === 'twilio' ||
-      env.VOICE_PROVIDER === 'twilio' ||
-      env.SMS_PROVIDER === 'twilio' ||
-      env.WHATSAPP_PROVIDER === 'twilio';
-    if (usesTwilio) {
-      require('TWILIO_ACCOUNT_SID', env.TWILIO_ACCOUNT_SID, 'when a Twilio provider is selected');
-      require('TWILIO_AUTH_TOKEN', env.TWILIO_AUTH_TOKEN, 'when a Twilio provider is selected');
-    }
-    if (env.VOICE_PROVIDER === 'twilio') {
-      require('TWILIO_VOICE_NUMBER', env.TWILIO_VOICE_NUMBER, 'for Call Me');
     }
 
     if (env.NODE_ENV === 'production') {
@@ -248,11 +228,40 @@ const envSchema = z
         ] as const
       ).filter(([, value]) => value === 'mock' || value === 'mailhog');
 
+      /**
+       * Two different problems wear the same value.
+       *
+       * `mock` in production is usually a configuration slip: a real provider
+       * exists and was not selected. But for voice, SMS and WhatsApp there is
+       * no longer a real provider to select — Twilio was removed in D36 and
+       * nothing replaced it — so `mock` there is not a slip, it is the whole
+       * capability being absent.
+       *
+       * An operator who reads "not permitted in production" for SMS will go
+       * looking for the setting they got wrong, and there isn't one. Saying so
+       * turns a confusing hour into a decision: choose a provider, or launch
+       * without that channel and accept what it costs.
+       */
+      const unbuilt: Record<string, string> = {
+        VOICE_PROVIDER:
+          'no telephony provider is implemented, so "Call Me" cannot work. It dials both ' +
+          'parties and bridges them (spec §33); Whereby cannot, and Twilio was removed (D36)',
+        SMS_PROVIDER:
+          'no SMS provider is implemented. A patient receives their consultation reference ' +
+          'by SMS, and it is their only route back to their own record (D24)',
+      };
+
       for (const [key, value] of mocked) {
+        const reason = unbuilt[key];
+
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [key],
-          message: `${key}="${value}" is not permitted in production — a mock adapter cannot verify that anything actually happened`,
+          message: reason
+            ? `${key}="${value}" is not permitted in production, and there is nothing else to ` +
+              `set it to: ${reason}. This is a gap in the build, not a mistake in this file.`
+            : `${key}="${value}" is not permitted in production — a mock adapter cannot verify ` +
+              'that anything actually happened',
         });
       }
 

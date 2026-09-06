@@ -1,9 +1,9 @@
 /**
  * Video and voice abstractions (spec §32, §33, §91).
  *
- * Twilio is the intended provider, but no business logic knows that. Two rules
- * are baked into the shape of these interfaces rather than left to the
- * implementations:
+ * Video is served by Whereby and voice by nothing yet, but no business logic
+ * knows either. Two rules are baked into the shape of these interfaces rather
+ * than left to the implementations:
  *
  *  1. **There is no way to enable recording.** No parameter, no option, no
  *     flag. Consultations are never recorded (spec §32), and the surest way to

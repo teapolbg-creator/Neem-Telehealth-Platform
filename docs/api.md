@@ -386,9 +386,10 @@ Returns **only**: prescription id, issuing doctor name, issue date, status (`VAL
 POST   /webhooks/payment      raw body, signature verified before parsing, idempotent
 
 NOT BUILT
-POST   /webhooks/twilio       Call Me has no provider; no voice status callback exists.
-                              Whereby needs no webhook — Neem's state machine, not the
-                              video provider, decides when a consultation is over (D35)
+(none)                        Call Me has no provider, so there is no voice status
+                              callback to receive. Whereby needs no webhook either —
+                              Neem's state machine, not the video provider, decides
+                              when a consultation is over (D35, D36)
 ```
 
 Exempt from CSRF and session auth; authenticated by provider signature only. Duplicate delivery is absorbed by unique constraints (see `payment-flow.md` §3).

@@ -17,7 +17,7 @@ import {
  * developer can read what would have been sent (spec §77, §93).
  *
  * They still enforce the checks a real provider would. An SMS to a malformed
- * number fails here exactly as it would at Twilio, so the failure path is
+ * number fails here exactly as it would at a real gateway, so the failure path is
  * exercised in development rather than discovered in production.
  */
 export class MockNotificationProvider implements NotificationProvider {

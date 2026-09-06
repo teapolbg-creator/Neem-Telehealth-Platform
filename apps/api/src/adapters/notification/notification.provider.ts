@@ -1,7 +1,7 @@
 /**
  * Notification channel abstraction (spec §58, §60, §91).
  *
- * Twilio and SMTP are the intended providers, but no business logic knows
+ * SMTP is the only implemented provider, and no business logic knows
  * that. Two rules are built into the shape of this contract rather than left
  * to the implementations:
  *

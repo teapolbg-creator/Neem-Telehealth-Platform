@@ -8,15 +8,14 @@ import { WherebyVideoProvider } from './whereby-media.provider.ts';
  *
  * Business logic asks for a provider and never learns which it got.
  *
- * Video is served by Whereby (decision D18). Twilio remains selectable and
- * remains unimplemented: it is kept in the enum so that choosing it fails
- * loudly rather than being silently unknown, which is the same reasoning as
- * the throw below.
+ * Video is served by Whereby (decisions D18, D35).
  *
  * **Voice has no implementation at all.** Whereby is browser-to-browser and
  * publishes no PSTN capability, so it cannot serve Call Me — which dials both
  * parties and bridges them so neither learns the other's number (spec §33).
- * That mode still needs a telephony provider.
+ * Twilio was removed entirely in D36, so `mock` is the only value the enum
+ * offers: a provider name that throws at boot is worse than no name at all,
+ * because it reads as a capability that merely needs configuring.
  */
 let video: VideoProvider | undefined;
 let voice: VoiceProvider | undefined;
@@ -32,13 +31,6 @@ export function getVideoProvider(): VideoProvider {
       case 'whereby':
         video = new WherebyVideoProvider();
         break;
-      case 'twilio':
-        // Failing loudly beats silently falling back to a mock, which would
-        // report a consultation as connected when nothing was (spec §93).
-        throw new Error(
-          'VIDEO_PROVIDER=twilio is selected but the Twilio adapter is not implemented, ' +
-            'and is not planned: video is served by Whereby (D18). Use VIDEO_PROVIDER=whereby.',
-        );
       default:
         throw new Error(`Unknown VIDEO_PROVIDER: ${env.VIDEO_PROVIDER}`);
     }
@@ -54,12 +46,6 @@ export function getVoiceProvider(): VoiceProvider {
       case 'mock':
         voice = new MockVoiceProvider();
         break;
-      case 'twilio':
-        throw new Error(
-          'VOICE_PROVIDER=twilio is selected but the Twilio Voice adapter is not implemented. ' +
-            'Call Me needs a telephony provider that can dial two legs and bridge them; ' +
-            'Whereby cannot, so moving video to Whereby did not solve this (spec §33).',
-        );
       default:
         throw new Error(`Unknown VOICE_PROVIDER: ${env.VOICE_PROVIDER}`);
     }

@@ -37,7 +37,7 @@ A **modular monolith** with two deployable processes and one database.
 ```
 
 **Core Neem systems:** web, api, MySQL, the job runner.
-**External services:** Paystack, Twilio, the notification providers.
+**External services:** Paystack, Whereby, the notification providers.
 **Temporary data:** patient sessions, clinical notes, vitals, point-of-care tests (see `data-retention.md`).
 **Permanent data:** consultations (operational fields only), prescriptions, referrals, payments, revenue, feedback, audit logs.
 
@@ -216,7 +216,7 @@ Under **Option B** the same content lives at `./src` (web, unchanged) and `./ser
 
 ## 8. Dependencies to add
 
-**api runtime:** `fastify`, `@fastify/cookie`, `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/multipart`, `@prisma/client`, `prisma`, `zod`, `argon2`, `otplib`, `qrcode`, `pdfkit`, `socket.io`, `pino`, `pino-pretty`, `date-fns`, `date-fns-tz`, `uuid`, `dotenv`, `paystack` SDK or plain `undici`, `twilio`.
+**api runtime:** `fastify`, `@fastify/cookie`, `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/multipart`, `@prisma/client`, `prisma`, `zod`, `argon2`, `otplib`, `qrcode`, `pdfkit`, `socket.io`, `pino`, `pino-pretty`, `date-fns`, `date-fns-tz`, `uuid`, `dotenv`, `paystack` SDK or plain `undici`.
 
 **api dev:** `vitest`, `@vitest/coverage-v8`, `tsx`, `typescript`, `@types/node`, `prisma`, `supertest`-equivalent via `fastify.inject`.
 
