@@ -70,3 +70,7 @@ backups/
 
 # Written by `npm run whereby:check -- --keep`. Holds a host room key.
 .whereby-room.txt
+
+# Word documents. Briefs and exports are shared directly, never committed —
+# one of them names a leaked credential and its commits.
+*.docx
