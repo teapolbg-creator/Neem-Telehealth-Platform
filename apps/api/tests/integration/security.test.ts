@@ -224,6 +224,12 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
   ['GET /api/v1/onboarding/capabilities', 'reference data for the public application form'],
   ['POST /api/v1/onboarding/pharmacy', 'the public application form itself'],
   ['POST /api/v1/onboarding/doctor', 'the public application form itself'],
+  [
+    'POST /api/v1/pilot-applications',
+    'the public pilot form on the marketing site; a submission creates no ' +
+      'account, no session and no capability, which is what makes an open ' +
+      'write endpoint acceptable — pilot.test.ts asserts that it grants nothing',
+  ],
   ['POST /api/v1/s/exchange', 'the patient has a QR token and nothing else'],
   ['GET /api/v1/verify/:kind/:code', 'a document is verified by whoever holds it (spec §44)'],
   ['POST /api/v1/webhooks/payment', 'authenticated by HMAC over the raw body, not a session'],
