@@ -11,6 +11,7 @@ import { errorHandlerPlugin } from './middleware/error-handler.ts';
 import multipart from '@fastify/multipart';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes.ts';
+import { pilotRoutes } from './modules/pilot/pilot.routes.ts';
 import { doctorRoutes } from './modules/doctor/doctor.routes.ts';
 import { pharmacyRoutes } from './modules/pharmacy/pharmacy.routes.ts';
 import { adminRoutes } from './modules/admin/admin.routes.ts';
@@ -69,7 +70,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Explicit allow-list. Credentials are enabled only for the known web origin,
   // because the session travels as a cookie.
   await app.register(cors, {
-    origin: [env.WEB_ORIGIN],
+    // The marketing site is a second origin when one is configured. It sends
+    // no cookies — the pilot form is a plain POST — so it gains nothing from
+    // `credentials` below; it is here only so the browser will let the form
+    // reach the API at all.
+    origin: env.MARKETING_ORIGIN ? [env.WEB_ORIGIN, env.MARKETING_ORIGIN] : [env.WEB_ORIGIN],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['content-type', 'x-neem-csrf', 'x-correlation-id'],
@@ -113,6 +118,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(healthRoutes);
       await api.register(authRoutes);
       await api.register(onboardingRoutes);
+      await api.register(pilotRoutes);
       await api.register(doctorRoutes);
       await api.register(pharmacyRoutes);
       await api.register(adminRoutes);

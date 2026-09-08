@@ -34,6 +34,19 @@ export interface TemplateDefinition {
 }
 
 export const NOTIFICATION_TEMPLATES: TemplateDefinition[] = [
+  // --- Pilot ----------------------------------------------------------------
+  {
+    code: 'admin.pilot.application-received',
+    channels: ['IN_APP', 'EMAIL'],
+    locale: 'en',
+    subject: 'A new pilot application',
+    body: 'A {{role}} has applied to join the Neem pilot. Reference {{reference}}. Open Neem to read it.',
+    // No name, no phone, no email. The notification says something arrived;
+    // the details live behind an authenticated screen like everything else.
+    variables: ['role', 'reference'],
+    description: 'Someone submitted the pilot form on the marketing site.',
+  },
+
   // --- Doctor ---------------------------------------------------------------
   {
     code: 'doctor.consultation.offered',

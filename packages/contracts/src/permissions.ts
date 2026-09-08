@@ -53,6 +53,7 @@ export const PERMISSIONS = {
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
   PROMOTION_MANAGE: 'promotion:manage',
+  PILOT_MANAGE: 'pilot:manage',
   NOTIFICATION_TEMPLATE_MANAGE: 'notification-template:manage',
   COMPLAINT_MANAGE: 'complaint:manage',
   QUALITY_READ: 'quality:read',

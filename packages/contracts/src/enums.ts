@@ -161,3 +161,27 @@ export const NOTIFICATION_CHANNELS = [
   'PUSH',
 ] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+
+/**
+ * Who is expressing interest in the pilot, from the marketing site.
+ *
+ * Deliberately its own enum rather than reusing UserRole: this is a lead, not
+ * an account, and nobody here has a role on the platform yet.
+ */
+export const PILOT_APPLICANT_ROLES = ['DOCTOR', 'PHARMACY'] as const;
+export type PilotApplicantRole = (typeof PILOT_APPLICANT_ROLES)[number];
+
+/**
+ * Where a lead has got to.
+ *
+ * Without this the table becomes a list nobody knows the state of, and the
+ * same doctor gets called three times or not at all.
+ */
+export const PILOT_APPLICATION_STATUSES = [
+  'NEW',
+  'CONTACTED',
+  'ONBOARDED',
+  'DECLINED',
+  'SPAM',
+] as const;
+export type PilotApplicationStatus = (typeof PILOT_APPLICATION_STATUSES)[number];

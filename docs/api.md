@@ -355,6 +355,22 @@ the audit log, so payment drift is recorded and searchable by action — but
 there is no screen that puts it in front of an administrator. That is a gap,
 not a design decision, and it is listed here so it stays visible.
 
+```
+GET    /admin/pilot-applications                  role / status / search, cursor-paged
+GET    /admin/pilot-applications/export.csv       the same filters, as a spreadsheet
+GET    /admin/pilot-applications/:publicId
+PATCH  /admin/pilot-applications/:publicId/status NEW → CONTACTED → ONBOARDED / DECLINED / SPAM
+```
+
+Behind `pilot:manage`. Marking a row `ONBOARDED` records that onboarding
+happened; it does not perform it. The list view omits `sourceIp` — it exists to
+recognise a flood, and a list screen is not where anyone needs it.
+
+The CSV export prefixes any cell beginning `=`, `+`, `-` or `@` with an
+apostrophe. Excel and Sheets execute those as formulas, and `+233…` phone
+numbers are exactly that shape, so an unescaped export is a way to run
+something on the machine of whoever opens it.
+
 `GET /admin/languages` was listed from Phase 0 and no route was ever
 registered. A language cannot be added or activated through the product: the
 seeded six are what there are, and three of them are inactive.
@@ -373,10 +389,43 @@ glance whether this deployment can actually take money and send messages.
 ## 7. Public
 
 ```
-GET    /verify/:code    prescription verification
+GET    /verify/:code                  prescription verification
+POST   /pilot-applications            expression of interest from the marketing site
 ```
 
 Returns **only**: prescription id, issuing doctor name, issue date, status (`VALID` / `REVOKED` / `DISPENSED`). No patient name, age, sex, or medication (spec §44, §102). Rate-limited and non-enumerable — `verificationCode` is a high-entropy random string, not a sequence.
+
+### Pilot applications
+
+`POST /pilot-applications` is the form on the public marketing site, which is a
+different origin from the app. It is unauthenticated because it is a public
+form, and that is acceptable because **a submission grants nothing**: it writes
+one row and creates no user, no session and no capability. An integration test
+asserts exactly that.
+
+It is not a shortcut into onboarding. `POST /onboarding/doctor` and
+`/onboarding/pharmacy` still require an MDC number, a licence expiry date, a
+qualification date, a password and languages; this route collects only what is
+needed to have a conversation, because asking a stranger for their council
+number on a landing page costs sign-ups. A row here is a lead that a person
+still has to work.
+
+Resubmission by the same address in the same role **updates** the existing row
+rather than adding a second one — people submit twice on a slow connection, and
+two rows means somebody is called twice or the newer details are missed. A row
+an administrator has already resolved keeps its status and gains a note saying
+the person wrote in again, so a declined applicant reappearing is visible
+rather than silently reset to new.
+
+Rate-limited by `RATE_LIMIT_PILOT_MAX` / `_WINDOW` (default 20 an hour):
+looser than account creation, because a whole pharmacy can share one address,
+and tighter than the global default, because it is an open write endpoint.
+
+The API's CORS allow-list must name the marketing site's origin in
+`MARKETING_ORIGIN`, or the browser blocks the request before it is sent. An
+unset value denies rather than permits.
+
+Admin routes for reading these live in §6.
 
 ---
 

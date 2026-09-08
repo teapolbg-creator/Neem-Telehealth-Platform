@@ -29,7 +29,7 @@ afterAll(async () => {
 
 /** Path-ish tokens belonging to the API rather than to a file or a heading. */
 const API_PATH =
-  /^\/(admin|doctor|doctors|pharmacy|patient|auth|onboarding|webhooks|documents|verify|s|health)\b/;
+  /^\/(admin|doctor|doctors|pharmacy|patient|auth|onboarding|pilot-applications|webhooks|documents|verify|s|health)\b/;
 
 /** `:publicId` and `:id` differ only in taste; compare shapes, not names. */
 function normalise(path: string): string {

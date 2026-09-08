@@ -338,6 +338,83 @@ export async function seedDemoData(
     englishId: english.id,
   });
 
+  // --- Pilot applications -------------------------------------------------
+  //
+  // Written directly rather than through the endpoint, because the endpoint is
+  // rate-limited and seeding is not a submission. Every row is `isDemo` and
+  // carries an `.demo` address, like everything else here.
+  //
+  // Four rows, not one: the screen's default filter shows what is still
+  // waiting, so a seed of only NEW rows would hide the filters and a seed of
+  // none would leave a new installation looking broken.
+  const pilotApplicants = [
+    {
+      role: 'DOCTOR' as const,
+      fullName: 'Dr. Yaa Boateng',
+      phone: '+233201110001',
+      email: 'yaa@applicant.demo',
+      specialty: 'Family medicine',
+      yearsOfPractice: '11',
+      organisation: 'Ridge Hospital',
+      location: 'Accra',
+      additionalInfo: 'Interested in evening sessions during the pilot.',
+      status: 'NEW' as const,
+      statusNote: null,
+    },
+    {
+      role: 'PHARMACY' as const,
+      fullName: 'Kofi Adjei',
+      phone: '+233241110002',
+      email: 'kofi@applicant.demo',
+      specialty: null,
+      yearsOfPractice: null,
+      organisation: 'Adjei Chemists',
+      location: 'Osu, Accra',
+      additionalInfo: 'Two branches. We already have a private corner at the counter.',
+      status: 'NEW' as const,
+      statusNote: null,
+    },
+    {
+      role: 'DOCTOR' as const,
+      fullName: 'Dr. Nii Armah',
+      phone: '+233551110003',
+      email: 'nii@applicant.demo',
+      specialty: 'General practice',
+      yearsOfPractice: '6',
+      organisation: 'Independent',
+      location: 'Kumasi',
+      additionalInfo: null,
+      status: 'CONTACTED' as const,
+      statusNote: 'Spoke on the phone; sending onboarding details this week.',
+    },
+    {
+      role: 'PHARMACY' as const,
+      fullName: 'Abena Sarpong',
+      phone: '+233261110004',
+      email: 'abena@applicant.demo',
+      specialty: null,
+      yearsOfPractice: null,
+      organisation: 'Sarpong Pharmacy',
+      location: 'Tamale',
+      additionalInfo: null,
+      status: 'ONBOARDED' as const,
+      statusNote: 'Registered and verified.',
+    },
+  ];
+
+  for (const applicant of pilotApplicants) {
+    await prisma.pilotApplication.upsert({
+      where: { email_role: { email: applicant.email, role: applicant.role } },
+      update: {},
+      create: {
+        publicId: generatePublicId('pil'),
+        ...applicant,
+        consentAt: new Date(),
+        isDemo: true,
+      },
+    });
+  }
+
   return {
     adminEmail: options.adminEmail,
     history,

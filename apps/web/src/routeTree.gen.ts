@@ -16,6 +16,7 @@ import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
+import { Route as AdminPilotRouteImport } from './routes/admin.pilot'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
 import { Route as AdminQualityRouteImport } from './routes/admin.quality'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
@@ -78,6 +79,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
 const AdminPayrollRoute = AdminPayrollRouteImport.update({
   id: '/admin/payroll',
   path: '/admin/payroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPilotRoute = AdminPilotRouteImport.update({
+  id: '/admin/pilot',
+  path: '/admin/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminPromotionsRoute = AdminPromotionsRouteImport.update({
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/pilot': typeof AdminPilotRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/pilot': typeof AdminPilotRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
+  '/admin/pilot': typeof AdminPilotRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
+    | '/admin/pilot'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
+    | '/admin/pilot'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
@@ -418,6 +429,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
+    | '/admin/pilot'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
@@ -456,6 +468,7 @@ export interface RootRouteChildren {
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
+  AdminPilotRoute: typeof AdminPilotRoute
   AdminPromotionsRoute: typeof AdminPromotionsRoute
   AdminQualityRoute: typeof AdminQualityRoute
   AdminQueueRoute: typeof AdminQueueRoute
@@ -536,6 +549,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/payroll'
       fullPath: '/admin/payroll'
       preLoaderRoute: typeof AdminPayrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/pilot': {
+      id: '/admin/pilot'
+      path: '/admin/pilot'
+      fullPath: '/admin/pilot'
+      preLoaderRoute: typeof AdminPilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/promotions': {
@@ -744,6 +764,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,
+  AdminPilotRoute: AdminPilotRoute,
   AdminPromotionsRoute: AdminPromotionsRoute,
   AdminQualityRoute: AdminQualityRoute,
   AdminQueueRoute: AdminQueueRoute,

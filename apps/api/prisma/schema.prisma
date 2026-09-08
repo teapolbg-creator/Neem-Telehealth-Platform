@@ -26,8 +26,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
   // Explicit shadow database so the application user needs no server-wide
   // CREATE DATABASE privilege (docs/security.md §6).
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
@@ -273,6 +273,19 @@ enum MediaSessionKind {
   VOICE_BRIDGE
 }
 
+enum PilotApplicantRole {
+  DOCTOR
+  PHARMACY
+}
+
+enum PilotApplicationStatus {
+  NEW
+  CONTACTED
+  ONBOARDED
+  DECLINED
+  SPAM
+}
+
 // =============================================================================
 // IDENTITY & ACCESS  — OPERATIONAL
 // There is no patient row here. Patients have no account (spec §8.1).
@@ -334,18 +347,18 @@ model Session {
 /// Short-lived state between password verification and TOTP verification, so a
 /// half-authenticated request never carries a real session cookie.
 model TwoFactorChallenge {
-  id          String    @id @default(uuid(7))
-  challengeId String    @unique @db.VarChar(64)
-  userId      String
+  id               String    @id @default(uuid(7))
+  challengeId      String    @unique @db.VarChar(64)
+  userId           String
   /// True when the admin has not yet enrolled and must complete setup first.
-  enrollment  Boolean   @default(false)
+  enrollment       Boolean   @default(false)
   /// Pending secret during enrolment; promoted to User.twoFactorSecretEnc on success.
-  pendingSecretEnc String? @db.Text
-  attempts    Int       @default(0)
-  expiresAt   DateTime
-  consumedAt  DateTime?
-  ipHash      String?   @db.VarChar(64)
-  createdAt   DateTime  @default(now())
+  pendingSecretEnc String?   @db.Text
+  attempts         Int       @default(0)
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  ipHash           String?   @db.VarChar(64)
+  createdAt        DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -536,10 +549,10 @@ model Doctor {
 
   // Compensation is configurable and nullable — the part-time formula is
   // undecided, so nothing computes salary automatically (spec §26).
-  employmentType        EmploymentType?
+  employmentType         EmploymentType?
   contractedHoursPerWeek Int?
-  hourlyRateMinor       Int?
-  monthlySalaryMinor    Int?
+  hourlyRateMinor        Int?
+  monthlySalaryMinor     Int?
 
   isDemo    Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -604,14 +617,14 @@ model DoctorLanguage {
 /// URL. The PDF generator reads it in-process only after confirming the
 /// requesting doctor is the authenticated, ACTIVE, verified owner.
 model DoctorSignature {
-  id              String   @id @default(uuid(7))
-  doctorId        String
-  signatureDataEnc String  @db.LongText
-  capturedAt      DateTime @default(now())
-  capturedIpHash  String?  @db.VarChar(64)
-  isActive        Boolean  @default(true)
+  id               String   @id @default(uuid(7))
+  doctorId         String
+  signatureDataEnc String   @db.LongText
+  capturedAt       DateTime @default(now())
+  capturedIpHash   String?  @db.VarChar(64)
+  isActive         Boolean  @default(true)
 
-  doctor        Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor        Doctor                @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   prescriptions Prescription[]
   referrals     Referral[]
   summaries     ConsultationSummary[]
@@ -621,17 +634,17 @@ model DoctorSignature {
 }
 
 model DoctorSubscription {
-  id             String             @id @default(uuid(7))
-  doctorId       String
-  periodStart    DateTime
-  periodEnd      DateTime
-  amountMinor    Int
-  currency       String             @default("GHS") @db.Char(3)
-  status         SubscriptionStatus @default(PENDING)
-  graceEndsAt    DateTime?
-  renewedFromId  String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id            String             @id @default(uuid(7))
+  doctorId      String
+  periodStart   DateTime
+  periodEnd     DateTime
+  amountMinor   Int
+  currency      String             @default("GHS") @db.Char(3)
+  status        SubscriptionStatus @default(PENDING)
+  graceEndsAt   DateTime?
+  renewedFromId String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   doctor   Doctor    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   payments Payment[]
@@ -730,11 +743,11 @@ model DoctorServiceHours {
 
 /// Live availability, distinct from scheduled shifts.
 model DoctorPresence {
-  doctorId        String   @id
+  doctorId        String    @id
   onlineSince     DateTime?
   lastHeartbeatAt DateTime?
-  currentLoad     Int      @default(0)
-  maxLoad         Int      @default(1)
+  currentLoad     Int       @default(0)
+  maxLoad         Int       @default(1)
 
   doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
@@ -768,18 +781,18 @@ model Language {
 /// after the purge this row is a complete and honest record of what happened
 /// without being a medical record (spec §12).
 model Consultation {
-  id                String               @id @default(uuid(7))
-  publicId          String               @unique @db.VarChar(32)
-  pharmacyId        String
-  doctorId          String?
-  state             ConsultationState    @default(PENDING_PAYMENT)
-  type              ConsultationType?
-  languageId        String?
+  id         String            @id @default(uuid(7))
+  publicId   String            @unique @db.VarChar(32)
+  pharmacyId String
+  doctorId   String?
+  state      ConsultationState @default(PENDING_PAYMENT)
+  type       ConsultationType?
+  languageId String?
 
   priceMinor    Int
-  discountMinor Int    @default(0)
+  discountMinor Int     @default(0)
   netMinor      Int
-  currency      String @default("GHS") @db.Char(3)
+  currency      String  @default("GHS") @db.Char(3)
   promotionId   String?
 
   createdAt         DateTime  @default(now())
@@ -805,30 +818,30 @@ model Consultation {
   isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
-  pharmacy Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
-  doctor   Doctor?    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  language Language?  @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  pharmacy  Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  doctor    Doctor?    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  language  Language?  @relation(fields: [languageId], references: [id], onDelete: Restrict)
   promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: Restrict)
 
-  stateEvents    ConsultationStateEvent[]
-  accessTokens   ConsultationAccessToken[]
-  patientSession PatientSession?
-  clinicalNotes  ConsultationClinicalNotes?
-  vitals         ConsultationVitals[]
-  tests          ConsultationTest[]
-  queueEntry     ConsultationQueueEntry?
-  assignments    ConsultationAssignment[]
-  mediaSessions  MediaSession[]
-  prescriptions  Prescription[]
-  referrals      Referral[]
-  summary        ConsultationSummary?
-  payments       Payment[]
-  refunds        Refund[]
-  revenue        RevenueAllocation?
-  feedback       Feedback?
-  complaints     Complaint[]
-  retentionJobs  RetentionJob[]
-  clinicalAccessLog ClinicalRecordAccessLog[]
+  stateEvents         ConsultationStateEvent[]
+  accessTokens        ConsultationAccessToken[]
+  patientSession      PatientSession?
+  clinicalNotes       ConsultationClinicalNotes?
+  vitals              ConsultationVitals[]
+  tests               ConsultationTest[]
+  queueEntry          ConsultationQueueEntry?
+  assignments         ConsultationAssignment[]
+  mediaSessions       MediaSession[]
+  prescriptions       Prescription[]
+  referrals           Referral[]
+  summary             ConsultationSummary?
+  payments            Payment[]
+  refunds             Refund[]
+  revenue             RevenueAllocation?
+  feedback            Feedback?
+  complaints          Complaint[]
+  retentionJobs       RetentionJob[]
+  clinicalAccessLog   ClinicalRecordAccessLog[]
   promotionRedemption PromotionRedemption?
 
   @@index([pharmacyId, createdAt])
@@ -884,19 +897,19 @@ model ConsultationAccessToken {
 /// can attribute to a patient discharges nothing. Retrieval is by consultation
 /// reference, never by person (D24). Implemented in Phase 5.5.
 model PatientSession {
-  id                     String    @id @default(uuid(7))
-  consultationId         String    @unique
-  fullNameEnc            String?   @db.Text
+  id                     String      @id @default(uuid(7))
+  consultationId         String      @unique
+  fullNameEnc            String?     @db.Text
   age                    Int?
   sex                    PatientSex?
-  phoneEnc               String?   @db.Text
+  phoneEnc               String?     @db.Text
   /// Recorded when the patient pays from a different number (spec §36).
-  paymentPhoneEnc        String?   @db.Text
-  deviceSessionTokenHash String?   @unique @db.VarChar(64)
+  paymentPhoneEnc        String?     @db.Text
+  deviceSessionTokenHash String?     @unique @db.VarChar(64)
   deviceBoundAt          DateTime?
   expiresAt              DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
 
@@ -968,16 +981,16 @@ model ConsultationTest {
 /// `recordingEnabled` is pinned false; the adapter has no code path that can
 /// enable it and a test asserts this (spec §32, decision D8).
 model MediaSession {
-  id              String           @id @default(uuid(7))
-  consultationId  String
-  provider        String           @db.VarChar(40)
-  kind            MediaSessionKind
-  providerRoomRef String?          @db.VarChar(120)
-  providerCallRef String?          @db.VarChar(120)
-  startedAt       DateTime         @default(now())
-  endedAt         DateTime?
-  endReason       String?          @db.VarChar(120)
-  recordingEnabled Boolean         @default(false)
+  id               String           @id @default(uuid(7))
+  consultationId   String
+  provider         String           @db.VarChar(40)
+  kind             MediaSessionKind
+  providerRoomRef  String?          @db.VarChar(120)
+  providerCallRef  String?          @db.VarChar(120)
+  startedAt        DateTime         @default(now())
+  endedAt          DateTime?
+  endReason        String?          @db.VarChar(120)
+  recordingEnabled Boolean          @default(false)
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
 
@@ -990,16 +1003,16 @@ model MediaSession {
 // =============================================================================
 
 model ConsultationQueueEntry {
-  id              String          @id @default(uuid(7))
-  consultationId  String          @unique
-  languageId      String
-  state           QueueEntryState @default(WAITING)
-  enqueuedAt      DateTime        @default(now())
-  resolvedAt      DateTime?
-  offerAttempts   Int             @default(0)
+  id               String          @id @default(uuid(7))
+  consultationId   String          @unique
+  languageId       String
+  state            QueueEntryState @default(WAITING)
+  enqueuedAt       DateTime        @default(now())
+  resolvedAt       DateTime?
+  offerAttempts    Int             @default(0)
   noMatchAlertedAt DateTime?
-  delayAlertedAt  DateTime?
-  priority        Int             @default(0)
+  delayAlertedAt   DateTime?
+  priority         Int             @default(0)
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   language     Language     @relation(fields: [languageId], references: [id], onDelete: Restrict)
@@ -1085,19 +1098,19 @@ model Prescription {
 }
 
 model PrescriptionItem {
-  id                String  @id @default(uuid(7))
-  prescriptionId    String
-  version           Int     @default(1)
-  medication        String  @db.VarChar(200)
-  strength          String? @db.VarChar(80)
-  form              String? @db.VarChar(80)
-  dose              String  @db.VarChar(120)
-  frequency         String  @db.VarChar(120)
-  durationText      String  @db.VarChar(120)
-  quantity          String  @db.VarChar(80)
-  instructions      String? @db.VarChar(500)
-  sortOrder         Int     @default(0)
-  isActive          Boolean @default(true)
+  id                 String  @id @default(uuid(7))
+  prescriptionId     String
+  version            Int     @default(1)
+  medication         String  @db.VarChar(200)
+  strength           String? @db.VarChar(80)
+  form               String? @db.VarChar(80)
+  dose               String  @db.VarChar(120)
+  frequency          String  @db.VarChar(120)
+  durationText       String  @db.VarChar(120)
+  quantity           String  @db.VarChar(80)
+  instructions       String? @db.VarChar(500)
+  sortOrder          Int     @default(0)
+  isActive           Boolean @default(true)
   supersededByItemId String?
 
   prescription  Prescription          @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
@@ -1247,17 +1260,17 @@ model PaymentWebhookEvent {
 /// impossible. The rate in force at calculation time is stored, so historical
 /// splits stay reproducible after an admin changes the setting.
 model RevenueAllocation {
-  id                 String   @id @default(uuid(7))
-  consultationId     String   @unique
-  paymentId          String   @unique
+  id                 String    @id @default(uuid(7))
+  consultationId     String    @unique
+  paymentId          String    @unique
   grossMinor         Int
-  discountMinor      Int      @default(0)
+  discountMinor      Int       @default(0)
   netMinor           Int
   pharmacySharePctBp Int
   pharmacyShareMinor Int
   neemShareMinor     Int
-  currency           String   @default("GHS") @db.Char(3)
-  calculatedAt       DateTime @default(now())
+  currency           String    @default("GHS") @db.Char(3)
+  calculatedAt       DateTime  @default(now())
   reversedAt         DateTime?
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
@@ -1379,11 +1392,11 @@ model Feedback {
 }
 
 model ComplaintCategory {
-  id        String   @id @default(uuid(7))
-  code      String   @unique @db.VarChar(60)
-  label     String   @db.VarChar(160)
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
+  id        String  @id @default(uuid(7))
+  code      String  @unique @db.VarChar(60)
+  label     String  @db.VarChar(160)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
 
   complaints Complaint[]
 
@@ -1421,16 +1434,16 @@ model Complaint {
 
 /// Business configuration lives here, never in source code (spec §56).
 model SystemSetting {
-  key             String   @id @db.VarChar(120)
-  value           Json
-  valueType       String   @db.VarChar(40)
-  description     String   @db.VarChar(500)
-  category        String   @db.VarChar(60)
+  key              String   @id @db.VarChar(120)
+  value            Json
+  valueType        String   @db.VarChar(40)
+  description      String   @db.VarChar(500)
+  category         String   @db.VarChar(60)
   /// Sensitive keys require UI confirmation with an impact description before
   /// they can be changed (spec §96).
-  requiresConfirm Boolean  @default(false)
+  requiresConfirm  Boolean  @default(false)
   updatedByAdminId String?
-  updatedAt       DateTime @updatedAt
+  updatedAt        DateTime @updatedAt
 
   @@index([category])
   @@map("system_settings")
@@ -1468,20 +1481,20 @@ model NotificationTemplate {
 /// Stores a HASH of the rendered body, not the body itself, so notification
 /// history never becomes a shadow copy of clinical or personal data (spec §60).
 model Notification {
-  id                 String              @id @default(uuid(7))
-  recipientType      ActorType
-  recipientRef       String              @db.VarChar(64)
-  channel            NotificationChannel
-  templateCode       String              @db.VarChar(80)
-  renderedPayloadHash String             @db.VarChar(64)
-  status             NotificationStatus  @default(QUEUED)
-  providerRef        String?             @db.VarChar(200)
-  attempts           Int                 @default(0)
-  lastError          String?             @db.VarChar(500)
-  sentAt             DateTime?
-  deliveredAt        DateTime?
-  readAt             DateTime?
-  createdAt          DateTime            @default(now())
+  id                  String              @id @default(uuid(7))
+  recipientType       ActorType
+  recipientRef        String              @db.VarChar(64)
+  channel             NotificationChannel
+  templateCode        String              @db.VarChar(80)
+  renderedPayloadHash String              @db.VarChar(64)
+  status              NotificationStatus  @default(QUEUED)
+  providerRef         String?             @db.VarChar(200)
+  attempts            Int                 @default(0)
+  lastError           String?             @db.VarChar(500)
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  createdAt           DateTime            @default(now())
 
   @@index([recipientType, recipientRef, createdAt])
   @@index([status, createdAt])
@@ -1544,28 +1557,28 @@ model RetentionJob {
 /// role, reason, when it started, who approved it, what was reached, and when
 /// access ended.
 model ClinicalRecordAccessLog {
-  id             String   @id @default(uuid(7))
+  id                 String    @id @default(uuid(7))
   /// The consultation reference quoted to locate the record (D24). Retrieval
   /// is never by patient — there is no index to search.
-  consultationId String
+  consultationId     String
   /// Who opened it, and in what capacity. Role is recorded separately from the
   /// user because an account's role can change afterwards, and the log must
   /// say what they were at the time.
-  actorUserId    String
-  actorRole      String   @db.VarChar(40)
+  actorUserId        String
+  actorRole          String    @db.VarChar(40)
   /// Who authorised them. Two people are required; one administrator cannot
   /// unseal a record alone.
   authorisedByUserId String
   /// Why, from the closed list in docs/data-retention.md §4, plus the case or
   /// inquiry reference. Recorded before access, not after.
-  purpose        String   @db.VarChar(60)
-  reference      String   @db.VarChar(200)
+  purpose            String    @db.VarChar(60)
+  reference          String    @db.VarChar(200)
   /// What was actually reached, so the scope of a disclosure is provable.
-  recordsAccessed Json
-  accessedAt     DateTime @default(now())
+  recordsAccessed    Json
+  accessedAt         DateTime  @default(now())
   /// When the retrieval session ended. Null means it is still open — which is
   /// itself worth seeing on an oversight screen.
-  accessEndedAt  DateTime?
+  accessEndedAt      DateTime?
 
   consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
 
@@ -1634,12 +1647,12 @@ model DisclosureLog {
 /// are Neem's own design and the constraints on them are product policy rather
 /// than legal requirement.
 model ConsultationSummary {
-  id               String   @id @default(uuid(7))
-  publicId         String   @unique @db.VarChar(32)
+  id               String @id @default(uuid(7))
+  publicId         String @unique @db.VarChar(32)
   /// High-entropy, behind the public verification page. A hospital shown this
   /// document must be able to confirm it is genuine (D25).
-  verificationCode String   @unique @db.VarChar(40)
-  consultationId   String   @unique
+  verificationCode String @unique @db.VarChar(40)
+  consultationId   String @unique
   doctorId         String
   pharmacyId       String
 
@@ -1663,7 +1676,7 @@ model ConsultationSummary {
   safetyNetting       String @db.Text
 
   signatureId   String?
-  pdfStorageKey String? @db.VarChar(400)
+  pdfStorageKey String?  @db.VarChar(400)
   issuedAt      DateTime @default(now())
   isDemo        Boolean  @default(false)
 
@@ -1675,4 +1688,71 @@ model ConsultationSummary {
   @@index([pharmacyId, issuedAt])
   @@index([doctorId, issuedAt])
   @@map("consultation_summaries")
+}
+
+// =============================================================================
+// PILOT APPLICATIONS  — OPERATIONAL
+//
+// Expressions of interest from the public marketing site. A lead, not an
+// account: a row here grants nothing and is not linked to User, Doctor or
+// Pharmacy. When someone is actually onboarded, a real Doctor or Pharmacy row
+// is created through the normal path and this row is marked ONBOARDED — the
+// two are deliberately not joined, because a lead that never converts must not
+// leave a half-built account behind.
+//
+// This is contact information about a professional. It is NOT a patient record
+// and nothing clinical may be written here.
+// =============================================================================
+
+/// OPERATIONAL — contact details held on consent, for the duration of the
+/// pilot programme. See docs/data-retention.md.
+model PilotApplication {
+  id       String @id @default(uuid(7))
+  publicId String @unique @db.VarChar(32)
+
+  role PilotApplicantRole
+
+  fullName String @db.VarChar(160)
+
+  /// Normalised to +233… by the contract, so two spellings of one number do
+  /// not become two leads.
+  phone String @db.VarChar(24)
+  email String @db.VarChar(255)
+
+  /// Doctors only.
+  specialty       String? @db.VarChar(120)
+  /// Free text on purpose: people write "8", "about 8" and "8 years".
+  yearsOfPractice String? @db.VarChar(40)
+
+  organisation String @db.VarChar(200)
+  location     String @db.VarChar(160)
+
+  additionalInfo String? @db.Text
+
+  status     PilotApplicationStatus @default(NEW)
+  statusNote String?                @db.VarChar(500)
+
+  /// WHEN they agreed to be contacted, not merely that they did. A boolean
+  /// cannot answer a question asked eighteen months later.
+  consentAt DateTime
+
+  /// Kept for rate limiting and for recognising a flood. Not shown in the UI.
+  sourceIp String? @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Set when an admin last moved the row along, so "who chased this" has an
+  /// answer.
+  reviewedAt      DateTime?
+  reviewedByAdmin String?   @db.VarChar(64)
+
+  isDemo Boolean @default(false)
+
+  /// One live application per address per role. A second submission updates
+  /// the first rather than creating a duplicate for someone to call twice.
+  @@unique([email, role])
+  @@index([status, createdAt])
+  @@index([role, status])
+  @@map("pilot_applications")
 }

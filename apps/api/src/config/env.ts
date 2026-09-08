@@ -61,6 +61,15 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     API_PORT: port.default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+    /**
+     * The public marketing site, which is a different origin from the app and
+     * needs to reach exactly one endpoint: the pilot form.
+     *
+     * Left blank in development so nothing extra is allowed by default. Set it
+     * and that origin joins the CORS allow-list; leave it and the browser
+     * blocks the form, which is the safe way round.
+     */
+    MARKETING_ORIGIN: z.string().url().optional(),
     API_PUBLIC_URL: z.string().url().default('http://localhost:4000'),
     // 'silent' is a real pino level and is what test runs use.
     LOG_LEVEL: z
@@ -100,6 +109,13 @@ const envSchema = z
     // Account creation, limited per source.
     RATE_LIMIT_ONBOARDING_MAX: z.coerce.number().int().min(1).default(5),
     RATE_LIMIT_ONBOARDING_WINDOW: z.string().default('1 hour'),
+
+    // The public pilot form. Looser than account creation, because a whole
+    // pharmacy can share one address and the second colleague to fill it in
+    // must not be turned away; tighter than the global default, because it is
+    // an open write endpoint.
+    RATE_LIMIT_PILOT_MAX: z.coerce.number().int().min(1).default(20),
+    RATE_LIMIT_PILOT_WINDOW: z.string().default('1 hour'),
     // QR token exchange. A busy pharmacy shares one public IP, so this has to
     // accommodate a genuine queue of patients scanning in quick succession
     // while still blocking a script guessing tokens.

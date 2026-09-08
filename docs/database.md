@@ -224,6 +224,23 @@ No INSERT-only enforcement exists in MySQL itself. What enforces it, precisely: 
 
 **`retention_jobs`** — `id`, `consultationId`, `scheduledFor`, `startedAt`, `completedAt`, `status`, `rowsPurged` JSON, `verifiedAt`, `error`. Proves deletion happened and lets §101 be demonstrated rather than asserted.
 
+### 3.12 Pilot applications — OPERATIONAL
+
+**`pilot_applications`** — `id`, `publicId` UNIQUE, `role` (`DOCTOR`/`PHARMACY`), `fullName`, `phone`, `email`, `specialty`, `yearsOfPractice`, `organisation`, `location`, `additionalInfo`, `status`, `statusNote`, `consentAt`, `sourceIp`, `createdAt`, `updatedAt`, `reviewedAt`, `reviewedByAdmin`, `isDemo`. UNIQUE on (`email`, `role`).
+
+Expressions of interest submitted from the public marketing site, which is a separate application on a separate origin.
+
+**A row here is a lead, not an account.** It has no foreign key to `users`, `doctors` or `pharmacies`, and deliberately so: most leads never convert, and joining them would leave half-built accounts behind for the ones that do not. When someone is actually onboarded, a real `doctors` or `pharmacies` row is created through the normal path and this row is marked `ONBOARDED` — a record that it happened, not a link.
+
+**This is contact information about a professional, not a patient record.** Nothing clinical may be written here. `additionalInfo` is the one place someone might paste something else; it is capped and never treated as anything but a note.
+
+Two columns are worth explaining:
+
+- **`consentAt` is a timestamp, not a boolean.** Consent is the lawful basis for holding these details and for calling this person, and "did they agree" is a question that gets asked eighteen months later. A flag cannot answer it.
+- **`sourceIp` exists to recognise a flood**, and nothing else. It is not returned by the list endpoint and does not appear on the admin screen.
+
+The UNIQUE on (`email`, `role`) is what makes a resubmission an update. People submit twice on a slow connection; two rows means somebody is called twice, or the newer details are never seen.
+
 ---
 
 ## 4. Retention summary
@@ -235,7 +252,7 @@ No INSERT-only enforcement exists in MySQL itself. What enforces it, precisely: 
 | **SEALED, THEN DESTROYED**  | `patient_sessions`, `consultation_clinical_notes`, `consultation_vitals`, `consultation_tests`                                                                       | Sealed at completion and unreachable by any clinician; hard-deleted when `retention_jobs.scheduledFor` passes, with the row counts recorded                                                |
 | **DESTROYED AT COMPLETION** | `consultation_access_tokens`                                                                                                                                         | Deleted immediately. A token is a credential, not a record: nothing about record-keeping requires keeping a key, and a live one would let a photographed QR reopen a finished consultation |
 | **PERMANENT**               | `consultations`, `consultation_state_events`, `prescriptions` (+items/versions), `referrals`, `payments`, `revenue_allocations`, `refunds`, `feedback`, `audit_logs` | Retained                                                                                                                                                                                   |
-| **OPERATIONAL**             | users, pharmacies, doctors, scheduling, settings, notifications, queue                                                                                               | Retained; subject to their own lifecycles                                                                                                                                                  |
+| **OPERATIONAL**             | users, pharmacies, doctors, scheduling, settings, notifications, queue, `pilot_applications`                                                                                               | Retained; subject to their own lifecycles                                                                                                                                                  |
 
 Backups will transiently contain purged rows. That is stated plainly in `data-retention.md` rather than pretended away (spec §62).
 

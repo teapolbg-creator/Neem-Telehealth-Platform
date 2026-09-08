@@ -37,6 +37,10 @@ export const AUDIT_ACTIONS = {
   DOCTOR_COMPENSATION_CHANGED: 'doctor.compensation.changed',
   DOCTOR_LICENCE_EXPIRING: 'doctor.licence.expiring',
 
+  PILOT_APPLICATION_RECEIVED: 'pilot-application.received',
+  PILOT_APPLICATION_UPDATED: 'pilot-application.updated',
+  PILOT_APPLICATION_STATUS_CHANGED: 'pilot-application.status-changed',
+
   PHARMACY_REGISTERED: 'pharmacy.registered',
   PHARMACY_STATUS_CHANGED: 'pharmacy.status-changed',
   PHARMACY_APPROVED: 'pharmacy.approved',

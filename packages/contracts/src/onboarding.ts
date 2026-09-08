@@ -9,15 +9,30 @@ import { DOCTOR_STATUSES, PHARMACY_STATUSES, EMPLOYMENT_TYPES } from './enums.ts
  * the two cannot disagree about what is valid.
  */
 
-/** Ghanaian mobile numbers, accepted in local or international form. */
+/**
+ * Ghanaian mobile numbers, accepted in local or international form.
+ *
+ * Spaces, hyphens and brackets are stripped before the pattern is applied.
+ * They were not, and the error message offered "024 000 0000" as an example —
+ * a string the pattern then rejected, because of the spaces it had just
+ * recommended. People write their number with spaces; a form that tells them
+ * how to type it and then refuses that exact form is a form they abandon.
+ *
+ * The stored value is always `+233…`, so two spellings of one number are one
+ * number.
+ */
 export const ghanaPhoneSchema = z
   .string()
   .trim()
-  .regex(
-    /^(?:\+233|0)[235][0-9]{8}$/,
-    'Enter a Ghanaian phone number, for example 024 000 0000 or +233 24 000 0000',
-  )
-  .transform((value) => (value.startsWith('0') ? `+233${value.slice(1)}` : value));
+  .transform((value) => value.replace(/[\s()-]/g, ''))
+  .refine((value) => /^(?:\+233|233|0)[235][0-9]{8}$/.test(value), {
+    message: 'Enter a Ghanaian phone number, for example 024 000 0000 or +233 24 000 0000',
+  })
+  .transform((value) => {
+    if (value.startsWith('+233')) return value;
+    if (value.startsWith('233')) return `+${value}`;
+    return `+233${value.slice(1)}`;
+  });
 
 const timeOfDaySchema = z
   .string()
