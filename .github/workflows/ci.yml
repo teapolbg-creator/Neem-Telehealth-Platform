@@ -29,7 +29,7 @@ on:
   # So a dependency or a service breaking on its own is found on a Monday
   # rather than during a deploy.
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: "0 6 * * 1"
 
 # A new push supersedes an in-flight run on the same branch. The integration
 # job is long enough that queued duplicates matter.
@@ -39,7 +39,7 @@ concurrency:
 
 env:
   # The repository requires Node 22 or later (package.json engines).
-  NODE_VERSION: '22'
+  NODE_VERSION: "22"
 
 jobs:
   check:

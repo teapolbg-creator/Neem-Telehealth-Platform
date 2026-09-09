@@ -1,9 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type {
-  PilotApplication,
-  PilotApplicantRole,
-  PilotApplicationStatus,
-} from '@neem/contracts';
+import type { PilotApplication, PilotApplicantRole, PilotApplicationStatus } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { generatePublicId } from '../../lib/crypto.ts';

@@ -543,10 +543,10 @@ describe('Call Me', () => {
     // the consultation is what must release the capacity.
     await endMediaSession(first.consultationId, 'test_completed');
 
-    const afterwards = await request(
-      `/doctor/consultations/${second.consultationPublicId}/call`,
-      { method: 'POST', cookies: second.doctorCookies },
-    );
+    const afterwards = await request(`/doctor/consultations/${second.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: second.doctorCookies,
+    });
 
     expect(afterwards.status).toBe(200);
   });
@@ -568,10 +568,10 @@ describe('Call Me', () => {
       cookies: first.doctorCookies,
     });
 
-    const alsoPlaced = await request(
-      `/doctor/consultations/${second.consultationPublicId}/call`,
-      { method: 'POST', cookies: second.doctorCookies },
-    );
+    const alsoPlaced = await request(`/doctor/consultations/${second.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: second.doctorCookies,
+    });
 
     expect(alsoPlaced.status).toBe(200);
   });

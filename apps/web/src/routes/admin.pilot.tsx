@@ -69,10 +69,9 @@ function AdminPilot() {
         <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
         <h1 className="text-3xl font-bold tracking-tight">Pilot applications</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
-          Doctors and pharmacies who registered interest on the Neem website. These are
-          expressions of interest, not accounts — onboarding, with credential checks, still
-          happens separately. Marking someone onboarded records that it happened; it does not
-          create anything.
+          Doctors and pharmacies who registered interest on the Neem website. These are expressions
+          of interest, not accounts — onboarding, with credential checks, still happens separately.
+          Marking someone onboarded records that it happened; it does not create anything.
         </p>
       </header>
 
