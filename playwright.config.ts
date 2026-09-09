@@ -84,11 +84,24 @@ export default defineConfig({
    * config, so the URL is not configurable here without changing that.
    *
    * This waits for the **web** app only — see `globalSetup` above for the API.
+   *
+   * `reuseExistingServer` is deliberately unconditional, where Playwright's
+   * usual shape is `!process.env.CI`. **CI starts the stack itself**, on
+   * purpose: it waits for both 4000 and 8080 before the run begins, and it
+   * redirects `npm run dev` to `dev.log`, which the workflow uploads when a
+   * test fails. That log is usually where the cause is, and it does not exist
+   * if Playwright owns the process — `stdout` here is discarded.
+   *
+   * With the usual `!process.env.CI`, those two arrangements collide: the
+   * workflow has 8080 up, Playwright refuses to reuse it, and the run dies
+   * with "http://localhost:8080 is already used" before a single test runs.
+   * Reusing is the correct answer precisely because the server it finds is the
+   * one the workflow deliberately started.
    */
   webServer: {
     command: "npm run dev",
     url: WEB_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
