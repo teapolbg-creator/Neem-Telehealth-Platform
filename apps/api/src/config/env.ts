@@ -122,6 +122,22 @@ const envSchema = z
     RATE_LIMIT_QR_EXCHANGE_MAX: z.coerce.number().int().min(1).default(20),
     RATE_LIMIT_QR_EXCHANGE_WINDOW: z.string().default('5 minutes'),
 
+    /*
+     * Placing a Call Me bridge.
+     *
+     * Was hard-coded at 10 per 5 minutes on the route, which is the value kept
+     * here as the default — the number is not the problem, being unreachable
+     * was. Every other limit in this file can be tuned for a deployment, the
+     * test suite raises them so it is not throttled by its own volume, and
+     * this one could do neither.
+     *
+     * It matters more now than when it was written: each call costs money and
+     * consumes one of a small number of subscribed lines, so the rate a doctor
+     * may retry is an operational question the pilot will have opinions about.
+     */
+    RATE_LIMIT_CALL_MAX: z.coerce.number().int().min(1).default(10),
+    RATE_LIMIT_CALL_WINDOW: z.string().default('5 minutes'),
+
     PAYMENT_PROVIDER: z.enum(PROVIDER_MODES.payment).default('mock'),
     VIDEO_PROVIDER: z.enum(PROVIDER_MODES.video).default('mock'),
     VOICE_PROVIDER: z.enum(PROVIDER_MODES.voice).default('none'),
@@ -382,8 +398,15 @@ const PRODUCTION_RATE_LIMIT_CEILINGS = (env: {
   RATE_LIMIT_AUTH_MAX: number;
   RATE_LIMIT_ONBOARDING_MAX: number;
   RATE_LIMIT_QR_EXCHANGE_MAX: number;
+  RATE_LIMIT_CALL_MAX: number;
   LOGIN_MAX_ATTEMPTS: number;
 }): Array<[string, number, number, string]> => [
+  [
+    'RATE_LIMIT_CALL_MAX',
+    env.RATE_LIMIT_CALL_MAX,
+    60,
+    'Every call placed costs money and occupies one of a small number of subscribed lines.',
+  ],
   [
     'RATE_LIMIT_AUTH_MAX',
     env.RATE_LIMIT_AUTH_MAX,

@@ -49,6 +49,8 @@ export const SETTING_KEYS = {
   DOCTOR_LICENCE_WARNING_DAYS: 'doctor.licenceExpiryWarningDays',
   DOCTOR_MAX_CONCURRENT: 'doctor.maxConcurrentConsultations',
 
+  MEDIA_MAX_CONCURRENT_CALLS: 'media.maxConcurrentBridgedCalls',
+
   RETENTION_BACKUP_WINDOW_DAYS: 'retention.backupWindowDays',
   RETENTION_CLINICAL_RECORD_YEARS: 'retention.clinicalRecordYears',
 } as const;
@@ -343,6 +345,31 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'number',
     description: 'Maximum concurrent consultations per doctor.',
     category: 'workforce',
+  },
+
+  // --- Media --------------------------------------------------------------
+  {
+    key: K.MEDIA_MAX_CONCURRENT_CALLS,
+    value: 1,
+    valueType: 'number',
+    /*
+     * How many Call Me bridges may be live at once.
+     *
+     * This is a **subscription limit, not a technical one**. The pilot buys a
+     * single simultaneous call for its first month; the provider can serve ten
+     * today and more later. Placing an eleventh call would not fail politely
+     * at the provider — it would fail at a pharmacy counter with a patient
+     * waiting — so the system counts its own live calls and refuses before
+     * dialling.
+     *
+     * It lives here rather than in code because month two changes it by buying
+     * more capacity, and nobody should need a deploy to follow a commercial
+     * decision.
+     */
+    description:
+      'How many Call Me voice bridges may run at once. Match this to the number of simultaneous calls the voice provider subscription allows.',
+    category: 'media',
+    requiresConfirm: true,
   },
 
   // --- Retention ----------------------------------------------------------

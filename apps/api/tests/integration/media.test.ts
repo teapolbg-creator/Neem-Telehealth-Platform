@@ -22,6 +22,7 @@ import {
   joinMediaSession,
   endMediaSession,
 } from '../../src/modules/media/media.service.ts';
+import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
 
 /**
  * The media layer against a real database (spec §15, §32, §33).
@@ -477,6 +478,102 @@ describe('Call Me', () => {
       where: { id: fixture.consultationId },
     });
     expect(consultation.state).toBe('IN_PROGRESS');
+  });
+
+  /*
+   * The pilot's first month buys one simultaneous call, so the second is
+   * refused rather than dialled. These tests exist because the failure they
+   * prevent happens at a pharmacy counter with a patient waiting, and would
+   * otherwise arrive as whatever the provider chose to say.
+   */
+  it('refuses a second call while the subscription only allows one', async () => {
+    const first = await acceptedConsultation('CALL_ME');
+    const second = await acceptedConsultation('CALL_ME');
+
+    const placed = await request(`/doctor/consultations/${first.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: first.doctorCookies,
+    });
+    expect(placed.status).toBe(200);
+
+    const refused = await request<unknown>(
+      `/doctor/consultations/${second.consultationPublicId}/call`,
+      { method: 'POST', cookies: second.doctorCookies },
+    );
+
+    expect(refused.status).toBe(422);
+    // The doctor is told what to do instead, not just that it failed.
+    expect(JSON.stringify(refused.body)).toMatch(/one at a time|audio or video/i);
+
+    // And nothing was dialled: no second session was opened.
+    const live = await getPrisma().mediaSession.count({
+      where: { kind: 'VOICE_BRIDGE', endedAt: null },
+    });
+    expect(live).toBe(1);
+  });
+
+  it('lets the same consultation retry without competing with itself', async () => {
+    const fixture = await acceptedConsultation('CALL_ME');
+
+    const first = await request(`/doctor/consultations/${fixture.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: fixture.doctorCookies,
+    });
+    expect(first.status).toBe(200);
+
+    // A doctor pressing the button again must not be told the line is busy by
+    // their own call.
+    const again = await request(`/doctor/consultations/${fixture.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: fixture.doctorCookies,
+    });
+    expect(again.status).toBe(200);
+  });
+
+  it('frees the line when the first consultation ends', async () => {
+    const first = await acceptedConsultation('CALL_ME');
+    const second = await acceptedConsultation('CALL_ME');
+
+    await request(`/doctor/consultations/${first.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: first.doctorCookies,
+    });
+
+    // endMediaSession is the single exit for every media session, so closing
+    // the consultation is what must release the capacity.
+    await endMediaSession(first.consultationId, 'test_completed');
+
+    const afterwards = await request(
+      `/doctor/consultations/${second.consultationPublicId}/call`,
+      { method: 'POST', cookies: second.doctorCookies },
+    );
+
+    expect(afterwards.status).toBe(200);
+  });
+
+  it('allows a second call once the plan is raised, without a deploy', async () => {
+    const first = await acceptedConsultation('CALL_ME');
+    const second = await acceptedConsultation('CALL_ME');
+
+    // Month two buys more capacity. That is a settings change, which is the
+    // whole reason the limit is not a constant in the code.
+    await getPrisma().systemSetting.update({
+      where: { key: 'media.maxConcurrentBridgedCalls' },
+      data: { value: '2' },
+    });
+    invalidateSettingsCache();
+
+    await request(`/doctor/consultations/${first.consultationPublicId}/call`, {
+      method: 'POST',
+      cookies: first.doctorCookies,
+    });
+
+    const alsoPlaced = await request(
+      `/doctor/consultations/${second.consultationPublicId}/call`,
+      { method: 'POST', cookies: second.doctorCookies },
+    );
+
+    expect(alsoPlaced.status).toBe(200);
   });
 
   it('refuses when the doctor has no contact number on file', async () => {

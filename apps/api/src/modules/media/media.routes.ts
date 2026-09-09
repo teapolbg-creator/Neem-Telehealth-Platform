@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { getEnv } from '../../config/env.ts';
 import { z } from 'zod';
 import { PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
@@ -59,6 +60,17 @@ async function requireOwnConsultation(publicId: string, doctorId: string): Promi
 }
 
 const publicIdParams = z.object({ publicId: z.string().min(1).max(32) });
+
+/**
+ * How often one doctor may ask for a bridge.
+ *
+ * Configurable rather than a constant, like every other limit in the system.
+ * The default is the value this used to hard-code.
+ */
+function callLimit() {
+  const env = getEnv();
+  return { max: env.RATE_LIMIT_CALL_MAX, timeWindow: env.RATE_LIMIT_CALL_WINDOW };
+}
 
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   const doctorOnly = guard({
@@ -157,7 +169,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/doctor/consultations/:publicId/call',
-    { preHandler: doctorOnly, config: { rateLimit: { max: 10, timeWindow: '5 minutes' } } },
+    { preHandler: doctorOnly, config: { rateLimit: callLimit() } },
     async (request, reply) => {
       const doctorId = requireDoctorId(request);
       const { publicId } = publicIdParams.parse(request.params);

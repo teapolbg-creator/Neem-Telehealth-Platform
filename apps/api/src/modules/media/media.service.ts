@@ -215,6 +215,58 @@ export interface CallMeResult {
 }
 
 /**
+ * How many Call Me bridges are live right now.
+ *
+ * Counted from our own records rather than asked of the provider: the answer
+ * is needed on the path that is about to dial, a provider round-trip there is
+ * latency at a pharmacy counter, and a provider that is briefly unreachable
+ * must not read as "no calls in progress" and let us exceed the subscription.
+ *
+ * A session with no `endedAt` is live. `endMediaSession` is what closes them,
+ * on completion, cancellation and expiry alike, so this cannot drift as long
+ * as that stays the single exit.
+ */
+export async function liveBridgedCallCount(db: Db = getPrisma()): Promise<number> {
+  return db.mediaSession.count({ where: { kind: 'VOICE_BRIDGE', endedAt: null } });
+}
+
+/**
+ * Refuses a call the subscription cannot carry.
+ *
+ * The pilot's first month buys **one** simultaneous call. Dialling a second
+ * would fail somewhere inside the provider, at a counter, with a patient
+ * waiting — and the doctor would see whatever the provider chose to say. This
+ * turns that into a refusal Neem controls and a pharmacy can act on.
+ *
+ * `excludeConsultationId` is what makes retrying safe: a consultation that
+ * already holds a live session is not competing for capacity with itself, so a
+ * doctor pressing the button twice gets the existing call rather than a
+ * capacity error.
+ */
+async function assertCallCapacity(
+  excludeConsultationId: string,
+  db: Db = getPrisma(),
+): Promise<void> {
+  const limit = await getIntSetting(SETTING_KEYS.MEDIA_MAX_CONCURRENT_CALLS, db);
+
+  const inFlight = await db.mediaSession.count({
+    where: {
+      kind: 'VOICE_BRIDGE',
+      endedAt: null,
+      consultationId: { not: excludeConsultationId },
+    },
+  });
+
+  if (inFlight >= limit) {
+    throw errors.businessRule(
+      limit === 1
+        ? 'Another Call Me consultation is on the line right now, and the current plan allows one at a time. Try again in a few minutes, or switch this consultation to audio or video.'
+        : `All ${limit} Call Me lines are in use right now. Try again in a few minutes, or switch this consultation to audio or video.`,
+    );
+  }
+}
+
+/**
  * Places the Call Me bridge (spec §33).
  *
  * Both numbers are read here and passed straight to the provider. Neither is
@@ -258,6 +310,10 @@ export async function placeCallMe(
       'No contact number is on file for this doctor, so the call cannot be bridged.',
     );
   }
+
+  // Before anything is dialled. Checking after would burn a call leg we are
+  // not entitled to and still have to refuse.
+  await assertCallCapacity(consultation.id, db);
 
   const durationSeconds = await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS, db);
   const provider = getVoiceProvider();

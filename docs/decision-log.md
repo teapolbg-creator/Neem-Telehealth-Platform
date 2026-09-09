@@ -908,3 +908,63 @@ has none, and a service container is not called that.
 protection — CI reports, and nothing yet requires it to be green before a merge.
 That is a repository setting rather than a file, and it belongs to whoever owns
 the GitHub organisation.
+
+---
+
+### D42 — Call Me capacity is a setting, and the call rate limit stops being a constant · 2026-09-09 · **DECIDED**
+
+**Issue.** The pilot is going ahead on a deliberately small footprint: one
+pharmacy, two doctors, and an Arkesel subscription for **one simultaneous
+voice call**. Month two adds four more pharmacies, with the doctor count and
+the number of lines decided from month one's data rather than guessed now.
+
+One line is a hard capacity limit the system had no idea about. Nothing counted
+live bridges, so a second Call Me request would have been dialled and failed
+somewhere inside the provider — at a pharmacy counter, with a patient waiting,
+and reported to the doctor in whatever words the provider chose.
+
+**Selected.** `media.maxConcurrentBridgedCalls` in `system_settings`, default
+1, checked before anything is dialled.
+
+Three details are the decision rather than the implementation:
+
+- **It is a setting, not a constant.** The limit is commercial — it changes in
+  month two by buying more capacity. A deploy is the wrong unit of change for
+  that, and the spec already says business config lives in `system_settings`.
+- **It is counted from our own records, not asked of the provider.** The answer
+  is needed on the path about to dial; a round trip there is latency at a
+  counter, and a provider that is briefly unreachable must not read as "no
+  calls in progress" and let us exceed what we pay for.
+- **A consultation does not compete with itself.** A doctor pressing the button
+  twice gets their existing call, not a capacity error, so the guard excludes
+  the consultation asking.
+
+The refusal names the alternative — audio or video — because a pharmacy needs
+something to do, not only something to read.
+
+**Found while doing it: the call route's rate limit was hard-coded** at 10 per
+5 minutes, alone among every limit in the system. The number was defensible;
+being unreachable was not. It could not be tuned for a deployment and could not
+be raised for the test suite, which is how it surfaced — four new tests placed
+enough calls to throttle two existing ones, and the failure looked like a bug
+in the new tests. It is now `RATE_LIMIT_CALL_MAX` / `_WINDOW`, defaulting to
+the values it used to hard-code, raised in `tests/setup.ts` like its
+neighbours, and given a production ceiling. It matters more now than when it
+was written: every call costs money and occupies one of a very small number of
+lines.
+
+**Still open: whether Arkesel can carry this at all.** [D39](#d39) refused to
+enable Call Me on the strength of a chatbot reply that could not distinguish a
+one-way recorded broadcast from a live bridged call. The product owner has now
+met Arkesel's technical team, who named **Voice Connect IVR** and quoted ten
+simultaneous calls, growing with demand. That is a human answer and a real
+capacity number, and it is not yet an answer to D39's question — "IVR"
+conventionally describes recorded menus and keypad input, which is not what
+spec §33 needs. What is needed is confirmation that the patient's handset
+rings, **a doctor speaks live on the other end**, and neither party learns the
+other's number.
+
+So `VOICE_PROVIDER` stays `none` and no Arkesel voice adapter is written until
+that is confirmed in writing along with the API itself. The capacity work above
+is deliberately provider-agnostic and lands now, because it is needed whichever
+provider answers.
