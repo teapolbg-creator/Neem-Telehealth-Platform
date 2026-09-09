@@ -15,6 +15,15 @@ import path from 'node:path';
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:4000';
 export const API = `${API_URL}/api/v1`;
 
+/**
+ * The session cookie the API sets.
+ *
+ * Ground truth for "is this browser signed in", and available before the app
+ * has asked the server anything — which is why `signInThroughUi` reads it
+ * rather than inferring the answer from a redirect that has not happened yet.
+ */
+const SESSION_COOKIE = 'neem_session';
+
 /** Credentials created by `npm run db:seed`. */
 export const DEMO = {
   admin: { email: 'admin@neem.demo', password: 'NeemDemoAdmin!2026' },
@@ -263,11 +272,61 @@ export async function signInThroughUi(
   page: Page,
   credentials: { email: string; password: string },
 ): Promise<void> {
+  /*
+   * Ask the cookie jar, not the URL.
+   *
+   * An authenticated visitor is redirected away from /auth/login, so a role
+   * switch has to end the previous session first. This used to detect that by
+   * navigating and then reading `page.url()` — which is a race the test
+   * usually won and sometimes lost, invisibly.
+   *
+   * The measurement said so plainly: at the moment the URL was read, the app
+   * had not yet *issued* its session query, so the URL still said /auth/login
+   * and the form was on screen. Seconds later the query resolved, the redirect
+   * fired, and the form went away — taking with it the Email field the caller
+   * was about to fill. Waiting for the field first does not help either, since
+   * the field is there the whole time it is doomed.
+   *
+   * On a laptop everything finished before the redirect landed and the bug was
+   * invisible. On a slower CI runner it landed mid-flow, and the media suite —
+   * which signs its API calls in through `page.request`, so the browser
+   * already holds a doctor session — spent its entire sixty-second timeout
+   * waiting for a field that had already gone.
+   *
+   * The cookie is ground truth and is available before any of that starts. If
+   * a session exists, a redirect is coming, so wait for it and sign out rather
+   * than racing it.
+   */
+  const authenticated = (await page.context().cookies()).some(
+    (cookie) => cookie.name === SESSION_COOKIE,
+  );
+
   await gotoHydrated(page, '/auth/login');
 
-  // An authenticated visitor is redirected away from this page, so a role
-  // switch has to end the previous session before it can begin the next.
-  if (!page.url().includes('/auth/login')) {
+  if (authenticated) {
+    // A cookie that the server no longer honours produces no redirect, so this
+    // waits rather than insists; `signOutThroughUi` already returns quietly
+    // when there is no session to end.
+    await page
+      .waitForURL((url) => !url.pathname.startsWith('/auth/login'), { timeout: 20_000 })
+      .catch(() => undefined);
+
+    /*
+     * Wait for the control before asking for it.
+     *
+     * `signOutThroughUi` returns quietly when it finds no "Sign out" button,
+     * which is right for a caller that may not be signed in — and wrong here,
+     * where we already know from the cookie that we are. Arriving at the
+     * portal is not the same as the portal having finished rendering, so
+     * calling straight through would sometimes count zero buttons, return
+     * without signing out, and leave the next line hunting for a login form on
+     * a page that is not the login page.
+     */
+    await page
+      .getByRole('button', { name: 'Sign out' })
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .catch(() => undefined);
+
     await signOutThroughUi(page);
     // Deliberately NOT re-navigating: signing out lands here already, and a
     // second goto races the redirect still in flight — the form is torn down
