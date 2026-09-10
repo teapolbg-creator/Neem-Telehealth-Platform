@@ -231,21 +231,36 @@ const REQUIRED_INDEXES: Array<{ table: string; columns: string; why: string }> =
 
 describe('indexes on the request path', () => {
   it('has every index the hot paths depend on', async () => {
-    const rows = await getPrisma().$queryRaw<Array<{ TABLE_NAME: string; cols: string }>>`
-      SELECT TABLE_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
-      FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = DATABASE()
-      GROUP BY TABLE_NAME, INDEX_NAME
+    /*
+     * PostgreSQL's catalogues rather than `information_schema.STATISTICS`,
+     * which is MySQL-only.
+     *
+     * `pg_index` holds the column list as `indkey`, an ordered vector of
+     * attribute numbers, so the join to `pg_attribute` uses that ordering
+     * rather than a plain unnest — otherwise a composite index comes back in
+     * catalogue order and a prefix comparison means nothing.
+     */
+    const rows = await getPrisma().$queryRaw<Array<{ table_name: string; cols: string }>>`
+      SELECT
+        t.relname AS table_name,
+        string_agg(a.attname, ',' ORDER BY k.ord) AS cols
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+      JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+      WHERE n.nspname = current_schema()
+      GROUP BY t.relname, i.indexrelid
     `;
 
-    // An index whose leading columns match is enough: MySQL can use a prefix
-    // of a composite index, so `(pharmacyId, createdAt, state)` satisfies a
-    // requirement for `(pharmacyId, createdAt)`.
+    // An index whose leading columns match is enough: Postgres can use a
+    // prefix of a composite index, so `(pharmacyId, createdAt, state)`
+    // satisfies a requirement for `(pharmacyId, createdAt)`.
     const missing = REQUIRED_INDEXES.filter(
       (required) =>
         !rows.some(
           (row) =>
-            row.TABLE_NAME === required.table &&
+            row.table_name === required.table &&
             (row.cols === required.columns || row.cols.startsWith(`${required.columns},`)),
         ),
     ).map((required) => `${required.table}(${required.columns}) — ${required.why}`);
@@ -271,12 +286,28 @@ describe('indexes on the request path', () => {
       },
     });
 
-    const plan = await getPrisma().$queryRaw<Array<{ type: string; key: string | null }>>`
-      EXPLAIN SELECT id FROM sessions WHERE tokenHash = ${'a'.repeat(64)}
-    `;
+    /*
+     * PostgreSQL's EXPLAIN returns the plan as text, not as MySQL's columns of
+     * `type` and `key`. The assertion is the same one: the lookup must reach
+     * the row through an index, never by reading the table.
+     *
+     * The planner will choose a sequential scan on a tiny table however good
+     * the index is, so scans are disabled for this statement — the question is
+     * whether an index *exists to be used*, which is what would break if
+     * someone dropped it.
+     */
+    await getPrisma().$executeRawUnsafe('SET LOCAL enable_seqscan = off');
 
-    expect(plan[0]?.type).not.toBe('ALL');
-    expect(plan[0]?.key).not.toBeNull();
+    const plan = await getPrisma().$queryRawUnsafe<Array<{ 'QUERY PLAN': string }>>(
+      `EXPLAIN SELECT id FROM sessions WHERE "tokenHash" = '${'a'.repeat(64)}'`,
+    );
+
+    const text = plan.map((row) => row['QUERY PLAN']).join('\n');
+
+    expect(text, 'the session lookup must use an index, not read the table').toMatch(
+      /Index (Only )?Scan/,
+    );
+    expect(text).not.toMatch(/Seq Scan/);
   });
 });
 

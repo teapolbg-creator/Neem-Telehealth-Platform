@@ -46,7 +46,7 @@ async function createOnlineDoctor(
   withPhone: boolean,
 ): Promise<{ doctorId: string; email: string }> {
   const prisma = getPrisma();
-  const suffix = generatePublicId('x').slice(-8);
+  const suffix = generatePublicId('x').slice(-8).toLowerCase();
   const email = `${suffix}@doctor.test`;
 
   const user = await prisma.user.create({

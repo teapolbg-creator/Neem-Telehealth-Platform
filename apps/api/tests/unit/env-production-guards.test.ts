@@ -18,7 +18,7 @@ import { loadEnv } from '../../src/config/env.ts';
 function productionEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
-    DATABASE_URL: 'mysql://neem:secret@db:3306/neem',
+    DATABASE_URL: 'postgresql://neem:secret@db:5432/neem',
     SESSION_SECRET: 'a-real-production-session-secret-value-01',
     CSRF_SECRET: 'a-real-production-csrf-secret-value-000001',
     ENCRYPTION_KEY: 'a-real-production-encryption-key-value-001',
@@ -175,7 +175,7 @@ describe('rate limits raised for development', () => {
     expect(() =>
       loadEnv({
         NODE_ENV: 'development',
-        DATABASE_URL: 'mysql://neem:neem_dev@localhost:3307/neem',
+        DATABASE_URL: 'postgresql://neem:neem_dev@localhost:5433/neem',
         SESSION_SECRET: 'dev-session-secret-value-00000000000000001',
         CSRF_SECRET: 'dev-csrf-secret-value-000000000000000000001',
         ENCRYPTION_KEY: 'dev-encryption-key-value-0000000000000001',

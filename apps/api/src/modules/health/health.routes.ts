@@ -8,7 +8,7 @@ import { getPrisma } from '../../db/prisma.ts';
  * Health and readiness.
  *
  * `/health` is a liveness probe and stays cheap. `/health/ready` checks the
- * database, because a process that cannot reach MySQL is not ready to serve.
+ * database, because a process that cannot reach the database is not ready to serve.
  * Both are unauthenticated, so both say only whether this instance can serve
  * traffic.
  *

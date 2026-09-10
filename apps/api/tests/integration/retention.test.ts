@@ -464,9 +464,19 @@ describe('destruction when the retention period elapses', () => {
     );
     await purgeExpiredClinicalRecords(getPrisma(), fixedClock(new Date('2030-01-01T00:00:00Z')));
 
-    // Not "hidden by a query filter" — the rows are not in the table.
+    /*
+     * Deliberately raw, and deliberately not Prisma.
+     *
+     * The claim under test is that the rows are *gone*, not that a query
+     * filter is hiding them — so this asks the table directly, past every
+     * layer that could be doing the hiding.
+     *
+     * `$1` and a quoted column, because PostgreSQL takes neither MySQL's `?`
+     * placeholders nor an unquoted camelCase identifier, which it would fold
+     * to `consultationid` (decision D43).
+     */
     const rows = await getPrisma().$queryRawUnsafe<Array<{ n: bigint }>>(
-      'SELECT COUNT(*) AS n FROM consultation_clinical_notes WHERE consultationId = ?',
+      'SELECT COUNT(*) AS n FROM consultation_clinical_notes WHERE "consultationId" = $1',
       consultation.id,
     );
     expect(Number(rows[0]!.n)).toBe(0);

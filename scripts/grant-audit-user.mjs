@@ -1,9 +1,9 @@
 /**
  * Grants the append-only audit account its table-level privileges.
  *
- * These cannot be issued by `docker/mysql-init`, which runs before any table
- * exists: MySQL will not grant on a table it cannot see. So the account is
- * created there and its privileges are granted here, after migrations.
+ * These cannot be issued by `docker/postgres-init`, which runs before any
+ * table exists: a grant names a table, and the table is not there yet. So the
+ * role is created there and its privileges are granted here, after migrations.
  *
  *   npm run db:grants
  *
@@ -28,22 +28,32 @@
  */
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { mysqlArgv } from './mysql-cli.mjs';
+import { psqlArgv } from './psql-cli.mjs';
 import { loadDotEnv } from './load-env.mjs';
 
 function main() {
   loadDotEnv();
 
-  const rootPassword = process.env.MYSQL_ROOT_PASSWORD;
-  if (!rootPassword) {
+  /*
+   * The owner of the tables, which in PostgreSQL is who may grant on them.
+   *
+   * MySQL needed a separate root account holding GRANT OPTION. Postgres has no
+   * equivalent requirement here: `docker/postgres-init` makes `neem` the owner
+   * of every database, and an owner can grant on what it owns. One account
+   * fewer to hold a password for.
+   */
+  const owner = process.env.POSTGRES_USER ?? 'neem';
+  const ownerPassword = process.env.POSTGRES_PASSWORD;
+
+  if (!ownerPassword) {
     console.error(
-      'MYSQL_ROOT_PASSWORD is not set. Granting privileges needs an account\n' +
-        'that holds GRANT OPTION, and the application user deliberately does not.',
+      'POSTGRES_PASSWORD is not set, so there is no way to connect as the owner\n' +
+        'of the tables — which is who may grant on them.',
     );
     process.exit(1);
   }
 
-  const appDb = process.env.MYSQL_DATABASE ?? 'neem';
+  const appDb = process.env.POSTGRES_DB ?? 'neem';
   const testDb = testDatabaseName();
 
   const auditUser = auditUserName();
@@ -52,33 +62,50 @@ function main() {
   /**
    * One statement per database, each allowed to fail on its own.
    *
-   * MySQL will not grant on a table that does not exist, and the databases
-   * here are not migrated together — so a single script would abort the whole
+   * A grant names a table that must exist, and these databases are not
+   * migrated together — so a single combined script would abort the whole
    * grant, and with it `npm run setup`, because of one schema that happens not
    * to be ready. That is exactly what a clean checkout did.
+   *
+   * CONNECT and USAGE come first: in PostgreSQL a role that may select from a
+   * table still cannot reach it without the right to connect to the database
+   * and to see the schema. Granting only on the table produces an account that
+   * looks correct and cannot log in.
+   *
+   * \gset-free, single transaction, and deliberately explicit about what is
+   * NOT granted — no UPDATE, no DELETE, no other table. Someone holding these
+   * credentials cannot rewrite history and cannot read clinical data either
+   * (docs/security.md §6, spec §61).
    */
   const statements = databases.map((db) => ({
     db,
     sql:
-      `GRANT INSERT, SELECT ON \`${db}\`.\`audit_logs\` TO '${auditUser}'@'%';\n` +
-      'FLUSH PRIVILEGES;\n',
+      'BEGIN;\n' +
+      `GRANT CONNECT ON DATABASE "${db}" TO "${auditUser}";\n` +
+      `GRANT USAGE ON SCHEMA public TO "${auditUser}";\n` +
+      `GRANT INSERT, SELECT ON TABLE public.audit_logs TO "${auditUser}";\n` +
+      'COMMIT;\n',
   }));
 
-  const { command, args, env } = mysqlArgv(
-    'mysql',
-    {
-      host: '127.0.0.1',
-      port: process.env.MYSQL_PORT ?? '3307',
-      user: 'root',
-      password: rootPassword,
-      database: appDb,
-    },
-    [],
-  );
+  const connection = {
+    host: '127.0.0.1',
+    port: process.env.POSTGRES_PORT ?? '5433',
+    user: owner,
+    password: ownerPassword,
+    database: appDb,
+  };
 
   let granted = 0;
 
   for (const statement of statements) {
+    // Unlike MySQL, a psql session is bound to a single database, so each
+    // grant connects to the database it is granting in.
+    const { command, args, env } = psqlArgv('psql', { ...connection, database: statement.db }, [
+      '--quiet',
+      '--no-psqlrc',
+      '--set=ON_ERROR_STOP=1',
+    ]);
+
     const result = spawnSync(command, args, {
       env,
       input: statement.sql,
@@ -94,7 +121,7 @@ function main() {
     }
 
     /**
-     * A schema with no `audit_logs` has not been migrated yet, which is a
+     * A database with no `audit_logs` has not been migrated yet, which is a
      * state to report rather than fail on: the application database is the one
      * that matters, and the test database is migrated separately.
      */

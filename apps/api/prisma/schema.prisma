@@ -26,10 +26,20 @@ generator client {
 }
 
 datasource db {
-  provider          = "mysql"
+  provider          = "postgresql"
   url               = env("DATABASE_URL")
-  // Explicit shadow database so the application user needs no server-wide
-  // CREATE DATABASE privilege (docs/security.md §6).
+  // The connection migrations run over.
+  //
+  // On Supabase, `url` is the POOLED connection (port 6543) and this is the
+  // DIRECT one (5432). A transaction pooler does not carry the session-level
+  // statements Prisma Migrate needs, and the failure appears at deploy time
+  // rather than in development, where both URLs point at the same database.
+  //
+  // Prisma errors if this is unset, so .env.example sets it to the same value
+  // as DATABASE_URL — locally there is only one database to point at.
+  directUrl         = env("DIRECT_DATABASE_URL")
+  // Explicit shadow database so the application role needs no cluster-wide
+  // CREATEDB privilege (docs/security.md §6).
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
@@ -462,7 +472,7 @@ model PharmacyUser {
 model PharmacyHours {
   id         String @id @default(uuid(7))
   pharmacyId String
-  dayOfWeek  Int    @db.TinyInt
+  dayOfWeek  Int    @db.SmallInt
   opensAt    String @db.VarChar(5)
   closesAt   String @db.VarChar(5)
 
@@ -619,7 +629,7 @@ model DoctorLanguage {
 model DoctorSignature {
   id               String   @id @default(uuid(7))
   doctorId         String
-  signatureDataEnc String   @db.LongText
+  signatureDataEnc String   @db.Text
   capturedAt       DateTime @default(now())
   capturedIpHash   String?  @db.VarChar(64)
   isActive         Boolean  @default(true)
@@ -922,7 +932,7 @@ model PatientSession {
 model ConsultationClinicalNotes {
   id             String   @id @default(uuid(7))
   consultationId String   @unique
-  notesEnc       String?  @db.LongText
+  notesEnc       String?  @db.Text
   diagnosisEnc   String?  @db.Text
   treatmentEnc   String?  @db.Text
   createdAt      DateTime @default(now())
@@ -1376,8 +1386,8 @@ model PromotionRedemption {
 model Feedback {
   id             String           @id @default(uuid(7))
   consultationId String           @unique
-  doctorRating   Int              @db.TinyInt
-  neemRating     Int              @db.TinyInt
+  doctorRating   Int              @db.SmallInt
+  neemRating     Int              @db.SmallInt
   category       FeedbackCategory
   /// Patient-authored free text, encrypted. A patient explaining a complaint
   /// writes about their own care, so this carries health information whatever

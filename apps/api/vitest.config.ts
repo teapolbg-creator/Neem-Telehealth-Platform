@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    // Integration tests share one MySQL database and truncate it between
+    // Integration tests share one PostgreSQL database and truncate it between
     // cases, so two files running concurrently would wipe each other's
     // fixtures mid-test. `fileParallelism: false` is what actually enforces
     // this — a `poolOptions.threads` setting is ignored under Vitest's default

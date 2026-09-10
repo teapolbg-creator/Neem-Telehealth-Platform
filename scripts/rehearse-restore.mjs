@@ -17,9 +17,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseMysqlUrl } from './backup.mjs';
+import { parsePostgresUrl } from './backup.mjs';
 import { readBackup } from './restore.mjs';
-import { mysqlArgv } from './mysql-cli.mjs';
+import { psqlArgv } from './psql-cli.mjs';
 import { loadDotEnv } from './load-env.mjs';
 
 loadDotEnv();
@@ -61,17 +61,19 @@ function run(command, args, options = {}) {
 function counts(target) {
   const selects = WITNESS_TABLES.map(
     (table) =>
-      `SELECT '${table}' AS t, COUNT(*) AS present FROM information_schema.TABLES ` +
-      `WHERE TABLE_SCHEMA='${target.database}' AND TABLE_NAME='${table}'`,
+      `SELECT '${table}' AS t, COUNT(*) AS present FROM information_schema.tables ` +
+      `WHERE table_schema = current_schema() AND table_name = '${table}'`,
   ).join(' UNION ALL ');
 
   // Existence first, because COUNT(*) on a missing table is a fatal error and
   // "the table is not there" is one of the outcomes worth reporting.
   const present = new Map();
-  const { command, args, env } = mysqlArgv('mysql', target, [
-    '--skip-column-names',
-    '--batch',
-    '-e',
+  const { command, args, env } = psqlArgv('psql', target, [
+    '--tuples-only',
+    '--no-align',
+    '--field-separator=\t',
+    '--no-psqlrc',
+    '--command',
     selects,
   ]);
   for (const line of run(command, args, { env }).trim().split('\n')) {
@@ -82,14 +84,22 @@ function counts(target) {
   const live = WITNESS_TABLES.filter((table) => present.get(table));
   if (live.length === 0) return new Map(WITNESS_TABLES.map((table) => [table, null]));
 
+  // A psql session is already connected to one database, so the table is
+  // named without a database qualifier — and quoted, since Postgres folds an
+  // unquoted identifier to lower case.
   const countQuery = live
-    .map(
-      (table) => `SELECT '${table}' AS t, COUNT(*) AS n FROM \`${target.database}\`.\`${table}\``,
-    )
+    .map((table) => `SELECT '${table}' AS t, COUNT(*) AS n FROM "${table}"`)
     .join(' UNION ALL ');
 
   const result = new Map(WITNESS_TABLES.map((table) => [table, null]));
-  const counted = mysqlArgv('mysql', target, ['--skip-column-names', '--batch', '-e', countQuery]);
+  const counted = psqlArgv('psql', target, [
+    '--tuples-only',
+    '--no-align',
+    '--field-separator=\t',
+    '--no-psqlrc',
+    '--command',
+    countQuery,
+  ]);
   for (const line of run(counted.command, counted.args, { env: counted.env }).trim().split('\n')) {
     const [table, n] = line.split('\t');
     result.set(table, Number(n));
@@ -98,30 +108,48 @@ function counts(target) {
 }
 
 function exec(target, sql) {
-  const { command, args, env } = mysqlArgv('mysql', target, ['-e', sql]);
+  const { command, args, env } = psqlArgv('psql', target, ['--no-psqlrc', '--command', sql]);
   run(command, args, { env });
 }
 
 /**
  * The account that may create and drop the scratch database.
  *
- * The application's own user deliberately cannot — it has rights over one
- * database and no more, which is correct and is why the rehearsal needs a
- * different credential for this one step. The restore itself then runs as the
- * administrator too, because the scratch database has no application user
- * granted on it.
+ * Creating and dropping a database needs CREATEDB, which the application role
+ * holds only in development. The restore itself then runs as the same account,
+ * because the scratch database has no other role granted on it.
+ *
+ * There is no `root` here. MySQL had a separate superuser; PostgreSQL's
+ * bootstrap role is whatever `POSTGRES_USER` names, which in this project is
+ * the same `neem` that owns the databases. Asking for `root` produced
+ * "role \"root\" does not exist" at the moment the rehearsal tried to prove
+ * the backups were restorable — which is the worst moment for a check to be
+ * broken, because it reads as the backups being unrestorable.
+ *
+ * Against a managed host (Supabase) a rehearsal has to run somewhere that can
+ * create a database; the connection details are the operator's to supply, and
+ * are the reason this reads them from the environment rather than assuming.
  */
 function adminAccount(source) {
-  const password = process.env.MYSQL_ROOT_PASSWORD;
+  const user = process.env.POSTGRES_USER ?? 'neem';
+  const password = process.env.POSTGRES_PASSWORD;
+
   if (!password) {
     throw new Error(
-      'MYSQL_ROOT_PASSWORD is not set.\n' +
-        'The rehearsal creates and drops a scratch database, which the\n' +
-        "application's own user is not permitted to do — by design. Set the\n" +
-        'administrative password to run the rehearsal.',
+      'POSTGRES_PASSWORD is not set.\n' +
+        'The rehearsal creates and drops a scratch database, which needs an\n' +
+        'account holding CREATEDB. Set it to run the rehearsal.',
     );
   }
-  return { ...source, user: 'root', password };
+
+  /*
+   * Connected to `postgres`, not to the source database.
+   *
+   * A database cannot be dropped by a session connected to it, and the
+   * rehearsal drops its scratch database at the end — so the maintenance
+   * connection is deliberately somewhere else.
+   */
+  return { ...source, user, password, database: 'postgres' };
 }
 
 async function node(script, argv) {
@@ -153,8 +181,19 @@ async function main() {
     process.exit(1);
   }
 
-  const source = parseMysqlUrl(sourceUrl);
-  const scratch = { ...adminAccount(source), database: SCRATCH };
+  const source = parsePostgresUrl(sourceUrl);
+  /*
+   * Two connections, because PostgreSQL needs them to be different.
+   *
+   * `maintenance` is connected to `postgres` and is what issues CREATE and
+   * DROP DATABASE — a session cannot drop the database it is connected to, and
+   * cannot connect to one that does not exist yet. `scratch` is connected to
+   * the restored copy and is what counts its rows.
+   *
+   * MySQL let a single connection do both, which is why this was one target.
+   */
+  const maintenance = adminAccount(source);
+  const scratch = { ...maintenance, database: SCRATCH };
   const workDir = mkdtempSync(path.join(tmpdir(), 'neem-rehearsal-'));
 
   console.log(`rehearsal: ${source.database} → ${SCRATCH}\n`);
@@ -185,15 +224,12 @@ async function main() {
     console.log(`   ok — ${(sql.length / 1024).toFixed(1)} KiB of SQL, tag verified`);
 
     console.log(`\n3. restoring into ${SCRATCH}`);
-    exec(scratch, `DROP DATABASE IF EXISTS \`${SCRATCH}\`;`);
-    exec(
-      scratch,
-      `CREATE DATABASE \`${SCRATCH}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;`,
-    );
+    exec(maintenance, `DROP DATABASE IF EXISTS "${SCRATCH}";`);
+    exec(maintenance, `CREATE DATABASE "${SCRATCH}";`);
     await node(path.join(import.meta.dirname, 'restore.mjs'), [
       backupPath,
       '--url',
-      `mysql://${scratch.user}:${encodeURIComponent(scratch.password)}@` +
+      `postgresql://${scratch.user}:${encodeURIComponent(scratch.password)}@` +
         `${source.host}:${source.port}/${SCRATCH}`,
     ]);
 
@@ -220,7 +256,7 @@ async function main() {
   } finally {
     if (!process.argv.includes('--keep')) {
       try {
-        exec(scratch, `DROP DATABASE IF EXISTS \`${SCRATCH}\`;`);
+        exec(maintenance, `DROP DATABASE IF EXISTS "${SCRATCH}";`);
       } catch {
         console.warn(`could not drop ${SCRATCH}; drop it by hand.`);
       }

@@ -1,5 +1,12 @@
 # Phase 0 — Discovery Findings
 
+> **Historical record — not current.** This document describes the state of the repository and the plan for it as it
+> stood at the time. The database was **MySQL 8** throughout; it moved to
+> **PostgreSQL 17 on Supabase** on 10 September 2026 (decision
+> [D43](decision-log.md)), before any production data existed. References to
+> MySQL below are accurate history and are deliberately left alone. For the
+> current picture see `database.md` and `architecture.md`.
+
 **Date:** 2026-08-29
 **Status:** Awaiting approval to begin Phase 1
 **Inputs reviewed:** `About Neem.docx` (business document), `clarify questions 1/2` + `answers to clarify questions 1/2`, `one more tip for Neem coding.docx`, the Master Build Specification, and the complete Lovable repository.

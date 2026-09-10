@@ -63,7 +63,7 @@ interface Cast {
 
 async function cast(state: 'IN_PROGRESS' | 'ASSIGNED' = 'IN_PROGRESS'): Promise<Cast> {
   const prisma = getPrisma();
-  const suffix = generatePublicId('x').slice(-8);
+  const suffix = generatePublicId('x').slice(-8).toLowerCase();
 
   const pharmacy = await createTestPharmacy(`Pharmacy ${suffix}`, 'ACTIVE');
   await prisma.pharmacy.update({

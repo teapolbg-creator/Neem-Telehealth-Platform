@@ -10,7 +10,7 @@
 #   check        ~5 min   lint, types, build, and the 337 database-free unit
 #                         tests. Runs on everything. This is the one that
 #                         would have caught the broken build on day one.
-#   integration  ~45 min  the real MySQL suite, plus a boot of the built
+#   integration  ~10 min  the real PostgreSQL suite, plus a boot of the built
 #                         artefact. Slow because it is honest: unique
 #                         constraints and transaction behaviour are a large
 #                         part of what is under test, and a mock cannot show
@@ -76,28 +76,30 @@ jobs:
 
       - name: Unit tests
         # No database: verified by running them against an unreachable one.
-        # If this ever needs MySQL, it belongs in `integration` instead.
+        # If this ever needs a database, it belongs in `integration` instead.
         run: npx vitest run tests/unit
         working-directory: apps/api
 
   integration:
-    name: Integration tests (real MySQL)
+    name: Integration tests (real PostgreSQL)
     runs-on: ubuntu-latest
     needs: check
     timeout-minutes: 75
 
     services:
-      mysql:
-        image: mysql:8.4
+      postgres:
+        # 17, matching docker/docker-compose.yml and Supabase. A version
+        # difference between here and a developer's machine is the kind that
+        # surfaces during a deploy rather than in a test.
+        image: postgres:17
         env:
-          MYSQL_ROOT_PASSWORD: neem_root_dev
-          MYSQL_DATABASE: neem
-          MYSQL_USER: neem
-          MYSQL_PASSWORD: neem_dev
+          POSTGRES_DB: neem
+          POSTGRES_USER: neem
+          POSTGRES_PASSWORD: neem_dev
         ports:
-          - 3307:3306
+          - 5433:5432
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -pneem_root_dev"
+          --health-cmd="pg_isready -U neem -d neem"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
@@ -116,16 +118,26 @@ jobs:
       - name: Configure
         run: cp .env.example .env
 
-      - name: Install a MySQL client
-        # `scripts/mysql-cli.mjs` otherwise falls back to `docker exec` against
-        # a container called `neem-mysql`, which is the compose name and not
+      - name: Install a PostgreSQL client
+        # `scripts/psql-cli.mjs` otherwise falls back to `docker exec` against a
+        # container called `neem-postgres`, which is the compose name and not
         # what a service container is called. `db:grants` needs a real client.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
+        #
+        # postgresql-client-17, not the distribution default: pg_dump refuses to
+        # dump a server newer than itself, so an older client would fail the
+        # backup rehearsal against the 17 service above.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
 
       - name: Create the test and shadow databases
-        # A service container cannot mount `docker/mysql-init`, so the same
+        # A service container cannot mount `docker/postgres-init`, so the same
         # file is applied here rather than a second copy of the SQL.
-        run: mysql -h 127.0.0.1 -P 3307 -uroot -pneem_root_dev < docker/mysql-init/01-databases.sql
+        env:
+          PGPASSWORD: neem_dev
+        run: psql -h 127.0.0.1 -p 5433 -U neem -d postgres -v ON_ERROR_STOP=1 -f docker/postgres-init/01-databases.sql
 
       - name: Migrate
         run: |
@@ -162,17 +174,19 @@ jobs:
     timeout-minutes: 40
 
     services:
-      mysql:
-        image: mysql:8.4
+      postgres:
+        # 17, matching docker/docker-compose.yml and Supabase. A version
+        # difference between here and a developer's machine is the kind that
+        # surfaces during a deploy rather than in a test.
+        image: postgres:17
         env:
-          MYSQL_ROOT_PASSWORD: neem_root_dev
-          MYSQL_DATABASE: neem
-          MYSQL_USER: neem
-          MYSQL_PASSWORD: neem_dev
+          POSTGRES_DB: neem
+          POSTGRES_USER: neem
+          POSTGRES_PASSWORD: neem_dev
         ports:
-          - 3307:3306
+          - 5433:5432
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -pneem_root_dev"
+          --health-cmd="pg_isready -U neem -d neem"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
@@ -203,16 +217,26 @@ jobs:
             -e 's/^RATE_LIMIT_QR_EXCHANGE_MAX=.*/RATE_LIMIT_QR_EXCHANGE_MAX=500/' \
             .env
 
-      - name: Install a MySQL client
-        # `scripts/mysql-cli.mjs` otherwise falls back to `docker exec` against
-        # a container called `neem-mysql`, which is the compose name and not
+      - name: Install a PostgreSQL client
+        # `scripts/psql-cli.mjs` otherwise falls back to `docker exec` against a
+        # container called `neem-postgres`, which is the compose name and not
         # what a service container is called. `db:grants` needs a real client.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
+        #
+        # postgresql-client-17, not the distribution default: pg_dump refuses to
+        # dump a server newer than itself, so an older client would fail the
+        # backup rehearsal against the 17 service above.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
 
       - name: Create the test and shadow databases
-        # A service container cannot mount `docker/mysql-init`, so the same
+        # A service container cannot mount `docker/postgres-init`, so the same
         # file is applied here rather than a second copy of the SQL.
-        run: mysql -h 127.0.0.1 -P 3307 -uroot -pneem_root_dev < docker/mysql-init/01-databases.sql
+        env:
+          PGPASSWORD: neem_dev
+        run: psql -h 127.0.0.1 -p 5433 -U neem -d postgres -v ON_ERROR_STOP=1 -f docker/postgres-init/01-databases.sql
 
       - name: Migrate, grant and seed
         run: |

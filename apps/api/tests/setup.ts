@@ -5,8 +5,12 @@
  * developer's .env, and so secrets used in tests are obviously test secrets.
  */
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL ??= 'mysql://neem:neem_dev@localhost:3307/neem_test';
+process.env.DATABASE_URL ??= 'postgresql://neem:neem_dev@localhost:5433/neem_test';
 process.env.TEST_DATABASE_URL ??= process.env.DATABASE_URL;
+// The schema declares directUrl, and Prisma refuses to start if the variable it
+// names is missing. Migrations never run from here, so it points at the same
+// database rather than at a second one.
+process.env.DIRECT_DATABASE_URL ??= process.env.DATABASE_URL;
 process.env.SESSION_SECRET = 'test-session-secret-value-000000000000000000';
 process.env.CSRF_SECRET = 'test-csrf-secret-value-0000000000000000000000';
 process.env.ENCRYPTION_KEY = 'test-encryption-key-value-000000000000000000';

@@ -148,8 +148,10 @@ export async function getPresence(
 
 /** Releases a doctor's capacity when a consultation ends. */
 export async function releaseCapacity(doctorId: string, db: Db = getPrisma()): Promise<void> {
+  // Quoted identifiers and a $1 placeholder — see the note in
+  // scheduling.service.ts. GREATEST is spelled the same in both.
   await db.$executeRawUnsafe(
-    'UPDATE doctor_presence SET currentLoad = GREATEST(currentLoad - 1, 0) WHERE doctorId = ?',
+    'UPDATE doctor_presence SET "currentLoad" = GREATEST("currentLoad" - 1, 0) WHERE "doctorId" = $1',
     doctorId,
   );
 }

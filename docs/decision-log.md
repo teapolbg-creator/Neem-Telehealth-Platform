@@ -968,3 +968,92 @@ So `VOICE_PROVIDER` stays `none` and no Arkesel voice adapter is written until
 that is confirmed in writing along with the API itself. The capacity work above
 is deliberately provider-agnostic and lands now, because it is needed whichever
 provider answers.
+
+---
+
+### D43 — The database is PostgreSQL on Supabase, not MySQL · 2026-09-10 · **DECIDED**
+
+**Issue.** The product owner chose Supabase to host the database. Supabase is
+PostgreSQL; this system was MySQL 8 throughout. The request was phrased as
+"set up a database", which is worth correcting because the correction is the
+whole shape of the work: **the database already existed** — 60 models, 31
+enums, every collection point wired to it, including `media_sessions` carrying
+`VOICE_BRIDGE` for a Call Me feature that has no provider yet. What did not
+exist was a _hosted instance_, and what stood between the two was a change of
+engine.
+
+Done now rather than later, on one argument: there is no production data, so
+this is as cheap as it will ever be. A month into the pilot it would be a
+migration with patients' records in it.
+
+**What actually had to change**, because "switch the provider" is not the job:
+
+- **The migration history.** MySQL SQL cannot be applied to Postgres, so the
+  eight migrations were archived to `docs/archive/` and replaced with a single
+  initial migration: 60 tables, 31 _native_ Postgres enums.
+- **Case sensitivity, which fails silently.** MySQL's default collation matched
+  regardless of case; Postgres does not. Eleven `contains:` searches across
+  doctors, pharmacies and pilot applications now pass `mode: 'insensitive'`.
+  Without it an administrator typing "korle" finds nothing while "Korle" finds
+  the row — a search that fails by returning an empty list, which reads exactly
+  like "no such doctor".
+- **Write-conflict retry.** `isWriteConflictError` matched only Prisma's
+  `P2034`. Postgres reports serialization failure and deadlock as SQLSTATE
+  `40001` and `40P01`. Missing them does not throw — it stops the retry, and
+  the symptom is a **lost consultation offer** with a paid patient waiting,
+  which is the fault D-era Phase 11 already found once.
+- **Raw SQL.** Four queries used `?` placeholders and unquoted camelCase
+  columns, which Postgres folds to lower case. They are the row lock enforcing
+  the 40-hour rule, the capacity release when a consultation ends, and the
+  spec §62 assertion that destruction is a real DELETE. All failed loudly.
+- **The audit role.** MySQL's `GRANT ... ON db.table TO 'user'@'%'` became
+  Postgres grants, and needed `CONNECT` and `USAGE` as well — a role that may
+  select from a table still cannot reach it without the right to connect to the
+  database and see the schema. Granting only on the table produces an account
+  that looks correct and cannot log in. Verified by attempting the forbidden
+  thing: `INSERT`/`SELECT` on `audit_logs`, zero privileges elsewhere, and
+  `SELECT` on a clinical table refused.
+- **Backups.** `mysqldump` became `pg_dump`, and the whole encrypt → decrypt →
+  restore → count cycle was re-rehearsed: 61 tables, eleven witness tables with
+  matching row counts.
+
+**Three faults introduced during the migration and caught before commit**, kept
+here because each is a way this work goes wrong quietly:
+
+1. **`db:migrate:test` reported success while doing nothing.** Adding
+   `directUrl` — which Supabase needs, because its pooled connection cannot
+   carry migrations — meant Prisma migrated over the _direct_ URL, checked the
+   development database, found it current, and printed "test database
+   migrated" against an empty `neem_test`. It now overrides both URLs **and
+   counts the tables**, because "no pending migrations" reads identically
+   whether you are up to date or pointed at the wrong database.
+2. **The backup verification passed on a file `psql` cannot read.**
+   `pg_dump --format=custom` is a binary archive; the rehearsal decrypts and
+   looks for `CREATE TABLE`, which appears in the archive's table of contents.
+   The check passed and meant nothing. The dump is plain SQL so the check tests
+   what it claims.
+3. **The test fixtures had been wrong the whole time.** They wrote mixed-case
+   emails straight to Prisma — rows no request could produce, since
+   `emailSchema` lower-cases everything the API accepts. MySQL's collation
+   matched them anyway. On Postgres **181 tests failed** with "That email or
+   password is not correct" for accounts created moments earlier. Postgres did
+   not break them; it revealed them.
+
+**Consequences worth stating.**
+
+The suite runs in about nine minutes against Postgres where it took
+forty-five against MySQL. That was not a goal and is not a reason for the
+decision, but it changes how often the full suite is worth running.
+
+**Supabase hosts the database and not the API.** Neem's backend is a
+long-running Fastify process holding Socket.IO connections open, with scheduled
+jobs; Supabase Edge Functions are Deno and short-lived. A separate Node host is
+still required. Supabase's own auth is also unused: Neem has opaque
+server-side sessions, argon2id and mandatory admin TOTP, which the
+specification requires and which are not interchangeable with a hosted
+identity product.
+
+Two connection strings, not one: the pooled connection (port 6543) for the
+running API and the direct one (5432) for migrations, both over TLS. The schema
+declares `directUrl` for exactly this, and `.env.example` says so at the point
+where somebody would otherwise paste one URL into both.

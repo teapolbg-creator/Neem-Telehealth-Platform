@@ -19,8 +19,7 @@
     "db:seed": "tsx prisma/seed/index.ts",
     "db:studio": "prisma studio",
     "db:reset-2fa": "tsx scripts/reset-demo-2fa.ts",
-    "check:production-config": "tsx scripts/check-production-config.ts",
-    "db:backfill:encrypt-free-text": "tsx prisma/backfill/encrypt-free-text.ts"
+    "check:production-config": "tsx scripts/check-production-config.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

@@ -65,7 +65,7 @@ interface World {
  */
 async function buildWorld(label: string): Promise<World> {
   const prisma = getPrisma();
-  const suffix = generatePublicId('x').slice(-8);
+  const suffix = generatePublicId('x').slice(-8).toLowerCase();
 
   const pharmacy = await createTestPharmacy(`${label} Pharmacy`, 'ACTIVE');
   const pharmacyUser = await createTestUser({

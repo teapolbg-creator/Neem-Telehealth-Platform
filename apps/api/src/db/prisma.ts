@@ -79,15 +79,36 @@ export function isNotFoundError(error: unknown): boolean {
 }
 
 /**
- * A transaction InnoDB rolled back to break a deadlock or lock-wait.
+ * PostgreSQL error classes that mean "run this again".
  *
- * Prisma reports this as `P2034`, and its own message ends "Please retry your
- * transaction" — because unlike a unique-constraint violation, nothing is
- * wrong. The database picked one of two transactions to sacrifice, and the
- * sacrificed one is expected to run again.
+ *   40001  serialization_failure — the classic concurrent-update conflict
+ *   40P01  deadlock_detected     — two transactions waiting on each other
+ *
+ * Both are the database choosing a victim to break a tie rather than anything
+ * being wrong with the work, which is exactly the case that should be retried.
+ * They arrive from Prisma as `P2010` (raw query failure) or as an unknown
+ * request error carrying the SQLSTATE in `meta.code`, so the code is read from
+ * the payload rather than matched on Prisma's own.
+ */
+const RETRYABLE_SQL_STATES = new Set(['40001', '40P01']);
+
+/**
+ * A transaction the database rolled back to break a deadlock or a
+ * serialization conflict.
+ *
+ * Prisma's own `P2034` is still honoured: it is the provider-independent
+ * "write conflict or deadlock, please retry" code, and it is what MySQL
+ * produced before this system moved to Postgres (decision D43). Postgres
+ * mostly reports the SQLSTATE instead, so both are accepted — matching only
+ * one of them is how a retry quietly stops happening after a provider change,
+ * with the symptom being a lost consultation offer rather than an error.
  */
 export function isWriteConflictError(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code === 'P2034') return true;
+
+  const sqlState = (error.meta as { code?: unknown } | undefined)?.code;
+  return typeof sqlState === 'string' && RETRYABLE_SQL_STATES.has(sqlState);
 }
 
 /**
@@ -96,7 +117,7 @@ export function isWriteConflictError(error: unknown): boolean {
  * Found in Phase 11 by running the end-to-end suite against a clean checkout:
  * `offerNextDoctor` writes four rows across three tables, and the ten-second
  * queue sweep can be doing the same thing for the same consultation as an
- * administrator's manual reallocation. InnoDB broke the tie and the loser
+ * administrator's manual reallocation. The database broke the tie and the loser
  * threw. Nothing retried, so the offer was simply lost — a paid patient
  * waiting in the queue was offered to nobody — and on the request path the
  * administrator got a 500.

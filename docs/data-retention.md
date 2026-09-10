@@ -210,7 +210,7 @@ The obligation that remains is at the far end. When a record is destroyed at exp
 
 ```bash
 npm run backup            # encrypted dump of DATABASE_URL
-npm run restore -- <file> --url mysql://...
+npm run restore -- <file> --url postgresql://...
 npm run backup:rehearse   # both, into a scratch database, then compared
 ```
 
@@ -248,18 +248,43 @@ recreates those, so a seeded empty database would have looked identical. The
 witness tables are the transactional ones, which can only have come from the
 backup.
 
-Two things the rehearsal found immediately:
+Things the rehearsal found — the MySQL ones first, kept because the lesson
+outlived the database:
 
 - `mysqldump` printed an access-denied error for tablespace metadata into the
   middle of an otherwise complete dump, because a least-privilege backup user
-  has no server-wide `PROCESS` privilege. `--no-tablespaces` is the fix, and a
-  backup that reports an error it does not mean is a backup nobody will trust.
+  has no server-wide `PROCESS` privilege. A backup that reports an error it
+  does not mean is a backup nobody will trust.
 - The application's database user **cannot** create the scratch database, which
   is correct — it holds rights over one database and no more. The rehearsal
-  therefore needs an administrative credential for that one step, and says so
-  rather than silently running as root for everything.
+  therefore needs a credential holding `CREATEDB` for that one step, and says
+  so rather than silently running as a superuser for everything.
 
-Passwords travel in `MYSQL_PWD`, not on the command line, where every other
+And three from the move to PostgreSQL (decision D43), each of which would have
+produced a backup nobody could restore:
+
+- **The verification was passing on a file `psql` cannot read.** `pg_dump`'s
+  custom format is a binary archive, and the rehearsal decrypts the file and
+  looks for `CREATE TABLE` before touching a database. That string appears in
+  the archive's table of contents, so the check passed and meant nothing. The
+  dump is plain SQL for exactly this reason: the compression it gives up is
+  already done by this script, and the check now tests what it claims to.
+- **The rehearsal asked for a `root` role**, which PostgreSQL does not have —
+  its bootstrap role is whatever `POSTGRES_USER` names. It failed at the moment
+  it was trying to prove the backups were restorable, which is the worst place
+  for a broken check: it reads as the backups being unrestorable.
+- **A session cannot drop the database it is connected to**, and cannot connect
+  to one that does not exist yet. The rehearsal now keeps a separate
+  maintenance connection to `postgres` for creating and dropping its scratch
+  database, and uses the scratch connection only to count rows.
+
+One more that is a property of the client rather than a bug: `pg_dump` refuses
+to dump a server newer than itself. `scripts/psql-cli.mjs` therefore prefers a
+local client only when it is at least as new as the server, and otherwise
+borrows the one inside the container — so an old client on the host degrades to
+a working backup rather than to a version error.
+
+Passwords travel in `PGPASSWORD`, not on the command line, where every other
 process on the machine could read them for as long as a full dump takes.
 
 ---

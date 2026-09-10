@@ -81,9 +81,17 @@ export async function assignShift(
     const result = await db.$transaction(async (tx) => {
       // Serialise concurrent assignments for this doctor and week. Without
       // this, two requests could both read 36h, both add 6h, and land at 48h.
+      /*
+       * PostgreSQL placeholders and quoted identifiers.
+       *
+       * `$1` rather than `?`, and every camel-cased column in double quotes:
+       * Postgres folds an unquoted identifier to lower case, so `doctorId`
+       * would look for a column named `doctorid`, which does not exist
+       * (decision D43).
+       */
       await tx.$queryRawUnsafe(
         `SELECT id FROM doctor_service_hours
-         WHERE doctorId = ? AND isoYear = ? AND isoWeek = ?
+         WHERE "doctorId" = $1 AND "isoYear" = $2 AND "isoWeek" = $3
          FOR UPDATE`,
         doctor.id,
         isoYear,

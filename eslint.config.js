@@ -28,6 +28,10 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
+      // Retired code kept for the record only — MySQL-era scripts and
+      // migrations superseded by the move to PostgreSQL (D43). It is not
+      // runnable against this schema and is not maintained.
+      "docs/archive/**",
       "**/dist/**",
       "**/.output/**",
       "**/.vinxi/**",

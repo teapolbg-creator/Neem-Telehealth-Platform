@@ -16,17 +16,17 @@
  *    as a half-restored database, which is much harder to notice.
  *
  * Usage:
- *   node scripts/restore.mjs <file> --url mysql://...
- *   node scripts/restore.mjs <file> --url mysql://... --allow-non-empty
+ *   node scripts/restore.mjs <file> --url postgresql://...
+ *   node scripts/restore.mjs <file> --url postgresql://... --allow-non-empty
  */
 import { spawn } from 'node:child_process';
 import { createDecipheriv, scryptSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { pathToFileURL } from 'node:url';
-import { parseMysqlUrl } from './backup.mjs';
+import { parsePostgresUrl } from './backup.mjs';
 import { loadDotEnv } from './load-env.mjs';
-import { mysqlArgv } from './mysql-cli.mjs';
+import { psqlArgv } from './psql-cli.mjs';
 
 loadDotEnv();
 
@@ -63,11 +63,13 @@ export function readBackup(file, key) {
 
 async function tableCount(target) {
   return new Promise((resolve, reject) => {
-    const { command, args, env } = mysqlArgv('mysql', target, [
-      '--skip-column-names',
-      '--batch',
-      '-e',
-      `SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${target.database}'`,
+    const { command, args, env } = psqlArgv('psql', target, [
+      '--tuples-only',
+      '--no-align',
+      '--no-psqlrc',
+      '--command',
+      'SELECT COUNT(*) FROM information_schema.tables ' +
+        "WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'",
     ]);
 
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'inherit'], env });
@@ -75,7 +77,7 @@ async function tableCount(target) {
     let out = '';
     proc.stdout.on('data', (chunk) => (out += chunk));
     proc.on('close', (code) =>
-      code === 0 ? resolve(Number(out.trim())) : reject(new Error(`mysql exited ${code}`)),
+      code === 0 ? resolve(Number(out.trim())) : reject(new Error(`psql exited ${code}`)),
     );
   });
 }
@@ -83,7 +85,7 @@ async function tableCount(target) {
 async function main() {
   const file = process.argv[2];
   if (!file || file.startsWith('--')) {
-    console.error('Usage: node scripts/restore.mjs <file> --url mysql://...');
+    console.error('Usage: node scripts/restore.mjs <file> --url postgresql://...');
     process.exit(1);
   }
 
@@ -98,7 +100,7 @@ async function main() {
     console.error('No database URL. Set DATABASE_URL or pass --url.');
     process.exit(1);
   }
-  const target = parseMysqlUrl(raw);
+  const target = parsePostgresUrl(raw);
 
   const sql = readBackup(file, key);
   console.log(`decrypted and verified: ${file} (${(sql.length / 1024).toFixed(1)} KiB of SQL)`);
@@ -113,10 +115,15 @@ async function main() {
     process.exit(1);
   }
 
-  const invocation = mysqlArgv('mysql', target, [
-    '--default-character-set=utf8mb4',
-    target.database,
-  ]);
+  /*
+   * `ON_ERROR_STOP` is the whole point of this invocation.
+   *
+   * Without it psql reports success after skipping every statement it could
+   * not run, which for a restore means a database that looks restored and is
+   * not. The database is already named by psqlArgv, so it is not repeated as
+   * a positional argument the way the mysql client wanted it.
+   */
+  const invocation = psqlArgv('psql', target, ['--no-psqlrc', '--set=ON_ERROR_STOP=1', '--quiet']);
 
   const load = spawn(invocation.command, invocation.args, {
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -126,9 +133,7 @@ async function main() {
   load.stdin.end(sql);
 
   await new Promise((resolve, reject) => {
-    load.on('close', (code) =>
-      code === 0 ? resolve() : reject(new Error(`mysql exited ${code}`)),
-    );
+    load.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`psql exited ${code}`))));
   });
 
   const restored = await tableCount(target);

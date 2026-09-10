@@ -29,21 +29,21 @@ A **modular monolith** with two deployable processes and one database.
                         └───┬──────────────────────────┬───────────┘
                             │                          │
                   ┌─────────▼─────────┐     ┌──────────▼──────────────┐
-                  │   MySQL 8         │     │  External providers     │
+                  │  PostgreSQL 17    │     │  External providers     │
                   │   (Prisma)        │     │  Paystack   (payments)  │
                   └───────────────────┘     │  Whereby    (video/audio)│
                                             │  SMS/Email/WhatsApp     │
                                             └─────────────────────────┘
 ```
 
-**Core Neem systems:** web, api, MySQL, the job runner.
+**Core Neem systems:** web, api, PostgreSQL, the job runner.
 **External services:** Paystack, Whereby, the notification providers.
 **Temporary data:** patient sessions, clinical notes, vitals, point-of-care tests (see `data-retention.md`).
 **Permanent data:** consultations (operational fields only), prescriptions, referrals, payments, revenue, feedback, audit logs.
 
 ### Why two processes rather than one
 
-The Lovable app is a TanStack Start project whose Nitro build targets Cloudflare by default. The specification requires long-lived WebSockets, scheduled deletion jobs, raw-body webhook signature verification, Prisma against MySQL, and server-side PDF generation. Those want a long-running Node process, not an edge worker. Splitting them keeps the Lovable frontend untouched and gives the backend the runtime it actually needs.
+The Lovable app is a TanStack Start project whose Nitro build targets Cloudflare by default. The specification requires long-lived WebSockets, scheduled deletion jobs, raw-body webhook signature verification, Prisma against PostgreSQL, and server-side PDF generation. Those want a long-running Node process, not an edge worker. **This is still true with the database on Supabase** (decision D43): Supabase supplies Postgres, not a host for a Fastify server holding WebSockets open. Splitting them keeps the Lovable frontend untouched and gives the backend the runtime it actually needs.
 
 ### Why a modular monolith rather than microservices
 
@@ -204,7 +204,7 @@ neem/
 │  ├─ contracts/                # zod schemas + inferred types, shared by web and api
 │  └─ tsconfig/
 │
-├─ docker/docker-compose.yml    # mysql, mailhog, adminer
+├─ docker/docker-compose.yml    # postgres, mailhog, adminer
 ├─ e2e/                         # Playwright: the 16 required scenarios
 ├─ docs/
 └─ .env.example
@@ -267,6 +267,6 @@ Business configuration — price, duration, revenue split, response window, queu
 
 ## 10. Deployment path
 
-Local: `docker compose up` (MySQL, MailHog, Adminer) + `bun run dev` (web and api concurrently).
+Local: `docker compose up` (PostgreSQL, MailHog, Adminer) + `bun run dev` (web and api concurrently).
 
-Cloud, later, with no rewrite: the api is a stateless container behind a load balancer (sessions live in MySQL, not memory), the web builds to a Node target, MySQL becomes a managed instance, uploaded documents move from local disk to object storage behind the existing storage interface, and the in-process job scheduler moves to a dedicated worker container. Sticky sessions are unnecessary because Socket.IO can be given a Redis adapter at that point — the abstraction is in place from the start.
+Cloud, later, with no rewrite: the api is a stateless container behind a load balancer (sessions live in the database, not memory), the web builds to a Node target, PostgreSQL becomes a managed instance — Supabase, as of D43 — uploaded documents move from local disk to object storage behind the existing storage interface, and the in-process job scheduler moves to a dedicated worker container. Sticky sessions are unnecessary because Socket.IO can be given a Redis adapter at that point — the abstraction is in place from the start.

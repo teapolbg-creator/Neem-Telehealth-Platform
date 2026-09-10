@@ -39,16 +39,15 @@ const OBVIOUSLY_A_PLACEHOLDER = /^(dev-only-|change-me|your-|xxx|placeholder|<)/
  * Credentials that are *supposed* to be filled in here, each for a reason.
  *
  * An allowlist rather than a looser pattern, because the point of the check is
- * that adding a real secret should be uncomfortable. Three named exceptions
+ * that adding a real secret should be uncomfortable. Two named exceptions
  * with stated reasons stays readable; a regex loose enough to admit them would
  * quietly admit the next one too.
  */
 const DELIBERATELY_PRESENT = new Map<string, string>([
   [
-    'MYSQL_PASSWORD',
+    'POSTGRES_PASSWORD',
     'must match docker/docker-compose.yml, and reaches only a container on localhost',
   ],
-  ['MYSQL_ROOT_PASSWORD', 'the same, for the container’s root account'],
   [
     'DEMO_ADMIN_PASSWORD',
     'the seed prints it and the config loader refuses demo data in production entirely (spec §76)',

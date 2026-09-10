@@ -41,7 +41,7 @@ A modular monolith — two processes, one database.
 | `apps/web`           | TanStack Start, React 19, TypeScript, Tailwind v4 — the original Lovable design, preserved |
 | `apps/api`           | Node 22+, Fastify, TypeScript, Prisma, Socket.IO                                           |
 | `packages/contracts` | zod schemas and types shared by both, so client and server validation cannot drift         |
-| Database             | MySQL 8                                                                                    |
+| Database             | PostgreSQL 17 (Supabase)                                                                   |
 
 Full detail: [`docs/architecture.md`](docs/architecture.md).
 
@@ -52,7 +52,7 @@ Full detail: [`docs/architecture.md`](docs/architecture.md).
 ### Prerequisites
 
 - **Node.js 22 or later**
-- **Docker Desktop** (provides MySQL and MailHog)
+- **Docker Desktop** (provides PostgreSQL and MailHog)
 
 ### First run
 
@@ -65,7 +65,7 @@ npm run dev
 
 `npm run setup` installs, starts the containers, migrates and seeds. The individual steps are `npm install`, `npm run docker:up`, `npm run db:migrate`, `npm run db:migrate:test`, `npm run db:grants`, `npm run db:seed`.
 
-`docker:up` waits for MySQL to report healthy rather than merely started, because on a first run the server is still initialising when the migration would otherwise begin. The test database is migrated too: `npm test` runs against `neem_test`, which the container creates empty and nothing else fills.
+`docker:up` waits for PostgreSQL to report healthy rather than merely started, because on a first run the server is still initialising when the migration would otherwise begin. The test database is migrated too: `npm test` runs against `neem_test`, which the container creates empty and nothing else fills.
 
 | Service            | URL                                                                                                 |
 | ------------------ | --------------------------------------------------------------------------------------------------- |
@@ -98,42 +98,42 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 
 ## Commands
 
-| Command                                              | Does                                                               |
-| ---------------------------------------------------- | ------------------------------------------------------------------ |
-| `npm run dev`                                        | Web and API together                                               |
-| `npm run dev:api` / `npm run dev:web`                | One at a time                                                      |
-| `npm test`                                           | Unit and integration tests (Vitest, against a real MySQL database) |
-| `npm run test:e2e`                                   | End-to-end tests (Playwright)                                      |
-| `npm run build`                                      | Production build — API bundle and web output                       |
-| `npm run typecheck`                                  | TypeScript across all workspaces                                   |
-| `npm run lint` / `npm run format`                    | ESLint / Prettier                                                  |
-| `npm run db:migrate`                                 | Apply migrations                                                   |
-| `npm run db:migrate:test`                            | Apply migrations to the test database (`neem_test`)                |
-| `npm run db:grants`                                  | Grant the append-only audit account its privileges                 |
-| `npm run db:reset`                                   | Drop, re-migrate, re-seed                                          |
-| `npm run db:seed`                                    | Reference and demo data                                            |
-| `npm run db:reset-2fa`                               | Clear demo admin TOTP enrolment                                    |
-| `npm run db:studio`                                  | Prisma Studio                                                      |
-| `npm run backup`                                     | Encrypted database backup                                          |
-| `npm run restore -- <file>`                          | Restore one, verifying its signature first                         |
-| `npm run backup:rehearse`                            | Back up, restore to a scratch database, compare row by row         |
-| `npm run docker:up` / `docker:down` / `docker:reset` | Local services                                                     |
+| Command                                              | Does                                                                    |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `npm run dev`                                        | Web and API together                                                    |
+| `npm run dev:api` / `npm run dev:web`                | One at a time                                                           |
+| `npm test`                                           | Unit and integration tests (Vitest, against a real PostgreSQL database) |
+| `npm run test:e2e`                                   | End-to-end tests (Playwright)                                           |
+| `npm run build`                                      | Production build — API bundle and web output                            |
+| `npm run typecheck`                                  | TypeScript across all workspaces                                        |
+| `npm run lint` / `npm run format`                    | ESLint / Prettier                                                       |
+| `npm run db:migrate`                                 | Apply migrations                                                        |
+| `npm run db:migrate:test`                            | Apply migrations to the test database (`neem_test`)                     |
+| `npm run db:grants`                                  | Grant the append-only audit account its privileges                      |
+| `npm run db:reset`                                   | Drop, re-migrate, re-seed                                               |
+| `npm run db:seed`                                    | Reference and demo data                                                 |
+| `npm run db:reset-2fa`                               | Clear demo admin TOTP enrolment                                         |
+| `npm run db:studio`                                  | Prisma Studio                                                           |
+| `npm run backup`                                     | Encrypted database backup                                               |
+| `npm run restore -- <file>`                          | Restore one, verifying its signature first                              |
+| `npm run backup:rehearse`                            | Back up, restore to a scratch database, compare row by row              |
+| `npm run docker:up` / `docker:down` / `docker:reset` | Local services                                                          |
 
 ### Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request, and weekly on a schedule.
 
-| Job             | Runs                                                                                                  | Why it is separate                                                                                                         |
-| --------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **check**       | lint, typecheck, build, 337 unit tests                                                                | About five minutes, needs no database, and gates the other two — a lint error should not burn an hour of runner time first |
-| **integration** | the Vitest suite against a real MySQL 8.4 service, then boots the built artefact and checks `/health` | Slow and honest: unique constraints and transaction behaviour are much of what is under test                               |
-| **e2e**         | Playwright against a running stack, uploading the report and API log on failure                       |                                                                                                                            |
+| Job             | Runs                                                                                                      | Why it is separate                                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **check**       | lint, typecheck, build, 337 unit tests                                                                    | About five minutes, needs no database, and gates the other two — a lint error should not burn an hour of runner time first |
+| **integration** | the Vitest suite against a real PostgreSQL 17 service, then boots the built artefact and checks `/health` | Slow and honest: unique constraints and transaction behaviour are much of what is under test                               |
+| **e2e**         | Playwright against a running stack, uploading the report and API log on failure                           |                                                                                                                            |
 
 **The build step is the reason this exists.** `npm run build` had never worked for the API and nothing noticed, because development never runs it ([D40](docs/decision-log.md)). A check nobody runs is a check that does not exist.
 
 ### Testing notes
 
-`npm test` runs against a real MySQL database (`neem_test`), not mocks — a large part of what it verifies lives in the database itself: unique constraints, foreign keys, transactional atomicity. It takes roughly 45 minutes.
+`npm test` runs against a real PostgreSQL database (`neem_test`), not mocks — a large part of what it verifies lives in the database itself: unique constraints, foreign keys, transactional atomicity. It takes roughly 9 minutes; it took roughly 45 on MySQL, and the move (D43) is the only reason for the difference.
 
 `npm run test:e2e` waits for both servers before it starts — the web app via Playwright's `webServer` block, and the API via a global setup that probes `GET /api/v1/health`. It drives the running dev server. Because that server watches for file changes, **anything that touches the working tree during a run — an editor save, a `git checkout`, a merge — restarts the API and fails tests that were not broken.** Run it against a quiet tree.
 

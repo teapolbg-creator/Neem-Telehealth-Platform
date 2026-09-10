@@ -1,5 +1,12 @@
 # Implementation Roadmap
 
+> **Historical record — not current.** This document describes what each phase set out to do and what it found as it
+> stood at the time. The database was **MySQL 8** throughout; it moved to
+> **PostgreSQL 17 on Supabase** on 10 September 2026 (decision
+> [D43](decision-log.md)), before any production data existed. References to
+> MySQL below are accurate history and are deliberately left alone. For the
+> current picture see `database.md` and `architecture.md`.
+
 Phases follow spec §99. Each ends with tests run, a change summary, a demonstration, and a stop for your approval.
 
 ---

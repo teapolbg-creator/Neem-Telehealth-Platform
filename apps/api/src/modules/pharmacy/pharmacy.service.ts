@@ -256,10 +256,20 @@ export async function listPharmacies(filters: PharmacyListFilters, db: Db = getP
       ...(filters.awaitingReview ? { status: { in: ['PENDING', 'UNDER_REVIEW'] } } : {}),
       ...(filters.search
         ? {
+            /*
+             * `mode: 'insensitive'` is not decoration.
+             *
+             * MySQL's default collation matched regardless of case, so this
+             * search worked without asking. PostgreSQL compares case-sensitively
+             * (decision D43), and without this an administrator typing "korle"
+             * finds nothing while "Korle" finds the row — a search that fails by
+             * returning an empty list, which reads exactly like "no such
+             * doctor".
+             */
             OR: [
-              { name: { contains: filters.search } },
-              { city: { contains: filters.search } },
-              { councilRegistrationNo: { contains: filters.search } },
+              { name: { contains: filters.search, mode: 'insensitive' } },
+              { city: { contains: filters.search, mode: 'insensitive' } },
+              { councilRegistrationNo: { contains: filters.search, mode: 'insensitive' } },
             ],
           }
         : {}),

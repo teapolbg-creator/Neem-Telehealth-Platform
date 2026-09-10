@@ -48,7 +48,7 @@ interface Fixture {
 /** A consultation IN_PROGRESS with an active, signed doctor and a patient. */
 async function liveConsultation(): Promise<Fixture> {
   const prisma = getPrisma();
-  const suffix = generatePublicId('x').slice(-8);
+  const suffix = generatePublicId('x').slice(-8).toLowerCase();
 
   const pharmacy = await createTestPharmacy(`Pharmacy ${suffix}`, 'ACTIVE');
   const pharmacyUser = await createTestUser({

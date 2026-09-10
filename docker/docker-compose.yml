@@ -1,35 +1,40 @@
 name: neem
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: neem-mysql
+  postgres:
+    # 17 is what Supabase runs, and matching it locally is the point of pinning
+    # a major version at all: a difference between the machine a migration is
+    # written on and the machine it is applied to is the kind that surfaces
+    # during a deploy rather than during a test.
+    image: postgres:17
+    container_name: neem-postgres
     restart: unless-stopped
     command:
-      # utf8mb4 throughout so Ghanaian language content and clinical free text
-      # round-trip correctly, and a fixed timezone so date arithmetic in the
-      # 40-hour rule and shift scheduling is not host-dependent.
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_0900_ai_ci
-      - --default-time-zone=+00:00
-      - --max_connections=200
+      # UTC everywhere, so date arithmetic in the 40-hour rule and in shift
+      # scheduling is not host-dependent.
+      - -c
+      - timezone=UTC
+      - -c
+      - max_connections=200
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-neem_root_dev}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-neem}
-      MYSQL_USER: ${MYSQL_USER:-neem}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-neem_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-neem}
+      POSTGRES_USER: ${POSTGRES_USER:-neem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neem_dev}
+      # Ghanaian language content and clinical free text round-trip correctly
+      # on UTF-8; the collation is deterministic so ordering does not drift
+      # between machines.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "${MYSQL_PORT:-3307}:3306"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
-      - neem-mysql-data:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+      - neem-postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test:
-        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-neem_root_dev}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neem} -d ${POSTGRES_DB:-neem}"]
       interval: 5s
       timeout: 5s
       retries: 20
-      start_period: 30s
+      start_period: 15s
 
   # Captures every outbound development email so the notification adapters can
   # be exercised without a real provider account. UI at http://localhost:8025
@@ -56,11 +61,12 @@ services:
       # and the README told them to do exactly that.
       - "${ADMINER_PORT:-8081}:8080"
     environment:
-      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DEFAULT_DRIVER: pgsql
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
 
 volumes:
-  neem-mysql-data:
-    name: neem-mysql-data
+  neem-postgres-data:
+    name: neem-postgres-data

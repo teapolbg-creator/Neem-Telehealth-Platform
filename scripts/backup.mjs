@@ -18,7 +18,7 @@
  *
  * Usage:
  *   node scripts/backup.mjs                       # backs up DATABASE_URL
- *   node scripts/backup.mjs --url mysql://...     # or an explicit target
+ *   node scripts/backup.mjs --url postgresql://...     # or an explicit target
  *   node scripts/backup.mjs --out backups/        # default: ./backups
  *
  * The key comes from BACKUP_ENCRYPTION_KEY. It must not be ENCRYPTION_KEY:
@@ -28,7 +28,7 @@
  */
 import { spawn } from 'node:child_process';
 import { loadDotEnv } from './load-env.mjs';
-import { mysqlArgv } from './mysql-cli.mjs';
+import { psqlArgv } from './psql-cli.mjs';
 import { createCipheriv, randomBytes, scryptSync } from 'node:crypto';
 import { createWriteStream, mkdirSync, statSync } from 'node:fs';
 import { createGzip } from 'node:zlib';
@@ -45,12 +45,12 @@ function arg(name, fallback) {
   return index === -1 ? fallback : process.argv[index + 1];
 }
 
-/** Splits a MySQL URL into the pieces `mysqldump` wants as flags. */
-export function parseMysqlUrl(raw) {
+/** Splits a PostgreSQL URL into the pieces `pg_dump` wants as flags. */
+export function parsePostgresUrl(raw) {
   const url = new URL(raw);
   return {
     host: url.hostname,
-    port: url.port || '3306',
+    port: url.port || '5432',
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ''),
@@ -86,7 +86,7 @@ async function main() {
   }
 
   const key = requireKey();
-  const target = parseMysqlUrl(raw);
+  const target = parsePostgresUrl(raw);
   const outDir = path.resolve(arg('out', 'backups'));
   mkdirSync(outDir, { recursive: true });
 
@@ -101,29 +101,39 @@ async function main() {
   const derived = scryptSync(key, salt, 32);
   const cipher = createCipheriv('aes-256-gcm', derived, iv);
 
-  const invocation = mysqlArgv('mysqldump', target, [
-    '--single-transaction',
-    '--quick',
-    // A backup user should not need the server-wide PROCESS privilege, and
-    // a least-privilege one will not have it. Without this flag mysqldump
-    // asks for tablespace metadata and prints an access-denied error into
-    // the middle of an otherwise complete dump.
-    '--no-tablespaces',
-    // Routines and triggers travel with the data; a restore that silently
-    // dropped them would appear to work until something needed one.
-    '--routines',
-    '--triggers',
-    '--events',
-    // Without this a restore into a differently-named database fails on the
-    // embedded USE statement.
-    '--no-create-db',
-    '--default-character-set=utf8mb4',
-    target.database,
+  const invocation = psqlArgv('pg_dump', target, [
+    // A single consistent snapshot, without blocking anything that is
+    // running. pg_dump does this by default inside a repeatable-read
+    // transaction; the flag is named so the property is not accidental.
+    '--serializable-deferrable',
+    /*
+     * Plain SQL, deliberately, though pg_dump's custom format is the usual
+     * advice.
+     *
+     * Custom format is a binary archive. This script gzips and encrypts
+     * whatever it is given, so the compression would be duplicated — and more
+     * importantly, two checks downstream read the decrypted bytes and look for
+     * `CREATE TABLE` before touching a database. Against a binary archive that
+     * string appears in the table of contents, so the check passes without
+     * meaning anything: it would report a verified backup that psql cannot
+     * load. Plain SQL makes the verification honest and lets restore.mjs feed
+     * the file straight to psql.
+     *
+     * What is given up is selective restore. Nothing here uses it — a restore
+     * is all-or-nothing by design — so it costs nothing today, and this
+     * comment is here so that changing it means changing the checks too.
+     */
+    '--format=plain',
+    // Ownership and grants belong to the environment being restored into.
+    // Supabase does not have a role called `neem`, and a dump that insists
+    // on one fails on its first line.
+    '--no-owner',
+    '--no-acl',
   ]);
 
   if (invocation.viaDocker) {
     console.log(
-      `(no local mysqldump; using the client in ${process.env.NEEM_MYSQL_CONTAINER ?? 'neem-mysql'})`,
+      `(no local pg_dump; using the client in ${process.env.NEEM_POSTGRES_CONTAINER ?? 'neem-postgres'})`,
     );
   }
 
@@ -141,7 +151,7 @@ async function main() {
 
   await new Promise((resolve, reject) => {
     dump.on('close', (code) =>
-      code === 0 ? resolve() : reject(new Error(`mysqldump exited ${code}`)),
+      code === 0 ? resolve() : reject(new Error(`pg_dump exited ${code}`)),
     );
   });
 

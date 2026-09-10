@@ -343,10 +343,20 @@ export async function listDoctors(filters: DoctorListFilters, db: Db = getPrisma
       ...(filters.awaitingReview ? { status: { in: ['PENDING', 'UNDER_REVIEW'] } } : {}),
       ...(filters.search
         ? {
+            /*
+             * `mode: 'insensitive'` is not decoration.
+             *
+             * MySQL's default collation matched regardless of case, so this
+             * search worked without asking. PostgreSQL compares case-sensitively
+             * (decision D43), and without this an administrator typing "korle"
+             * finds nothing while "Korle" finds the row — a search that fails by
+             * returning an empty list, which reads exactly like "no such
+             * doctor".
+             */
             OR: [
-              { fullName: { contains: filters.search } },
-              { mdcNumber: { contains: filters.search } },
-              { specialty: { contains: filters.search } },
+              { fullName: { contains: filters.search, mode: 'insensitive' } },
+              { mdcNumber: { contains: filters.search, mode: 'insensitive' } },
+              { specialty: { contains: filters.search, mode: 'insensitive' } },
             ],
           }
         : {}),

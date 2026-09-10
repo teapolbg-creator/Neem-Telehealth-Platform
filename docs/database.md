@@ -1,6 +1,6 @@
 # Neem — Database Design
 
-**Status:** Proposed (Phase 0). MySQL 8 + Prisma. Not yet implemented.
+**Status:** Implemented. PostgreSQL 17 + Prisma, hosted on Supabase (decision D43). Migrated from MySQL 8 on 10 September 2026, before any production data existed.
 
 ---
 
@@ -216,9 +216,11 @@ Seeded keys include `consultation.priceMinor`, `consultation.durationSeconds` (d
 Stores a **hash**, not the rendered body, so notification history never becomes a shadow copy of clinical or personal data (spec §60).
 
 **`audit_logs`** — append-only: `id`, `occurredAt`, `correlationId`, `actorType`, `actorId`, `action`, `entityType`, `entityId`, `ipHash`, `userAgent`, `metadata` JSON, `outcome`.
-No INSERT-only enforcement exists in MySQL itself. What enforces it, precisely: the audit service exposes no update or delete method, no route reaches one, and a test asserts the metadata sanitiser. A dedicated `neem_audit` account holding `INSERT`+`SELECT` on this table and nothing else is created by `docker/mysql-init` and granted by `npm run db:grants`.
+No INSERT-only enforcement exists in PostgreSQL itself. What enforces it, precisely: the audit service exposes no update or delete method, no route reaches one, and a test asserts the metadata sanitiser. A dedicated `neem_audit` role holding `INSERT`+`SELECT` on this table and nothing else is created by `docker/postgres-init` and granted by `npm run db:grants`.
 
-**That account is not the application's writer, and the distinction matters.** Audit rows are written on the same connection and inside the same transaction as the business change they record, so the entry and the thing it describes commit together or not at all. A second connection cannot join that transaction. Transactional audit was judged the better property; the consequence is that the application's own account can still reach this table, and the append-only guarantee in the running system rests on the service surface rather than on MySQL. The `neem_audit` account is for the operator and for anything reading the log out of band.
+The grant is verifiable, and was verified rather than assumed: `neem_audit` holds exactly `INSERT` and `SELECT` on `audit_logs`, holds no privilege on any other table, and a `SELECT` against `consultation_clinical_notes` as that role is refused outright.
+
+**That account is not the application's writer, and the distinction matters.** Audit rows are written on the same connection and inside the same transaction as the business change they record, so the entry and the thing it describes commit together or not at all. A second connection cannot join that transaction. Transactional audit was judged the better property; the consequence is that the application's own account can still reach this table, and the append-only guarantee in the running system rests on the service surface rather than on the database. The `neem_audit` account is for the operator and for anything reading the log out of band.
 
 `metadata` is schema-restricted to non-clinical fields — the audit log must not become a back-door medical history (spec §61).
 

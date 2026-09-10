@@ -32,7 +32,7 @@ async function createEligibleDoctor(options: {
   languageCodes: string[];
 }): Promise<{ doctorId: string; email: string; password: string }> {
   const prisma = getPrisma();
-  const suffix = generatePublicId('x').slice(-8);
+  const suffix = generatePublicId('x').slice(-8).toLowerCase();
   const email = `${suffix}@doctor.test`;
   const password = 'DoctorPassword123!';
 

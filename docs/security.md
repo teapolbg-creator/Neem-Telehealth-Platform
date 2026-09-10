@@ -93,7 +93,7 @@ Object references are always `publicId`, so enumeration yields nothing. Failed a
 - **Rate limiting:** global, per-IP, and stricter per-route on login, token exchange, password reset, and payment initiation.
 - **File uploads:** type and magic-byte validation, size caps, stored outside the web root with generated names, served only through an authorised endpoint, never executed.
 - **PDF generation:** server-side PDFKit from structured data — no template injection surface, no headless browser.
-- **Least privilege:** a separate `neem_audit` account holds `INSERT`/`SELECT` on `audit_logs` and nothing else — verified: it is refused `DELETE` on that table and refused `SELECT` on `patient_sessions`. It is created by `docker/mysql-init` and granted by `npm run db:grants`, because MySQL will not grant on a table before migrations create it. **It is not the application's writer**: audit rows commit in the same transaction as the change they record, and a second connection cannot join that transaction, so transactional audit was kept and the append-only guarantee rests on the service surface (no update or delete method, no route, asserted by test). The application account itself holds full privileges on its schema in the development compose, `DROP` included, because Prisma Migrate needs DDL. **Narrowing it is a deployment task and is not done here** — see §10.
+- **Least privilege:** a separate `neem_audit` account holds `INSERT`/`SELECT` on `audit_logs` and nothing else — verified: it is refused `DELETE` on that table and refused `SELECT` on `patient_sessions`. It is created by `docker/postgres-init` and granted by `npm run db:grants`, because a grant names a table and migrations have to create it first. **It is not the application's writer**: audit rows commit in the same transaction as the change they record, and a second connection cannot join that transaction, so transactional audit was kept and the append-only guarantee rests on the service surface (no update or delete method, no route, asserted by test). The application role itself owns its schema in the development compose, `DROP` included, because Prisma Migrate needs DDL. **Narrowing it is a deployment task and is not done here** — see §10.
 
 ---
 
@@ -178,11 +178,16 @@ with a complete legitimate account on the other side:
 `feedback.comment`, `complaints.description` and `complaints.resolutionNote`
 were plaintext while every other patient field was encrypted. A patient
 explaining why they were unhappy writes about their own care, so all three
-carry health information whatever the form asked for. Moved under field
-encryption in two migrations with a backfill in between
-(`npm run db:backfill:encrypt-free-text`) — SQL cannot encrypt, so the middle
-step is a script, and it verifies that no row is left half-migrated before
-reporting success.
+carry health information whatever the form asked for.
+
+They are encrypted, and now they are encrypted **from the first migration**.
+The move originally took two MySQL migrations with a backfill in between —
+SQL cannot encrypt, so the middle step was a script. The move to PostgreSQL
+(decision D43) rebuilt the migration history as a single initial migration
+against an empty database, so there is no plaintext column for a backfill to
+read and no half-migrated state to recover from. The script is kept for the
+record at `docs/archive/encrypt-free-text.mysql.ts`; it is MySQL-flavoured and
+is not runnable against this schema.
 
 ### The §80 scenarios
 
@@ -213,7 +218,7 @@ regress.
 
 ## 9. Backup and recovery
 
-Documented in Phase 1, exercised in Phase 10: automated MySQL backups, retention period, restore procedure with a rehearsed restore, and an explicit statement of the window during which purged temporary data still exists in backups (see `data-retention.md` §5). Pretending backups do not retain deleted rows would be dishonest; stating the window and bounding it is the correct engineering answer.
+Documented in Phase 1, exercised in Phase 10, and re-proved against PostgreSQL in D43: automated backups, retention period, restore procedure with a rehearsed restore, and an explicit statement of the window during which purged temporary data still exists in backups (see `data-retention.md` §5). Pretending backups do not retain deleted rows would be dishonest; stating the window and bounding it is the correct engineering answer.
 
 **Exercised, 2026-09-03.** `scripts/backup.mjs`, `scripts/restore.mjs` and
 `scripts/rehearse-restore.mjs`. The rehearsal backs up the live database,
@@ -229,7 +234,7 @@ Controls that are real obligations of a deployment rather than properties of the
 
 | Obligation                                                                               | Why it is not enforced here                                                                                                                                                                                   | What a deployment must do                                                                                                                                              |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The application account should not hold `DROP`, or `UPDATE`/`DELETE` on `audit_logs`** | The development compose grants the app user everything on its schema, because Prisma Migrate needs DDL and MySQL has no way to subtract a table privilege from a database-wide grant                          | Run migrations as a separate migration account, and grant the runtime account per-table privileges that omit `audit_logs` write access beyond `INSERT`                 |
+| **The application account should not hold `DROP`, or `UPDATE`/`DELETE` on `audit_logs`** | The development compose makes the app role the owner of its schema, because Prisma Migrate needs DDL and an owner cannot be denied a privilege on a table it owns                                             | Run migrations as a separate migration account, and grant the runtime account per-table privileges that omit `audit_logs` write access beyond `INSERT`                 |
 | **TLS, HSTS, secure cookies**                                                            | §5 describes the production posture; the development server is plain HTTP on localhost                                                                                                                        | Terminate TLS in front of the API and set `NODE_ENV=production`, which the config loader already requires before it will accept a deployment                           |
 | **Database-level encryption at rest**                                                    | Application-level AES-256-GCM covers the identified fields; whole-disk and tablespace encryption is a hosting concern                                                                                         | Enable it on the managed instance, and encrypt backups — `BACKUP_ENCRYPTION_KEY` is required and refuses to equal `ENCRYPTION_KEY`                                     |
 | **Key rotation**                                                                         | `ENCRYPTION_KEY_PREVIOUS` exists and decryption falls back to it, so rotation is possible; nothing schedules or audits a rotation                                                                             | Own a rotation schedule, and re-encrypt rather than relying on the fallback indefinitely                                                                               |
