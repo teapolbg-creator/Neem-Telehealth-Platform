@@ -1,0 +1,142 @@
+# Render blueprint for the Neem API (decision D44).
+#
+# Render is chosen for one reason above the others: its deploy model is the one
+# this project already operates on Netlify — connect the repository, push to
+# deploy. The alternatives were capable too; the deciding factor was not
+# capability but how much new machinery a two-person team has to learn to run a
+# pilot.
+#
+# What this describes is deliberately one small always-on instance, because
+# that is what the code requires rather than a cost compromise:
+#
+#   * Background jobs run INSIDE the API process (`src/jobs/scheduler.ts`),
+#     including a five-second sweep enforcing the 90-second doctor response
+#     window. So the service must never scale to zero — a sleeping instance
+#     stops expiring offers — and must never run two copies, which would offer
+#     every consultation twice.
+#   * Socket.IO has no Redis adapter, so its state is in memory. A second
+#     instance would not see the first's connections.
+#   * Prescription PDFs and doctor credentials are written to local disk. They
+#     are permanent records, so the disk below is not a cache — losing it loses
+#     prescriptions.
+#
+# Attaching a disk makes Render deploy by stopping and restarting rather than
+# overlapping, so each deploy is a short gap. That is a real cost and it is
+# accepted: the alternative is running two instances, which the jobs forbid.
+#
+# Deploy outside consultation hours.
+
+services:
+  - type: web
+    name: neem-api
+    runtime: node
+    plan: starter # Always-on. The free plan sleeps, which would stop the job sweeps.
+    region: frankfurt # Must match the Supabase project's region — see the note below.
+    branch: main
+
+    # `npm ci` for a reproducible install, then the Prisma client, then the
+    # bundle. `db:generate` is explicit because this repository has no
+    # postinstall hook: without it the build succeeds and the server dies on
+    # its first query.
+    buildCommand: >-
+      npm ci &&
+      npm run build --workspace @neem/contracts &&
+      npm run db:generate --workspace @neem/api &&
+      npm run build --workspace @neem/api
+
+    # Migrations run before the new instance serves traffic, and a failure here
+    # stops the deploy rather than starting a server against a schema it does
+    # not match. Over Supabase this uses DIRECT_DATABASE_URL, because a
+    # transaction pooler cannot carry the statements Prisma Migrate needs.
+    preDeployCommand: npm run db:deploy --workspace @neem/api
+
+    startCommand: node apps/api/dist/server.js
+
+    # Cheap and constant: it returns a fixed body and touches nothing.
+    # `/health/ready` checks the database and is for an operator, not a probe.
+    healthCheckPath: /api/v1/health
+
+    disk:
+      name: neem-uploads
+      # STORAGE_LOCAL_PATH points here. An ABSOLUTE path matters: a relative one
+      # is resolved against the repository root, which puts prescriptions on the
+      # container's ephemeral filesystem and destroys them on the next deploy.
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render injects PORT; the API reads API_PORT and falls back to PORT.
+      # Nothing to set.
+
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_PATH
+        value: /var/data/uploads
+
+      # --- Set in the Render dashboard, never in this file -------------------
+      #
+      # `sync: false` means "prompt me, and keep it out of the repository".
+      # These are the values that would be a disclosure if committed.
+
+      - key: DATABASE_URL # Supabase POOLED connection, port 6543, ?sslmode=require
+        sync: false
+      - key: DIRECT_DATABASE_URL # Supabase DIRECT connection, port 5432, for migrations
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: CSRF_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY # Losing this makes every encrypted field unreadable. Back it up.
+        sync: false
+
+      # BACKUP_ENCRYPTION_KEY is deliberately NOT here. `scripts/backup.mjs`
+      # reads it directly and the API never runs that script, so setting it on
+      # this service would imply a backup arrangement that does not exist.
+      #
+      # It does not exist yet, and that is an open item rather than an
+      # oversight: Supabase backs up the database on its own schedule, but the
+      # DISK BELOW IS NOT COVERED BY THAT. It holds signed prescription PDFs and
+      # doctor credential documents — permanent records — and nothing currently
+      # copies them anywhere. A Render cron service running `npm run backup`
+      # would produce a file on its own ephemeral disk and discard it, so the
+      # missing piece is somewhere durable to put it, not the schedule.
+
+      # --- Origins ------------------------------------------------------------
+      # Exact, with scheme and no trailing slash. CORS is an allow-list and the
+      # session cookie travels on it, so a mismatch fails closed.
+
+      - key: WEB_ORIGIN
+        value: https://app.neemtelehealth.com
+      - key: MARKETING_ORIGIN
+        value: https://neemtelehealth.com
+      - key: API_PUBLIC_URL
+        value: https://api.neemtelehealth.com
+
+      # --- Providers ----------------------------------------------------------
+
+      - key: VIDEO_PROVIDER
+        value: whereby
+      - key: WHEREBY_API_KEY
+        sync: false
+
+      # Call Me stays off until Arkesel confirm a live two-leg bridge (D39, D42).
+      # `none` is not `mock`: a mock pretends, `none` says the capability is
+      # absent, and the patient is never offered a mode the server would refuse.
+      - key: VOICE_PROVIDER
+        value: none
+
+      - key: SMS_PROVIDER
+        value: arkesel
+      - key: ARKESEL_API_KEY
+        sync: false
+      - key: ARKESEL_SENDER_ID
+        sync: false
+
+      # --- Demo data must never exist here ------------------------------------
+      # The config loader refuses this in production anyway (spec §76); stating
+      # it means nobody has to discover that by being refused.
+      - key: SEED_DEMO_DATA
+        value: "false"

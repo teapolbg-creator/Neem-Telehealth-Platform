@@ -447,7 +447,23 @@ export type Env = z.infer<typeof envSchema>;
 let cached: Env | undefined;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = envSchema.safeParse(source);
+  /*
+   * `PORT` is what a platform assigns; `API_PORT` is what this project calls it.
+   *
+   * Render, Railway, Fly and Heroku all inject `PORT` and expect the process to
+   * listen on it. Without this the API binds 4000, the platform health-checks
+   * the port it assigned, gets nothing, and reports a failed deploy with no
+   * hint that a naming difference is the whole problem.
+   *
+   * `API_PORT` wins where both are set, so a developer's `.env` is never
+   * overridden by something the platform happens to export.
+   */
+  const usePlatformPort = !source.API_PORT && Boolean(source.PORT);
+  const withPlatformPort: NodeJS.ProcessEnv = usePlatformPort
+    ? { ...source, API_PORT: source.PORT }
+    : source;
+
+  const parsed = envSchema.safeParse(withPlatformPort);
 
   if (!parsed.success) {
     const lines = parsed.error.issues.map(

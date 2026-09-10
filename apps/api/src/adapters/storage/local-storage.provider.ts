@@ -1,22 +1,64 @@
 import path from 'node:path';
+import fs, { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { mkdir, readFile, writeFile, unlink, access } from 'node:fs/promises';
 import { getEnv } from '../../config/env.ts';
 import type { StorageProvider } from './storage.provider.ts';
 
 /**
- * The repository root, derived from this file rather than the process's
- * working directory.
+ * The repository root, found by looking for it rather than by counting.
  *
- * `STORAGE_LOCAL_PATH` is written relative to the repository root, matching
- * how it reads in `.env` and how `.gitignore` refers to it — but Node runs
- * this package with `apps/api` as its working directory, so resolving against
- * the cwd produced `apps/api/apps/api/uploads`. That path is outside the
- * ignore rule, so uploaded credential documents were sitting untracked in a
+ * `STORAGE_LOCAL_PATH` is written relative to the repository root, matching how
+ * it reads in `.env` and how `.gitignore` refers to it. Resolving it against
+ * the process's working directory does not work: Node runs this package with
+ * `apps/api` as its cwd, which produced `apps/api/apps/api/uploads` — outside
+ * the ignore rule, so uploaded credential documents sat untracked in a
  * directory git would happily have committed.
+ *
+ * The fix for that counted directory levels up from this file. **That is
+ * correct in source and wrong in the production bundle**, which is one
+ * directory deep (`apps/api/dist/server.js`) rather than four
+ * (`apps/api/src/adapters/storage/…`). The same six `..` therefore landed two
+ * levels above the repository root, and a relative path resolved to
+ * `/apps/api/uploads` — on a host with a mounted disk, that means prescriptions
+ * written outside the volume and destroyed by the next deploy.
+ *
+ * Exactly the fault D40 found in `load-dotenv`, and it takes the same answer:
+ * search upward for a marker instead of counting. `package.json` declaring
+ * workspaces is the repository root and nothing else in the tree is.
  */
-// adapters/storage → adapters → src → apps/api → apps → repository root
-const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), '../../../../../..');
+function findRepoRoot(): string {
+  let directory = path.dirname(fileURLToPath(import.meta.url));
+
+  for (let depth = 0; depth < 12; depth += 1) {
+    const candidate = path.join(directory, 'package.json');
+
+    if (existsSync(candidate)) {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(candidate, 'utf8')) as {
+          workspaces?: unknown;
+        };
+        if (manifest.workspaces) return directory;
+      } catch {
+        // An unreadable package.json is not the root; keep walking.
+      }
+    }
+
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+
+  /*
+   * No marker found — which is the normal case for a deployment that copies
+   * only the bundle. The cwd is then the best available answer, and an
+   * absolute STORAGE_LOCAL_PATH (which production should always use) makes
+   * this irrelevant because path.resolve ignores the base for one.
+   */
+  return process.cwd();
+}
+
+const REPO_ROOT = findRepoRoot();
 
 /**
  * Local-disk storage for development.

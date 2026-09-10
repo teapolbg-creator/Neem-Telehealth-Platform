@@ -1057,3 +1057,75 @@ Two connection strings, not one: the pooled connection (port 6543) for the
 running API and the direct one (5432) for migrations, both over TLS. The schema
 declares `directUrl` for exactly this, and `.env.example` says so at the point
 where somebody would otherwise paste one URL into both.
+
+---
+
+### D44 — The API is hosted on Render · 2026-09-10 · **DECIDED**
+
+**Issue.** The database moved to Supabase ([D43](#d43)), and Supabase does not
+host the API. Neem's backend is a long-running Fastify process holding
+Socket.IO connections open with an in-process job scheduler; Edge Functions are
+Deno and short-lived. A conventional Node host was needed.
+
+**What the code actually requires**, which narrowed the field more than the
+usual comparison would:
+
+- **Prescription PDFs and doctor credentials live on local disk.**
+  `local-storage.provider.ts` is the only storage implementation, and those are
+  permanent records. A persistent volume is mandatory, not a preference.
+- **The jobs run inside the API process**, including a five-second sweep
+  enforcing the 90-second doctor response window. So the service can never
+  scale to zero — a sleeping instance stops expiring offers — and can never run
+  two copies, which would offer every consultation twice.
+- **Socket.IO has no Redis adapter**, so its state is in memory. Single
+  instance again.
+
+That is a small always-on box with a disk, not a cluster.
+
+**Selected: Render.** Fly.io and Railway were both capable, and Fly is cheaper
+with a wider choice of regions including Johannesburg. The deciding factor was
+not capability but operational surface: Render's deploy model is the one this
+project already runs on Netlify — connect the repository, push to deploy — and
+the team had just been through that configuration. Fly asks for a new mental
+model of machines and per-machine volumes to run one small service.
+
+Render's main limitation is honest and happens to fit: attaching a disk forces
+a single instance and replaces overlapping deploys with stop-then-start, so
+each deploy is a short gap. Neem needs a single instance regardless, so nothing
+is being given up.
+
+**Two faults found while preparing the deployment, either of which would have
+broken the first one:**
+
+1. **A relative `STORAGE_LOCAL_PATH` resolved outside the mounted disk.** The
+   repository root was computed by counting six directory levels up from the
+   source file — correct in source, wrong in the bundle, which is one level
+   deep rather than four. The same six `..` landed two levels above the root,
+   so the path became `/apps/api/uploads`: the container's ephemeral
+   filesystem, destroyed by the next deploy, taking the prescriptions with it.
+   Precisely the fault [D40](#d40) found in `load-dotenv`, and it takes the
+   same answer — search upward for a marker rather than counting. Verified
+   against the real bundle location.
+2. **The API reads `API_PORT`; every platform injects `PORT`.** It would have
+   bound 4000, Render would have health-checked the port it assigned, received
+   nothing, and reported a failed deploy without hinting that a naming
+   difference was the entire problem. `PORT` is now a fallback and `API_PORT`
+   still wins where both are set.
+
+The built bundle was then started the way Render will start it — `PORT` set, an
+absolute storage path — and answered its health check.
+
+**Open, and named rather than deferred silently: nothing backs up the disk.**
+Supabase covers the database on its own schedule. The volume holding signed
+prescriptions and credential documents is not covered by that, and a Render
+cron running `npm run backup` would write to its own ephemeral disk and discard
+the result. The missing piece is somewhere durable to put a backup, not a
+schedule. `BACKUP_ENCRYPTION_KEY` is deliberately absent from the service, so
+the configuration does not imply an arrangement that does not exist.
+
+**Also still required:** a home for `apps/web`, which is a separate deployable.
+`WEB_ORIGIN` assumes `app.neemtelehealth.com`. The subdomain layout is load
+bearing rather than tidy: session cookies are `sameSite: 'lax'`, and `app.` and
+`api.` under one registrable domain are same-site, so those cookies are sent on
+API calls. A different domain for the app would force `SameSite=None` and a
+weaker CSRF posture.
