@@ -17,6 +17,30 @@ process.env.ENCRYPTION_KEY = 'test-encryption-key-value-000000000000000000';
 process.env.LOG_LEVEL = 'silent';
 process.env.SEED_DEMO_DATA = 'false';
 
+/*
+ * No test may reach a real gateway.
+ *
+ * Stated plainly, because it was first written as a fix for a bug that does
+ * not exist: **Vitest never loads `.env`**. Only `src/server.ts` imports
+ * `load-dotenv`, so under this bootstrap the provider variables are unset and
+ * fall through to their schema defaults, which are already `mock`. The suite
+ * could not have reached Arkesel however `.env` was configured.
+ *
+ * These three lines are therefore belt and braces, not a repair, and they earn
+ * their place cheaply: they make the guarantee explicit rather than emergent
+ * from a default somebody could reasonably change, and they hold if this file
+ * or `config/env.ts` ever starts reading `.env`. That is not far-fetched — the
+ * e2e suite runs the real server, which does load it, and is protected
+ * separately in `playwright.config.ts`.
+ *
+ * Assignment rather than `??=` so it wins if `.env` ever is in play. The
+ * adapter tests set these themselves after this file runs and stub `fetch`,
+ * so what they verify is untouched.
+ */
+process.env.SMS_PROVIDER = 'mock';
+process.env.EMAIL_PROVIDER = 'mock';
+process.env.WHATSAPP_PROVIDER = 'mock';
+
 // The functional tests exercise many sign-ins in quick succession. The auth
 // rate limiter is verified deliberately in tests/integration/rate-limit.test.ts,
 // which builds an app with a low limit; leaving it low here would throttle the

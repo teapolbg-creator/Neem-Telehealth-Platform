@@ -105,5 +105,30 @@ export default defineConfig({
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
+
+    /**
+     * The e2e suite starts the real API, and the real API reads `.env`.
+     *
+     * This is the one place a test run can reach a live gateway. Vitest cannot
+     * — nothing in its bootstrap imports `load-dotenv` — but `src/server.ts`
+     * does, so a developer who sets `SMS_PROVIDER=arkesel` with a working key
+     * and runs `npm run test:e2e` sends real messages. The fixtures carry
+     * valid Ghanaian numbers; `0244123456` is a shape a real subscriber holds.
+     * Nothing in the output would say so, and the bill arrives later.
+     *
+     * `load-dotenv` passes `override: false`, so a variable already set in the
+     * environment beats the file — which is what makes this work at all.
+     *
+     * **Partial, and worth knowing why:** `reuseExistingServer` is true, so a
+     * dev server already running from a plain `npm run dev` is used as it is
+     * and these values never apply to it. Protecting the common case is still
+     * worth it; the way to be certain is to leave `SMS_PROVIDER=mock` in
+     * `.env` and let Render supply the real one.
+     */
+    env: {
+      SMS_PROVIDER: "mock",
+      EMAIL_PROVIDER: "mock",
+      WHATSAPP_PROVIDER: "mock",
+    },
   },
 });
