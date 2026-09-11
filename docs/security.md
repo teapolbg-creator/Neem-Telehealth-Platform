@@ -103,6 +103,19 @@ Append-only, covering login/logout, doctor and pharmacy approval and suspension,
 
 `metadata` is schema-restricted to non-clinical fields. **The audit log must not become a back-door medical history** — this is asserted by test, not just by convention.
 
+### The hosted database has a second front door, and it is bolted shut
+
+Supabase serves the `public` schema over PostgREST — its "Data API" — to anyone holding the `anon` key, which is a key meant to be shipped to browsers. Row Level Security is what normally stands in front of that, and **tables created by Prisma Migrate have none**. Neem's authorisation is sessions, RBAC and ownership checks, all of it inside the Fastify application and none of it in front of PostgREST.
+
+On provisioning, `anon` and `authenticated` could `SELECT` all 61 tables, and `PUBLIC` held `USAGE` on the schema. Nothing was exposed, because the Data API was switched off — but a dashboard toggle was the only thing between a public key and every clinical note. The grants are now revoked, so the toggle is incidental (decision [D45](decision-log.md)).
+
+Two consequences an operator needs to know before changing anything:
+
+- **The Supabase dashboard reports RLS as disabled on all 60 tables. That is expected.** RLS protects rows from roles that can reach the table; these roles cannot reach the schema. Enabling RLS instead would leave the grants in place and make safety depend on every future table remembering a policy — the failure being a new table readable until somebody notices. Do not "fix" the warnings by restoring PostgREST's access.
+- **Adding a Supabase client library, or using the Data API for a quick integration, now requires explicitly granting what was explicitly revoked.** That is the intended direction: the access has to be chosen, not inherited.
+
+`npm run check:supabase` re-checks the grants, the schema `USAGE`, the default privileges and PostgREST's own `pgrst.db_schemas`, and fails on anything that would let `anon` read. Worth running after any migration, because `ALTER DEFAULT PRIVILEGES` is what would quietly re-grant new tables.
+
 ---
 
 ## 8. Security test plan (Phase 10)

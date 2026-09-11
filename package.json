@@ -32,6 +32,7 @@
     "db:reset": "npm run db:reset --workspace @neem/api",
     "db:seed": "npm run db:seed --workspace @neem/api",
     "db:grants": "node scripts/grant-audit-user.mjs",
+    "check:supabase": "node scripts/check-supabase.mjs",
     "db:migrate:test": "node scripts/migrate-test-db.mjs",
     "whereby:check": "node scripts/whereby-check.mjs",
     "arkesel:check": "node scripts/arkesel-check.mjs",

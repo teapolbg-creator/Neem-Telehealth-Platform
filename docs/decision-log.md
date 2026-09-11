@@ -1129,3 +1129,98 @@ bearing rather than tidy: session cookies are `sameSite: 'lax'`, and `app.` and
 `api.` under one registrable domain are same-site, so those cookies are sent on
 API calls. A different domain for the app would force `SameSite=None` and a
 weaker CSRF posture.
+
+---
+
+### D45 — Supabase's PostgREST roles are revoked, not merely switched off · 2026-09-11 · **DECIDED**
+
+**Issue.** Provisioning the Supabase project ([D43](#d43)) put Neem's 60 tables
+into the `public` schema, and Supabase treats `public` as the schema its Data
+API serves. That API is PostgREST, reachable with the `anon` key — a key
+designed to be distributed to browsers — and what normally stands in front of
+it is Row Level Security. **Tables created by Prisma Migrate have no RLS.**
+
+Neem's authorisation is sessions, RBAC middleware and ownership predicates, all
+of it in the Fastify application. None of it is in front of PostgREST. So the
+question was never "is RLS configured correctly" but "is there a second door
+into `consultation_clinical_notes` that the application does not guard".
+
+**What was actually found**, once it was measured rather than assumed:
+
+- `anon` and `authenticated` could `SELECT` **all 61 tables** — the 60 models
+  plus `_prisma_migrations`. Nobody granted that: Supabase ships
+  `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon,
+authenticated`, so every table Prisma created was granted as it was created.
+- `PUBLIC` — the pseudo-role meaning every role — held `USAGE` on the schema,
+  which is PostgreSQL's own default rather than anything Supabase did.
+- The Data API happened to be switched off, so nothing was exposed in practice.
+
+That last point is the decision. **Nothing was leaking, and the arrangement was
+still wrong**: the only thing between a publicly distributable key and every
+clinical note in the system was one toggle in a dashboard, reversible by
+anybody with access to it and by accident as easily as on purpose.
+
+**Decision: revoke at the grant level, and treat the toggle as incidental.**
+
+    REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+    REVOKE USAGE ON SCHEMA public FROM anon, authenticated;
+    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+      REVOKE ALL ON TABLES FROM anon, authenticated;
+
+Three things about that list are worth keeping, because each was learned by
+being wrong first.
+
+1. **The schema `USAGE` line is the durable one.** Table grants come back —
+   a default privilege hands them to whatever the next migration creates. No
+   default privilege can restore `USAGE` on a schema that already exists, so
+   once revoked it stays revoked, and without it no table grant inside the
+   schema can be exercised at all.
+2. **`FROM PUBLIC` and `FROM anon` are different statements.** The schema ACL
+   held both a grant to `PUBLIC` and direct grants to the two roles. Revoking
+   either alone leaves `USAGE` in place and looks exactly like a revoke that
+   did nothing, which cost a round of confusion before the ACL was read rather
+   than guessed at.
+3. **`ALTER DEFAULT PRIVILEGES` is recorded per creating role**, and a
+   statement without `FOR ROLE` changes only the defaults of whoever runs it.
+   Migrations run as `postgres`, so that is the role that matters.
+   `supabase_admin` also carries such defaults; they cover tables that role
+   creates, which are Supabase's own and not ours, and altering them needs
+   membership in the role that the application account does not have. Named
+   here so nobody spends an afternoon on a statement that is supposed to be
+   refused.
+
+**Nothing of Neem's runs as `anon` or `authenticated`.** The API connects as
+`postgres`, which owns the schema, and an owner needs no `USAGE` grant. The one
+least-privilege role this system adds — the append-only audit account of
+[D43](#d43) — is granted `CONNECT` and `USAGE` explicitly by
+`scripts/grant-audit-user.mjs` before any table privilege, for exactly this
+reason. Verified after revoking: the owning role still selects, still runs DDL,
+and a table created afterwards is not readable by `anon`.
+
+**Supabase's dashboard will report RLS as disabled on all 60 tables.** That is
+expected and is not a misconfiguration to be fixed. RLS protects rows from
+roles that can reach the table; these roles cannot reach the schema. Enabling
+RLS instead of revoking would leave the grants in place and make safety depend
+on every future table remembering a policy — the failure mode being a new table
+that is readable until somebody notices. This note exists so that the warnings
+are not "fixed" later by turning PostgREST's access back on.
+
+**Checked by a script rather than by recollection**, because the property has to
+survive the next migration and the next operator: `npm run check:supabase` reads the grants, the schema `USAGE`, the default
+privileges and PostgREST's own `pgrst.db_schemas` setting, and fails on
+anything that would let `anon` read. Its own history is the argument for
+asking the database rather than the network — it twice reported safety it had
+not established, once from a placeholder key's HTTP 503 and once from a rejected
+key's 401, because an endpoint that will not answer looks identical to one that
+is switched off. `has_table_privilege` has no such ambiguity. The whole cycle —
+seeded grants, the printed statements, a clean re-run — was rehearsed against a
+local PostgreSQL standing in for the project.
+
+**Consequence for the pilot.** None operationally: no Supabase feature Neem uses
+is affected, because Neem uses none of them beyond the database itself. The cost
+is a constraint to remember — adding a Supabase client library later, or the
+Data API for some quick integration, now requires deliberately granting what
+was deliberately taken away, which is the right way round.
