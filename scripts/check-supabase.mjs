@@ -127,6 +127,16 @@ export function grantedToPublic(acl) {
     .some((entry) => entry.trim().startsWith('=') && entry.includes('U'));
 }
 
+/** Whether a schema ACL grants USAGE to anon or authenticated by name. */
+export function grantedDirectly(acl) {
+  if (!acl || !acl.startsWith('{')) return false;
+
+  return acl
+    .slice(1, -1)
+    .split(',')
+    .some((entry) => /^"?(anon|authenticated)"?=[^/]*U/.test(entry.trim()));
+}
+
 async function inspect(url) {
   const { PrismaClient } = await import('@prisma/client');
   const prisma = new PrismaClient({ datasources: { db: { url } } });
@@ -495,21 +505,39 @@ async function main() {
       if (usage) {
         console.log(`    schema ACL: ${actual.schemaAcl} (owner ${actual.schemaOwner})`);
 
+        /*
+         * The two grants are independent and both have to go. Saying the
+         * USAGE "comes from PUBLIC rather than from a grant to anon" was
+         * wrong whenever the ACL held both, which is the normal Supabase
+         * shape — it would have sent someone to revoke one and call it done.
+         */
         const viaPublic = grantedToPublic(actual.schemaAcl);
+        const viaDirect = grantedDirectly(actual.schemaAcl);
+        const statements = [
+          viaDirect ? '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;' : null,
+          viaPublic ? '      REVOKE USAGE ON SCHEMA public FROM PUBLIC;' : null,
+        ].filter(Boolean);
+
         problems.push(
           'anon or authenticated can still enter the `public` schema, so any table grant ' +
             'handed out later — by a default privilege, or by hand — becomes readable ' +
             'immediately.\n' +
-            (viaPublic
-              ? '    The ACL above shows the USAGE comes from PUBLIC, the pseudo-role meaning\n' +
-                '    every role, not from a grant to anon. So REVOKE ... FROM anon runs cleanly\n' +
-                '    and changes nothing, because there was no such grant to remove:\n' +
-                '      REVOKE USAGE ON SCHEMA public FROM PUBLIC;\n' +
-                `    The schema is owned by ${actual.schemaOwner}, and an owner does not need a\n` +
-                '    USAGE grant, so the API is unaffected. Any least-privilege role added later\n' +
-                '    (the audit account, for one) needs USAGE granted to it explicitly — which\n' +
-                '    `npm run db:grants` already does.'
-              : '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;'),
+            (viaPublic && viaDirect
+              ? '    The ACL above holds BOTH a direct grant and one to PUBLIC, the pseudo-role\n' +
+                '    meaning every role. They are separate grants and revoking either alone\n' +
+                '    leaves USAGE in place, which looks like a revoke that did nothing:\n'
+              : viaPublic
+                ? '    The ACL above shows the USAGE belongs to PUBLIC, the pseudo-role meaning\n' +
+                  '    every role, and there is no grant to anon to remove — so REVOKE ... FROM\n' +
+                  '    anon runs cleanly and changes nothing:\n'
+                : '') +
+            (statements.length > 0
+              ? statements.join('\n')
+              : '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated, PUBLIC;') +
+            `\n    The schema is owned by ${actual.schemaOwner}, and an owner needs no USAGE\n` +
+            '    grant, so the API is unaffected. Any least-privilege role added later (the\n' +
+            '    audit account, for one) is granted USAGE explicitly — which\n' +
+            '    `npm run db:grants` already does.',
         );
       }
     }
