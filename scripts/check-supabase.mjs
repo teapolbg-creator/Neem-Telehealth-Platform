@@ -161,6 +161,35 @@ async function inspect(url) {
       authenticatedReadable: await readableBy(one, 'authenticated'),
 
       /*
+       * Whether `anon` may enter the schema at all.
+       *
+       * This is the control the advice above leans on and the check did not
+       * look at, which is its own kind of wrong: a script that recommends
+       * REVOKE USAGE and then never verifies it is taking the fix on trust.
+       *
+       * It is also the durable half. Table grants can come back — default
+       * privileges hand them out to whatever the next migration creates —
+       * but `USAGE` on an existing schema is not covered by any default, so
+       * once it is revoked it stays revoked. Without it no table grant in the
+       * schema can be exercised, whatever else gets handed out later.
+       *
+       * Note that has_table_privilege above does NOT account for this: it
+       * reads the table's own ACL. The two are genuinely separate facts and
+       * both are worth having.
+       */
+      anonSchemaUsage: await scalar(
+        prisma,
+        "SELECT has_schema_privilege('anon', 'public', 'USAGE') AS v",
+      ),
+      authenticatedSchemaUsage: await scalar(
+        prisma,
+        "SELECT has_schema_privilege('authenticated', 'public', 'USAGE') AS v",
+      ),
+
+      /* Who Prisma connects as, and therefore who creates our tables. */
+      currentRole: await scalar(prisma, 'SELECT current_user AS v'),
+
+      /*
        * PostgREST's own configuration, which Supabase stores on the
        * `authenticator` role rather than in a file. When `public` is absent
        * from `pgrst.db_schemas`, the Data API is not exposing our schema —
@@ -411,6 +440,31 @@ async function main() {
       );
     }
 
+    /*
+     * Checked separately from the table grants because it is a separate fact —
+     * has_table_privilege reads the table's ACL and knows nothing about
+     * whether the role can enter the schema at all.
+     */
+    const usage = actual.anonSchemaUsage || actual.authenticatedSchemaUsage;
+    if (actual.anonSchemaUsage === null) {
+      console.log('  — schema USAGE could not be read.');
+    } else {
+      line(
+        !usage,
+        `schema USAGE on public: anon ${actual.anonSchemaUsage ? 'yes' : 'no'}, ` +
+          `authenticated ${actual.authenticatedSchemaUsage ? 'yes' : 'no'} (expected no and no)`,
+      );
+      if (usage) {
+        problems.push(
+          'anon or authenticated can still enter the `public` schema, so any table grant ' +
+            'handed out later — by a default privilege, or by hand — becomes readable ' +
+            'immediately. This is the durable half of the fix, because no default privilege ' +
+            'can restore USAGE on a schema that already exists:\n' +
+            '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;',
+        );
+      }
+    }
+
     if (actual.restSchemas) {
       const exposesPublic = /(^|=|,\s*)public(\s*,|$)/.test(actual.restSchemas);
       line(
@@ -431,22 +485,39 @@ async function main() {
      * Revoking fixes today. This decides whether tomorrow's migration undoes
      * it again, so it is reported even when the grants are currently clean.
      */
-    const grantors = actual.defaultGrantors;
-    line(!grantors, `default privileges granting anon: ${grantors ? grantors : 'none'}`);
-    if (grantors) {
+    const grantors = actual.defaultGrantors ? actual.defaultGrantors.split(', ') : [];
+    const mine = grantors.filter((role) => role === actual.currentRole);
+    const others = grantors.filter((role) => role !== actual.currentRole);
+
+    line(
+      mine.length === 0,
+      `default privileges granting anon, for ${actual.currentRole ?? 'this role'}: ` +
+        `${mine.length === 0 ? 'none' : mine.join(', ')}`,
+    );
+    if (mine.length > 0) {
       problems.push(
-        `The roles [${grantors}] have standing default privileges that grant anon on new ` +
-          'tables in `public`, so a REVOKE today is undone by the next migration that adds ' +
-          'one. Defaults are recorded per creating role and a statement without FOR ROLE ' +
-          'only changes your own, so clear each of them:\n' +
-          grantors
-            .split(', ')
-            .map(
-              (role) =>
-                `      ALTER DEFAULT PRIVILEGES FOR ROLE ${role} IN SCHEMA public ` +
-                `REVOKE ALL ON TABLES FROM anon, authenticated;`,
-            )
-            .join('\n'),
+        `${actual.currentRole} carries default privileges granting anon on new tables in ` +
+          '`public`. Migrations run as this role, so every table the next migration creates ' +
+          'is granted again. Clear it:\n' +
+          `      ALTER DEFAULT PRIVILEGES FOR ROLE ${actual.currentRole} IN SCHEMA public ` +
+          'REVOKE ALL ON TABLES FROM anon, authenticated;',
+      );
+    }
+
+    /*
+     * Other roles' defaults are reported but do not fail the run, and the
+     * distinction is not cosmetic. A default privilege applies to tables
+     * created BY that role — `supabase_admin` creates Supabase's own objects,
+     * not ours — and altering another role's defaults generally requires
+     * membership in it, which the application role does not have. Failing on
+     * something the operator cannot fix and does not need to teaches them to
+     * ignore the whole check, which costs more than it saves.
+     */
+    if (others.length > 0) {
+      console.log(
+        `  — also set for [${others.join(', ')}], which covers only tables created by those\n` +
+          '    roles, not ours. Altering them needs membership in the role and will likely be\n' +
+          '    refused; that is expected, and schema USAGE above is what holds regardless.',
       );
     }
   }
