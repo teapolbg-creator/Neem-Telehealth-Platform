@@ -172,6 +172,28 @@ async function inspect(url) {
           'FROM pg_db_role_setting st JOIN pg_roles r ON r.oid = st.setrole ' +
           "WHERE r.rolname = 'authenticator'",
       ),
+
+      /*
+       * Which roles have standing instructions to grant `anon` on new tables.
+       *
+       * Revoking fixes the tables that exist. This is what decides whether the
+       * problem comes back: `ALTER DEFAULT PRIVILEGES` is recorded per
+       * creating role, so the next migration's tables are granted again unless
+       * the default is removed for the role that owns it — and a REVOKE run
+       * without `FOR ROLE` only touches the defaults of whoever runs it. The
+       * failure is silent and arrives one migration later, which is the worst
+       * moment to discover it.
+       */
+      defaultGrantors: await scalar(
+        prisma,
+        "SELECT string_agg(DISTINCT r.rolname, ', ') AS v " +
+          'FROM pg_default_acl d ' +
+          'JOIN pg_namespace n ON n.oid = d.defaclnamespace ' +
+          'JOIN pg_roles r ON r.oid = d.defaclrole ' +
+          "WHERE n.nspname = 'public' AND d.defaclobjtype = 'r' " +
+          'AND EXISTS (SELECT 1 FROM unnest(d.defaclacl) a ' +
+          'WHERE a::text ~ \'^"?(anon|authenticated)"?=\')',
+      ),
     };
   } finally {
     await prisma.$disconnect();
@@ -378,10 +400,14 @@ async function main() {
           'today depends entirely on the Data API toggle, which is a switch somebody can flip ' +
           'back — and clinical notes should not be one setting away from public. Revoke the ' +
           'grants as well, in the SQL editor:\n' +
+          '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;\n' +
           '      REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;\n' +
           '      REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;\n' +
-          '      ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\n' +
-          '    The API connects as the postgres role and is unaffected.',
+          '      REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;\n' +
+          '    The first line is the decisive one: without USAGE on the schema, no grant on ' +
+          'any table in it can be exercised. The API connects as postgres and is unaffected, ' +
+          'because Neem uses neither PostgREST nor Supabase Auth — nothing of ours runs as ' +
+          'anon or authenticated.',
       );
     }
 
@@ -399,6 +425,29 @@ async function main() {
       }
     } else {
       console.log('  — PostgREST schema configuration not set on the authenticator role.');
+    }
+
+    /*
+     * Revoking fixes today. This decides whether tomorrow's migration undoes
+     * it again, so it is reported even when the grants are currently clean.
+     */
+    const grantors = actual.defaultGrantors;
+    line(!grantors, `default privileges granting anon: ${grantors ? grantors : 'none'}`);
+    if (grantors) {
+      problems.push(
+        `The roles [${grantors}] have standing default privileges that grant anon on new ` +
+          'tables in `public`, so a REVOKE today is undone by the next migration that adds ' +
+          'one. Defaults are recorded per creating role and a statement without FOR ROLE ' +
+          'only changes your own, so clear each of them:\n' +
+          grantors
+            .split(', ')
+            .map(
+              (role) =>
+                `      ALTER DEFAULT PRIVILEGES FOR ROLE ${role} IN SCHEMA public ` +
+                `REVOKE ALL ON TABLES FROM anon, authenticated;`,
+            )
+            .join('\n'),
+      );
     }
   }
 
