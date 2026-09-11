@@ -38,8 +38,16 @@ services:
     # bundle. `db:generate` is explicit because this repository has no
     # postinstall hook: without it the build succeeds and the server dies on
     # its first query.
+    #
+    # `--include=dev` is load bearing, not belt and braces. NODE_ENV is
+    # `production` below, and npm reads that as `--omit=dev`: a plain `npm ci`
+    # here installs no devDependencies at all. The three tools this build runs
+    # on — `typescript` (the contracts check), `prisma` (the client, and the
+    # `migrate deploy` in preDeployCommand) and `esbuild` (the bundle) — are
+    # all devDependencies, so the build fails on its first step with a missing
+    # binary rather than anything that names the cause.
     buildCommand: >-
-      npm ci &&
+      npm ci --include=dev &&
       npm run build --workspace @neem/contracts &&
       npm run db:generate --workspace @neem/api &&
       npm run build --workspace @neem/api
