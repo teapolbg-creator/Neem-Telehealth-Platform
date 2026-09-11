@@ -3,9 +3,10 @@
  *
  *   node scripts/check-supabase.mjs
  *
- * Reads DIRECT_DATABASE_URL (or DATABASE_URL), and optionally SUPABASE_URL and
- * SUPABASE_ANON_KEY, from the environment. It never prints a connection string
- * or a key — only the host, which is not the secret part.
+ * Reads DIRECT_DATABASE_URL (or DATABASE_URL) and SUPABASE_ANON_KEY from the
+ * environment. SUPABASE_URL is worked out from the connection string and only
+ * needs setting if that fails. It never prints a connection string or a key —
+ * only the host, which is not the secret part.
  *
  * Two questions, and the second is the one that is easy to skip:
  *
@@ -27,6 +28,10 @@
  * means the API answered and RLS filtered the rows: PostgREST is still live,
  * and one table gaining a permissive policy later is enough. This wants the
  * request refused, not answered politely.
+ *
+ * And a rejected key (401/403) is neither answer. It says the request was
+ * turned away at the door, which tells you nothing about what is behind the
+ * door — so it is reported as inconclusive and the check does not pass.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -89,13 +94,50 @@ async function inspect(url) {
   }
 }
 
-/** Asks PostgREST for a clinical table, as an anonymous caller would. */
+/**
+ * The project reference, dug out of the connection string.
+ *
+ * Supabase puts it in two places this script already has: the pooler user is
+ * `postgres.<ref>`, and the direct host is `db.<ref>.supabase.co`. The project
+ * URL is `https://<ref>.supabase.co`, so there is nothing to look up — which
+ * matters because the dashboard page that displays it is the same page you go
+ * to in order to switch the Data API off, and it is not obvious afterwards.
+ */
+export function projectRef(connectionString) {
+  const url = new URL(connectionString);
+
+  const direct = /^db\.([a-z0-9]+)\.supabase\.(co|com)$/.exec(url.hostname);
+  if (direct) return direct[1];
+
+  const pooled = /^postgres\.([a-z0-9]+)$/.exec(decodeURIComponent(url.username));
+  if (pooled) return pooled[1];
+
+  return null;
+}
+
+/**
+ * Asks PostgREST for a clinical table, as an anonymous caller would.
+ *
+ * The verdict is three-valued, and the missing third value was a bug: this
+ * originally read "not 200" as success, so an anon key that was wrong, stale,
+ * or pasted with a newline produced 401 and the check reported the Data API
+ * safely off. That is a false pass on the one question here that actually
+ * guards patient data, and it fails in the direction that lets a live API
+ * through. A rejected key proves nothing about what an accepted key could
+ * read, so it is reported as inconclusive rather than as either answer.
+ */
 async function probeDataApi(supabaseUrl, anonKey) {
   const target = new URL('/rest/v1/consultation_clinical_notes?select=*&limit=1', supabaseUrl);
   const response = await fetch(target, {
     headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
   });
-  return { status: response.status, body: (await response.text()).slice(0, 200) };
+  const body = (await response.text()).slice(0, 200);
+
+  if (response.status === 200) return { verdict: 'exposed', status: response.status, body };
+  if (response.status === 401 || response.status === 403) {
+    return { verdict: 'inconclusive', status: response.status, body };
+  }
+  return { verdict: 'refused', status: response.status, body };
 }
 
 async function main() {
@@ -179,20 +221,37 @@ async function main() {
 
   console.log('');
 
-  const supabaseUrl = process.env.SUPABASE_URL;
+  const ref = projectRef(url);
+  const supabaseUrl = process.env.SUPABASE_URL || (ref ? `https://${ref}.supabase.co` : null);
   const anonKey = process.env.SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !anonKey) {
+  if (!supabaseUrl) {
     console.log(
-      '  — Data API not checked. Set SUPABASE_URL and SUPABASE_ANON_KEY to test it.\n' +
+      '  — Data API not checked: no SUPABASE_URL, and the project reference could not\n' +
+        '    be read out of the connection string. Set SUPABASE_URL to test it.',
+    );
+  } else if (!anonKey) {
+    console.log(
+      `  — Data API not checked at ${supabaseUrl}: no SUPABASE_ANON_KEY.\n` +
         '    Unchecked is not the same as safe: PostgREST exposes tables in `public`,\n' +
         '    and these tables have no RLS.',
     );
   } else {
-    const { status, body } = await probeDataApi(supabaseUrl, anonKey);
-    const refused = status !== 200;
-    line(refused, `Data API probe on consultation_clinical_notes: HTTP ${status}`);
-    if (!refused) {
+    const { verdict, status, body } = await probeDataApi(supabaseUrl, anonKey);
+
+    if (verdict === 'refused') {
+      line(true, `Data API probe on consultation_clinical_notes: HTTP ${status}, refused`);
+    } else if (verdict === 'inconclusive') {
+      line(false, `Data API probe on consultation_clinical_notes: HTTP ${status}`);
+      console.log(`    body: ${body}`);
+      problems.push(
+        `The anon key was rejected (HTTP ${status}), so this proves nothing either way — ` +
+          'a key that cannot read anything is not the same as an API that is switched off. ' +
+          'Check the key (Project Settings → API Keys; a trailing newline is enough to do ' +
+          'this) and run again until the probe returns 404.',
+      );
+    } else {
+      line(false, `Data API probe on consultation_clinical_notes: HTTP ${status}`);
       console.log(`    body: ${body}`);
       problems.push(
         'The Data API answered with 200. Clinical tables are reachable with the anon key, ' +
