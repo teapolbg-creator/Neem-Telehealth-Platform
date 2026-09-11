@@ -29,9 +29,12 @@
  * and one table gaining a permissive policy later is enough. This wants the
  * request refused, not answered politely.
  *
- * And a rejected key (401/403) is neither answer. It says the request was
- * turned away at the door, which tells you nothing about what is behind the
- * door — so it is reported as inconclusive and the check does not pass.
+ * Only a refusal passes, and only an unambiguous one. A rejected key, a 5xx,
+ * anything that merely failed — none of them say the Data API is off, they say
+ * this request did not work, and the difference is the whole point of asking.
+ * Everything short of a clear "nothing is served here" is reported as unknown
+ * and fails the run, because on this question a wrong pass is worse than a
+ * wrong failure.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -116,28 +119,71 @@ export function projectRef(connectionString) {
 }
 
 /**
- * Asks PostgREST for a clinical table, as an anonymous caller would.
+ * Whether a key is worth sending at all.
  *
- * The verdict is three-valued, and the missing third value was a bug: this
- * originally read "not 200" as success, so an anon key that was wrong, stale,
- * or pasted with a newline produced 401 and the check reported the Data API
- * safely off. That is a false pass on the one question here that actually
- * guards patient data, and it fails in the direction that lets a live API
- * through. A rejected key proves nothing about what an accepted key could
- * read, so it is reported as inconclusive rather than as either answer.
+ * Written after a run that passed while SUPABASE_ANON_KEY held the literal
+ * text `<anon or publishable key>`, copied straight out of an instruction. The
+ * request went out, came back an error, and the error was read as good news.
+ * A key that is obviously not a key should stop the check, not feed it.
  */
-async function probeDataApi(supabaseUrl, anonKey) {
-  const target = new URL('/rest/v1/consultation_clinical_notes?select=*&limit=1', supabaseUrl);
-  const response = await fetch(target, {
-    headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
-  });
-  const body = (await response.text()).slice(0, 200);
+export function keyLooksReal(key) {
+  if (!key) return { ok: false, why: 'it is not set' };
+  if (/[<>]/.test(key))
+    return { ok: false, why: 'it still contains < >, so it is placeholder text' };
+  if (/\s/.test(key))
+    return { ok: false, why: 'it contains whitespace — probably a stray newline' };
+  if (key.length < 20) return { ok: false, why: `it is only ${key.length} characters` };
+  return { ok: true };
+}
 
-  if (response.status === 200) return { verdict: 'exposed', status: response.status, body };
-  if (response.status === 401 || response.status === 403) {
-    return { verdict: 'inconclusive', status: response.status, body };
+async function request(target, key) {
+  const response = await fetch(target, {
+    headers: { apikey: key, authorization: `Bearer ${key}` },
+  });
+  return { status: response.status, body: (await response.text()).slice(0, 200) };
+}
+
+/**
+ * Asks PostgREST for a clinical table, as an anonymous caller would, and asks
+ * its root as well.
+ *
+ * The root probe is the control, and it is here because the first version had
+ * no way to tell "the Data API is off" from "this request failed". It read any
+ * non-200 as proof of safety, then reported a tick for an HTTP 503 produced by
+ * a placeholder key — a false pass on the one check standing between an anon
+ * key and `consultation_clinical_notes`.
+ *
+ * `/rest/v1/` answers 200 with the OpenAPI description when PostgREST is
+ * serving this project. So:
+ *
+ *   * the table answers 200         -> exposed, and that is the bad one
+ *   * the root answers 200          -> the Data API is live; this table is not
+ *                                      exposed, but the API is, and the next
+ *                                      table might be
+ *   * 401 or 403                    -> the key was refused, which says nothing
+ *                                      about what a good key would see
+ *   * 404 everywhere                -> nothing is being served. Off.
+ *   * anything else, 5xx especially -> unknown. A 503 is as likely to be a bad
+ *                                      minute as a disabled API, and the two
+ *                                      must not share an answer.
+ */
+export async function probeDataApi(supabaseUrl, anonKey) {
+  const table = await request(
+    new URL('/rest/v1/consultation_clinical_notes?select=*&limit=1', supabaseUrl),
+    anonKey,
+  );
+  const root = await request(new URL('/rest/v1/', supabaseUrl), anonKey);
+  const seen = `table HTTP ${table.status}, root HTTP ${root.status}`;
+
+  if (table.status === 200) return { verdict: 'exposed', seen, body: table.body };
+  if (root.status === 200) return { verdict: 'live', seen, body: root.body };
+  if ([401, 403].includes(table.status) || [401, 403].includes(root.status)) {
+    return { verdict: 'key-rejected', seen, body: table.body };
   }
-  return { verdict: 'refused', status: response.status, body };
+  if (table.status === 404 && root.status === 404) {
+    return { verdict: 'refused', seen, body: table.body };
+  }
+  return { verdict: 'unclear', seen, body: table.body };
 }
 
 async function main() {
@@ -230,34 +276,51 @@ async function main() {
       '  — Data API not checked: no SUPABASE_URL, and the project reference could not\n' +
         '    be read out of the connection string. Set SUPABASE_URL to test it.',
     );
-  } else if (!anonKey) {
-    console.log(
-      `  — Data API not checked at ${supabaseUrl}: no SUPABASE_ANON_KEY.\n` +
-        '    Unchecked is not the same as safe: PostgREST exposes tables in `public`,\n' +
-        '    and these tables have no RLS.',
+  } else if (!keyLooksReal(anonKey).ok) {
+    line(false, `Data API not checked: SUPABASE_ANON_KEY ${keyLooksReal(anonKey).why}.`);
+    problems.push(
+      `SUPABASE_ANON_KEY ${keyLooksReal(anonKey).why}, so the Data API was not tested. ` +
+        'Unchecked is not the same as safe: PostgREST exposes tables in `public`, and ' +
+        'these tables have no RLS. Take the key from Project Settings → API Keys.',
     );
   } else {
-    const { verdict, status, body } = await probeDataApi(supabaseUrl, anonKey);
+    const { verdict, seen, body } = await probeDataApi(supabaseUrl, anonKey);
+    const TURN_OFF =
+      'Turn it off: Project Settings → API → Data API, and remove `public` from the ' +
+      'exposed schemas.';
 
     if (verdict === 'refused') {
-      line(true, `Data API probe on consultation_clinical_notes: HTTP ${status}, refused`);
-    } else if (verdict === 'inconclusive') {
-      line(false, `Data API probe on consultation_clinical_notes: HTTP ${status}`);
+      line(true, `Data API: not serving this project (${seen})`);
+    } else if (verdict === 'exposed') {
+      line(false, `Data API: consultation_clinical_notes is readable (${seen})`);
       console.log(`    body: ${body}`);
       problems.push(
-        `The anon key was rejected (HTTP ${status}), so this proves nothing either way — ` +
-          'a key that cannot read anything is not the same as an API that is switched off. ' +
-          'Check the key (Project Settings → API Keys; a trailing newline is enough to do ' +
-          'this) and run again until the probe returns 404.',
+        'The Data API returned 200 for a clinical table. It is reachable with the anon ' +
+          'key, outside every check the API performs. An empty array is not safety — it ' +
+          `means PostgREST is live and RLS filtered the rows. ${TURN_OFF}`,
+      );
+    } else if (verdict === 'live') {
+      line(false, `Data API: live, though this table is not exposed (${seen})`);
+      problems.push(
+        'PostgREST answered its root, so the Data API is switched on. This one table is ' +
+          'not exposed, but the API is, and nothing stops the next table from being ' +
+          `reachable. ${TURN_OFF}`,
+      );
+    } else if (verdict === 'key-rejected') {
+      line(false, `Data API: the key was refused, so nothing was established (${seen})`);
+      console.log(`    body: ${body}`);
+      problems.push(
+        'The anon key was rejected, which says nothing about what a good key would see. ' +
+          'Check it in Project Settings → API Keys and run again.',
       );
     } else {
-      line(false, `Data API probe on consultation_clinical_notes: HTTP ${status}`);
+      line(false, `Data API: no clear answer (${seen})`);
       console.log(`    body: ${body}`);
       problems.push(
-        'The Data API answered with 200. Clinical tables are reachable with the anon key, ' +
-          'outside every check the API performs. An empty array is not safety — it means ' +
-          'PostgREST is live and RLS filtered the rows. Turn it off: Project Settings → ' +
-          'API → Data API, and remove `public` from the exposed schemas.',
+        `The Data API answered ${seen}, which does not settle the question. A 5xx is as ` +
+          'likely to be a bad minute as a disabled API, and treating the two alike is how ' +
+          'a live API gets a tick. Run it again in a few minutes; if it stays, confirm in ' +
+          'the dashboard that the Data API is off rather than assuming it from this.',
       );
     }
   }
