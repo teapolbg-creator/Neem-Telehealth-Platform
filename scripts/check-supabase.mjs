@@ -375,6 +375,36 @@ async function main() {
     process.exit(1);
   }
 
+  /*
+   * Refuse to check the wrong database.
+   *
+   * The connection string lives in a shell variable for one window, on purpose
+   * — it must not linger where `npm run dev` would pick it up. The cost is
+   * that closing the window silently falls back to the `.env` development
+   * database, and this script then ran happily against localhost and reported
+   * "32 user accounts already exist" as though something had gone wrong in
+   * production. Every word of that was true about a database nobody was asking
+   * about. The one line that said so — "not a Supabase database" — was three
+   * lines above the loud failure and read as a note.
+   *
+   * A check named for Supabase should say when it is not looking at Supabase,
+   * and say it instead of the findings rather than beside them.
+   */
+  const looksLikeSupabase =
+    projectRef(url) !== null || /\.supabase\.(co|com)$/.test(new URL(url).hostname);
+
+  if (!looksLikeSupabase && !process.argv.includes('--any-database')) {
+    console.error(`This is not a Supabase database — it is ${new URL(url).host}.\n`);
+    console.error(
+      '  DIRECT_DATABASE_URL is probably unset in this shell, so the development\n' +
+        '  database in .env was used instead. That happens whenever the window holding\n' +
+        '  it is closed, which is the point of keeping it there. Set it again:\n\n' +
+        '      $env:DIRECT_DATABASE_URL = "postgresql://...pooler.supabase.com:5432/postgres?sslmode=require"\n\n' +
+        '  Checking a local database on purpose is fine — pass --any-database.',
+    );
+    process.exit(1);
+  }
+
   const expected = await expectedCounts();
   console.log(`Database: ${new URL(url).host}\n`); // host:port only, no credentials
 
