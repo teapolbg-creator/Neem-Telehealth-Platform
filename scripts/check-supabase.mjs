@@ -110,6 +110,23 @@ export async function readableBy(one, role) {
   }
 }
 
+/**
+ * Whether a schema ACL grants USAGE to PUBLIC.
+ *
+ * An aclitem with an empty grantee — `=U/postgres` rather than `anon=U/postgres`
+ * — is the grant to PUBLIC, so the test is an entry whose text begins with `=`.
+ * This is the difference between a REVOKE that works and one that runs cleanly
+ * and changes nothing.
+ */
+export function grantedToPublic(acl) {
+  if (!acl || !acl.startsWith('{')) return false;
+
+  return acl
+    .slice(1, -1)
+    .split(',')
+    .some((entry) => entry.trim().startsWith('=') && entry.includes('U'));
+}
+
 async function inspect(url) {
   const { PrismaClient } = await import('@prisma/client');
   const prisma = new PrismaClient({ datasources: { db: { url } } });
@@ -188,6 +205,27 @@ async function inspect(url) {
 
       /* Who Prisma connects as, and therefore who creates our tables. */
       currentRole: await scalar(prisma, 'SELECT current_user AS v'),
+
+      /*
+       * The schema's own ACL, so a USAGE that will not go away can be
+       * explained instead of guessed at.
+       *
+       * `REVOKE USAGE ON SCHEMA public FROM anon` removes a grant made TO
+       * anon. It does nothing about the one PostgreSQL makes to `PUBLIC` — the
+       * pseudo-role meaning every role — which is how `public` is set up by
+       * default and which `has_schema_privilege` reports as a yes for anon all
+       * the same. The revoke then appears to run cleanly and change nothing,
+       * which is a confusing half hour unless the ACL is on the screen.
+       */
+      schemaAcl: await scalar(
+        prisma,
+        "SELECT coalesce(nspacl::text, '(default, no explicit ACL)') AS v " +
+          "FROM pg_namespace WHERE nspname = 'public'",
+      ),
+      schemaOwner: await scalar(
+        prisma,
+        "SELECT pg_get_userbyid(nspowner) AS v FROM pg_namespace WHERE nspname = 'public'",
+      ),
 
       /*
        * PostgREST's own configuration, which Supabase stores on the
@@ -455,12 +493,23 @@ async function main() {
           `authenticated ${actual.authenticatedSchemaUsage ? 'yes' : 'no'} (expected no and no)`,
       );
       if (usage) {
+        console.log(`    schema ACL: ${actual.schemaAcl} (owner ${actual.schemaOwner})`);
+
+        const viaPublic = grantedToPublic(actual.schemaAcl);
         problems.push(
           'anon or authenticated can still enter the `public` schema, so any table grant ' +
             'handed out later — by a default privilege, or by hand — becomes readable ' +
-            'immediately. This is the durable half of the fix, because no default privilege ' +
-            'can restore USAGE on a schema that already exists:\n' +
-            '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;',
+            'immediately.\n' +
+            (viaPublic
+              ? '    The ACL above shows the USAGE comes from PUBLIC, the pseudo-role meaning\n' +
+                '    every role, not from a grant to anon. So REVOKE ... FROM anon runs cleanly\n' +
+                '    and changes nothing, because there was no such grant to remove:\n' +
+                '      REVOKE USAGE ON SCHEMA public FROM PUBLIC;\n' +
+                `    The schema is owned by ${actual.schemaOwner}, and an owner does not need a\n` +
+                '    USAGE grant, so the API is unaffected. Any least-privilege role added later\n' +
+                '    (the audit account, for one) needs USAGE granted to it explicitly — which\n' +
+                '    `npm run db:grants` already does.'
+              : '      REVOKE USAGE ON SCHEMA public FROM anon, authenticated;'),
         );
       }
     }
