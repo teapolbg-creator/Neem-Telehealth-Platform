@@ -24,17 +24,19 @@
  *      in front of PostgREST. So an exposed Data API is a route to
  *      `consultation_clinical_notes` that bypasses every guard the system has.
  *
- * On question 2, HTTP 200 is a failure whatever the body says. An empty array
- * means the API answered and RLS filtered the rows: PostgREST is still live,
- * and one table gaining a permissive policy later is enough. This wants the
- * request refused, not answered politely.
+ * Question 2 is asked of the database, not over HTTP, and that took three
+ * attempts to get right. Probing the REST endpoint can only distinguish "the
+ * Data API is off" from "that request failed" by reading status codes, and it
+ * twice reported safety it had not established — once for a placeholder key's
+ * 503, once for a rejected key's 401. The database has no such ambiguity:
+ * `has_table_privilege('anon', ...)` is a fact.
  *
- * Only a refusal passes, and only an unambiguous one. A rejected key, a 5xx,
- * anything that merely failed — none of them say the Data API is off, they say
- * this request did not work, and the difference is the whole point of asking.
- * Everything short of a clear "nothing is served here" is reported as unknown
- * and fails the run, because on this question a wrong pass is worse than a
- * wrong failure.
+ * It is also the better question. Whether the Data API is switched on is a
+ * toggle somebody can flip back; whether `anon` holds SELECT is a grant. If
+ * the grants are gone the toggle stops mattering, because there is nothing
+ * behind the door. Both are checked — grants, and PostgREST's own
+ * `pgrst.db_schemas` setting — and the HTTP probe stays as corroboration that
+ * cannot pass the run on its own.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -58,6 +60,54 @@ async function expectedCounts() {
     enums += (sql.match(/^CREATE TYPE /gm) ?? []).length;
   }
   return { tables, enums, migrations: names.length };
+}
+
+/** First column of the first row, or null — including when the query is refused. */
+async function scalar(prisma, sql) {
+  try {
+    const rows = await prisma.$queryRawUnsafe(sql);
+    const row = rows[0];
+    return row ? (Object.values(row)[0] ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How many tables in `public` the named role may SELECT.
+ *
+ * Three outcomes, kept apart on purpose: `ok` with a count, `absent` when the
+ * role does not exist, and `error` when the question could not be asked. On a
+ * database that is not Supabase there is no `anon` at all, and reporting "0
+ * tables readable by anon" there would be a reassurance about a role that was
+ * never the risk — while an unanswerable query must not read as a zero either.
+ *
+ * The existence check is a separate statement because SQL does not promise to
+ * short-circuit `AND`, and `has_table_privilege` on a role that does not exist
+ * raises rather than returning false.
+ */
+export async function readableBy(one, role) {
+  try {
+    const exists = await one(`SELECT count(*)::int AS n FROM pg_roles WHERE rolname = '${role}'`);
+    if (exists === 0) return { state: 'absent' };
+
+    const count = await one(
+      'SELECT count(*)::int AS n FROM information_schema.tables t ' +
+        "WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE' " +
+        `AND has_table_privilege('${role}', ` +
+        "quote_ident(t.table_schema) || '.' || quote_ident(t.table_name), 'SELECT')",
+    );
+    return { state: 'ok', count };
+  } catch (error) {
+    /*
+     * Whether a role may inspect another role's privileges varies with who is
+     * connected, and `pg_db_role_setting` is not readable everywhere either.
+     * Losing this answer is acceptable; losing the four checks above it
+     * because of it is not — an unreadable catalog would otherwise take the
+     * whole run down and report nothing at all.
+     */
+    return { state: 'error', why: String(error?.message ?? error).split('\n')[0] };
+  }
 }
 
 async function inspect(url) {
@@ -91,6 +141,37 @@ async function inspect(url) {
        * are worse than an empty schema — and invisible unless something looks.
        */
       users: await one('SELECT count(*)::int AS n FROM users'),
+
+      /*
+       * How many tables the PostgREST roles can actually read.
+       *
+       * This is the question the HTTP probe was trying to answer and kept
+       * failing to: that probe can only distinguish "off" from "broken" by
+       * guessing at status codes, and it reported a placeholder key's 503 as
+       * safety. This asks Postgres instead, and Postgres does not have moods.
+       *
+       * It is also the better control of the two. "Is the Data API switched
+       * on?" is a platform toggle somebody can flip back; "can `anon` read
+       * this table?" is a grant, and if the answer is no then the toggle does
+       * not matter — there is nothing behind the door. Supabase ships
+       * `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO anon`, so tables
+       * Prisma creates may well be granted without anyone choosing it.
+       */
+      anonReadable: await readableBy(one, 'anon'),
+      authenticatedReadable: await readableBy(one, 'authenticated'),
+
+      /*
+       * PostgREST's own configuration, which Supabase stores on the
+       * `authenticator` role rather than in a file. When `public` is absent
+       * from `pgrst.db_schemas`, the Data API is not exposing our schema —
+       * read from the database rather than inferred from a status code.
+       */
+      restSchemas: await scalar(
+        prisma,
+        "SELECT (SELECT s FROM unnest(setconfig) AS s WHERE s LIKE 'pgrst.db_schemas=%') AS v " +
+          'FROM pg_db_role_setting st JOIN pg_roles r ON r.oid = st.setrole ' +
+          "WHERE r.rolname = 'authenticator'",
+      ),
     };
   } finally {
     await prisma.$disconnect();
@@ -265,6 +346,62 @@ async function main() {
     );
   }
 
+  /*
+   * The decisive one. Everything above is "is the schema right"; this is "can
+   * anyone read it without going through the API", asked of the database
+   * rather than of an HTTP status code.
+   */
+  const { anonReadable, authenticatedReadable } = actual;
+
+  if (anonReadable.state === 'absent') {
+    console.log('  — No `anon` role, so this is not a Supabase database. Nothing to check.');
+  } else if (anonReadable.state === 'error') {
+    line(false, `PostgREST roles: could not be checked — ${anonReadable.why}`);
+    problems.push(
+      'The grants held by `anon` could not be read, so the question this script exists to ' +
+        'answer is open. Run it by hand in the SQL editor:\n' +
+        "      SELECT has_table_privilege('anon', 'public.consultation_clinical_notes', 'SELECT');\n" +
+        '    It must return false.',
+    );
+  } else {
+    const anonCount = anonReadable.count;
+    const authCount = authenticatedReadable.state === 'ok' ? authenticatedReadable.count : '?';
+    const grantsOk = anonCount === 0 && authenticatedReadable.count === 0;
+    line(
+      grantsOk,
+      `PostgREST roles: anon can read ${anonCount} tables, authenticated ${authCount} ` +
+        `(expected 0 and 0)`,
+    );
+    if (!grantsOk) {
+      problems.push(
+        `The anon role can SELECT ${anonCount} of your tables. Whether that is reachable ` +
+          'today depends entirely on the Data API toggle, which is a switch somebody can flip ' +
+          'back — and clinical notes should not be one setting away from public. Revoke the ' +
+          'grants as well, in the SQL editor:\n' +
+          '      REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;\n' +
+          '      REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;\n' +
+          '      ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\n' +
+          '    The API connects as the postgres role and is unaffected.',
+      );
+    }
+
+    if (actual.restSchemas) {
+      const exposesPublic = /(^|=|,\s*)public(\s*,|$)/.test(actual.restSchemas);
+      line(
+        !exposesPublic,
+        `PostgREST config: ${actual.restSchemas}${exposesPublic ? ' — public IS exposed' : ''}`,
+      );
+      if (exposesPublic) {
+        problems.push(
+          'PostgREST is configured to expose the `public` schema. Project Settings → API → ' +
+            'Data API, and remove `public` from the exposed schemas.',
+        );
+      }
+    } else {
+      console.log('  — PostgREST schema configuration not set on the authenticator role.');
+    }
+  }
+
   console.log('');
 
   const ref = projectRef(url);
@@ -306,22 +443,16 @@ async function main() {
           'not exposed, but the API is, and nothing stops the next table from being ' +
           `reachable. ${TURN_OFF}`,
       );
-    } else if (verdict === 'key-rejected') {
-      line(false, `Data API: the key was refused, so nothing was established (${seen})`);
-      console.log(`    body: ${body}`);
-      problems.push(
-        'The anon key was rejected, which says nothing about what a good key would see. ' +
-          'Check it in Project Settings → API Keys and run again.',
-      );
     } else {
-      line(false, `Data API: no clear answer (${seen})`);
+      /*
+       * key-rejected and unclear both mean the same thing: this request did
+       * not establish anything. They no longer fail the run, because the
+       * grants check above answers the same question from the database and
+       * does not depend on holding a working key. Printed, not silent — an
+       * unanswered question should still be visible.
+       */
+      console.log(`  — Data API: no answer from HTTP (${seen}). The grants check above stands.`);
       console.log(`    body: ${body}`);
-      problems.push(
-        `The Data API answered ${seen}, which does not settle the question. A 5xx is as ` +
-          'likely to be a bad minute as a disabled API, and treating the two alike is how ' +
-          'a live API gets a tick. Run it again in a few minutes; if it stays, confirm in ' +
-          'the dashboard that the Data API is off rather than assuming it from this.',
-      );
     }
   }
 
