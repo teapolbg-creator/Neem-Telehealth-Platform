@@ -35,8 +35,10 @@
  * toggle somebody can flip back; whether `anon` holds SELECT is a grant. If
  * the grants are gone the toggle stops mattering, because there is nothing
  * behind the door. Both are checked — grants, and PostgREST's own
- * `pgrst.db_schemas` setting — and the HTTP probe stays as corroboration that
- * cannot pass the run on its own.
+ * `pgrst.db_schemas` setting — and the HTTP probe stays as corroboration. It
+ * can neither pass the run nor fail it: with the grants gone there is nothing
+ * for PostgREST to serve, so whether it is listening stops being a security
+ * question. Only an actual 200 from it is a finding.
  */
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -307,12 +309,11 @@ export function projectRef(connectionString) {
  * A key that is obviously not a key should stop the check, not feed it.
  */
 export function keyLooksReal(key) {
-  if (!key) return { ok: false, why: 'it is not set' };
-  if (/[<>]/.test(key))
-    return { ok: false, why: 'it still contains < >, so it is placeholder text' };
-  if (/\s/.test(key))
-    return { ok: false, why: 'it contains whitespace — probably a stray newline' };
-  if (key.length < 20) return { ok: false, why: `it is only ${key.length} characters` };
+  // Phrased to follow the variable's name: "SUPABASE_ANON_KEY is not set".
+  if (!key) return { ok: false, why: 'is not set' };
+  if (/[<>]/.test(key)) return { ok: false, why: 'still contains < >, so it is placeholder text' };
+  if (/\s/.test(key)) return { ok: false, why: 'contains whitespace — probably a stray newline' };
+  if (key.length < 20) return { ok: false, why: `is only ${key.length} characters` };
   return { ok: true };
 }
 
@@ -641,12 +642,22 @@ async function main() {
         '    be read out of the connection string. Set SUPABASE_URL to test it.',
     );
   } else if (!keyLooksReal(anonKey).ok) {
-    line(false, `Data API not checked: SUPABASE_ANON_KEY ${keyLooksReal(anonKey).why}.`);
-    problems.push(
-      `SUPABASE_ANON_KEY ${keyLooksReal(anonKey).why}, so the Data API was not tested. ` +
-        'Unchecked is not the same as safe: PostgREST exposes tables in `public`, and ' +
-        'these tables have no RLS. Take the key from Project Settings → API Keys.',
+    /*
+     * A note, not a failure, and the difference is the whole argument of this
+     * script. When the grants above pass, `anon` can reach nothing: no table
+     * privilege, no USAGE on the schema. Whether PostgREST is listening stops
+     * being a security question at that point, because there is nothing behind
+     * it to serve.
+     *
+     * It failed the run once, which was incoherent — the advice that came with
+     * it was to leave the key unset, since the check that settles the matter
+     * does not use one. A check that fails for the thing it told you to do
+     * teaches people to ignore its output.
+     */
+    console.log(
+      `  — Data API not probed over HTTP: SUPABASE_ANON_KEY ${keyLooksReal(anonKey).why}.`,
     );
+    console.log('    Optional corroboration; the grants above are what settle it.');
   } else {
     const { verdict, seen, body } = await probeDataApi(supabaseUrl, anonKey);
     const TURN_OFF =
