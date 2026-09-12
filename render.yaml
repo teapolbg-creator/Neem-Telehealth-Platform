@@ -30,7 +30,13 @@ services:
   - type: web
     name: neem-api
     runtime: node
-    plan: starter # Always-on. The free plan sleeps, which would stop the job sweeps.
+    # Always-on. The `free` plan sleeps, which would stop the job sweeps.
+    #
+    # `0.5c-512mb` rather than `starter`: Render's Blueprint spec now names
+    # plans by their resources, and the old tier names are no longer accepted —
+    # which is what "a Blueprint file was found, but there was an issue" meant.
+    # Same machine either way, 0.5 CPU and 512 MB, which is what Starter was.
+    plan: 0.5c-512mb
     region: frankfurt # Must match the Supabase project's region — see the note below.
     branch: main
 
