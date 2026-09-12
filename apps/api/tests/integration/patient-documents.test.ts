@@ -18,7 +18,7 @@ import {
 import { encryptField, generatePublicId, hashToken } from '../../src/lib/crypto.ts';
 
 /**
- * The patient receiving their own documents.
+ * The documents reaching the people entitled to them.
  *
  * Until these routes existed, a consultation could issue a prescription, a
  * referral and a summary, render all three to PDF, store them — and offer the
@@ -54,6 +54,7 @@ interface Scenario {
   pharmacyId: string;
   pharmacyName: string;
   pharmacyUserEmail: string;
+  doctorEmail: string;
   /** A draft the doctor started and never issued. Live scenarios only. */
   draftPublicId: string | null;
   patientCookies: Record<string, string>;
@@ -155,6 +156,7 @@ async function buildScenario(options: { complete?: boolean } = {}): Promise<Scen
       pharmacyId: pharmacy.id,
       pharmacyName,
       pharmacyUserEmail: pharmacyUser.email,
+      doctorEmail: doctorUser.email,
       draftPublicId: outstanding.publicId,
       patientCookies: { neem_patient: sessionToken },
     };
@@ -188,6 +190,7 @@ async function buildScenario(options: { complete?: boolean } = {}): Promise<Scen
     pharmacyId: pharmacy.id,
     pharmacyName,
     pharmacyUserEmail: pharmacyUser.email,
+    doctorEmail: doctorUser.email,
     draftPublicId: null,
     patientCookies: { neem_patient: sessionToken },
   };
@@ -398,5 +401,131 @@ describe('what the status beside a document says', () => {
     // The reason is free text a doctor wrote and can carry clinical detail.
     // It must not surface on a screen held up at a counter (spec §60).
     expect(prescription.status.detail).not.toContain('medication');
+  });
+});
+
+/**
+ * The staff side of the same documents.
+ *
+ * Referrals and summaries had no download route for anybody: a doctor could
+ * refer a patient to Korle Bu and then neither they nor the pharmacy could
+ * open the document afterwards. Only prescriptions had one, which is why the
+ * three now share a handler — the permission rule is identical, and writing it
+ * once is the only way to be sure the newer two are not quietly laxer than the
+ * one that was reviewed.
+ */
+describe('staff reading a document', () => {
+  const staffPath: Record<string, string> = {
+    prescription: 'prescriptions',
+    referral: 'referrals',
+    summary: 'summaries',
+  };
+
+  async function documentsOf(scenario: Scenario) {
+    return (await listDocuments(scenario.patientCookies)).body.data!.documents;
+  }
+
+  it('serves all three kinds to the issuing doctor', async () => {
+    const scenario = await buildScenario();
+    const cookies = await signIn(scenario.doctorEmail, DOCTOR_PASSWORD);
+
+    for (const document of await documentsOf(scenario)) {
+      const response = await request(
+        `/documents/${staffPath[document.kind]}/${document.publicId}.pdf`,
+        { cookies },
+      );
+
+      expect(response.status, document.kind).toBe(200);
+      expect(response.raw.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+    }
+  });
+
+  it('serves all three kinds to the consultation’s pharmacy', async () => {
+    const scenario = await buildScenario();
+    const cookies = await signIn(scenario.pharmacyUserEmail, PHARMACY_PASSWORD);
+
+    for (const document of await documentsOf(scenario)) {
+      const response = await request(
+        `/documents/${staffPath[document.kind]}/${document.publicId}.pdf`,
+        { cookies },
+      );
+
+      expect(response.status, document.kind).toBe(200);
+    }
+  });
+
+  /**
+   * The reason the three share one handler.
+   *
+   * A second doctor and a second pharmacy, entirely unrelated, asking for the
+   * first consultation's documents by ids that are real. 404 rather than 403
+   * throughout: whether somebody else's referral exists is not something to be
+   * learned from the shape of a refusal (spec §102).
+   */
+  it('refuses every kind to an unrelated doctor and an unrelated pharmacy', async () => {
+    const alpha = await buildScenario();
+    const beta = await buildScenario();
+
+    const intruders = [
+      await signIn(beta.doctorEmail, DOCTOR_PASSWORD),
+      await signIn(beta.pharmacyUserEmail, PHARMACY_PASSWORD),
+    ];
+
+    for (const document of await documentsOf(alpha)) {
+      for (const cookies of intruders) {
+        const response = await request(
+          `/documents/${staffPath[document.kind]}/${document.publicId}.pdf`,
+          { cookies },
+        );
+
+        expect(response.status, document.kind).toBe(404);
+      }
+    }
+  });
+
+  it('refuses every kind to a stranger with no session', async () => {
+    const scenario = await buildScenario();
+
+    for (const document of await documentsOf(scenario)) {
+      const response = await request(
+        `/documents/${staffPath[document.kind]}/${document.publicId}.pdf`,
+      );
+
+      expect(response.status, document.kind).toBe(401);
+    }
+  });
+
+  /**
+   * A regression guard on the refactor.
+   *
+   * The prescription route already refused drafts before the three were
+   * merged into one handler. Folding that rule into a shared finder is exactly
+   * the kind of change that drops a condition nobody was watching.
+   */
+  it('still refuses a draft prescription after the three routes were merged', async () => {
+    const scenario = await buildScenario({ complete: false });
+    const cookies = await signIn(scenario.doctorEmail, DOCTOR_PASSWORD);
+
+    const response = await request(`/documents/prescriptions/${scenario.draftPublicId}.pdf`, {
+      cookies,
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('audits the read under the kind that was read', async () => {
+    const scenario = await buildScenario();
+    const cookies = await signIn(scenario.doctorEmail, DOCTOR_PASSWORD);
+    const referral = (await documentsOf(scenario)).find(
+      (document) => document.kind === 'referral',
+    )!;
+
+    await request(`/documents/referrals/${referral.publicId}.pdf`, { cookies });
+
+    const entry = await getPrisma().auditLog.findFirst({
+      where: { action: 'document.downloaded', actorType: 'DOCTOR', entityType: 'referral' },
+    });
+
+    expect(entry).not.toBeNull();
   });
 });

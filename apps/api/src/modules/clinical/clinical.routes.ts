@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
@@ -15,11 +15,13 @@ import {
   revokePrescription,
 } from '../prescription/prescription.service.ts';
 import {
+  findDocumentForStaff,
   generatePrescriptionPdf,
   issueReferral,
   issueSummary,
   readDocumentPdf,
   verifyDocument,
+  type DocumentKind,
 } from '../documents/document.service.ts';
 import {
   isSealed,
@@ -676,53 +678,68 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
 
   /**
-   * Streams a prescription PDF to one of the four permitted readers
-   * (decision D13): the issuing doctor, the dispensing pharmacy, the patient
-   * through their session, and Neem Admin.
+   * Streams a document PDF to one of the permitted readers (decision D13):
+   * the issuing doctor, the consultation's pharmacy, and Neem Admin. The
+   * patient reads the same documents through their own session, which is
+   * scoped by cookie rather than by role — see `patient.routes.ts`.
    *
-   * Every read is audited — access to a clinical document is exactly what a
+   * One handler for all three kinds rather than three that drift. The
+   * prescription route existed alone and referrals and summaries had no route
+   * for anybody: a doctor could issue a referral to Korle Bu and neither they
+   * nor the pharmacy could open it afterwards. Since the permission rule is
+   * identical for all three — issuer, owning pharmacy, admin — writing it once
+   * is also the only way to be sure the newer two are not quietly laxer than
+   * the one that was reviewed.
+   *
+   * Every read is audited; access to a clinical document is exactly what a
    * regulator asks about (spec §61).
    */
-  app.get('/documents/prescriptions/:publicId.pdf', async (request, reply) => {
-    const principal = requireAuth(request);
-    const { publicId } = z
-      .object({ publicId: z.string().min(1).max(64) })
-      .parse({ publicId: (request.params as { publicId: string }).publicId });
+  const serveDocument = (kind: DocumentKind, notFoundMessage: string) =>
+    async function handler(request: FastifyRequest, reply: FastifyReply) {
+      const principal = requireAuth(request);
+      const { publicId } = z
+        .object({ publicId: z.string().min(1).max(64) })
+        .parse({ publicId: (request.params as { publicId: string }).publicId });
 
-    const prescription = await getPrisma().prescription.findUnique({
-      where: { publicId },
-      select: { id: true, doctorId: true, pharmacyId: true, pdfStorageKey: true, state: true },
-    });
-    if (!prescription || prescription.state === 'DRAFT') {
-      throw errors.notFound('Prescription not found.');
-    }
+      const document = await findDocumentForStaff(kind, publicId);
+      if (!document) throw errors.notFound(notFoundMessage);
 
-    const permitted =
-      principal.role === 'ADMIN' ||
-      (principal.role === 'DOCTOR' && principal.organisationId === prescription.doctorId) ||
-      (principal.role === 'PHARMACY' && principal.organisationId === prescription.pharmacyId);
+      const permitted =
+        principal.role === 'ADMIN' ||
+        (principal.role === 'DOCTOR' && principal.organisationId === document.doctorId) ||
+        (principal.role === 'PHARMACY' && principal.organisationId === document.pharmacyId);
 
-    if (!permitted) throw errors.notFound('Prescription not found.');
-    if (!prescription.pdfStorageKey) throw errors.notFound('That document has not been generated.');
+      // The same answer as a missing document, deliberately: whether someone
+      // else's referral exists is not something a caller should be able to
+      // learn by the shape of the refusal.
+      if (!permitted) throw errors.notFound(notFoundMessage);
+      if (!document.pdfStorageKey) throw errors.notFound('That document has not been generated.');
 
-    await recordAudit(
-      {
-        action: AUDIT_ACTIONS.DOCUMENT_DOWNLOADED,
-        actorType: principal.role,
-        actorId: principal.userId,
-        entityType: 'prescription',
-        entityId: prescription.id,
-        correlationId: request.correlationId,
-      },
-      getPrisma(),
-    );
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.DOCUMENT_DOWNLOADED,
+          actorType: principal.role,
+          actorId: principal.userId,
+          entityType: kind,
+          entityId: document.id,
+          correlationId: request.correlationId,
+        },
+        getPrisma(),
+      );
 
-    return reply
-      .header('content-type', 'application/pdf')
-      .header('content-disposition', `inline; filename="${publicId}.pdf"`)
-      .header('cache-control', 'private, no-store')
-      .send(await readDocumentPdf(prescription.pdfStorageKey));
-  });
+      return reply
+        .header('content-type', 'application/pdf')
+        .header('content-disposition', `inline; filename="${publicId}.pdf"`)
+        .header('cache-control', 'private, no-store')
+        .send(await readDocumentPdf(document.pdfStorageKey));
+    };
+
+  app.get(
+    '/documents/prescriptions/:publicId.pdf',
+    serveDocument('prescription', 'Prescription not found.'),
+  );
+  app.get('/documents/referrals/:publicId.pdf', serveDocument('referral', 'Referral not found.'));
+  app.get('/documents/summaries/:publicId.pdf', serveDocument('summary', 'Summary not found.'));
 
   /**
    * The public verification page (spec §44).

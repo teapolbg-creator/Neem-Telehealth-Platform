@@ -647,3 +647,59 @@ export async function readConsultationDocument(
     filename: `${publicId}.pdf`,
   };
 }
+
+/** A document as the staff-facing download route needs to see it. */
+export interface StaffReadableDocument {
+  /** The row id, which is what the audit trail records. */
+  id: string;
+  doctorId: string;
+  pharmacyId: string;
+  pdfStorageKey: string | null;
+}
+
+/**
+ * Finds a document for the staff download route, whatever kind it is.
+ *
+ * The three document types are separate tables with separate shapes, but from
+ * the point of view of "may this signed-in person read it" they are the same
+ * three columns: who issued it, which pharmacy it belongs to, and where the
+ * PDF is. Resolving that here means the permission rule is written once
+ * rather than once per kind — the alternative was three near-identical route
+ * handlers, which is how the referral route ends up subtly more permissive
+ * than the prescription one a year from now.
+ *
+ * Null for a draft prescription as well as for a missing row: a draft is the
+ * doctor's working screen, not a document, and the two cases are deliberately
+ * indistinguishable to the caller.
+ */
+export async function findDocumentForStaff(
+  kind: DocumentKind,
+  publicId: string,
+  db: Db = getPrisma(),
+): Promise<StaffReadableDocument | null> {
+  if (kind === 'prescription') {
+    const row = await db.prescription.findUnique({
+      where: { publicId },
+      select: { id: true, doctorId: true, pharmacyId: true, pdfStorageKey: true, state: true },
+    });
+    if (!row || row.state === 'DRAFT') return null;
+    return {
+      id: row.id,
+      doctorId: row.doctorId,
+      pharmacyId: row.pharmacyId,
+      pdfStorageKey: row.pdfStorageKey,
+    };
+  }
+
+  if (kind === 'referral') {
+    return db.referral.findUnique({
+      where: { publicId },
+      select: { id: true, doctorId: true, pharmacyId: true, pdfStorageKey: true },
+    });
+  }
+
+  return db.consultationSummary.findUnique({
+    where: { publicId },
+    select: { id: true, doctorId: true, pharmacyId: true, pdfStorageKey: true },
+  });
+}
