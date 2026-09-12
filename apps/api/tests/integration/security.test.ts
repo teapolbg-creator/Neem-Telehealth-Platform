@@ -651,16 +651,62 @@ describe('§102 (3) cross-patient access and session takeover', () => {
     expect(JSON.stringify(view.body)).not.toContain('Alpha Patient');
   });
 
-  it('gives the patient no route that takes a consultation id at all', async () => {
-    // The structural half of the guarantee. There is nothing to enumerate
-    // because no patient route accepts an identifier — the cookie *is* the
-    // scope. A patient route with a `:publicId` would be the bug.
+  /**
+   * The structural half of the guarantee, narrowed to what §102 actually says.
+   *
+   * This used to forbid **any** parameter on **any** patient route, on the
+   * reasoning that the cookie is the scope and there is then nothing to
+   * enumerate. That is a good rule and it did its job: it caught the first
+   * patient route to take an identifier, `/patient/documents/:kind/:publicId`,
+   * which exists so a patient can be handed their own prescription — the point
+   * of the product, and until then a thing only the pharmacy could do.
+   *
+   * What §102 requires is that a patient session cannot reach another
+   * **consultation**. A document id checked against the session's own
+   * consultation does not reach one. So the rule is now two narrower and
+   * sharper things: no parameter may name a consultation, and every route that
+   * takes a parameter at all is listed below — a new one is then a deliberate
+   * act someone reviews, not something that arrives with a handler.
+   *
+   * Narrowing a security test to fit new code deserves suspicion, so the
+   * behavioural half is asserted directly beneath rather than assumed, and the
+   * scoping itself is covered in tests/integration/patient-documents.test.ts.
+   */
+  const PARAMETERISED_PATIENT_ROUTES = ['/api/v1/patient/documents/:kind/:publicId.pdf'];
+
+  it('gives the patient no route that takes a consultation id', async () => {
     const routes = await collectRoutes();
     const parameterised = routes
       .filter((route) => route.path.startsWith('/api/v1/patient/'))
       .filter((route) => route.path.includes(':'));
 
-    expect(parameterised).toEqual([]);
+    for (const route of parameterised) {
+      expect(route.path, `${route.path} must not take a consultation identifier`).not.toMatch(
+        /:consultation/i,
+      );
+    }
+
+    expect([...new Set(parameterised.map((route) => route.path))].sort()).toEqual(
+      PARAMETERISED_PATIENT_ROUTES,
+    );
+  });
+
+  it('refuses another world’s identifiers on the one route that takes any', async () => {
+    const alpha = await buildWorld('Alpha');
+    const beta = await buildWorld('Beta');
+
+    /*
+     * Beta's patient, holding Alpha's identifiers. The consultation id is the
+     * one §102 names; the prescription id is the one an attacker would
+     * actually have, because it is printed on a document. Neither resolves.
+     */
+    for (const candidate of [alpha.consultationPublicId, alpha.prescriptionPublicId]) {
+      const response = await request(`/patient/documents/prescription/${candidate}.pdf`, {
+        cookies: beta.patientCookies,
+      });
+
+      expect(response.status, candidate).toBe(404);
+    }
   });
 
   it('refuses a forged or truncated patient cookie', async () => {

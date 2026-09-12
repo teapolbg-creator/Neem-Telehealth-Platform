@@ -437,3 +437,213 @@ export async function verifyDocument(
 export async function readDocumentPdf(storageKey: string): Promise<Buffer> {
   return getStorageProvider().get(storageKey);
 }
+
+// ---------------------------------------------------------------------------
+// What a consultation produced, and what has happened to it since
+// ---------------------------------------------------------------------------
+
+export type DocumentKind = 'prescription' | 'referral' | 'summary';
+
+/**
+ * The live state of a document, which is not the same thing as the document.
+ *
+ * The PDF is generated once at issue and never rewritten — see the note at the
+ * top of this file. So a prescription dispensed a day later cannot say so on
+ * its own face, and stamping it afterwards would mean either mutating a signed
+ * clinical record or keeping two versions of one prescription. Neither is
+ * acceptable for a document a pharmacist may act on.
+ *
+ * Status therefore lives beside the document rather than inside it: here, on
+ * the patient's own screen, and on the public verification page that the QR
+ * code in every footer points at. The paper says what the doctor decided; this
+ * says what has happened since.
+ */
+export interface DocumentStatus {
+  code: 'AWAITING_DISPENSE' | 'DISPENSED' | 'REVOKED' | 'ISSUED';
+  label: string;
+  detail: string | null;
+}
+
+export interface ConsultationDocument {
+  kind: DocumentKind;
+  publicId: string;
+  title: string;
+  issuedAt: string;
+  /** False when the PDF has not been written yet; the row can exist first. */
+  available: boolean;
+  status: DocumentStatus;
+}
+
+const isoDay = (value: Date): string => value.toISOString().slice(0, 10);
+
+function prescriptionStatus(prescription: {
+  state: string;
+  dispensedAt: Date | null;
+  pharmacy: { name: string };
+}): DocumentStatus {
+  if (prescription.state === 'REVOKED') {
+    return {
+      code: 'REVOKED',
+      label: 'Revoked',
+      /*
+       * The reason is deliberately not repeated. It is free text a doctor
+       * wrote, it can carry clinical detail, and this string renders on a
+       * screen the patient may be holding at a counter with other people
+       * behind them. That it was revoked is what changes what anyone does
+       * next; why is a conversation, not a status line.
+       */
+      detail: 'This prescription is no longer valid. Please speak to the pharmacy.',
+    };
+  }
+
+  if (prescription.state === 'DISPENSED') {
+    return {
+      code: 'DISPENSED',
+      label: 'Dispensed',
+      detail: prescription.dispensedAt
+        ? `Dispensed at ${prescription.pharmacy.name} on ${isoDay(prescription.dispensedAt)}.`
+        : `Dispensed at ${prescription.pharmacy.name}.`,
+    };
+  }
+
+  return {
+    code: 'AWAITING_DISPENSE',
+    label: 'Not yet dispensed',
+    /*
+     * Says what the patient can actually do. Only the consultation's own
+     * pharmacy can dispense this through Neem (spec §45), but any pharmacy
+     * anywhere can confirm the document is genuine by scanning the code
+     * printed on it — which is the thing a stranger behind a counter needs.
+     */
+    detail:
+      `${prescription.pharmacy.name} can dispense this. Any other pharmacy can check it is ` +
+      'genuine by scanning the code printed on the document.',
+  };
+}
+
+/**
+ * Every document a consultation produced.
+ *
+ * Ordered prescription, referral, summary rather than by time: that is the
+ * order of urgency to someone standing at a counter, and all three are issued
+ * within moments of each other anyway, so ordering by issue time would shuffle
+ * them for no reason a reader could follow.
+ */
+export async function listConsultationDocuments(
+  consultationId: string,
+  db: Db = getPrisma(),
+): Promise<ConsultationDocument[]> {
+  const [prescriptions, referrals, summary] = await Promise.all([
+    db.prescription.findMany({
+      where: { consultationId, state: { not: 'DRAFT' } },
+      select: {
+        publicId: true,
+        state: true,
+        issuedAt: true,
+        createdAt: true,
+        dispensedAt: true,
+        pdfStorageKey: true,
+        pharmacy: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    db.referral.findMany({
+      where: { consultationId },
+      select: { publicId: true, issuedAt: true, pdfStorageKey: true, hospitalName: true },
+      orderBy: { issuedAt: 'asc' },
+    }),
+    db.consultationSummary.findUnique({
+      where: { consultationId },
+      select: { publicId: true, issuedAt: true, pdfStorageKey: true },
+    }),
+  ]);
+
+  const documents: ConsultationDocument[] = [];
+
+  for (const prescription of prescriptions) {
+    documents.push({
+      kind: 'prescription',
+      publicId: prescription.publicId,
+      title: 'Prescription',
+      issuedAt: (prescription.issuedAt ?? prescription.createdAt).toISOString(),
+      available: prescription.pdfStorageKey !== null,
+      status: prescriptionStatus(prescription),
+    });
+  }
+
+  for (const referral of referrals) {
+    documents.push({
+      kind: 'referral',
+      publicId: referral.publicId,
+      title: `Referral to ${referral.hospitalName}`,
+      issuedAt: referral.issuedAt.toISOString(),
+      available: referral.pdfStorageKey !== null,
+      status: { code: 'ISSUED', label: 'Issued', detail: null },
+    });
+  }
+
+  if (summary) {
+    documents.push({
+      kind: 'summary',
+      publicId: summary.publicId,
+      title: 'Consultation summary',
+      issuedAt: summary.issuedAt.toISOString(),
+      available: summary.pdfStorageKey !== null,
+      status: { code: 'ISSUED', label: 'Issued', detail: null },
+    });
+  }
+
+  return documents;
+}
+
+/**
+ * A document's stored PDF, but only if it belongs to the consultation named.
+ *
+ * The consultation is the authorisation boundary, and it is a parameter rather
+ * than something this function derives, so a caller cannot accidentally hand
+ * over a document from somewhere else. A patient session is bound to exactly
+ * one consultation (spec §102), so passing its id through is the whole check.
+ *
+ * Not found rather than forbidden when the document belongs to another
+ * consultation: whether a given prescription exists at all is not something an
+ * unrelated caller should be able to learn.
+ */
+export async function readConsultationDocument(
+  consultationId: string,
+  kind: DocumentKind,
+  publicId: string,
+  db: Db = getPrisma(),
+): Promise<{ buffer: Buffer; filename: string }> {
+  const found = await (async () => {
+    if (kind === 'prescription') {
+      const row = await db.prescription.findUnique({
+        where: { publicId },
+        select: { consultationId: true, pdfStorageKey: true, state: true },
+      });
+      // A draft is not a document and must never leave the doctor's screen.
+      return row && row.state !== 'DRAFT' ? row : null;
+    }
+    if (kind === 'referral') {
+      return db.referral.findUnique({
+        where: { publicId },
+        select: { consultationId: true, pdfStorageKey: true },
+      });
+    }
+    return db.consultationSummary.findUnique({
+      where: { publicId },
+      select: { consultationId: true, pdfStorageKey: true },
+    });
+  })();
+
+  if (!found || found.consultationId !== consultationId) {
+    throw errors.notFound('Document not found.');
+  }
+  if (!found.pdfStorageKey) {
+    throw errors.notFound('That document has not been generated.');
+  }
+
+  return {
+    buffer: await readDocumentPdf(found.pdfStorageKey),
+    filename: `${publicId}.pdf`,
+  };
+}

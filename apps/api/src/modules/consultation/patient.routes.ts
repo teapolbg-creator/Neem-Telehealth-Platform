@@ -10,6 +10,11 @@ import { getEnv } from '../../config/env.ts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { requestContext } from '../../middleware/context.ts';
+import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
+import {
+  listConsultationDocuments,
+  readConsultationDocument,
+} from '../documents/document.service.ts';
 import { patientSessionIsUsable } from '../../domain/consultation-state.ts';
 import { requestRefund } from '../payment/refund.service.ts';
 import {
@@ -260,5 +265,85 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
       data: { state: principal.consultationState, message: 'You have left the consultation.' },
       meta: { requestId: request.correlationId },
     });
+  });
+
+  /**
+   * The documents this consultation produced, and what has happened to each.
+   *
+   * This route and the one below it are the whole point of the product from
+   * the patient's side: a consultation that issues a prescription nobody can
+   * hand them has not finished. Until these existed the documents were
+   * generated, stored, and readable only by the doctor, the pharmacy and an
+   * administrator — the patient, whose documents they are, had no route at all.
+   *
+   * Readable after the consultation ends, which is when the documents exist.
+   * `requirePatient` resolves on a finished session for exactly this kind of
+   * read; the separate write guard is what stops a completed session changing
+   * anything.
+   */
+  app.get('/patient/documents', async (request, reply) => {
+    const principal = await requirePatient(request);
+    const documents = await listConsultationDocuments(principal.consultationId);
+
+    return reply.send({
+      data: { documents },
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  /**
+   * One document, as a PDF.
+   *
+   * The consultation comes from the session and never from the request, so
+   * there is no parameter here by which a patient could name somebody else's
+   * document — the same rule every other patient route follows (spec §102).
+   * `publicId` selects among *their own* documents and is checked against the
+   * consultation before a byte is read.
+   *
+   * Audited like every other clinical document read. A regulator asking who
+   * opened a prescription should see the patient's own access in the same
+   * trail as the pharmacy's, not a gap where it happened to be unlogged.
+   */
+  app.get('/patient/documents/:kind/:publicId.pdf', async (request, reply) => {
+    const principal = await requirePatient(request);
+    const params = z
+      .object({
+        kind: z.enum(['prescription', 'referral', 'summary']),
+        publicId: z.string().min(1).max(64),
+      })
+      .parse(request.params);
+
+    const document = await readConsultationDocument(
+      principal.consultationId,
+      params.kind,
+      params.publicId,
+    );
+
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.DOCUMENT_DOWNLOADED,
+        actorType: 'PATIENT',
+        entityType: params.kind,
+        entityId: params.publicId,
+        correlationId: request.correlationId,
+        metadata: { consultationId: principal.consultationPublicId },
+      },
+      getPrisma(),
+    );
+
+    return (
+      reply
+        .header('content-type', 'application/pdf')
+        /*
+         * `inline` rather than `attachment`: this is a phone at a pharmacy
+         * counter, and the patient needs to show the document to someone across
+         * it far more often than they need a file in Downloads. Every mobile
+         * browser offers a save from the viewer; none of them makes an opened
+         * download easy to show.
+         */
+        .header('content-disposition', `inline; filename="${document.filename}"`)
+        .header('cache-control', 'private, no-store')
+        .send(document.buffer)
+    );
   });
 }
