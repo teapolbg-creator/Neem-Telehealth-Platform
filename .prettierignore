@@ -2,6 +2,7 @@
 # rewriting a generated file is a diff nobody asked for.
 dist
 .output
+.netlify
 .vinxi
 coverage
 build

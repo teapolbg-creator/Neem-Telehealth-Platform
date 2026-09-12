@@ -1,0 +1,45 @@
+# Netlify deployment for the Neem app (apps/web).
+#
+# This is the patient, pharmacy, doctor and admin interface — a TanStack Start
+# app rendered server-side, not a static bundle. The API is a separate service
+# on Render and the marketing site is a separate repository; neither is built
+# from here.
+#
+# `base = "apps/web"` because that is where Nitro's netlify preset writes its
+# output, and Netlify discovers `.netlify/functions-internal` relative to the
+# base directory. `publish` and `command` are then relative to it too.
+#
+# The install still has to happen at the repository root: this is an npm
+# workspaces monorepo, the lockfile is at the root, and `@neem/contracts`
+# resolves to TypeScript source through the workspace link rather than to a
+# built package. Netlify's monorepo support is expected to handle that from the
+# base directory — and it is the one part of this file that cannot be proven
+# locally, so it is the first thing to check if the build fails on a missing
+# dependency.
+
+[build]
+  base = "apps/web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Matches the API's CI (NODE_VERSION "22") and the repository's
+  # engines: { node: ">=22" }. Pinned rather than left to Netlify's default,
+  # which changes over time and would change this build without anyone asking.
+  NODE_VERSION = "22"
+
+# VITE_API_URL is deliberately NOT set here.
+#
+# It is baked into the client bundle at build time, and it decides which host
+# every browser talks to. Getting it wrong is not a build failure — it is a
+# deployed app quietly calling the wrong server, and the default is
+# http://localhost:4000, which means the visitor's own machine.
+#
+# It belongs in the Netlify UI as an environment variable, alongside nothing
+# else, so that changing it is a deliberate act with a deploy attached:
+#
+#   VITE_API_URL = https://api.neemtelehealth.com
+#
+# It must match WEB_ORIGIN on the Render service, which names
+# https://app.neemtelehealth.com. CORS is an allow-list and the session cookie
+# rides on it, so a mismatch fails closed rather than degrading.

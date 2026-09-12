@@ -49,6 +49,9 @@ apps/api/uploads/
 .output/
 .wrangler/
 dist/
+# Nitro's netlify preset writes the SSR handler here. Netlify discovers it at
+# deploy time; it is generated, never committed.
+.netlify/
 
 # Local logs
 npm-install.log
