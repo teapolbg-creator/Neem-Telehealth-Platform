@@ -21,6 +21,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "db:reset-2fa": "npm run db:reset-2fa --workspace @neem/api",
+    "admin:create": "npm run admin:create --workspace @neem/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

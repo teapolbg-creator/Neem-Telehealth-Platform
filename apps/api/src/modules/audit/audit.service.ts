@@ -26,6 +26,9 @@ export const AUDIT_ACTIONS = {
   PASSWORD_RESET_REQUESTED: 'auth.password-reset.requested',
   PASSWORD_RESET_COMPLETED: 'auth.password-reset.completed',
   PASSWORD_CHANGED: 'auth.password.changed',
+
+  /** A privileged account was created, which is exactly what an audit log is for. */
+  ADMIN_CREATED: 'admin.created',
   SESSION_REVOKED: 'auth.session.revoked',
 
   DOCTOR_REGISTERED: 'doctor.registered',
