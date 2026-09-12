@@ -95,19 +95,40 @@ services:
       # `sync: false` means "prompt me, and keep it out of the repository".
       # These are the values that would be a disclosure if committed.
 
-      # Supabase TRANSACTION pooler, port 6543, with ?sslmode=require&pgbouncer=true
+      # BOTH of these use the POOLER host. Only the port and the parameters
+      # differ between them:
+      #
+      #   postgresql://postgres.PROJECT:PASSWORD
+      #     @aws-0-REGION.pooler.supabase.com:PORT/postgres?...
+      #
+      # Never `db.PROJECT.supabase.co`, which is the host Supabase labels
+      # "Direct connection". It resolves to IPv6 only without the IPv4 add-on
+      # and Render's outbound traffic is IPv4, so it works from a laptop and is
+      # unreachable from here. Note also that the pooler needs the project
+      # reference appended to the username — `postgres.PROJECT`, not `postgres`.
+      #
+      # This warning used to sit on DIRECT_DATABASE_URL alone, while the line
+      # above DATABASE_URL said only "port 6543". Reading the two together, the
+      # obvious move is to take the direct connection string and change its
+      # port — which produces `db.PROJECT.supabase.co:6543`, a host that serves
+      # 5432 and cannot be reached from Render anyway. That is exactly what
+      # happened on the first deploy: the API booted, answered /health, and
+      # returned 503 from /health/ready with "Can't reach database server".
+
+      # TRANSACTION pooler — port 6543, ?sslmode=require&pgbouncer=true
+      #
+      # `pgbouncer=true` is not optional. Transaction pooling cannot carry
+      # prepared statements, which Prisma uses by default, and without it the
+      # failures arrive later and read as database faults rather than as
+      # configuration.
       - key: DATABASE_URL
         sync: false
+
+      # SESSION pooler — port 5432, ?sslmode=require
       #
-      # Supabase SESSION pooler, port 5432, with ?sslmode=require. Migrations run
-      # over this one, because a transaction pooler cannot carry the statements
-      # Prisma Migrate needs.
-      #
-      # The SESSION POOLER, not the host Supabase labels "Direct connection".
-      # That host (db.PROJECT.supabase.co) resolves to IPv6 only without the
-      # IPv4 add-on, and Render's outbound traffic is IPv4 — so it works from a
-      # laptop and fails from here, which is the worst way to learn it. The
-      # session pooler is IPv4 and carries migrations perfectly well.
+      # Migrations run over this one, because a transaction pooler cannot carry
+      # the statements Prisma Migrate needs. Session mode does, and is on the
+      # same IPv4 pooler host.
       - key: DIRECT_DATABASE_URL
         sync: false
       - key: SESSION_SECRET
