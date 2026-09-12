@@ -50,6 +50,21 @@ export function getNotificationProvider(channel: NotificationChannel): Notificat
     case 'hubtel':
       provider = new HubtelNotificationProvider();
       break;
+    /**
+     * The channel is switched off, so there is no provider to hand back.
+     *
+     * Unreachable in ordinary operation: `routeChannels` sends SMS to email
+     * when the provider is `none`, so nothing asks for one. It is spelled out
+     * anyway rather than left to the `default` below, because falling through
+     * to "Unknown provider mode: none" would describe a typo when the real
+     * situation is a channel deliberately turned off — and the difference is
+     * the first thing somebody reading the log needs.
+     */
+    case 'none':
+      throw new Error(
+        `${channel} is switched off (provider "none"), so no message can be sent on it. ` +
+          'This is reached only when something bypassed channel routing.',
+      );
     default:
       throw new Error(`Unknown provider mode for ${channel}: ${mode}`);
   }

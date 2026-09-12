@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
+import { getEnv } from '../../config/env.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { decryptNullable } from '../../lib/crypto.ts';
@@ -214,7 +215,22 @@ async function routeChannels(
 ): Promise<TemplateChannel[]> {
   if (!declared.includes('SMS')) return [...declared];
 
-  const smsEnabled = await getBooleanSetting(SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED, db);
+  /*
+   * Two independent reasons SMS may be unavailable, and either is enough.
+   *
+   * The setting is the pilot's switch, flipped in the admin console. The
+   * provider is the deployment's: `SMS_PROVIDER=none` says no SMS gateway is
+   * configured at all, which is how production boots without Arkesel
+   * credentials for a channel it will never use.
+   *
+   * The provider is checked first and independently, because a toggle cannot
+   * conjure a gateway. Turning the setting on while no provider is configured
+   * must not start routing messages at an adapter that does not exist — it
+   * leaves them going by email, which is what the deployment can actually do.
+   */
+  const configured = getEnv().SMS_PROVIDER !== 'none';
+  const smsEnabled =
+    configured && (await getBooleanSetting(SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED, db));
   if (smsEnabled) return [...declared];
 
   const routed = declared.map((channel) => (channel === 'SMS' ? 'EMAIL' : channel));

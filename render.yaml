@@ -204,23 +204,25 @@ services:
       - key: VOICE_PROVIDER
         value: none
 
-      # SMS is switched OFF for the pilot, and these are still required.
+      # SMS is off for the pilot (D46), and `none` is how a deployment says so.
       #
-      # Not a contradiction. The channel is disabled at the notification layer
-      # by the `notifications.smsEnabled` setting (D46), which is what makes it
-      # a toggle in the admin console rather than a deploy. The config loader
-      # works at the provider layer, and refuses `mock` in production because a
-      # mock cannot verify that anything happened — so a provider must still be
-      # named and its credentials supplied, even though nothing will be sent.
+      # `none` is not `mock`, the same distinction VOICE_PROVIDER draws above: a
+      # mock reports messages that were never sent, which production refuses;
+      # `none` says the channel is absent, and notifications that would have
+      # gone by SMS go by email instead.
       #
-      # The sender ID does not need to be registered with the networks for this
-      # deploy, since no message goes out until the setting is turned on.
+      # ARKESEL_API_KEY and ARKESEL_SENDER_ID are deliberately NOT listed. They
+      # are required only when SMS_PROVIDER=arkesel, so with `none` there is
+      # nothing to obtain and nothing to enter — no key fetched for a dormant
+      # feature, and no sender ID invented to satisfy a check, which would be a
+      # sender ID nobody had registered with the networks.
+      #
+      # To turn SMS on later: register the sender ID, add ARKESEL_API_KEY and
+      # ARKESEL_SENDER_ID here, change this value to `arkesel`, then switch the
+      # `notifications.smsEnabled` setting on in the admin console. Both layers
+      # have to agree, which is why neither alone can start sending by accident.
       - key: SMS_PROVIDER
-        value: arkesel
-      - key: ARKESEL_API_KEY
-        sync: false
-      - key: ARKESEL_SENDER_ID
-        sync: false
+        value: none
 
       # --- Demo data must never exist here ------------------------------------
       # The config loader refuses this in production anyway (spec §76); stating

@@ -9,6 +9,7 @@ import {
 } from '../helpers/database.ts';
 import { notify } from '../../src/modules/notification/notification.service.ts';
 import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
+import { setEnvForTesting } from '../../src/config/env.ts';
 import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
 
 /**
@@ -204,5 +205,75 @@ describe('SMS off for the pilot', () => {
 
     // One email, from the template's own declaration — not a rerouted SMS.
     expect(channels.filter((entry) => entry.startsWith('EMAIL'))).toHaveLength(1);
+  });
+});
+
+/**
+ * The deployment-level switch, which is a different thing from the pilot
+ * toggle above.
+ *
+ * `SMS_PROVIDER=none` says no SMS gateway is configured at all. That is how
+ * production boots without Arkesel credentials for a channel it will never
+ * use — the config loader refuses `mock` in production, so before `none`
+ * existed the only accepted values were real providers with required keys.
+ *
+ * Asserted with the setting turned ON, deliberately. A toggle cannot conjure a
+ * gateway, and if it could route messages at an adapter that does not exist
+ * then turning the setting on in a deployment without credentials would break
+ * notifications rather than enable them.
+ */
+describe('SMS with no provider configured', () => {
+  async function withProviderNone<T>(run: () => Promise<T>): Promise<T> {
+    const previous = process.env.SMS_PROVIDER;
+    process.env.SMS_PROVIDER = 'none';
+    setEnvForTesting(undefined); // drop the cached configuration
+
+    try {
+      return await run();
+    } finally {
+      process.env.SMS_PROVIDER = previous;
+      setEnvForTesting(undefined);
+    }
+  }
+
+  it('routes SMS to email even when the setting is on', async () => {
+    await setSmsEnabled(true);
+
+    await withProviderNone(async () => {
+      const doctor = await makeDoctor();
+
+      await notify({
+        templateCode: 'doctor.consultation.offered',
+        recipient: { type: 'DOCTOR', doctorId: doctor.doctorId },
+        variables: { pharmacyName: 'Akosua Pharmacy', seconds: 90 },
+      });
+
+      const channels = await channelsSent('doctor.consultation.offered');
+
+      expect(channels.some((entry) => entry.startsWith('EMAIL'))).toBe(true);
+      expect(channels.some((entry) => entry.startsWith('SMS'))).toBe(false);
+    });
+  });
+
+  /**
+   * The capability is dormant, not removed.
+   *
+   * Naming a real provider again restores SMS with no code change — this is
+   * the evidence for "deactivated, not deleted" at the deployment layer, the
+   * way the toggle test above is the evidence for it at the pilot layer.
+   */
+  it('sends SMS again when a provider is named and the setting is on', async () => {
+    await setSmsEnabled(true);
+    const doctor = await makeDoctor();
+
+    await notify({
+      templateCode: 'doctor.consultation.offered',
+      recipient: { type: 'DOCTOR', doctorId: doctor.doctorId },
+      variables: { pharmacyName: 'Akosua Pharmacy', seconds: 90 },
+    });
+
+    const channels = await channelsSent('doctor.consultation.offered');
+
+    expect(channels.some((entry) => entry.startsWith('SMS'))).toBe(true);
   });
 });

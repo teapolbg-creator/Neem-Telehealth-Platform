@@ -51,7 +51,24 @@ export const PROVIDER_MODES = {
    * product decision a deployment is allowed to make (D38).
    */
   voice: ['none', 'mock'],
-  sms: ['mock', 'arkesel', 'hubtel'],
+  /**
+   * SMS, where `none` means the channel is switched off — exactly as it does
+   * for voice above, and for the same reason.
+   *
+   * SMS is not part of the pilot (D46). Without `none` the only values
+   * production accepts are `arkesel` and `hubtel`, because `mock` is refused
+   * on the grounds that a mock cannot verify anything happened — so the API
+   * could not boot without credentials for a provider it would never call.
+   * Obtaining a key and registering a sender ID to satisfy a dormant feature
+   * is a real cost paid for nothing, and a sender ID entered just to get past
+   * a check is one nobody has verified.
+   *
+   * `none` and `mock` stay different states, as they do for voice. A mock
+   * pretends: it reports a message that was never sent. `none` does not
+   * pretend — the channel is absent, notifications that would have used it go
+   * by email instead, and nothing claims an SMS took place.
+   */
+  sms: ['none', 'mock', 'arkesel', 'hubtel'],
   email: ['mock', 'mailhog', 'smtp'],
   whatsapp: ['mock'],
 } as const;
