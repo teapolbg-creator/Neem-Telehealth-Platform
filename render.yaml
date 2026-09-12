@@ -89,9 +89,20 @@ services:
       # `sync: false` means "prompt me, and keep it out of the repository".
       # These are the values that would be a disclosure if committed.
 
-      - key: DATABASE_URL # Supabase POOLED connection, port 6543, ?sslmode=require
+      # Supabase TRANSACTION pooler, port 6543, with ?sslmode=require&pgbouncer=true
+      - key: DATABASE_URL
         sync: false
-      - key: DIRECT_DATABASE_URL # Supabase DIRECT connection, port 5432, for migrations
+      #
+      # Supabase SESSION pooler, port 5432, with ?sslmode=require. Migrations run
+      # over this one, because a transaction pooler cannot carry the statements
+      # Prisma Migrate needs.
+      #
+      # The SESSION POOLER, not the host Supabase labels "Direct connection".
+      # That host (db.PROJECT.supabase.co) resolves to IPv6 only without the
+      # IPv4 add-on, and Render's outbound traffic is IPv4 — so it works from a
+      # laptop and fails from here, which is the worst way to learn it. The
+      # session pooler is IPv4 and carries migrations perfectly well.
+      - key: DIRECT_DATABASE_URL
         sync: false
       - key: SESSION_SECRET
         sync: false
@@ -130,12 +141,80 @@ services:
       - key: WHEREBY_API_KEY
         sync: false
 
+      # --- Payment ------------------------------------------------------------
+      #
+      # Paystack is the only implemented payment adapter. Both keys are required
+      # by the config loader when PAYMENT_PROVIDER=paystack, so the API will not
+      # boot without them — note that PAYSTACK_PUBLIC_KEY is required and then
+      # read by nothing, because Neem's payment flow is server-initiated and has
+      # no frontend checkout widget to hand it to.
+      #
+      # Use the LIVE pair here. Test keys belong on a developer's machine; the
+      # two differ only by an `sk_test_` / `sk_live_` prefix, and nothing in the
+      # code distinguishes them.
+      - key: PAYMENT_PROVIDER
+        value: paystack
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      #
+      # The domain half of the synthetic per-transaction address Paystack
+      # requires. Neem collects a phone number at the counter and never an
+      # email, so the adapter derives one from its own payment reference — it
+      # carries no patient data, and being per-transaction means a receipt
+      # cannot reach the wrong person.
+      #
+      # It needs NO DNS RECORD, and deliberately has none: nothing sends to it
+      # or reads from it. Verified against Paystack in test mode — a transaction
+      # addressed to this domain while it was NXDOMAIN was accepted, so Paystack
+      # validates the format and not the deliverability. Do not create an A
+      # record for it; a domain with an A record and no MX becomes its own
+      # implicit mail destination, which is worse than nothing.
+      - key: PAYSTACK_RECEIPT_DOMAIN
+        value: receipts.neemtelehealth.com
+
+      # --- Email --------------------------------------------------------------
+      #
+      # SMTP rather than a vendor API, so the relay is configuration rather than
+      # another adapter. SMTP_PORT matters more than it looks: it defaults to
+      # 1025, which is MailHog's, and the provider switches to implicit TLS only
+      # when the port is exactly 465. Leaving it unset would point production at
+      # a local development catcher.
+      #
+      # Load bearing for the pilot. With SMS switched off (D46) the doctor's
+      # consultation offer arrives by email alone, against a 90-second response
+      # window — so this is the channel the queue depends on.
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_HOST
+        value: mail.privateemail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        value: hello@neemtelehealth.com
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        value: "Neem <hello@neemtelehealth.com>"
+
       # Call Me stays off until Arkesel confirm a live two-leg bridge (D39, D42).
       # `none` is not `mock`: a mock pretends, `none` says the capability is
       # absent, and the patient is never offered a mode the server would refuse.
       - key: VOICE_PROVIDER
         value: none
 
+      # SMS is switched OFF for the pilot, and these are still required.
+      #
+      # Not a contradiction. The channel is disabled at the notification layer
+      # by the `notifications.smsEnabled` setting (D46), which is what makes it
+      # a toggle in the admin console rather than a deploy. The config loader
+      # works at the provider layer, and refuses `mock` in production because a
+      # mock cannot verify that anything happened — so a provider must still be
+      # named and its credentials supplied, even though nothing will be sent.
+      #
+      # The sender ID does not need to be registered with the networks for this
+      # deploy, since no message goes out until the setting is turned on.
       - key: SMS_PROVIDER
         value: arkesel
       - key: ARKESEL_API_KEY
