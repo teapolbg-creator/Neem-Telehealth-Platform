@@ -247,3 +247,39 @@ export const consultationQrSchema = z.object({
   expiresAt: z.string(),
   sequence: z.number().int(),
 });
+
+// ---------------------------------------------------------------------------
+// Documents a consultation produced
+// ---------------------------------------------------------------------------
+
+export const PATIENT_DOCUMENT_KINDS = ['prescription', 'referral', 'summary'] as const;
+
+/**
+ * The live state of a document, which is not the same thing as the document.
+ *
+ * A document's PDF is written once at issue and never rewritten, so a
+ * prescription dispensed an hour later cannot say so on its own face. Stamping
+ * it afterwards would mean mutating a signed clinical record or keeping two
+ * versions of one prescription, so status travels alongside instead — here,
+ * and on the public verification page the QR code in every footer points at.
+ */
+export const documentStatusSchema = z.object({
+  code: z.enum(['AWAITING_DISPENSE', 'DISPENSED', 'REVOKED', 'ISSUED']),
+  /** Two or three words, for a chip. */
+  label: z.string(),
+  /** A sentence saying what it means and what to do, or null when obvious. */
+  detail: z.string().nullable(),
+});
+export type DocumentStatus = z.infer<typeof documentStatusSchema>;
+
+export const consultationDocumentSchema = z.object({
+  kind: z.enum(PATIENT_DOCUMENT_KINDS),
+  publicId: z.string(),
+  title: z.string(),
+  issuedAt: z.string(),
+  /** False when the PDF has not been written yet; the row can exist first. */
+  available: z.boolean(),
+  status: documentStatusSchema,
+});
+export type ConsultationDocument = z.infer<typeof consultationDocumentSchema>;
+export type DocumentKind = ConsultationDocument['kind'];

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PatientIdentity, PatientSessionView } from "@neem/contracts";
-import { api } from "@/lib/api-client";
+import type { ConsultationDocument, PatientIdentity, PatientSessionView } from "@neem/contracts";
+import { api, API_BASE_URL } from "@/lib/api-client";
 
 /**
  * Consultation queries for the pharmacy and patient portals.
@@ -320,3 +320,44 @@ export const useSelectLanguage = () =>
   usePatientStep<{ languageCode: string }>("/patient/session/language");
 export const useSelectMode = () =>
   usePatientStep<{ type: "AUDIO" | "VIDEO" | "CALL_ME" }>("/patient/session/mode");
+
+/**
+ * The documents this consultation produced (spec §43, §49, D24, D25).
+ *
+ * The patient's copy, which until now did not reach them: the prescription,
+ * referral and summary were generated, signed and stored, and readable only by
+ * the doctor, the pharmacy and an administrator.
+ *
+ * Fetched rather than carried on the session view because the status of a
+ * prescription changes after the consultation ends — dispensed at the counter,
+ * or revoked — and the session view is a snapshot of the session, not of the
+ * documents. A short `staleTime` with a refetch on focus is what makes the
+ * dispensed chip appear when the patient looks back at their phone after
+ * collecting the medicine.
+ */
+export const patientDocumentsKey = ["patient", "documents"] as const;
+
+export function usePatientDocuments(enabled = true) {
+  return useQuery({
+    queryKey: patientDocumentsKey,
+    queryFn: ({ signal }) =>
+      api.get<{ documents: ConsultationDocument[] }>("/patient/documents", signal),
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+/**
+ * Where to open one.
+ *
+ * A plain URL rather than a fetch: the response is a PDF, and the phone's own
+ * viewer is better at showing one than anything this app would build. The
+ * session cookie is `SameSite=Lax`, which a top-level navigation carries, so
+ * following this link is authenticated the same way every other patient call
+ * is.
+ */
+export function patientDocumentUrl(document: ConsultationDocument): string {
+  return `${API_BASE_URL}/api/v1/patient/documents/${document.kind}/${document.publicId}.pdf`;
+}

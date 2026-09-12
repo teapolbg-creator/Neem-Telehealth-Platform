@@ -129,6 +129,22 @@ export default defineConfig({
       SMS_PROVIDER: "mock",
       EMAIL_PROVIDER: "mock",
       WHATSAPP_PROVIDER: "mock",
+      /*
+       * Video is here for a second reason on top of the one above.
+       *
+       * The suite asserts the mock adapter — `media.spec.ts` checks that the
+       * session reports `isMockProvider`, because being honest about a mock
+       * rather than implying a connection is itself the requirement (D18). A
+       * developer with `VIDEO_PROVIDER=whereby` in `.env` and a working key
+       * therefore failed that test, and the failure named the assertion rather
+       * than the configuration, so it read as a broken guarantee instead of a
+       * machine configured differently from CI.
+       *
+       * Pinning it makes the suite say the same thing on every machine. Real
+       * Whereby is exercised by running the app, which is where a human can
+       * actually see whether the video works.
+       */
+      VIDEO_PROVIDER: "mock",
     },
   },
 });

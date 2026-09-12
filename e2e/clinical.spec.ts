@@ -852,6 +852,81 @@ test.describe('what the patient sees after completion', () => {
     await expect(page.getByText('Thank you for your feedback.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Rate this consultation' })).toHaveCount(0);
   });
+
+  /**
+   * The half of the promise that was missing.
+   *
+   * "Consult a doctor and walk away with a prescription" is the product, and
+   * the prescription was the part that never reached the patient: it was
+   * generated, signed and stored, readable by the doctor, the pharmacy and an
+   * administrator, and by nobody else. The API tests cover the routes; this
+   * covers the thing the pilot actually depends on — that a patient standing
+   * at a counter, holding their own phone, can open it.
+   */
+  test('shows the prescription on the patient phone, and opens it', async ({
+    page,
+    playwright,
+    run,
+  }) => {
+    const live = await liveConsultation(playwright, run, 'pdoc');
+    if ('skip' in live) console.log('  skipped:', live.skip);
+    if ('skip' in live) test.skip(true, live.skip);
+    if ('skip' in live) return;
+
+    const doctorCsrf = await csrfOf(live.doctorApi);
+
+    const draft = await live.doctorApi.post(
+      `${API}/doctor/consultations/${live.publicId}/prescriptions`,
+      { headers: csrfHeaders(doctorCsrf), data: { items: [ITEM] } },
+    );
+    expect(draft.status(), await draft.text()).toBe(201);
+    const rxPublicId = (await draft.json()).data.publicId as string;
+
+    const issued = await live.doctorApi.post(`${API}/doctor/prescriptions/${rxPublicId}/issue`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: {},
+    });
+    expect(issued.status(), await issued.text()).toBe(200);
+
+    await live.doctorApi.post(`${API}/doctor/consultations/${live.publicId}/complete`, {
+      headers: csrfHeaders(doctorCsrf),
+      data: { outcome: 'PRESCRIPTION' },
+    });
+
+    // The patient's phone, carrying the session their QR scan produced.
+    await page.context().addCookies([
+      {
+        name: 'neem_patient',
+        value: live.patientSessionCookie,
+        url: 'http://localhost:8080',
+      },
+    ]);
+    await gotoHydrated(page, '/patient');
+
+    await expect(page.getByText('Consultation complete')).toBeVisible({ timeout: 20_000 });
+
+    // The document, its live status, and a link that resolves to a real PDF.
+    const link = page.getByRole('link', { name: /Prescription/ });
+    await expect(link).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Not yet dispensed')).toBeVisible();
+
+    const href = await link.getAttribute('href');
+    expect(href, 'the prescription link should carry a URL').toBeTruthy();
+
+    /*
+     * Fetched through the page's own context rather than the API contexts used
+     * above, because the point is that the PATIENT's cookie authorises it —
+     * the same cookie the browser would send when following the link.
+     */
+    const pdf = await page.request.get(href!);
+    expect(pdf.status(), await pdf.text()).toBe(200);
+    expect(pdf.headers()['content-type']).toBe('application/pdf');
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+
+    await live.doctorApi.dispose();
+    await live.pharmacyApi.dispose();
+    await live.adminApi.dispose();
+  });
 });
 
 test.describe('the verification page discloses nothing', () => {

@@ -1,12 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import type { ConsultationType, PatientSessionView } from "@neem/contracts";
-import { AlertCircle, Check, Loader2, Lock, Phone, PhoneOutgoing, Star, Video } from "lucide-react";
+import type {
+  ConsultationDocument,
+  ConsultationType,
+  DocumentStatus,
+  PatientSessionView,
+} from "@neem/contracts";
+import {
+  AlertCircle,
+  Check,
+  FileText,
+  Loader2,
+  Lock,
+  Phone,
+  PhoneOutgoing,
+  Star,
+  Video,
+} from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
+import { Chip } from "@/components/neem/Chip";
 import { CallStage } from "@/components/neem/CallStage";
 import { ApiError } from "@/lib/api-client";
 import { useJoinPatientMedia, useLeavePatientMedia, usePatientTimer } from "@/features/media/api";
 import {
+  patientDocumentUrl,
+  usePatientDocuments,
   usePatientComplaintCategories,
   usePatientLanguages,
   useEndPatientSession,
@@ -560,6 +578,8 @@ function CompleteStep({
         Please return to the pharmacist. Get well soon.
       </p>
 
+      <DocumentsPanel />
+
       {/*
         The consultation reference (decision D24).
 
@@ -957,6 +977,133 @@ function ClosedStep({
         counter, and there is no reference to lose in this case.
       */}
       <FinishOnThisPhone onFinished={onFinished} />
+    </div>
+  );
+}
+
+/**
+ * The documents the consultation produced, on the patient's own phone.
+ *
+ * This is the end of the promise the product makes — consult a doctor, walk
+ * away with a prescription — and until now it was the half that did not
+ * arrive. The PDFs were generated, signed and stored; the doctor could open
+ * them, the pharmacy could, an administrator could, and the patient could not.
+ *
+ * Placed above the reference rather than below it because it is what the
+ * patient came for, and because the pharmacist is standing there now. The
+ * reference matters later; the prescription matters in the next thirty
+ * seconds.
+ *
+ * Absent entirely when there are no documents. A consultation can legitimately
+ * end with advice alone, and an empty panel headed "Your documents" invites
+ * the patient to wait for something that is not coming.
+ */
+function DocumentsPanel() {
+  const documents = usePatientDocuments();
+
+  if (documents.isPending) {
+    return (
+      <div className="mt-8 flex w-full max-w-xs items-center justify-center gap-2 text-sm text-slate-400">
+        <Loader2 className="size-4 animate-spin" />
+        Loading your documents…
+      </div>
+    );
+  }
+
+  /*
+   * A failure here is worth showing rather than hiding. The patient can see
+   * the pharmacist, and "ask at the counter" is a real answer — the pharmacy
+   * holds the same documents. Silence would leave them believing no
+   * prescription was issued.
+   */
+  if (documents.isError) {
+    return (
+      <div className="mt-8 w-full max-w-xs rounded-2xl border border-border bg-slate-50 p-4 text-left">
+        <p className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          <AlertCircle className="size-4 shrink-0 text-warning" />
+          Your documents could not be loaded
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+          Ask the pharmacist — they have a copy of anything the doctor issued.
+        </p>
+      </div>
+    );
+  }
+
+  const issued = documents.data?.documents ?? [];
+  if (issued.length === 0) return null;
+
+  return (
+    <div className="mt-8 w-full max-w-xs text-left">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        {issued.length === 1 ? "Your document" : "Your documents"}
+      </p>
+
+      <ul className="mt-2 space-y-2">
+        {issued.map((document) => (
+          <li key={document.publicId}>
+            <DocumentCard document={document} />
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 text-xs leading-relaxed text-slate-500">
+        These stay available on this phone until you finish. Any pharmacy can check a document is
+        genuine by scanning the code printed on it.
+      </p>
+    </div>
+  );
+}
+
+const STATUS_TONE: Record<DocumentStatus["code"], "brand" | "medical" | "warning" | "muted"> = {
+  DISPENSED: "medical",
+  AWAITING_DISPENSE: "brand",
+  REVOKED: "warning",
+  ISSUED: "muted",
+};
+
+function DocumentCard({ document }: { document: ConsultationDocument }) {
+  /*
+   * `available` is false while the row exists and its PDF has not been written
+   * — a real window, because generation happens after issue. Showing the
+   * document without a link is better than omitting it: the patient can see
+   * the doctor issued something, which is what they would otherwise ask about.
+   */
+  const body = (
+    <>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-bold text-slate-900">{document.title}</span>
+        {document.status.detail && (
+          <span className="mt-0.5 text-xs leading-relaxed text-slate-500">
+            {document.status.detail}
+          </span>
+        )}
+      </span>
+      {document.available && <FileText className="size-4 shrink-0 text-slate-400" />}
+    </>
+  );
+
+  return (
+    <div className="rounded-2xl border border-border bg-white p-3">
+      <div className="flex items-start gap-3">
+        {document.available ? (
+          <a
+            href={patientDocumentUrl(document)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex min-w-0 flex-1 items-start gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            {body}
+          </a>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-start gap-3">{body}</div>
+        )}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <Chip tone={STATUS_TONE[document.status.code]}>{document.status.label}</Chip>
+        {!document.available && <span className="text-xs text-slate-400">Being prepared…</span>}
+      </div>
     </div>
   );
 }

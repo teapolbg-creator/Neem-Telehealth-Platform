@@ -8,6 +8,11 @@ import { getStorageProvider } from '../../adapters/storage/local-storage.provide
 import { buildStorageKey } from '../../adapters/storage/storage.provider.ts';
 import { emitToPharmacy } from '../realtime/realtime.service.ts';
 import { renderPrescriptionPdf, renderReferralPdf, renderSummaryPdf } from './pdf.service.ts';
+import type {
+  ConsultationDocument as Document,
+  DocumentKind as Kind,
+  DocumentStatus as Status,
+} from '@neem/contracts';
 
 /**
  * Issuing the documents a patient carries away (spec §43, §49, decision D25).
@@ -442,37 +447,15 @@ export async function readDocumentPdf(storageKey: string): Promise<Buffer> {
 // What a consultation produced, and what has happened to it since
 // ---------------------------------------------------------------------------
 
-export type DocumentKind = 'prescription' | 'referral' | 'summary';
-
-/**
- * The live state of a document, which is not the same thing as the document.
+/*
+ * The shapes come from the contract package rather than being declared here.
  *
- * The PDF is generated once at issue and never rewritten — see the note at the
- * top of this file. So a prescription dispensed a day later cannot say so on
- * its own face, and stamping it afterwards would mean either mutating a signed
- * clinical record or keeping two versions of one prescription. Neither is
- * acceptable for a document a pharmacist may act on.
- *
- * Status therefore lives beside the document rather than inside it: here, on
- * the patient's own screen, and on the public verification page that the QR
- * code in every footer points at. The paper says what the doctor decided; this
- * says what has happened since.
+ * This object crosses to the browser and the browser renders decisions from
+ * it — which status chip, whether a download is offered. Two declarations of
+ * that shape is two places for it to drift, and the drift would show up as a
+ * patient screen quietly rendering nothing rather than as a type error.
  */
-export interface DocumentStatus {
-  code: 'AWAITING_DISPENSE' | 'DISPENSED' | 'REVOKED' | 'ISSUED';
-  label: string;
-  detail: string | null;
-}
-
-export interface ConsultationDocument {
-  kind: DocumentKind;
-  publicId: string;
-  title: string;
-  issuedAt: string;
-  /** False when the PDF has not been written yet; the row can exist first. */
-  available: boolean;
-  status: DocumentStatus;
-}
+export type { ConsultationDocument, DocumentKind, DocumentStatus } from '@neem/contracts';
 
 const isoDay = (value: Date): string => value.toISOString().slice(0, 10);
 
@@ -480,7 +463,7 @@ function prescriptionStatus(prescription: {
   state: string;
   dispensedAt: Date | null;
   pharmacy: { name: string };
-}): DocumentStatus {
+}): Status {
   if (prescription.state === 'REVOKED') {
     return {
       code: 'REVOKED',
@@ -532,7 +515,7 @@ function prescriptionStatus(prescription: {
 export async function listConsultationDocuments(
   consultationId: string,
   db: Db = getPrisma(),
-): Promise<ConsultationDocument[]> {
+): Promise<Document[]> {
   const [prescriptions, referrals, summary] = await Promise.all([
     db.prescription.findMany({
       where: { consultationId, state: { not: 'DRAFT' } },
@@ -558,7 +541,7 @@ export async function listConsultationDocuments(
     }),
   ]);
 
-  const documents: ConsultationDocument[] = [];
+  const documents: Document[] = [];
 
   for (const prescription of prescriptions) {
     documents.push({
@@ -610,7 +593,7 @@ export async function listConsultationDocuments(
  */
 export async function readConsultationDocument(
   consultationId: string,
-  kind: DocumentKind,
+  kind: Kind,
   publicId: string,
   db: Db = getPrisma(),
 ): Promise<{ buffer: Buffer; filename: string }> {
@@ -673,7 +656,7 @@ export interface StaffReadableDocument {
  * indistinguishable to the caller.
  */
 export async function findDocumentForStaff(
-  kind: DocumentKind,
+  kind: Kind,
   publicId: string,
   db: Db = getPrisma(),
 ): Promise<StaffReadableDocument | null> {
