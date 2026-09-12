@@ -493,14 +493,32 @@ function prescriptionStatus(prescription: {
     code: 'AWAITING_DISPENSE',
     label: 'Not yet dispensed',
     /*
-     * Says what the patient can actually do. Only the consultation's own
-     * pharmacy can dispense this through Neem (spec §45), but any pharmacy
-     * anywhere can confirm the document is genuine by scanning the code
-     * printed on it — which is the thing a stranger behind a counter needs.
+     * Says what the patient can actually do, and claims nothing about what
+     * they will do.
+     *
+     * "Not yet dispensed" is the honest state in every direction the patient
+     * might go: filled at another pharmacy, filled here tomorrow, taken to a
+     * hospital for further management, or never filled at all. Neem observes
+     * exactly two things — whether this pharmacy dispensed it, and whether the
+     * doctor revoked it. Everything after the patient leaves the counter is
+     * invisible, so a status implying otherwise would be a guess wearing the
+     * clothes of a record.
+     *
+     * A "dispensed elsewhere" state was proposed and rejected for a second
+     * reason on top of that one: any state meaning dispensed forecloses both
+     * revocation (`prescription.service.ts` refuses to revoke a dispensed
+     * prescription) and a later dispense here if the patient returns. A
+     * prescription nobody has filled is still live, and closing it would be a
+     * lie with clinical consequences.
+     *
+     * Only this consultation's pharmacy can dispense through Neem (spec §45),
+     * but a hospital pharmacy is exactly where a referred patient goes next,
+     * and anyone holding the document can confirm it is genuine by scanning
+     * the code on it — which is the thing a stranger behind a counter needs.
      */
     detail:
-      `${prescription.pharmacy.name} can dispense this. Any other pharmacy can check it is ` +
-      'genuine by scanning the code printed on the document.',
+      `${prescription.pharmacy.name} can dispense this. Any pharmacy or hospital can check it ` +
+      'is genuine by scanning the code printed on the document.',
   };
 }
 
