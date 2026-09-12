@@ -145,6 +145,20 @@ export default defineConfig({
        * actually see whether the video works.
        */
       VIDEO_PROVIDER: "mock",
+
+      /*
+       * Payment, and this is the one that spends money.
+       *
+       * The suite drives real payment flows — Scenario 1 pays for a
+       * consultation, Scenario 2 fails a payment and retries it. With
+       * `PAYMENT_PROVIDER=paystack` in `.env` those become real transactions
+       * against whatever keys are configured, and the keys on a developer's
+       * machine may well be live ones: Paystack issues test and live pairs,
+       * and nothing about pasting the wrong pair into `.env` announces itself.
+       *
+       * Unlike a stray SMS, this one cannot be apologised for afterwards.
+       */
+      PAYMENT_PROVIDER: "mock",
     },
   },
 });
