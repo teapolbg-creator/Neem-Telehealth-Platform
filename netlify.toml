@@ -22,6 +22,31 @@
   command = "npm run build"
   publish = "dist"
 
+# Where Nitro's netlify preset writes the SSR handler.
+#
+# Declared rather than left to discovery, because discovery did not happen. The
+# first deploy read this file, ran the right preset, wrote
+# `.netlify/functions-internal/server/main.mjs` — and then reported
+# "0 new function(s) to upload". Static assets published, no server, so every
+# route returned Netlify's own 404: an SSR build emits no index.html, because
+# every request is meant to reach the function.
+#
+# Netlify normally finds `.netlify/functions-internal` on its own. It did not
+# here, and the difference is almost certainly `packagePath: apps/web` — with a
+# monorepo base set, the internal directory was not looked for underneath it.
+#
+# The path is relative to `base`, per Netlify's config docs, so this resolves to
+# `apps/web/.netlify/functions-internal`. Nitro writes `server/server.mjs`
+# there, which matches Netlify's directory-function convention — a folder whose
+# entry file shares its name — and that file carries its own `path: "/*"` and
+# `preferStatic: true`, so static assets are still served directly and only the
+# rest falls through to SSR.
+#
+# It also satisfies Netlify's rule that the functions directory sit outside the
+# publish directory: this is `.netlify/`, and `dist/` is published.
+[functions]
+  directory = ".netlify/functions-internal"
+
 [build.environment]
   # Matches the API's CI (NODE_VERSION "22") and the repository's
   # engines: { node: ">=22" }. Pinned rather than left to Netlify's default,
