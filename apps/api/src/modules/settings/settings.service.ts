@@ -60,6 +60,25 @@ export async function getIntSetting(key: SettingKey, db: Db = getPrisma()): Prom
 }
 
 /**
+ * A boolean setting.
+ *
+ * Strings are accepted as well as real booleans because a value that has been
+ * through the admin console, JSON, and a `json` column has more than one
+ * plausible shape by the time it comes back, and a switch that silently reads
+ * `"false"` as true is the worst possible kind of configuration bug — it fails
+ * in the permissive direction and looks like it worked.
+ */
+export async function getBooleanSetting(key: SettingKey, db: Db = getPrisma()): Promise<boolean> {
+  const value = await getSetting(key, db);
+
+  if (typeof value === 'boolean') return value;
+  if (value === 'true' || value === '1' || value === 1) return true;
+  if (value === 'false' || value === '0' || value === 0) return false;
+
+  throw new Error(`Setting ${key} is not boolean: ${JSON.stringify(value)}`);
+}
+
+/**
  * Invalidates the cache. Called after an admin changes a setting so the new
  * value takes effect immediately rather than up to the TTL later — a price or
  * revenue-share change must not apply to some requests and not others.

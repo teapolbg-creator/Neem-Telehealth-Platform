@@ -1224,3 +1224,85 @@ is affected, because Neem uses none of them beyond the database itself. The cost
 is a constraint to remember — adding a Supabase client library later, or the
 Data API for some quick integration, now requires deliberately granting what
 was deliberately taken away, which is the right way round.
+
+---
+
+### D46 — SMS is switched off for the pilot, not removed · 2026-09-12 · **DECIDED**
+
+**Issue.** SMS was becoming a launch blocker. The Arkesel sender ID is not yet
+registered with the networks, and an unregistered alphanumeric sender is
+accepted by the API with a 200 and then dropped silently — so the channel could
+not be trusted, and waiting for it was holding up a pilot whose purpose is to
+find out whether the core model works at all.
+
+The instruction was explicit and worth recording: deactivate SMS **without**
+deleting the provider, the adapters, the templates, the database fields or the
+tests, in a way that can be reversed during the pilot rather than rebuilt.
+
+**Decision.** One system setting, `notifications.smsEnabled`, default
+`false`, `requiresConfirm: true`. While it is off, a template that declares
+SMS sends EMAIL instead. Everything else is untouched: `SMS_PROVIDER`, both
+adapters, `toGhanaMsisdn`, the `SMS` enum value, all seven templates and
+`npm run arkesel:check`.
+
+A setting rather than an environment variable, because turning SMS back on is a
+commercial and operational decision the pilot expects to make mid-flight — once
+the sender ID is registered and a handset has been seen to buzz. That should be
+a toggle in the admin console, with audit and history, not a deploy.
+
+**A disabled SMS becomes an email rather than nothing.** The event still
+happened: a consultation is waiting, a prescription was withdrawn. Dropping it
+because a channel is off is how an operator learns to stop trusting the
+notification system.
+
+**Three details that are not obvious and cost something to get wrong.**
+
+1. **Deduplication.** `doctor.membership.expiring` and `.suspended` already
+   declare EMAIL alongside SMS. Substituting one for the other without
+   collapsing them sends the same doctor the same message twice — a defect that
+   reads as a mail-server problem for a week before anyone opens the template.
+2. **An explicit `channels` override still wins.** The retry job passes a
+   single channel to resend precisely what failed; re-routing there would retry
+   a different message from the one that did not arrive.
+3. **Booleans arrive in more than one shape.** The value passes through the
+   admin console, JSON and a `json` column, so `getBooleanSetting` accepts
+   `"false"` and `0` as well as `false`. A switch that reads `"false"` as
+   true fails in the permissive direction and looks like it worked.
+
+**What cannot be rerouted, and why that is now acceptable.**
+
+Doctors and pharmacies have email addresses. **Patients do not, and there is no
+field for one** — `PatientSession` holds a name, age, sex and phone, and
+`patientIdentitySchema` collects nothing else, because Neem keeps no patient
+profile (spec §8.1). So `patient.consultation.ready` and
+`patient.consultation.complete` cannot become emails. They are recorded as
+`SUPPRESSED` with a reason, which is visible to an operator rather than
+silently lost.
+
+That would have been unacceptable a week ago and is not now. `…complete`
+carried the consultation reference, which under [D24](#d24) is the patient's
+only route back to their own record — and the SMS was its only delivery. The
+reference is now on the completion screen _and_ printed on every page of every
+document the patient can download from their own phone. The SMS was the sole
+copy of something that now has two better ones.
+
+Adding an email address for patients was considered and rejected for the pilot:
+it means a migration, a contract change, a new encrypted field and a counter
+conversation, against a population at a pharmacy in Ghana where many patients
+will not have one. It would be building the wrong thing carefully.
+
+**The tests that assert SMS now ask for it.** Six failed on the new default,
+all of them covering the SMS path itself. Rewriting them to expect email was
+the wrong repair — they are the evidence that the capability still works, and
+inverting them would turn "SMS is off, not gone" into an unverified claim. They
+call `setSmsEnabled(true)` instead, which makes a dependency visible that was
+previously inherited from a default that happened to suit them.
+
+So SMS is off in production and still proven in the suite, which is the state
+the instruction actually asked for.
+
+**Still open.** Notification failures remain invisible to operators: there is no
+endpoint listing `FAILED` or `SUPPRESSED` rows, and `admin.notifications` is
+a template editor. With one pharmacy in month one somebody can query the table;
+at five that stops being true, and the suppressed patient notifications this
+decision creates are exactly the rows nobody will think to look for.

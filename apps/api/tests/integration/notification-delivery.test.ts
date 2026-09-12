@@ -1,7 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
-import { createTestPharmacy, createTestUser, resetDatabase } from '../helpers/database.ts';
+import {
+  createTestPharmacy,
+  createTestUser,
+  resetDatabase,
+  setSmsEnabled,
+} from '../helpers/database.ts';
 import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
 import {
   MockNotificationProvider,
@@ -222,6 +227,11 @@ const ITEM = {
 
 beforeEach(async () => {
   await resetDatabase();
+  // This file covers the SMS capability, which is switched off for the pilot
+  // (D46) and deliberately kept rather than deleted. Asking for it explicitly
+  // is what keeps it proven while it is off in production.
+  await setSmsEnabled(true);
+
   resetNotificationProviders();
   sms.clear();
   email.clear();

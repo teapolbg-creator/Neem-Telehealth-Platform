@@ -1,3 +1,5 @@
+import { SETTING_KEYS } from '../../src/modules/settings/settings.defaults.ts';
+import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../src/db/prisma.ts';
 import { hashPassword, generatePublicId } from '../../src/lib/crypto.ts';
@@ -174,4 +176,36 @@ export async function createTestDoctor(
   });
 
   return { user, doctor };
+}
+
+/**
+ * Turns the SMS channel on or off for one test.
+ *
+ * SMS is off by default for the pilot (decision D46), which means a test that
+ * exercises SMS has to ask for it. That is not a workaround — it is the
+ * dependency becoming visible. Before this setting existed those tests passed
+ * because a default happened to suit them, and a test whose subject is "an SMS
+ * is sent" should say so rather than inherit it.
+ *
+ * Called from `beforeEach` in the files that cover the SMS capability we are
+ * deliberately keeping rather than deleting, so it stays proven while switched
+ * off in production.
+ */
+export async function setSmsEnabled(enabled: boolean): Promise<void> {
+  const prisma = getPrisma();
+
+  await prisma.systemSetting.upsert({
+    where: { key: SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED },
+    create: {
+      key: SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED,
+      value: enabled,
+      valueType: 'boolean',
+      description: 'Whether notifications are sent by SMS.',
+      category: 'notifications',
+    },
+    update: { value: enabled },
+  });
+
+  // The settings cache holds values for 30s, which is longer than a test.
+  invalidateSettingsCache(SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED);
 }

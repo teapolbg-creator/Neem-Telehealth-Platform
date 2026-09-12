@@ -51,6 +51,8 @@ export const SETTING_KEYS = {
 
   MEDIA_MAX_CONCURRENT_CALLS: 'media.maxConcurrentBridgedCalls',
 
+  NOTIFICATIONS_SMS_ENABLED: 'notifications.smsEnabled',
+
   RETENTION_BACKUP_WINDOW_DAYS: 'retention.backupWindowDays',
   RETENTION_CLINICAL_RECORD_YEARS: 'retention.clinicalRecordYears',
 } as const;
@@ -369,6 +371,36 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     description:
       'How many Call Me voice bridges may run at once. Match this to the number of simultaneous calls the voice provider subscription allows.',
     category: 'media',
+    requiresConfirm: true,
+  },
+
+  // --- Notifications ------------------------------------------------------
+  {
+    key: K.NOTIFICATIONS_SMS_ENABLED,
+    value: false,
+    valueType: 'boolean',
+    /*
+     * Whether notifications go out by SMS at all.
+     *
+     * **Off for the pilot MVP.** The SMS provider, its adapter, its templates
+     * and its tests all remain — nothing here deletes a capability. What is
+     * switched off is the channel, and the switch is a setting rather than a
+     * deploy because turning SMS back on is a decision the pilot expects to
+     * make mid-flight, once the sender ID is registered and delivery has been
+     * seen to work on a real handset.
+     *
+     * While it is off, a template that would have sent an SMS sends an email
+     * instead, to recipients who have an email address. Doctors and pharmacies
+     * do; **patients do not, and there is no field for one** — Neem keeps no
+     * patient profile (spec §8.1), so the two patient templates are recorded
+     * as suppressed rather than delivered. That is acceptable now and was not
+     * before: the consultation reference (D24) reaches the patient on their
+     * own screen and is printed on every document they can now download, so
+     * the SMS is no longer the only copy of anything.
+     */
+    description:
+      'Whether notifications are sent by SMS. Off for the pilot: messages that would have gone by SMS go by email instead, where the recipient has an email address. Turn on once the SMS sender ID is registered and delivery is confirmed.',
+    category: 'notifications',
     requiresConfirm: true,
   },
 

@@ -11,6 +11,8 @@ import {
 } from '../../adapters/notification/index.ts';
 import { emitToAdmins, emitToDoctor, emitToPharmacy } from '../realtime/realtime.service.ts';
 import { NOTIFICATION_TEMPLATES, type TemplateChannel } from './templates.ts';
+import { getBooleanSetting } from '../settings/settings.service.ts';
+import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 
 /**
  * Notification dispatch (spec §58, §60).
@@ -184,6 +186,42 @@ export interface NotifyResult {
 }
 
 /**
+ * The channels a notification actually goes out on, once the pilot's switches
+ * are applied.
+ *
+ * SMS is off for the pilot MVP (`notifications.smsEnabled`, decision D46) and
+ * this is the whole of how it is off: the provider, the adapter, the templates
+ * and their tests are untouched, and one setting decides whether the channel
+ * they declare is the channel used. Turning SMS back on is a toggle in the
+ * admin console, not a deploy.
+ *
+ * **A disabled SMS becomes an email rather than nothing.** The event still
+ * happened — a consultation is waiting, a prescription was withdrawn — and
+ * dropping it silently because a channel is off is how an operator learns not
+ * to trust the notification system. Where the recipient has no email address
+ * the send is recorded as suppressed further down, which is visible rather
+ * than silent.
+ *
+ * Deduplicated, and that is not tidiness: `doctor.membership.expiring` and
+ * `.suspended` already declare EMAIL alongside SMS, so a naive substitution
+ * would send the same doctor the same message twice. Order is preserved so
+ * the in-app and browser channels still fire first, which is what the doctor
+ * actually looks at.
+ */
+async function routeChannels(
+  declared: readonly TemplateChannel[],
+  db: Db,
+): Promise<TemplateChannel[]> {
+  if (!declared.includes('SMS')) return [...declared];
+
+  const smsEnabled = await getBooleanSetting(SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED, db);
+  if (smsEnabled) return [...declared];
+
+  const routed = declared.map((channel) => (channel === 'SMS' ? 'EMAIL' : channel));
+  return [...new Set(routed)];
+}
+
+/**
  * Sends a notification on every channel its template declares.
  *
  * Never throws. The caller is a business operation that has already happened —
@@ -209,7 +247,14 @@ export async function notify(
       where: { code: definition.code, isActive: true },
     });
 
-    for (const channel of input.channels ?? definition.channels) {
+    /*
+     * An explicit `channels` override still wins — the retry job passes a
+     * single channel to resend exactly what failed, and re-routing it there
+     * would retry something other than the message that did not arrive.
+     */
+    const channels = input.channels ?? (await routeChannels(definition.channels, db));
+
+    for (const channel of channels) {
       const override = overrides.find((row) => row.channel === channel);
       const subject = override?.subject ?? definition.subject ?? undefined;
 
