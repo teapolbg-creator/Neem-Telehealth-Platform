@@ -36,6 +36,7 @@
     "db:migrate:test": "node scripts/migrate-test-db.mjs",
     "whereby:check": "node scripts/whereby-check.mjs",
     "arkesel:check": "node scripts/arkesel-check.mjs",
+    "smtp:check": "node scripts/smtp-check.mjs",
     "hubtel:check": "node scripts/hubtel-check.mjs",
     "db:studio": "npm run db:studio --workspace @neem/api",
     "setup": "npm install && npm run docker:up && npm run db:migrate && npm run db:migrate:test && npm run db:grants && npm run db:seed",
