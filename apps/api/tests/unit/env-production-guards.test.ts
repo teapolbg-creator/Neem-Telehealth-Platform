@@ -23,6 +23,8 @@ function productionEnv(overrides: Record<string, string | undefined> = {}): Node
     CSRF_SECRET: 'a-real-production-csrf-secret-value-000001',
     ENCRYPTION_KEY: 'a-real-production-encryption-key-value-001',
     WEB_ORIGIN: 'https://app.neem.example',
+    API_PUBLIC_URL: 'https://api.neem.example',
+    CSRF_COOKIE_DOMAIN: 'neem.example',
     PAYMENT_PROVIDER: 'paystack',
     PAYSTACK_SECRET_KEY: 'sk_live_not_a_real_key',
     PAYSTACK_PUBLIC_KEY: 'pk_live_not_a_real_key',
@@ -221,5 +223,56 @@ describe('the other production guards', () => {
     expect(() =>
       loadEnv(productionEnv({ SESSION_SECRET: 'dev-only-change-me-session-secret-value-1' })),
     ).toThrow(/still holds the development placeholder/);
+  });
+});
+
+/**
+ * The CSRF cookie has to be readable where the app runs (D47).
+ *
+ * The first production deploy put the app and the API on sibling hosts with no
+ * shared cookie domain. Sign-in worked, because it needs no CSRF token; sign-out
+ * and every other signed-in change were refused, and nothing checked for it.
+ */
+describe('the CSRF cookie domain', () => {
+  it('is required when the app and the API are on different hosts', () => {
+    expect(collectIssues(productionEnv({ CSRF_COOKIE_DOMAIN: undefined }))).toEqual([
+      { path: ['CSRF_COOKIE_DOMAIN'] },
+    ]);
+  });
+
+  it('is not required when they share a host', () => {
+    expect(
+      collectIssues(
+        productionEnv({
+          CSRF_COOKIE_DOMAIN: undefined,
+          API_PUBLIC_URL: 'https://app.neem.example',
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('must cover the app, not only the API', () => {
+    expect(collectIssues(productionEnv({ CSRF_COOKIE_DOMAIN: 'api.neem.example' }))).toEqual([
+      { path: ['CSRF_COOKIE_DOMAIN'] },
+    ]);
+  });
+
+  it('matches whole labels, so a lookalike host does not pass', () => {
+    // `app.notneem.example` ends in "neem.example" but is not inside it.
+    expect(
+      collectIssues(
+        productionEnv({
+          WEB_ORIGIN: 'https://app.notneem.example',
+          API_PUBLIC_URL: 'https://api.notneem.example',
+        }),
+      ),
+    ).toEqual([{ path: ['CSRF_COOKIE_DOMAIN'] }, { path: ['CSRF_COOKIE_DOMAIN'] }]);
+  });
+
+  it('accepts a leading dot, and treats an empty value as unset', () => {
+    expect(collectIssues(productionEnv({ CSRF_COOKIE_DOMAIN: '.neem.example' }))).toEqual([]);
+    expect(collectIssues(productionEnv({ CSRF_COOKIE_DOMAIN: '' }))).toEqual([
+      { path: ['CSRF_COOKIE_DOMAIN'] },
+    ]);
   });
 });

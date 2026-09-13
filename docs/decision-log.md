@@ -1306,3 +1306,58 @@ endpoint listing `FAILED` or `SUPPRESSED` rows, and `admin.notifications` is
 a template editor. With one pharmacy in month one somebody can query the table;
 at five that stops being true, and the suppressed patient notifications this
 decision creates are exactly the rows nobody will think to look for.
+
+---
+
+### D47 — The CSRF cookie is shared across the parent domain, and nothing else is · 2026-09-13 · **DECIDED**
+
+**Issue.** Administrators, doctors and pharmacists could not sign out of
+production. Sign-out went to the login page, which found the session still
+live and sent them straight back.
+
+The cause was the double-submit CSRF arrangement meeting the subdomain layout
+from [D44](#d44). The client reads `neem_csrf` with `document.cookie` and
+echoes it in `x-neem-csrf`. The API set that cookie without a domain, which
+makes it belong to `api.neemtelehealth.com` alone; JavaScript on
+`app.neemtelehealth.com` cannot see it. Every signed-in mutation therefore went
+out without the header and was refused with `403 CSRF_INVALID` before its
+handler ran. Sign-out was only the most visible, because the client navigated
+to the login page whether or not the request succeeded. Admin settings, queue
+actions and pharmacy requests were refused the same way. Sign-in needs no
+token, so the deploy looked healthy.
+
+D44 was right that `app.` and `api.` are same-site, so the cookies are _sent_.
+It does not follow that they are _readable_ — that is a different rule.
+
+Nothing caught it. The integration helper copies the CSRF cookie out of the
+response into the header, which no browser on another host can do, and in
+development both hosts are `localhost`, where cookies are shared across ports.
+
+**Options.** (A) Return the token in the sign-in response for the client to
+hold. Only its hash is stored, so it could not be handed back after a reload;
+that needs browser storage and a reissue path — a redesign of a mechanism that
+works. (B) Serve the app and the API from one host behind a proxy: a deployment
+change to fix a cookie attribute. (C) Give the CSRF cookie, and only that
+cookie, the parent domain.
+
+**Decision.** (C), as `CSRF_COOKIE_DOMAIN=neemtelehealth.com`. The session
+cookie stays httpOnly and host-only on the API.
+
+A cookie on the parent domain is also readable on the apex, which is the
+marketing site: another codebase, on another host. The token is worthless
+without the session cookie — but CORS allowed credentials for every listed
+origin, so a script on that site could already send the session cookie and
+lacked only the token. In the same change, credentials are allowed for the
+app's origin alone, which is what `security.md` §6 already claimed. The pilot
+form sends no cookies and is unaffected.
+
+**Guards.** Production refuses to boot when the app and API hosts differ and no
+domain is set; any environment refuses a domain that does not cover both
+hosts. The sign-out button now stays put and shows the error when sign-out
+fails, instead of reporting a success that did not happen.
+
+**Sessions from before the change** hold a CSRF cookie the app still cannot
+read. Once the tab is closed they end at the idle timeout
+(`SESSION_IDLE_TIMEOUT_MINUTES`, 30), or at once if the browser's cookies for
+the site are cleared. The next sign-out after signing in again removes the
+stale host-only cookie as well.

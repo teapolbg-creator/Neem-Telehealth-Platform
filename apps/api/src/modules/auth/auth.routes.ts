@@ -53,18 +53,32 @@ function setSessionCookies(reply: FastifyReply, session: IssuedSession) {
 
   // The CSRF cookie is deliberately readable by JavaScript: the client reads
   // it and echoes it in a header, which is the double-submit pattern.
+  //
+  // It is the one cookie given a domain. The app reads it on its own host, and
+  // a cookie the API sets without one is visible on the API's host alone
+  // (D47). Being readable on sibling hosts gives them nothing to use: the
+  // token is worthless without the session cookie, which stays host-only, and
+  // CORS allows credentials for the app's origin only.
   reply.setCookie(CSRF_COOKIE, session.csrfToken, {
     httpOnly: false,
     secure,
     sameSite: 'lax',
     path: '/',
+    domain: env.CSRF_COOKIE_DOMAIN,
     expires: session.absoluteExpiresAt,
   });
 }
 
 function clearSessionCookies(reply: FastifyReply) {
+  const domain = getEnv().CSRF_COOKIE_DOMAIN;
+
   reply.clearCookie(SESSION_COOKIE, { path: '/' });
-  reply.clearCookie(CSRF_COOKIE, { path: '/' });
+  reply.clearCookie(CSRF_COOKIE, { path: '/', domain });
+
+  // A host-only CSRF cookie set before the domain was configured would linger
+  // beside the shared one. The browser holds them as two cookies, so removing
+  // it takes a second clear.
+  if (domain) reply.clearCookie(CSRF_COOKIE, { path: '/' });
 }
 
 /**

@@ -160,6 +160,10 @@ services:
         value: https://neemtelehealth.com
       - key: API_PUBLIC_URL
         value: https://api.neemtelehealth.com
+      # The app on app., the API on api.: the CSRF cookie must be readable on
+      # both, or every signed-in change is refused (D47). Not a secret.
+      - key: CSRF_COOKIE_DOMAIN
+        value: neemtelehealth.com
 
       # --- Providers ----------------------------------------------------------
 

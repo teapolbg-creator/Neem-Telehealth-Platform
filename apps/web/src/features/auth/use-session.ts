@@ -86,10 +86,23 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.post<{ status: string }>("/auth/logout"),
-    onSettled: () => {
+    mutationFn: async () => {
+      try {
+        return await api.post<{ status: string }>("/auth/logout");
+      } catch (error) {
+        // No session to end means the user is already signed out, which is
+        // what they asked for. Any other failure means they are still signed in.
+        if (error instanceof ApiError && error.status === 401) return { status: "SIGNED_OUT" };
+        throw error;
+      }
+    },
+    onSuccess: () => {
       // Clear everything, not just the session: cached dashboard data belongs
       // to the account that just signed out.
+      //
+      // Only on success. A refused sign-out leaves the session live, and
+      // treating it as done hid the failure behind a bounce off the login page
+      // (D47).
       queryClient.clear();
     },
   });

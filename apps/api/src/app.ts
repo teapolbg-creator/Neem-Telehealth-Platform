@@ -69,15 +69,28 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Explicit allow-list. Credentials are enabled only for the known web origin,
   // because the session travels as a cookie.
+  //
+  // The marketing site is a second origin when one is configured. It sends no
+  // cookies — the pilot form is a plain POST — and is here only so the browser
+  // will let the form reach the API at all.
+  //
+  // It must not get credentials. It once did, harmlessly while the CSRF token
+  // was unreadable there; since D47 the CSRF cookie is shared across the
+  // parent domain, which includes the marketing site's host, and credentials
+  // would hand a script on that site both halves of a signed-in request.
+  const allowedOrigins = env.MARKETING_ORIGIN
+    ? [env.WEB_ORIGIN, env.MARKETING_ORIGIN]
+    : [env.WEB_ORIGIN];
+
   await app.register(cors, {
-    // The marketing site is a second origin when one is configured. It sends
-    // no cookies — the pilot form is a plain POST — so it gains nothing from
-    // `credentials` below; it is here only so the browser will let the form
-    // reach the API at all.
-    origin: env.MARKETING_ORIGIN ? [env.WEB_ORIGIN, env.MARKETING_ORIGIN] : [env.WEB_ORIGIN],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['content-type', 'x-neem-csrf', 'x-correlation-id'],
+    delegator: (request, callback) => {
+      callback(null, {
+        origin: allowedOrigins,
+        credentials: request.headers.origin === env.WEB_ORIGIN,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        allowedHeaders: ['content-type', 'x-neem-csrf', 'x-correlation-id'],
+      });
+    },
   });
 
   await app.register(cookie, { secret: env.SESSION_SECRET });

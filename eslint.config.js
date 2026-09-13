@@ -35,6 +35,8 @@ export default tseslint.config(
       "**/dist/**",
       "**/.output/**",
       "**/.vinxi/**",
+      // The Netlify preset's SSR bundle, written by `vite build` (D44).
+      "**/.netlify/**",
       "**/coverage/**",
       "**/build/**",
       "apps/api/prisma/generated/**",

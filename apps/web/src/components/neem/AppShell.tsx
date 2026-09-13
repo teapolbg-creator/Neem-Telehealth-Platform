@@ -4,6 +4,7 @@ import { LogOut, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NeemLogo } from "@/components/neem/Logo";
 import { useLogout, useSession } from "@/features/auth/use-session";
+import { ApiError } from "@/lib/api-client";
 
 type AppKey = "pharmacy" | "doctor" | "admin";
 
@@ -127,6 +128,12 @@ export function AppShell({
             <div className="size-8 rounded-full bg-slate-100 animate-pulse" aria-hidden />
           ) : user ? (
             <>
+              {logout.isError && (
+                <p role="alert" className="max-w-56 text-right text-xs text-red-700">
+                  Not signed out.{" "}
+                  {logout.error instanceof ApiError ? logout.error.message : "Please try again."}
+                </p>
+              )}
               <div className="hidden md:flex flex-col items-end leading-tight">
                 <span className="text-xs font-semibold">{user.displayName}</span>
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider">
@@ -142,8 +149,10 @@ export function AppShell({
               <button
                 type="button"
                 onClick={() =>
+                  // Navigate only once the session has actually ended. The
+                  // login page sends a live session straight back.
                   logout.mutate(undefined, {
-                    onSettled: () => void navigate({ to: "/auth/login" }),
+                    onSuccess: () => void navigate({ to: "/auth/login" }),
                   })
                 }
                 disabled={logout.isPending}

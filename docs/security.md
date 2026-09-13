@@ -87,7 +87,7 @@ Object references are always `publicId`, so enumeration yields nothing. Failed a
 - **Input validation:** zod at every boundary, shared with the frontend via `packages/contracts`. Unknown keys rejected, not stripped silently.
 - **Injection:** Prisma parameterises everything. Raw SQL is prohibited outside reviewed analytics queries, which take bound parameters only.
 - **XSS:** React escapes by default; `dangerouslySetInnerHTML` is banned by lint rule. A strict CSP is set.
-- **CSRF:** `SameSite=Lax` cookies plus a double-submit token on state-changing requests. Webhook endpoints are exempt and instead authenticated by signature.
+- **CSRF:** `SameSite=Lax` cookies plus a double-submit token on state-changing requests. Webhook endpoints are exempt and instead authenticated by signature. The CSRF cookie is the only cookie given the parent domain (`CSRF_COOKIE_DOMAIN`), because the app on `app.` must read a cookie the API on `api.` sets; the session cookie stays httpOnly and host-only (D47).
 - **Headers:** helmet — HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, referrer policy, CSP.
 - **CORS:** explicit allow-list, credentials enabled only for the known web origin.
 - **Rate limiting:** global, per-IP, and stricter per-route on login, token exchange, password reset, and payment initiation.

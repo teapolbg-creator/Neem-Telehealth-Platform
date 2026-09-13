@@ -88,6 +88,26 @@ const envSchema = z
      */
     MARKETING_ORIGIN: z.string().url().optional(),
     API_PUBLIC_URL: z.string().url().default('http://localhost:4000'),
+    /**
+     * The parent domain the CSRF cookie is shared across, for when the app and
+     * the API are on different hosts (D47).
+     *
+     * The client reads the CSRF cookie with `document.cookie` and echoes it in
+     * a header. A cookie set without a domain belongs to the API's host alone,
+     * so an app on `app.` cannot see one set by `api.` — and every signed-in
+     * change, sign-out included, is then refused as a CSRF failure. Setting
+     * `neemtelehealth.com` makes that one cookie readable on both. The session
+     * cookie is unaffected: it stays httpOnly and host-only on the API.
+     *
+     * Leave blank in development, where cookies on localhost are shared across
+     * ports anyway.
+     */
+    CSRF_COOKIE_DOMAIN: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .transform((value) => value.replace(/^\./, '') || undefined)
+      .optional(),
     // 'silent' is a real pino level and is what test runs use.
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
@@ -303,7 +323,49 @@ const envSchema = z
       require('HUBTEL_SENDER_ID', env.HUBTEL_SENDER_ID, 'when SMS_PROVIDER=hubtel');
     }
 
+    /*
+     * A cookie domain that does not cover both hosts fails silently in the
+     * browser: the API's Set-Cookie is discarded, or the app cannot read what
+     * was kept. Sign-in appears to work and every change after it is refused,
+     * so the configuration is refused instead (D47).
+     */
+    if (env.CSRF_COOKIE_DOMAIN) {
+      for (const [key, url] of [
+        ['WEB_ORIGIN', env.WEB_ORIGIN],
+        ['API_PUBLIC_URL', env.API_PUBLIC_URL],
+      ] as const) {
+        const host = new URL(url).hostname;
+        if (!hostWithin(host, env.CSRF_COOKIE_DOMAIN)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['CSRF_COOKIE_DOMAIN'],
+            message:
+              `CSRF_COOKIE_DOMAIN="${env.CSRF_COOKIE_DOMAIN}" does not cover ${key} (${host}). ` +
+              'It must be that host or a parent of it, for both the app and the API.',
+          });
+        }
+      }
+    }
+
     if (env.NODE_ENV === 'production') {
+      /*
+       * The configuration that first shipped (D47): the app on `app.`, the
+       * API on `api.`, and no shared cookie domain. Sign-in worked; sign-out
+       * and every other signed-in change did not.
+       */
+      const webHost = new URL(env.WEB_ORIGIN).hostname;
+      const apiHost = new URL(env.API_PUBLIC_URL).hostname;
+      if (!env.CSRF_COOKIE_DOMAIN && webHost !== apiHost) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CSRF_COOKIE_DOMAIN'],
+          message:
+            `CSRF_COOKIE_DOMAIN is required in production when the app (${webHost}) and the ` +
+            `API (${apiHost}) are on different hosts. Without it the app cannot read the CSRF ` +
+            'cookie, and every signed-in change, sign-out included, is refused.',
+        });
+      }
+
       // A secret still holding the value shipped in .env.example is a secret
       // an attacker already has.
       for (const [key, value] of [
@@ -402,6 +464,11 @@ const envSchema = z
       }
     }
   });
+
+/** Whether a cookie set for `domain` is visible on `host`: the domain itself or a subdomain of it. */
+function hostWithin(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
 
 /**
  * Upper bounds on the per-IP rate limits, enforced only in production.
