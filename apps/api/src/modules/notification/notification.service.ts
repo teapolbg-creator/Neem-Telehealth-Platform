@@ -300,6 +300,7 @@ export async function notify(
             channel,
             templateCode: definition.code,
             renderedPayloadHash: hashPayload(subject, body),
+            createdAt: clock.now(),
             status: 'SUPPRESSED',
             lastError: 'No address on file for this channel',
           },
@@ -316,6 +317,24 @@ export async function notify(
           templateCode: definition.code,
           // The hash, never the body (spec §60).
           renderedPayloadHash: hashPayload(subject, body),
+          /*
+           * The injected clock, not the database default.
+           *
+           * `notifyOnce` decides whether to suppress a repeat by comparing this
+           * column against a window measured from the same clock. Leaving it to
+           * Prisma's `now()` meant the decision used injected time and the
+           * record used real time, so the two agreed only by accident — and the
+           * accident expired. A test asserting that a repeat sends once a
+           * seven-day window has passed used fixed dates in September 2026; it
+           * passed until real time reached them, then began failing every run,
+           * for a reason that had nothing to do with any change.
+           *
+           * In production `systemClock.now()` is real now, so behaviour is
+           * unchanged. What changes is that the seam is honest: a caller that
+           * injects a clock now gets it applied to the record as well as to the
+           * decision.
+           */
+          createdAt: clock.now(),
           status: 'SENDING',
           attempts: 1,
         },
