@@ -20,7 +20,8 @@
     "db:studio": "prisma studio",
     "db:reset-2fa": "tsx scripts/reset-demo-2fa.ts",
     "check:production-config": "tsx scripts/check-production-config.ts",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "doctor:check": "tsx scripts/check-doctor.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
