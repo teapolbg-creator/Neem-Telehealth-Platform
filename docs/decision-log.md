@@ -1505,3 +1505,27 @@ MORNING and AFTERNOON assigned and _confirmed_ by the doctors each day, or the
 counter is closed. The two new settings fall back to their defaults until a
 `db:seed` creates their rows, which it does without touching any value already
 set.
+
+---
+
+### D51 — Doctors can confirm their shift from the dashboard · 2026-09-14 · **DECIDED**
+
+**Issue.** With D50 in place a pharmacy can only start a consultation while a
+doctor holds a _confirmed_ shift — and no doctor could confirm one. The
+dashboard showed "You have an unconfirmed shift today. Confirm it to receive
+consultations." with nothing to press. `POST /doctor/shifts/:id/confirm`, the
+service behind it and the `useConfirmShift` hook all existed; no screen called
+them. An unconfirmed shift has never counted for the queue either, so before
+D50 this already meant a doctor could not be offered a consultation, silently.
+
+The same warning chose "today's shift" as the first assignment dated today in
+whatever order the list returned, cancelled and declined ones included.
+
+**Decision.** The warning carries a **Confirm shift** button that calls the
+existing route, and reports a refusal in place. Today's shift is the one
+covering now, else the next to start, ignoring cancelled and declined
+assignments. The wording and styling of the dashboard are otherwise unchanged.
+
+Covered end to end by `e2e/shift-confirmation.spec.ts`: an assigned shift shows
+the warning, the button clears it, and a reload proves it was the server that
+changed rather than the screen.

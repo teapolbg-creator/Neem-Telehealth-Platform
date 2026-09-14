@@ -13,7 +13,12 @@ import {
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
-import { useDoctorProfile, useDoctorShifts } from "@/features/onboarding/api";
+import {
+  useConfirmShift,
+  useDoctorProfile,
+  useDoctorShifts,
+  type DoctorShift,
+} from "@/features/onboarding/api";
 import { useGoOffline, useGoOnline, usePresence } from "@/features/queue/api";
 import { useDoctorSubstitutions } from "@/features/clinical/api";
 import { formatMinor, useDoctorEarnings, useMembership } from "@/features/finance/api";
@@ -53,8 +58,7 @@ function DoctorDashboard() {
   const goOffline = useGoOffline();
   const online = presence.data?.online ?? false;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todaysShift = shifts.data?.shifts.find((shift) => shift.serviceDate.startsWith(today));
+  const todaysShift = pickTodaysShift(shifts.data?.shifts);
 
   if (profile.isLoading) {
     return (
@@ -112,7 +116,7 @@ function DoctorDashboard() {
         membershipDue={membership.data?.renewalDue ?? false}
         membershipStatus={membership.data?.status}
         substitutions={substitutions.data?.length ?? 0}
-        shiftNeedsConfirming={Boolean(todaysShift && !todaysShift.confirmedAt)}
+        unconfirmedShift={todaysShift?.status === "ASSIGNED" ? todaysShift : undefined}
       />
 
       <section className="card-soft flex flex-wrap items-center justify-between gap-4 p-6">
@@ -223,6 +227,84 @@ function DoctorDashboard() {
   );
 }
 
+/** "08:00" as minutes past midnight. */
+function minutesOf(hhmm: string): number {
+  const [hours = 0, minutes = 0] = hhmm.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * The shift that matters today (D51).
+ *
+ * Shift times are UTC, as the queue reads them. A cancelled or declined
+ * assignment is not a shift. Of the rest: the one covering now, else the next
+ * to start, else whichever remains. This used to be the first assignment dated
+ * today in whatever order the list came back, so a doctor with two could be
+ * told about the wrong one.
+ */
+function pickTodaysShift(
+  shifts: DoctorShift[] | undefined,
+  now: Date = new Date(),
+): DoctorShift | undefined {
+  const today = now.toISOString().slice(0, 10);
+  const minute = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  const live = (shifts ?? []).filter(
+    (shift) =>
+      shift.serviceDate.startsWith(today) &&
+      (shift.status === "ASSIGNED" || shift.status === "CONFIRMED"),
+  );
+
+  const covering = live.find((shift) => {
+    const start = minutesOf(shift.shift.startsAt);
+    const end = minutesOf(shift.shift.endsAt);
+    // A shift that crosses midnight covers two ranges of the clock.
+    return start < end ? minute >= start && minute < end : minute >= start || minute < end;
+  });
+  if (covering) return covering;
+
+  const upcoming = live
+    .filter((shift) => minutesOf(shift.shift.startsAt) > minute)
+    .sort((a, b) => minutesOf(a.shift.startsAt) - minutesOf(b.shift.startsAt));
+
+  return upcoming[0] ?? live[0];
+}
+
+/**
+ * The unconfirmed-shift warning, with the means to act on it (D51).
+ *
+ * The dashboard told doctors to confirm their shift and gave them nothing to
+ * press: `POST /doctor/shifts/:id/confirm` and `useConfirmShift` both existed,
+ * and no screen called either. An unconfirmed shift does not count for the
+ * queue, so a doctor who could not confirm was never offered a consultation.
+ */
+function ConfirmShiftNotice({ shift }: { shift: DoctorShift }) {
+  const confirm = useConfirmShift();
+
+  return (
+    <>
+      You have an unconfirmed shift today ({shift.shift.label}, {shift.shift.startsAt}–
+      {shift.shift.endsAt}). Confirm it to receive consultations.{" "}
+      <button
+        type="button"
+        disabled={confirm.isPending}
+        onClick={() => confirm.mutate(shift.id)}
+        className="ml-1 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+      >
+        {confirm.isPending && <Loader2 className="size-3 animate-spin" />}
+        Confirm shift
+      </button>
+      {confirm.error ? (
+        <span role="alert" className="mt-1 block text-xs text-red-700">
+          {confirm.error instanceof ApiError
+            ? confirm.error.message
+            : "The shift could not be confirmed. Please try again."}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * What is stopping this doctor working, if anything.
  *
@@ -235,14 +317,14 @@ function Blockers({
   membershipDue,
   membershipStatus,
   substitutions,
-  shiftNeedsConfirming,
+  unconfirmedShift,
 }: {
   status: string;
   statusReason: string | null;
   membershipDue: boolean;
   membershipStatus?: string;
   substitutions: number;
-  shiftNeedsConfirming: boolean;
+  unconfirmedShift?: DoctorShift;
 }) {
   const items: Array<{ tone: "danger" | "warn"; text: React.ReactNode }> = [];
 
@@ -303,11 +385,8 @@ function Blockers({
     });
   }
 
-  if (shiftNeedsConfirming) {
-    items.push({
-      tone: "warn",
-      text: <>You have an unconfirmed shift today. Confirm it to receive consultations.</>,
-    });
+  if (unconfirmedShift) {
+    items.push({ tone: "warn", text: <ConfirmShiftNotice shift={unconfirmedShift} /> });
   }
 
   if (items.length === 0) return null;
