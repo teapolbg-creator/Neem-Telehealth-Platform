@@ -1450,3 +1450,58 @@ and would have rescued this case.
 
 **Still required outside the code:** the live Paystack dashboard's webhook URL
 must be set to `https://api.neemtelehealth.com/api/v1/webhooks/payment`.
+
+---
+
+### D50 — No consultation is started without a doctor on duty, and none waits for ever · 2026-09-14 · **DECIDED**
+
+**Issue.** The first end-to-end live payment worked — and then the patient sat in
+the queue at 04:00 with no doctor to take them. Nothing stopped a pharmacy
+taking money when nobody was on shift, and nothing ended the wait: the queue
+raised an admin delay alert after five minutes and otherwise waited
+indefinitely. The pilot runs 08:00–20:00, so every night the counter could
+charge a patient for a consultation that could not happen.
+
+A second fault surfaced in the same code. Cancelling a paid consultation told
+the pharmacy "a refund request has been raised for Neem administration to
+review", and nothing raised one. `cancelConsultation` returned `refundOwed:
+true` and stopped.
+
+**Decision.**
+
+- **A hard block, enforced by the API.** Creating a consultation, and asking
+  for payment on one, are refused unless at least one doctor is on duty:
+  ACTIVE, subscription usable, licence valid, and on a CONFIRMED shift covering
+  now. Checked at both moments because a shift can end between them; after the
+  reuse of an in-flight payment, so an attempt already under way is never
+  stranded. The pharmacy sees the refusal as an ordinary error on the screen it
+  is on. Not a warning: a counter under pressure clicks through warnings, and
+  the cost of doing so falls on a patient.
+- **Presence and capacity are not part of it.** Those change minute to minute.
+  Requiring the doctor's queue screen to be open would block every pharmacy the
+  moment a doctor's phone locked mid-shift. `checkStandingEligibility` holds the
+  four standing gates, and `checkEligibility` runs it first, so the block and the
+  queue cannot disagree about what "on duty" means.
+- **A wait limit.** A consultation still WAITING_FOR_DOCTOR or REASSIGNING after
+  `queue.maxWaitSeconds` (default 1200, 20 minutes; 0 turns it off) is cancelled
+  by SYSTEM and its queue entry marked ABANDONED. ASSIGNED is left alone, so an
+  offer already in a doctor's hands is not pulled from under them.
+- **Cancelling a paid consultation now raises the refund request** it always
+  claimed to — recorded against whoever cancelled (SYSTEM for the wait limit) —
+  and an already-open request is left as it is. The refund is still an
+  administrator's decision.
+- Both are settings (`consultation.requireDoctorOnDuty`, requiring a reason to
+  change; `queue.maxWaitSeconds`), not literals.
+
+**Testing.** The integration suite turns the block off in `resetDatabase` —
+almost no test is about duty cover — and `consultation-availability.test.ts`
+turns it on. The end-to-end suite runs with the rule as production has it: a
+worker-scoped fixture puts one doctor on shift and never brings them online,
+which lifts the block without that doctor ever receiving an offer.
+
+**Operational consequence.** Outside confirmed shifts, pharmacies cannot start
+consultations. NIGHT is seeded inactive; a pilot running 08:00–20:00 needs
+MORNING and AFTERNOON assigned and _confirmed_ by the doctors each day, or the
+counter is closed. The two new settings fall back to their defaults until a
+`db:seed` creates their rows, which it does without touching any value already
+set.

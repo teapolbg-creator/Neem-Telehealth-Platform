@@ -81,6 +81,29 @@ export interface EligibilityResult {
 }
 
 /**
+ * Whether a doctor is on duty at all (D50).
+ *
+ * The part of the hard gate that does not change minute to minute: approved,
+ * paid up, licensed, and on a confirmed shift covering now. Whether a
+ * consultation may be *started* is decided on these alone. Presence and
+ * capacity are left to the queue, which waits for them — a doctor who stepped
+ * away from the queue screen mid-shift must not stop every pharmacy from
+ * taking a patient, and the queue wait limit covers the patient if nobody
+ * comes back.
+ *
+ * `checkEligibility` runs these first, so the two can never disagree about
+ * what "on duty" means.
+ */
+export function checkStandingEligibility(candidate: DoctorCandidate): EligibilityResult {
+  // Spec §83 — only ACTIVE doctors receive consultations.
+  if (candidate.status !== 'ACTIVE') return { eligible: false, reason: 'NOT_ACTIVE' };
+  if (!candidate.subscriptionUsable) return { eligible: false, reason: 'SUBSCRIPTION_LAPSED' };
+  if (!candidate.licenceValid) return { eligible: false, reason: 'LICENCE_EXPIRED' };
+  if (!candidate.onShift) return { eligible: false, reason: 'OFF_SHIFT' };
+  return { eligible: true };
+}
+
+/**
  * The hard gate. Every condition must hold; none is tradeable against a score.
  *
  * Order matters only for the reason reported, which is what tells an admin why
@@ -92,11 +115,10 @@ export function checkEligibility(
   requiredLanguageCode: string,
 ): EligibilityResult {
   if (candidate.alreadyOffered) return { eligible: false, reason: 'ALREADY_OFFERED' };
-  // Spec §83 — only ACTIVE doctors receive consultations.
-  if (candidate.status !== 'ACTIVE') return { eligible: false, reason: 'NOT_ACTIVE' };
-  if (!candidate.subscriptionUsable) return { eligible: false, reason: 'SUBSCRIPTION_LAPSED' };
-  if (!candidate.licenceValid) return { eligible: false, reason: 'LICENCE_EXPIRED' };
-  if (!candidate.onShift) return { eligible: false, reason: 'OFF_SHIFT' };
+
+  const standing = checkStandingEligibility(candidate);
+  if (!standing.eligible) return standing;
+
   if (!candidate.present) return { eligible: false, reason: 'NOT_PRESENT' };
 
   // The rule that is never a weight (spec §29).

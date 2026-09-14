@@ -425,10 +425,38 @@ export async function signInAdminOnPage(page: Page): Promise<void> {
   await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 20_000 });
 }
 
-export const test = base.extend<{ run: string }>({
+export const test = base.extend<{ run: string }, { doctorOnDuty: ActiveDoctor | null }>({
   run: async ({}, use) => {
     await use(runId());
   },
+
+  /**
+   * A doctor on today's shift, for every worker (decision D50).
+   *
+   * A pharmacy cannot start a consultation while no doctor is on duty, and the
+   * dev database has no rota — so without this, every spec that creates a
+   * consultation would be refused, whatever it was actually about.
+   *
+   * The doctor is put on shift but never brought online, so they lift the
+   * block without ever being offered a consultation. Specs that need a doctor
+   * to receive offers still create and bring online their own.
+   */
+  doctorOnDuty: [
+    async ({ playwright }, use) => {
+      const doctorApi = await playwright.request.newContext();
+      const adminApi = await playwright.request.newContext();
+
+      const doctor = await createActiveDoctor(doctorApi, { run: `duty${runId()}` });
+      const onShift = await putDoctorOnShiftNow(doctorApi, adminApi, doctor);
+      if (!onShift.ok) console.log('  no doctor on duty for this worker:', onShift.reason);
+
+      await doctorApi.dispose();
+      await adminApi.dispose();
+
+      await use(onShift.ok ? doctor : null);
+    },
+    { scope: 'worker', auto: true },
+  ],
 });
 
 export { expect };

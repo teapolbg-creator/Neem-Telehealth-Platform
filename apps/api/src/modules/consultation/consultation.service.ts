@@ -1,7 +1,9 @@
 import type { ConsultationState, PrismaClient } from '@prisma/client';
 import type { ActorType } from '@prisma/client';
+import { assertDoctorOnDuty } from '../queue/availability.service.ts';
+import { requestRefund } from '../payment/refund.service.ts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
-import { errors } from '../../lib/errors.ts';
+import { AppError, errors } from '../../lib/errors.ts';
 import { generateConsultationReference } from '../../lib/crypto.ts';
 import { addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
@@ -186,6 +188,10 @@ export async function createConsultation(
     );
   }
 
+  // Before anything is priced or charged. With no doctor on duty a patient
+  // would pay and then wait for nobody (D50).
+  await assertDoctorOnDuty(db, clock);
+
   const priceMinor = await getIntSetting(SETTING_KEYS.CONSULTATION_PRICE_MINOR, db);
   const currency = String(await getSetting(SETTING_KEYS.CONSULTATION_CURRENCY, db));
   const windowSeconds = await getIntSetting(SETTING_KEYS.PAYMENT_WINDOW_SECONDS, db);
@@ -365,7 +371,39 @@ export async function cancelConsultation(
     db,
   );
 
+  /*
+   * A paid consultation is never silently discarded (spec §37). The refund is
+   * *requested* here, for an administrator to decide. The pharmacy was already
+   * being told "a refund request has been raised" — until D50 nothing raised
+   * one, so the promise was kept only in what it said.
+   */
+  if (refundOwed) {
+    try {
+      const refund = await requestRefund(
+        consultation.id,
+        {
+          reason,
+          requestedByType: refundRequesterFor(context.actorType),
+          requestedByRef: context.actorId ?? undefined,
+          correlationId: context.correlationId,
+        },
+        db,
+        clock,
+      );
+      return { state: refund.consultationState, refundOwed };
+    } catch (error) {
+      // One already open — the patient asked from their phone first — is the
+      // outcome wanted.
+      if (!(error instanceof AppError && error.statusCode === 409)) throw error;
+    }
+  }
+
   return { state: 'CANCELLED', refundOwed };
+}
+
+/** Who a refund raised by a cancellation is recorded as coming from. */
+function refundRequesterFor(actorType: ActorType): 'PATIENT' | 'PHARMACY' | 'ADMIN' | 'SYSTEM' {
+  return actorType === 'DOCTOR' ? 'SYSTEM' : actorType;
 }
 
 export interface ConsultationListFilters {

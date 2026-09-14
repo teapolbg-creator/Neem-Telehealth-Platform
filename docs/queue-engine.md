@@ -71,12 +71,15 @@ There is no decline endpoint (spec §30).
 
 ## 4. Escalation
 
-| Attempts                            | Action                                                                                      |
-| ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1–2                                 | Silent reassignment                                                                         |
-| 3                                   | Admin alert: repeated non-response on one consultation                                      |
-| Any, no eligible doctor             | Admin alert `NO_LANGUAGE_MATCH` with language, wait time, pharmacy                          |
-| Wait exceeds a configured threshold | Admin alert `QUEUE_DELAY`; the patient is offered the option to cancel and request a refund |
+| Attempts                                                 | Action                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1–2                                                      | Silent reassignment                                                                         |
+| 3                                                        | Admin alert: repeated non-response on one consultation                                      |
+| Any, no eligible doctor                                  | Admin alert `NO_LANGUAGE_MATCH` with language, wait time, pharmacy                          |
+| Wait exceeds a configured threshold                      | Admin alert `QUEUE_DELAY`; the patient is offered the option to cancel and request a refund |
+| Wait exceeds `queue.maxWaitSeconds` (default 20 minutes) | Cancelled by SYSTEM, and a refund request raised for an administrator to decide (D50)       |
+
+A consultation cannot be started, or paid for, while no doctor is on duty — active, licensed, paid up and on a confirmed shift covering now (`consultation.requireDoctorOnDuty`, D50). Presence and capacity are not part of that check: the queue waits for them, and the wait limit above covers the patient if nobody comes.
 
 Admin can intervene: manually assign an eligible doctor, activate an off-shift doctor, or approve a refund. Manual assignment is audited and still cannot bypass the language requirement.
 

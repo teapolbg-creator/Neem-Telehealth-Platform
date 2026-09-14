@@ -624,6 +624,16 @@ describe('cancellation', () => {
     expect(response.status).toBe(200);
     expect(response.body.data?.refundOwed).toBe(true);
     expect(response.body.data?.message).toMatch(/refund request has been raised/i);
+
+    // And one was. The message used to be true only in what it said (D50).
+    const consultation = await getPrisma().consultation.findUniqueOrThrow({
+      where: { publicId },
+    });
+    const refunds = await getPrisma().refund.findMany({
+      where: { consultationId: consultation.id },
+    });
+    expect(refunds).toHaveLength(1);
+    expect(refunds[0]).toMatchObject({ state: 'REQUESTED', requestedByType: 'PHARMACY' });
   });
 
   it('revokes outstanding access tokens on cancellation', async () => {

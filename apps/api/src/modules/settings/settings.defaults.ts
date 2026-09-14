@@ -17,6 +17,7 @@ export const SETTING_KEYS = {
   CONSULTATION_WARNING_SECONDS: 'consultation.warningSeconds',
   PAYMENT_WINDOW_SECONDS: 'consultation.paymentWindowSeconds',
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
+  REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
   REVENUE_PHARMACY_BP: 'revenue.pharmacySharePctBp',
   REVENUE_NEEM_BP: 'revenue.neemSharePctBp',
@@ -24,6 +25,7 @@ export const SETTING_KEYS = {
   QUEUE_RESPONSE_WINDOW_SECONDS: 'queue.responseWindowSeconds',
   QUEUE_MAX_OFFER_ATTEMPTS: 'queue.maxOfferAttemptsBeforeAlert',
   QUEUE_DELAY_ALERT_SECONDS: 'queue.delayAlertSeconds',
+  QUEUE_MAX_WAIT_SECONDS: 'queue.maxWaitSeconds',
   QUEUE_WEIGHT_LANGUAGE: 'queue.weights.language',
   QUEUE_WEIGHT_AVAILABILITY: 'queue.weights.availability',
   QUEUE_WEIGHT_WORKLOAD: 'queue.weights.workload',
@@ -120,6 +122,15 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     description: 'Lifetime of a one-time consultation QR token before it expires unused.',
     category: 'consultation',
   },
+  {
+    key: K.REQUIRE_DOCTOR_ON_DUTY,
+    value: true,
+    valueType: 'boolean',
+    description:
+      'Refuse to start, or take payment for, a consultation when no doctor is on duty — active, licensed, paid up and on a confirmed shift covering now (D50).',
+    category: 'consultation',
+    requiresConfirm: true,
+  },
 
   // --- Revenue ------------------------------------------------------------
   {
@@ -161,6 +172,14 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: 300,
     valueType: 'number',
     description: 'Queue wait after which an admin delay alert is raised.',
+    category: 'queue',
+  },
+  {
+    key: K.QUEUE_MAX_WAIT_SECONDS,
+    value: 1200,
+    valueType: 'number',
+    description:
+      'Queue wait after which a consultation no doctor has taken is cancelled and a refund request raised for an administrator. 0 turns the limit off (D50).',
     category: 'queue',
   },
   // Weights sum to 1.0. Language is ALSO a hard eligibility gate — a doctor who

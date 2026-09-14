@@ -14,6 +14,7 @@ import { completeRefund, requestRefund } from './refund.service.ts';
 import { settleMembershipPayment } from '../subscription/membership-payment.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
+import { assertDoctorOnDuty } from '../queue/availability.service.ts';
 
 /**
  * Payment orchestration (spec §34, §35, §68).
@@ -85,6 +86,11 @@ export async function initiatePayment(
       isMockProvider: provider.isMock,
     };
   }
+
+  // Checked again at the moment money is asked for, not only at creation: a
+  // shift can end between the two. After the reuse above, so a payment already
+  // in flight is never stranded by it (D50).
+  await assertDoctorOnDuty(db, clock);
 
   // Our own reference doubles as the idempotency key. Unique per attempt, so a
   // retry after a genuine failure is a distinct charge, not a duplicate.

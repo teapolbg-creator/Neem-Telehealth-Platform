@@ -67,6 +67,14 @@ export async function resetDatabase(): Promise<void> {
   // Settings, languages, shifts and complaint categories are required for the
   // system to function at all, so they are part of a clean state.
   await seedReferenceData(prisma as PrismaClient);
+
+  /*
+   * Off for the suite, on in production (D50). Almost every test creates a
+   * consultation without putting a doctor on shift first, and none of them is
+   * about duty cover. `consultation-availability.test.ts` turns it back on and
+   * is the file that proves the block.
+   */
+  await setDoctorOnDutyRequired(false);
 }
 
 export interface TestUserOptions {
@@ -208,4 +216,21 @@ export async function setSmsEnabled(enabled: boolean): Promise<void> {
 
   // The settings cache holds values for 30s, which is longer than a test.
   invalidateSettingsCache(SETTING_KEYS.NOTIFICATIONS_SMS_ENABLED);
+}
+
+/**
+ * Turns the "no doctor on duty" block on or off (decision D50).
+ *
+ * On by default, which is right for production and wrong for a suite that
+ * creates consultations without a rota. `resetDatabase` turns it off; the file
+ * that covers the block turns it back on.
+ */
+export async function setDoctorOnDutyRequired(required: boolean): Promise<void> {
+  await getPrisma().systemSetting.update({
+    where: { key: SETTING_KEYS.REQUIRE_DOCTOR_ON_DUTY },
+    data: { value: required },
+  });
+
+  // The settings cache holds values for 30s, which is longer than a test.
+  invalidateSettingsCache(SETTING_KEYS.REQUIRE_DOCTOR_ON_DUTY);
 }

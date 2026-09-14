@@ -5,6 +5,7 @@ import { expireStaleTokens } from '../modules/consultation/access-token.service.
 import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
 import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
+import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 import {
   runSubscriptionExpirySweep,
@@ -69,6 +70,15 @@ const JOBS: JobDefinition[] = [
     intervalMs: 10 * SECOND,
     run: processWaitingQueue,
     describe: (count) => `offered ${count} waiting consultation(s)`,
+  },
+  {
+    // Ends a consultation no doctor has taken within `queue.maxWaitSeconds`
+    // and raises a refund request for it, so a patient who paid is never left
+    // waiting for a doctor who is not coming (D50).
+    name: 'cancel-unserved-consultations',
+    intervalMs: 30 * SECOND,
+    run: cancelUnservedConsultations,
+    describe: (count) => `cancelled ${count} consultation(s) past the queue wait limit`,
   },
   {
     // Timer warnings only. This job emits events; it does NOT end a
