@@ -77,7 +77,7 @@ npm run dev
 
 ### Demo accounts
 
-Printed by `npm run db:seed`. Every seeded row carries `isDemo: true` and a `.demo` email address, so demo and production data cannot be confused (spec §76). The seed refuses to run when `NODE_ENV=production`, and the config loader independently rejects `SEED_DEMO_DATA=true` there.
+Printed by `npm run db:seed`. Every seeded row carries `isDemo: true` and a `.demo` email address, so demo and production data cannot be confused (spec §76). Demo data only ever goes into a database on this machine: the seed skips it when `NODE_ENV=production` or `SEED_DEMO_DATA=false`, and refuses it whenever `DATABASE_URL` or `DIRECT_DATABASE_URL` points anywhere but `localhost` — reference data is still seeded, so `db:seed` stays safe to run against production (D52). The config loader independently rejects `SEED_DEMO_DATA=true` in production.
 
 | Role     | Email                       | Note                                                               |
 | -------- | --------------------------- | ------------------------------------------------------------------ |

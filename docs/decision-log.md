@@ -1529,3 +1529,38 @@ assignments. The wording and styling of the dashboard are otherwise unchanged.
 Covered end to end by `e2e/shift-confirmation.spec.ts`: an assigned shift shows
 the warning, the button clears it, and a reload proves it was the server that
 changed rather than the screen.
+
+---
+
+### D52 — Demo data is refused on any database that is not on this machine · 2026-09-14 · **DECIDED**
+
+**Issue.** Seeding the two D50 settings into production meant running
+`npm run db:seed` locally with production's database URLs set in the shell.
+Everything else came from the local `.env` — including `NODE_ENV=development`
+and `SEED_DEMO_DATA=true`, which are exactly the two flags the seed used to
+decide whether to write demo data. Forgetting to override `SEED_DEMO_DATA` would
+have put demo pharmacies, demo doctors and demo sign-in accounts, with passwords
+printed in the README, into the live database. It was caught by reading the
+seed before running it, not by anything in the seed.
+
+`NODE_ENV=production` could not be the safeguard either: setting it locally
+makes the config loader apply production's checks to the development `.env`,
+and the seed refuses to start.
+
+**Decision.** The destination gets the last word. After reference data is
+seeded, and after the existing `NODE_ENV` and `SEED_DEMO_DATA` checks, the seed
+refuses demo data unless both `DATABASE_URL` and `DIRECT_DATABASE_URL` (when
+set) point at a loopback host — `localhost`, `127.0.0.1` or `::1`. A hostname
+that only contains "localhost" does not count, and a URL that cannot be parsed
+is refused.
+
+- **Reference data is unaffected**, so `db:seed` remains the way to add new
+  settings rows to production.
+- **Not an error exit.** Reference seeding succeeded; a non-zero exit would
+  break `npm run setup`'s chain on a misdetection while protecting nothing more.
+  The refusal is printed plainly instead.
+- **Loopback only.** The development database is published on `localhost` by
+  `docker/docker-compose.yml`, no container runs the seed, and CI does not seed,
+  so there is no legitimate remote target to allow for.
+
+Covered by `tests/unit/seed-demo-guard.test.ts`.

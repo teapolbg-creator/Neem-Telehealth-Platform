@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { getEnv } from '../../src/config/env.ts';
 import { seedReferenceData } from './reference-data.ts';
 import { seedDemoData } from './demo-data.ts';
+import { demoDataRefusal } from './demo-guard.ts';
 
 /**
  * Seed entry point.
@@ -31,6 +32,23 @@ async function main(): Promise<void> {
 
     if (!env.SEED_DEMO_DATA) {
       console.log('\nSEED_DEMO_DATA=false — demo data skipped.');
+      return;
+    }
+
+    /*
+     * The flags above come from the local .env, which asks for demo data. Where
+     * the data is actually going gets the last word (D52): reference data has
+     * already been seeded, and demo data is refused anywhere but this machine.
+     * Not an error exit, so a setup script chaining commands is not broken.
+     */
+    const refusal = demoDataRefusal({
+      DATABASE_URL: env.DATABASE_URL,
+      DIRECT_DATABASE_URL: process.env.DIRECT_DATABASE_URL,
+    });
+    if (refusal) {
+      console.log(`\nDemo data REFUSED — ${refusal}`);
+      console.log('  Demo pharmacies, doctors and sign-in accounts are only seeded into a local');
+      console.log('  database. The reference data above was seeded as normal.');
       return;
     }
 
