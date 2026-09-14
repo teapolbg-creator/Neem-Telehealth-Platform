@@ -44,8 +44,16 @@ function mapStatus(value: string | undefined): VerifiedPaymentStatus {
     case 'failed':
     case 'reversed':
       return 'FAILED';
+    /*
+     * Not final (D49). Paystack reports a checkout that has been opened but not
+     * yet completed as "abandoned" — including one the customer is still in the
+     * middle of. In production a payment read "abandoned" at 02:16 and
+     * "success" at 02:18, and taking the first answer as final stopped Neem
+     * ever asking again. A checkout that really is abandoned simply never
+     * succeeds, and the payment window closes it.
+     */
     case 'abandoned':
-      return 'ABANDONED';
+      return 'PENDING';
     // 'ongoing', 'pending', 'processing', 'queued', and anything unrecognised.
     // Defaulting to PENDING is the safe direction: it settles nothing and
     // leaves the consultation awaiting a definitive answer.

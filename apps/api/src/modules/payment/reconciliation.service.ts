@@ -68,7 +68,10 @@ export async function reconcilePayments(
       // SUCCESS is included deliberately. A payment we think succeeded that
       // the provider has since reversed is the discrepancy that matters most,
       // and only checking the unsettled ones would never find it.
-      status: { in: ['PENDING', 'PROCESSING', 'SUCCESS'] },
+      // ABANDONED too: a payment written off when its window closed can still
+      // be completed by the patient afterwards, which is money taken for
+      // nothing and exactly the drift this job exists to find (D49).
+      status: { in: ['PENDING', 'PROCESSING', 'SUCCESS', 'ABANDONED'] },
     },
     select: {
       id: true,

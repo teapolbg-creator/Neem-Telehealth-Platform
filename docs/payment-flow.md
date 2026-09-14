@@ -67,13 +67,14 @@ Webhooks are also validated for signature **before** the body is parsed, and an 
 
 ## 4. Failure and expiry
 
-| Event                     | Behaviour                                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Payment declined          | Patient retries inside the 5-minute window; the consultation stays `PAYMENT_FAILED` and is retryable                  |
-| Window elapses            | `EXPIRED`; provider session abandoned; temporary payment data cleaned up                                              |
-| Late webhook after expiry | Payment recorded, consultation **not** revived, admin alert raised for reconciliation or refund                       |
-| Paystack unreachable      | Consultation stays `PENDING_PAYMENT`; the pharmacy sees an explicit provider-unavailable state, never a false success |
-| Amount mismatch           | Rejected, admin alert. The expected amount is recomputed server-side and compared                                     |
+| Event                        | Behaviour                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Payment declined             | Patient retries inside the 5-minute window; the consultation stays `PAYMENT_FAILED` and is retryable                                                                                                                                       |
+| Paystack reports `abandoned` | Not final. It is what Paystack calls a checkout not completed yet; Neem keeps checking until it succeeds or the window closes (D49)                                                                                                        |
+| Window elapses               | The provider is asked first. Paid: settled and `ACTIVATED`. Not paid: `EXPIRED`, attempt abandoned, temporary payment data cleaned up. Provider unreachable: held open and retried for up to an hour past the deadline, then expired (D49) |
+| Paid after expiry            | Payment recorded as `SUCCESS`, consultation **not** revived, anomaly audited and a refund request raised for an administrator to decide; the hourly reconciliation also checks abandoned payments (D49)                                    |
+| Paystack unreachable         | Consultation stays `PENDING_PAYMENT`; the pharmacy sees an explicit provider-unavailable state, never a false success                                                                                                                      |
+| Amount mismatch              | Rejected, admin alert. The expected amount is recomputed server-side and compared                                                                                                                                                          |
 
 ---
 

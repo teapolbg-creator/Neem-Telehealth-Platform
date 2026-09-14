@@ -131,9 +131,17 @@ describe('status mapping', () => {
     expect(parse('reversed')).toBe('FAILED');
   });
 
-  it('treats failure and abandonment distinctly', () => {
+  it('treats a failure as failed', () => {
     expect(parse('failed')).toBe('FAILED');
-    expect(parse('abandoned')).toBe('ABANDONED');
+  });
+
+  /**
+   * Paystack says "abandoned" for a checkout not yet completed, and it can
+   * still succeed (D49). Read as final, it stopped Neem checking a payment the
+   * patient made two minutes later.
+   */
+  it('treats "abandoned" as not yet final', () => {
+    expect(parse('abandoned')).toBe('PENDING');
   });
 
   /**

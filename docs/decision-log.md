@@ -1398,3 +1398,55 @@ rather than charged twice, and its checkout link is not stored — so if the
 checkout is lost, the screen can only say a payment is in progress. Storing the
 link would be a schema change. Likewise the Mobile Money number field on the
 payment step is not sent to Paystack; the patient enters it at checkout.
+
+---
+
+### D49 — Paystack "abandoned" is not final, and nothing expires a consultation without asking the provider · 2026-09-14 · **DECIDED**
+
+**Issue.** The first live payment expired the consultation it paid for. A patient
+paid GHS 30 by Mobile Money; Paystack confirmed it at 02:18:52; the payment
+window closed at 02:21:37; the consultation was expired at 02:22:02 with the
+payment written off as abandoned. The money had to be refunded by hand.
+
+Traced against production, three faults lined up:
+
+1. **Paystack's "abandoned" was read as final.** Paystack reports a checkout
+   that has been opened but not completed _yet_ as `abandoned`. The pharmacy
+   screen's first checks, made before the patient had approved the prompt, got
+   that answer, and the adapter mapped it to `ABANDONED`.
+2. **The status route then stopped checking.** It skipped any payment already
+   `ABANDONED`, so the success two minutes later was never asked about. Its
+   failures were also discarded with `.catch(() => undefined)`, which would
+   have hidden any other cause just as well.
+3. **The expiry sweep did not ask the provider.** It expired every consultation
+   past its deadline in `PAYMENT_PROCESSING`, contrary to its own comment that a
+   slow provider "can never expire one that was in fact paid". Once expired,
+   `EXPIRED → PAID` is not a transition, so a later confirmation failed quietly
+   with no refund raised.
+
+No webhook arrived either; the live Paystack webhook had not been configured,
+and would have rescued this case.
+
+**Decision.**
+
+- `abandoned` maps to PENDING. A checkout that really was abandoned never
+  succeeds, and the window closes it; the cost of the old mapping was a paid
+  consultation lost.
+- The status route re-verifies whenever the consultation is still awaiting
+  payment, whatever the last answer was, and logs verification failures.
+- The sweep verifies before expiring a consultation with a payment in progress:
+  paid means settled and activated; not paid means expired; unreachable means
+  held and retried for up to an hour past the deadline, then expired.
+- A confirmation for a consultation that has already closed does what
+  `payment-flow.md` §4 always said: the payment is recorded as SUCCESS, the
+  consultation is not revived, a `PAID_AFTER_CLOSE` anomaly is audited, and a
+  refund request is raised by SYSTEM for an administrator to decide. No revenue
+  is allocated. The refund is requested, never made automatically.
+- Reconciliation includes ABANDONED payments, so a patient who pays after the
+  sweep is found within the hour even without a webhook.
+- A confirmation for a consultation whose last attempt was reported failed
+  moves it back to PAYMENT_PROCESSING before PAID, rather than failing the
+  transition.
+
+**Still required outside the code:** the live Paystack dashboard's webhook URL
+must be set to `https://api.neemtelehealth.com/api/v1/webhooks/payment`.

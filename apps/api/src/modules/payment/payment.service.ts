@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
-import { errors } from '../../lib/errors.ts';
+import { AppError, errors } from '../../lib/errors.ts';
 import { getEnv } from '../../config/env.ts';
 import { generatePublicId, generateToken } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
@@ -10,7 +10,7 @@ import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { splitRevenue } from '../../lib/money.ts';
 import { getPaymentProvider, type VerifiedPayment } from '../../adapters/payment/index.ts';
-import { completeRefund } from './refund.service.ts';
+import { completeRefund, requestRefund } from './refund.service.ts';
 import { settleMembershipPayment } from '../subscription/membership-payment.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
@@ -320,6 +320,10 @@ export async function settlePayment(
     );
   }
 
+  if (!isAwaitingPayment(consultation.state)) {
+    return settleAfterClose(payment, consultation, verified, context, db, clock);
+  }
+
   const pharmacySharePctBp = await getIntSetting(SETTING_KEYS.REVENUE_PHARMACY_BP, db);
   const now = clock.now();
 
@@ -333,6 +337,18 @@ export async function settlePayment(
         channel: verified.channel ?? payment.channel,
       },
     });
+
+    // A consultation whose last attempt was reported failed is waiting again,
+    // and PAID is reachable only from PAYMENT_PROCESSING.
+    if (consultation.state !== 'PAYMENT_PROCESSING') {
+      await transition(
+        consultation.id,
+        'PAYMENT_PROCESSING',
+        { actorType: context.actorType, actorId: context.actorId, reason: 'payment_verified' },
+        tx,
+        clock,
+      );
+    }
 
     await transition(
       consultation.id,
@@ -402,6 +418,82 @@ export async function settlePayment(
   );
 
   return { status: 'SUCCESS', consultationState: 'ACTIVATED' };
+}
+
+/**
+ * A payment the provider confirms after its consultation has closed (D49).
+ *
+ * The patient paid and received nothing: the window expired, or the pharmacy
+ * cancelled, before the confirmation arrived. What this does is fixed by
+ * docs/payment-flow.md §4 — the payment is recorded, the consultation is **not**
+ * revived, and an administrator is asked.
+ *
+ * Recorded as SUCCESS because money was taken, whatever happens next. No
+ * revenue is allocated, because nothing was delivered. The refund is
+ * *requested*, never made: refunds are an administrator's decision
+ * (refund.service.ts), and this only makes sure one is put in front of them
+ * rather than the payment sitting unnoticed.
+ *
+ * Idempotent through the SUCCESS check at the top of `settlePayment`, and a
+ * refund already open for the consultation is left as it is.
+ */
+async function settleAfterClose(
+  payment: { id: string; amountMinor: number; channel: string | null },
+  consultation: { id: string; state: string },
+  verified: VerifiedPayment,
+  context: { actorType: 'PHARMACY' | 'SYSTEM'; actorId?: string; correlationId?: string },
+  db: PrismaClient,
+  clock: Clock,
+): Promise<{ status: string; consultationState: string }> {
+  const now = clock.now();
+
+  await db.payment.update({
+    where: { id: payment.id },
+    data: {
+      status: 'SUCCESS',
+      paidAt: verified.paidAt ?? now,
+      verifiedAt: now,
+      channel: verified.channel ?? payment.channel,
+      failureReason: null,
+    },
+  });
+
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.PAYMENT_ANOMALY,
+      actorType: 'SYSTEM',
+      outcome: 'FAILURE',
+      entityType: 'payment',
+      entityId: payment.id,
+      correlationId: context.correlationId,
+      metadata: {
+        kind: 'PAID_AFTER_CLOSE',
+        consultationState: consultation.state,
+        amountMinor: payment.amountMinor,
+      },
+    },
+    db,
+  );
+
+  try {
+    const refund = await requestRefund(
+      consultation.id,
+      {
+        reason:
+          'Payment was confirmed after the consultation had already closed, so the patient received nothing.',
+        requestedByType: 'SYSTEM',
+        correlationId: context.correlationId,
+      },
+      db,
+      clock,
+    );
+    return { status: 'SUCCESS', consultationState: refund.consultationState };
+  } catch (error) {
+    // A refund already open for this consultation is the outcome wanted.
+    if (!(error instanceof AppError && error.statusCode === 409)) throw error;
+    const current = await db.consultation.findUniqueOrThrow({ where: { id: consultation.id } });
+    return { status: 'SUCCESS', consultationState: current.state };
+  }
 }
 
 /**
@@ -497,8 +589,9 @@ export async function handleWebhookEvent(
 /**
  * Expires consultations whose payment window has closed (spec §35).
  *
- * Only touches consultations still awaiting payment, so a slow provider can
- * never expire one that was in fact paid.
+ * Only touches consultations still awaiting payment — and asks the provider
+ * before expiring one with a payment in progress. It used not to, so a patient
+ * who paid while nobody was polling lost the consultation to this sweep (D49).
  */
 export async function expirePendingPayments(
   db: PrismaClient = getPrisma(),
@@ -511,12 +604,33 @@ export async function expirePendingPayments(
       state: { in: ['PENDING_PAYMENT', 'PAYMENT_PROCESSING', 'PAYMENT_FAILED'] },
       paymentDeadlineAt: { lt: now },
     },
-    select: { id: true, state: true },
+    select: {
+      id: true,
+      state: true,
+      paymentDeadlineAt: true,
+      payments: {
+        where: { status: { in: ['PENDING', 'PROCESSING', 'ABANDONED'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { providerReference: true },
+      },
+    },
   });
 
   let expired = 0;
 
   for (const consultation of stale) {
+    const attempt = consultation.payments[0];
+    if (consultation.state === 'PAYMENT_PROCESSING' && attempt) {
+      const outcome = await checkBeforeExpiring(
+        attempt.providerReference,
+        consultation.paymentDeadlineAt,
+        db,
+        clock,
+      );
+      if (outcome !== 'EXPIRE') continue;
+    }
+
     try {
       await db.$transaction(async (tx) => {
         await transition(
@@ -546,6 +660,57 @@ export async function expirePendingPayments(
   }
 
   return expired;
+}
+
+/**
+ * How long past its deadline a consultation is held open while the provider
+ * cannot be asked whether it was paid.
+ *
+ * Holding it costs a pharmacy an open row; expiring it wrongly costs a patient
+ * their money and their consultation. An hour covers a provider outage without
+ * leaving a reference the provider will never recognise open for ever.
+ */
+const UNREACHABLE_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Asks the provider about a payment before its consultation is expired.
+ *
+ * `SETTLED` — it was paid, and is now activated rather than expired.
+ * `WAIT` — the provider could not be asked; try again on the next sweep.
+ * `EXPIRE` — not paid, so the window closing means what it says.
+ */
+async function checkBeforeExpiring(
+  providerReference: string,
+  deadline: Date | null,
+  db: PrismaClient,
+  clock: Clock,
+): Promise<'SETTLED' | 'WAIT' | 'EXPIRE'> {
+  let verified: VerifiedPayment;
+  try {
+    verified = await getPaymentProvider().verify(providerReference);
+  } catch (error) {
+    const overdueMs = clock.now().getTime() - (deadline?.getTime() ?? 0);
+    getLogger().warn(
+      { err: error, providerReference },
+      'could not verify a payment before expiring its consultation',
+    );
+    return overdueMs < UNREACHABLE_GRACE_MS ? 'WAIT' : 'EXPIRE';
+  }
+
+  if (verified.status !== 'SUCCESS') return 'EXPIRE';
+
+  try {
+    await settlePayment(verified, { actorType: 'SYSTEM' }, db, clock);
+    return 'SETTLED';
+  } catch (error) {
+    // An amount mismatch is audited inside settlePayment; retrying it every
+    // sweep would only repeat the anomaly.
+    getLogger().warn(
+      { err: error, providerReference },
+      'a payment the provider confirmed could not be settled before expiry',
+    );
+    return 'EXPIRE';
+  }
 }
 
 /** Seconds left in the payment window, for the pharmacy's countdown. */

@@ -26,6 +26,7 @@ import {
   verifyAndSettle,
 } from '../payment/payment.service.ts';
 import { queryBoolean } from '../../lib/query.ts';
+import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 
 /**
  * Pharmacy consultation routes (spec §18, §73).
@@ -121,11 +122,24 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
 
       const payment = consultation.payments[0];
 
-      if (payment && payment.status !== 'SUCCESS' && payment.status !== 'ABANDONED') {
+      /*
+       * Re-verify for as long as the consultation is waiting to be paid,
+       * whatever the last check said. This used to skip a payment last seen as
+       * ABANDONED — which is what Paystack calls a checkout not completed *yet*
+       * — so a patient who paid two minutes later was never noticed (D49).
+       */
+      if (payment && payment.status !== 'SUCCESS' && isAwaitingPayment(consultation.state)) {
         await verifyAndSettle(payment.providerReference, {
           actorType: 'PHARMACY',
           correlationId: request.correlationId,
-        }).catch(() => undefined);
+        }).catch((error: unknown) => {
+          // Not fatal to the screen, which polls again in a few seconds — but
+          // no longer silent. A failure here was invisible in the logs.
+          request.log.warn(
+            { err: error, providerReference: payment.providerReference },
+            'payment verification failed',
+          );
+        });
       }
 
       const fresh = await getConsultationByPublicId(publicId);

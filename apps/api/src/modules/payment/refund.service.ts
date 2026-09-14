@@ -35,7 +35,8 @@ const OPEN_STATES = ['REQUESTED', 'APPROVED', 'PROCESSING'] as const;
 
 export interface RefundRequestInput {
   reason: string;
-  requestedByType: 'PATIENT' | 'PHARMACY' | 'ADMIN';
+  /** SYSTEM for a payment confirmed after its consultation had closed (D49). */
+  requestedByType: 'PATIENT' | 'PHARMACY' | 'ADMIN' | 'SYSTEM';
   requestedByRef?: string;
   correlationId?: string;
 }
