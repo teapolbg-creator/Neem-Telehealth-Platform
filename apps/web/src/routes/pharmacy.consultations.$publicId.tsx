@@ -1,14 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { AlertCircle, ArrowLeft, Loader2, Lock, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, Lock, QrCode, User } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { ClinicalIntake } from "@/components/neem/ClinicalIntake";
 import { Chip } from "@/components/neem/Chip";
+import { PatientCode } from "@/components/neem/PatientCode";
 import { ApiError } from "@/lib/api-client";
 import {
   formatMoney,
   useCancelConsultation,
   useConsultation,
+  useIssueQr,
+  type ConsultationQr,
   type PharmacyConsultation,
 } from "@/features/consultation/api";
 import { cn } from "@/lib/utils";
@@ -120,6 +123,15 @@ function ConsultationMonitor() {
             <h2 className="mb-4 font-bold">Progress</h2>
             <Timeline consultation={consultation} />
           </section>
+
+          {/*
+            The only states in which the API will issue a code. The section
+            disappears by itself once the patient has scanned, because the
+            consultation is polled.
+          */}
+          {["ACTIVATED", "WAITING_FOR_PATIENT"].includes(consultation.state) && (
+            <PatientCodeSection publicId={consultation.publicId} />
+          )}
 
           {/*
             Vitals and point-of-care results (spec §50). Placed under Progress
@@ -273,6 +285,55 @@ function ConsultationMonitor() {
         </aside>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * The patient's code, for a paid consultation still waiting for them (D48).
+ *
+ * "New consultation" shows it once, at the end. A pharmacist who left that
+ * screen, a code that expired, and a patient who lost their phone all need it
+ * again, and the API has always issued a replacement — nothing offered one.
+ * Nothing is minted until asked, because each code revokes the one before.
+ */
+function PatientCodeSection({ publicId }: { publicId: string }) {
+  const issue = useIssueQr();
+  const [qr, setQr] = useState<ConsultationQr | null>(null);
+
+  if (qr) {
+    return (
+      <section className="card-soft p-6">
+        <PatientCode publicId={publicId} qr={qr} onIssued={setQr} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="card-soft p-6">
+      <h2 className="mb-1 font-bold">Patient code</h2>
+      <p className="mb-4 text-xs text-slate-500">
+        Show a code for the patient to scan with their own phone. Any code shown earlier stops
+        working.
+      </p>
+      <button
+        type="button"
+        disabled={issue.isPending}
+        onClick={() => issue.mutate(publicId, { onSuccess: setQr })}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+      >
+        {issue.isPending ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <QrCode className="size-3.5" />
+        )}
+        Show patient code
+      </button>
+      {issue.error && (
+        <p className="mt-2 text-xs text-red-600">
+          {issue.error instanceof ApiError ? issue.error.message : "Could not show the code."}
+        </p>
+      )}
+    </section>
   );
 }
 

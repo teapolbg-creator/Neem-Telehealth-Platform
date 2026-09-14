@@ -4,14 +4,14 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
-  Copy,
+  ExternalLink,
   FlaskConical,
   Loader2,
-  RefreshCw,
   Smartphone,
 } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
+import { PatientCode } from "@/components/neem/PatientCode";
 import { ApiError } from "@/lib/api-client";
 import {
   formatMoney,
@@ -206,6 +206,10 @@ function PaymentStep({
   const simulate = useSimulatePayment();
   const [started, setStarted] = useState(false);
   const [payerPhone, setPayerPhone] = useState("");
+  const [checkout, setCheckout] = useState<{
+    authorizationUrl: string | null;
+    isMockProvider: boolean;
+  } | null>(null);
 
   const status = usePaymentStatus(consultation.publicId, started);
   const view = status.data;
@@ -282,7 +286,12 @@ function PaymentStep({
             onClick={() =>
               initiate.mutate(
                 { publicId: consultation.publicId, payerPhone: payerPhone || undefined },
-                { onSuccess: () => setStarted(true) },
+                {
+                  onSuccess: (result) => {
+                    setCheckout(result);
+                    setStarted(true);
+                  },
+                },
               )
             }
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:brightness-110 disabled:opacity-50"
@@ -304,6 +313,10 @@ function PaymentStep({
               </p>
             </div>
           </div>
+
+          {checkout && !checkout.isMockProvider && (
+            <PaystackCheckout authorizationUrl={checkout.authorizationUrl} />
+          )}
 
           {/*
             Mock mode is stated plainly rather than hidden. Nothing has been
@@ -368,6 +381,49 @@ function PaymentStep({
   );
 }
 
+/**
+ * The Paystack checkout, opened on the pharmacy's device (D48).
+ *
+ * Paystack charges nothing when a payment is initialised: it returns a hosted
+ * checkout, and no money moves until someone completes it. This screen used to
+ * wait for a payment nobody had a way to make. The patient enters their Mobile
+ * Money number there and approves the prompt on their own phone, so the only
+ * code they ever scan is the consultation's.
+ *
+ * Confirmation still comes from the server re-verifying with Paystack, never
+ * from anything the checkout tab does (spec §34).
+ */
+function PaystackCheckout({ authorizationUrl }: { authorizationUrl: string | null }) {
+  if (!authorizationUrl) {
+    // A live attempt was reused. Its checkout link is not stored, so it cannot
+    // be offered again.
+    return (
+      <p className="rounded-2xl border border-border bg-slate-50 p-4 text-sm text-slate-600">
+        A payment for this consultation is already in progress. If the patient has approved it, this
+        page moves on by itself.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-border p-4">
+      <a
+        href={authorizationUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:brightness-110"
+      >
+        <ExternalLink className="size-4" /> Open Paystack checkout
+      </a>
+      <p className="text-xs leading-relaxed text-slate-500">
+        Opens on this device. The patient enters their Mobile Money number there and approves the
+        prompt on their own phone. Come back to this page afterwards — it moves on by itself once
+        Paystack confirms the payment.
+      </p>
+    </div>
+  );
+}
+
 function QrStep({
   consultation,
   qr,
@@ -380,8 +436,6 @@ function QrStep({
   onDone: () => void;
 }) {
   const issue = useIssueQr();
-  const [copied, setCopied] = useState(false);
-  const [confirmingReissue, setConfirmingReissue] = useState(false);
 
   /**
    * The code can be rendered exactly once, at issue, because only its hash is
@@ -416,93 +470,7 @@ function QrStep({
         Payment confirmed · consultation active
       </Chip>
 
-      <div>
-        <h1 className="text-2xl font-bold">Ask the patient to scan this code</h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-          They use their own phone camera. The consultation opens in their browser — nothing to
-          install. They enter their details there, privately.
-        </p>
-      </div>
-
-      <div className="mx-auto w-fit rounded-3xl border-2 border-dashed border-border bg-slate-50 p-6">
-        <img
-          src={qr.qrDataUrl}
-          alt="Consultation QR code"
-          width={280}
-          height={280}
-          className="rounded-2xl bg-white p-3"
-        />
-      </div>
-
-      <div className="mx-auto max-w-md space-y-3">
-        <div className="flex items-center justify-center gap-2 text-sm">
-          <span className="text-slate-500">Or open this link:</span>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(qr.url);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1 font-mono text-xs text-slate-700 hover:bg-slate-200"
-          >
-            <Copy className="size-3" />
-            {copied ? "Copied" : "Copy link"}
-          </button>
-        </div>
-
-        <p className="text-xs leading-relaxed text-slate-500">
-          This code works once and expires at{" "}
-          {new Date(qr.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
-        </p>
-      </div>
-
-      {/*
-        Re-issuing invalidates the code the patient may already be holding, so
-        it asks first (decision D6). This is also the "patient lost their
-        phone" path, and every issue is audited.
-      */}
-      {confirmingReissue ? (
-        <div className="mx-auto max-w-md rounded-2xl border border-warning/30 bg-warning-soft p-4 text-left">
-          <p className="text-sm font-bold text-warning">Replace this code?</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            The code above will stop working immediately. Only do this if the patient cannot use it
-            — for example if they lost their phone.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              disabled={issue.isPending}
-              onClick={() =>
-                issue.mutate(consultation.publicId, {
-                  onSuccess: (next) => {
-                    onIssued(next);
-                    setConfirmingReissue(false);
-                  },
-                })
-              }
-              className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-            >
-              Replace code
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingReissue(false)}
-              className="rounded-lg border border-border bg-white px-4 py-2 text-xs font-semibold"
-            >
-              Keep current code
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirmingReissue(true)}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-brand"
-        >
-          <RefreshCw className="size-3.5" /> Patient cannot scan? Issue a new code
-        </button>
-      )}
+      <PatientCode publicId={consultation.publicId} qr={qr} onIssued={onIssued} />
 
       <div className="flex justify-center gap-3 pt-2">
         <Link

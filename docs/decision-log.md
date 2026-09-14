@@ -1361,3 +1361,40 @@ read. Once the tab is closed they end at the idle timeout
 (`SESSION_IDLE_TIMEOUT_MINUTES`, 30), or at once if the browser's cookies for
 the site are cleared. The next sign-out after signing in again removes the
 stale host-only cookie as well.
+
+---
+
+### D48 — Paystack checkout opens on the pharmacy device, and the patient code can be shown again · 2026-09-14 · **DECIDED**
+
+**Issue.** In production no patient code ever appeared. The code is shown only
+once payment is verified, and with Paystack no payment could be made:
+`/transaction/initialize` charges nothing, it returns a hosted checkout link,
+and the pharmacy's payment step never showed that link. It said "Waiting for
+payment" for a payment nobody had a way to make. The mock provider's simulate
+buttons had hidden this in every local run, and the earlier Paystack round trip
+was driven from a script rather than this screen.
+
+Separately, the code was shown once, at the end of "New consultation", and
+nowhere else. The API has always issued a replacement (D6), but a pharmacist
+who left that screen, a code that expired, or a patient who lost their phone
+had no way to reach it.
+
+**Options** for the checkout: (A) open it on the pharmacy device, where the
+patient enters their Mobile Money number and approves the prompt on their own
+phone; (B) show the checkout link as a second QR for the patient to scan.
+
+**Decision.** (A). The patient scans exactly one code in a visit, the
+consultation's, and the counter flow matches how a Ghanaian pharmacy takes
+Mobile Money. Confirmation is unchanged: the server re-verifies with Paystack
+while the screen polls, and nothing the checkout tab does counts (spec §34).
+
+The consultation page now offers **Show patient code** while the consultation
+waits for the patient (`ACTIVATED`, `WAITING_FOR_PATIENT`, the states the API
+accepts). Nothing is minted until it is pressed, because each code revokes the
+one before.
+
+**Known gap, not fixed here.** A payment attempt already in progress is reused
+rather than charged twice, and its checkout link is not stored — so if the
+checkout is lost, the screen can only say a payment is in progress. Storing the
+link would be a schema change. Likewise the Mobile Money number field on the
+payment step is not sent to Paystack; the patient enters it at checkout.
