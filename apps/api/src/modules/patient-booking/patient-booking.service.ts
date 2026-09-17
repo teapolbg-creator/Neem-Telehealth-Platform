@@ -8,6 +8,7 @@ import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
+import { clinicRoster } from '../queue/allocation.service.ts';
 import { bookableServiceRow } from '../service/service.service.ts';
 import { createDirectConsultation } from './direct-consultation.ts';
 import { confirmPaidAppointment } from '../appointment/appointment.service.ts';
@@ -66,7 +67,10 @@ export async function createImmediateBooking(
    * Refused before a price is quoted, let alone charged (D50). A patient at
    * home has no counter staff to explain why nothing happened afterwards.
    */
-  await assertDoctorOnDuty(db, clock, { discipline: service.discipline });
+  await assertDoctorOnDuty(db, clock, {
+    discipline: service.discipline,
+    rosteredFor: clinicRoster(service),
+  });
 
   const language = await db.language.findFirst({
     where: { code: input.languageCode, isActive: true },

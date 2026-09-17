@@ -182,12 +182,12 @@ today.
 (default `DOCTOR`); `mdcNumber` made nullable with credential type and number columns for other
 disciplines; `ProfessionalService` linking a professional to the services they may take.
 
-> **Built, phase 5.** One deviation, recorded here rather than left to be discovered: the queue
-> narrows candidates by **discipline** only. `ProfessionalService` is written and administered, but
-> is not yet an eligibility condition — every professional already on the platform has no roster
-> row, so enforcing it now would empty the pool. Phase 8 turns it on with the clinic it was built
-> for. A non-doctor's registration is recorded in `credentialType`/`credentialNumber` and printed
-> on documents in place of an MDC number, which is now nullable.
+> **Built, phase 5.** The queue narrows candidates by **discipline**, and — since phase 8 — by the
+> **clinic roster** for anything outside general practice. Joining a clinic is an act a professional
+> performs; taking general consultations is the default, and requiring a roster row for that would
+> have emptied the pool for everyone already on the platform. A non-doctor's registration is
+> recorded in `credentialType`/`credentialNumber` and printed on documents in place of an MDC
+> number, which is now nullable.
 
 **M4 — patient accounts and appointments.** `PatientAccount` (verified phone or email, encrypted),
 `PatientAuthToken` (one-time codes), `Consultation.patientAccountId`;
@@ -273,8 +273,9 @@ answered.
 3. ~~**Payout schedule and method.**~~ **Answered 2026-09-17: monthly, manual transfer**, the same
    arrangement as pharmacy payouts. No Paystack transfer integration is needed or built.
 4. **Prices.** Confirm GHS 50 general and GHS 100 weight-loss as launch prices.
-5. **Weight-loss commercial shape.** Separately bookable consultations, as assumed here, or a package
-   or subscription? This changes phases 7 and 8 substantially.
+5. ~~**Weight-loss commercial shape.**~~ **Answered 2026-09-17: separately bookable consultations.**
+   Built in phase 8: one clinic, three professions, three prices, each booked and paid for on its
+   own. No package, no subscription, and nothing in the code assumes one.
 6. **Existing doctors.** Do salaried doctors move to revenue share, and what happens to the
    membership fee in the v2 model?
 7. **Cancellation, rescheduling, no-show.** Free-cancellation window, refund proportion, and what a

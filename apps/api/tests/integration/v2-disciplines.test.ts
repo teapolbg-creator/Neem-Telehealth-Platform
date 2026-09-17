@@ -365,14 +365,26 @@ describe('recording what a professional is', () => {
 });
 
 describe('the queue', () => {
-  /** An all-day confirmed shift and a heartbeat, so only discipline decides. */
-  async function putOnDuty(professional: Professional) {
+  /**
+   * An all-day confirmed shift and a heartbeat, so only discipline decides.
+   *
+   * A clinic service also needs the professional to have joined the clinic
+   * (plan phase 8), which is what `serviceCode` records here.
+   */
+  async function putOnDuty(professional: Professional, serviceCode?: string) {
     const prisma = getPrisma();
     const language = await prisma.language.findFirstOrThrow({ where: { code: 'en' } });
 
     await prisma.doctorLanguage.create({
       data: { doctorId: professional.doctorId, languageId: language.id, isPrimary: true },
     });
+
+    if (serviceCode) {
+      const service = await prisma.service.findUniqueOrThrow({ where: { code: serviceCode } });
+      await prisma.professionalService.create({
+        data: { doctorId: professional.doctorId, serviceId: service.id },
+      });
+    }
 
     const allDay = await prisma.shiftDefinition.upsert({
       where: { code: 'TEST_ALL_DAY' },
@@ -439,7 +451,7 @@ describe('the queue', () => {
 
   it('offers it to a dietitian who is on duty', async () => {
     const dietitian = await createProfessional('DIETITIAN');
-    await putOnDuty(dietitian);
+    await putOnDuty(dietitian, 'WEIGHT_LOSS_DIETITIAN');
 
     const consultation = await waitingFor('WEIGHT_LOSS_DIETITIAN');
     const result = await offerNextDoctor(consultation.id);

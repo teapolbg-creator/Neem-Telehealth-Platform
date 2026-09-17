@@ -15,6 +15,7 @@ import { settleMembershipPayment } from '../subscription/membership-payment.serv
 import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
+import { clinicRoster } from '../queue/allocation.service.ts';
 
 /**
  * Payment orchestration (spec §34, §35, §68).
@@ -64,7 +65,7 @@ export async function initiatePayment(
     where: { publicId: consultationPublicId },
     include: {
       payments: { orderBy: { createdAt: 'desc' } },
-      service: { select: { discipline: true } },
+      service: { select: { id: true, discipline: true, clinic: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -115,7 +116,10 @@ export async function initiatePayment(
   // Checked again at the moment money is asked for, not only at creation: a
   // shift can end between the two. After the reuse above, so a payment already
   // in flight is never stranded by it (D50).
-  await assertDoctorOnDuty(db, clock, { discipline: consultation.service?.discipline });
+  await assertDoctorOnDuty(db, clock, {
+    discipline: consultation.service?.discipline,
+    rosteredFor: clinicRoster(consultation.service),
+  });
 
   // Our own reference doubles as the idempotency key. Unique per attempt, so a
   // retry after a genuine failure is a distinct charge, not a duplicate.

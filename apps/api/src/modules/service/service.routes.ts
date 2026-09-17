@@ -4,7 +4,7 @@ import { PERMISSIONS } from '@neem/contracts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { getBooleanSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
-import { createService, listServices, updateService } from './service.service.ts';
+import { createService, listClinics, listServices, updateService } from './service.service.ts';
 
 /**
  * The service catalogue (v2, docs/v2-patient-direct-plan.md phase 2).
@@ -32,6 +32,22 @@ export async function serviceRoutes(app: FastifyInstance): Promise<void> {
         enabled,
         services: enabled ? await listServices({ activeOnly: true }) : [],
       },
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  /**
+   * The same offer, grouped into clinics (v2).
+   *
+   * Separate from `/patient/services` rather than replacing it: one is the flat
+   * catalogue a booking form needs, the other is how a patient is asked to
+   * choose. Both are governed by the same switch.
+   */
+  app.get('/patient/clinics', async (request, reply) => {
+    const enabled = await getBooleanSetting(SETTING_KEYS.CHANNELS_DIRECT_ENABLED);
+
+    return reply.send({
+      data: { enabled, clinics: enabled ? await listClinics() : [] },
       meta: { requestId: request.correlationId },
     });
   });

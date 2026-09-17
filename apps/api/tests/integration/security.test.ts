@@ -253,6 +253,13 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
       'channels.directEnabled is switched on',
   ],
 
+  [
+    'GET /api/v1/patient/clinics',
+    'the same published catalogue as /patient/services, grouped the way a ' +
+      'patient chooses (v2). Same reasoning, same switch, same absence of ' +
+      'anything belonging to a patient',
+  ],
+
   ['GET /api/v1/verify/:kind/:code', 'a document is verified by whoever holds it (spec §44)'],
   ['POST /api/v1/webhooks/payment', 'authenticated by HMAC over the raw body, not a session'],
 ]);

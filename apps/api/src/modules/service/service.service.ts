@@ -88,6 +88,71 @@ export async function getBookableService(code: string, db: Db = getPrisma()): Pr
   return toView(await bookableServiceRow(code, db));
 }
 
+/**
+ * A clinic is a grouping, not a table (v2, plan phase 8).
+ *
+ * The weight-loss clinic is three separately bookable consultations that
+ * happen to belong together — a doctor, a dietitian and a personal trainer,
+ * each booked and paid for on its own. What makes it a clinic is that a
+ * patient sees them as one offer, so the name and the sentence live here,
+ * beside the enum, rather than in a table with one row per value and nothing
+ * else in it.
+ *
+ * It becomes a table the day a clinic needs something of its own — an opening
+ * time, a picture, a policy. Not before.
+ */
+const CLINICS: Record<string, { name: string; description: string }> = {
+  GENERAL: {
+    name: 'General practice',
+    description: 'A licensed Ghanaian doctor, for whatever you need one for.',
+  },
+  WEIGHT_LOSS: {
+    name: 'Weight-loss clinic',
+    description:
+      'A doctor, a dietitian and a personal trainer. Book any of them, in any order, as often as you like.',
+  },
+};
+
+export interface ClinicView {
+  code: string;
+  name: string;
+  description: string;
+  /** The cheapest way into this clinic, for a card that shows one figure. */
+  fromPrice: { amountMinor: number; currency: string } | null;
+  services: ServiceView[];
+}
+
+/**
+ * What a patient is offered, grouped the way they are asked to think about it.
+ *
+ * A clinic with no bookable service is not shown at all. An empty clinic is
+ * not an offer, and a card a patient can tap into and find nothing is worse
+ * than no card.
+ */
+export async function listClinics(db: Db = getPrisma()): Promise<ClinicView[]> {
+  const services = await listServices({ activeOnly: true }, db);
+  const order = Object.keys(CLINICS);
+
+  const grouped = new Map<string, ServiceView[]>();
+  for (const service of services) {
+    grouped.set(service.clinic, [...(grouped.get(service.clinic) ?? []), service]);
+  }
+
+  return [...grouped.entries()]
+    .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
+    .map(([code, offered]) => ({
+      code,
+      name: CLINICS[code]?.name ?? code,
+      description: CLINICS[code]?.description ?? '',
+      fromPrice: offered.reduce<ClinicView['fromPrice']>(
+        (cheapest, service) =>
+          !cheapest || service.price.amountMinor < cheapest.amountMinor ? service.price : cheapest,
+        null,
+      ),
+      services: offered,
+    }));
+}
+
 export interface ServiceInput {
   code: string;
   name: string;

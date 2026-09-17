@@ -57,14 +57,22 @@ export async function loadQueueWeights(db: Db = getPrisma()): Promise<QueueWeigh
  * patient who booked a dietitian must never be offered a doctor, however well
  * that doctor ranks. So it narrows the pool rather than joining the ranking.
  *
- * The roster — `ProfessionalService`, who is signed up to deliver what — is
- * recorded but deliberately not applied here yet. Applying it before the
- * clinic's onboarding exists would empty the pool for every professional
- * already on the platform, none of whom has a roster row. Phase 8 turns it on
- * with the weight-loss clinic it was built for.
+ * The roster — `ProfessionalService`, who is signed up to deliver what —
+ * applies to a clinic's services and not to general practice. Joining the
+ * weight-loss clinic is an act somebody performs; being a doctor who takes
+ * general consultations is the default, and requiring a roster row for that
+ * would empty the pool for every professional already on the platform.
  */
 export interface CandidatePool {
   discipline?: ProfessionalDiscipline;
+  /**
+   * A service whose clinic somebody has to have joined (v2).
+   *
+   * Set for a clinic consultation and left alone for general practice, so a
+   * patient who booked the weight-loss clinic reaches a professional who
+   * actually works in it rather than anyone of the right discipline.
+   */
+  rosteredFor?: string;
   /**
    * The professional a patient booked by name, for an appointment (v2).
    *
@@ -111,6 +119,9 @@ export async function collectCandidates(
          */
         discipline: pool.discipline ?? 'DOCTOR',
         ...(pool.appointmentWith ? { id: pool.appointmentWith } : {}),
+        ...(pool.rosteredFor
+          ? { services: { some: { serviceId: pool.rosteredFor, isActive: true } } }
+          : {}),
       },
       include: {
         languages: { include: { language: { select: { code: true } } } },
@@ -185,6 +196,19 @@ export async function collectCandidates(
   });
 }
 
+/**
+ * The service somebody must be rostered for, or nothing (v2).
+ *
+ * General practice is the default and needs no roster; a clinic is something
+ * a professional joins, and only its members are offered its patients.
+ */
+export function clinicRoster(
+  service: { id: string; clinic: string } | null | undefined,
+): string | undefined {
+  if (!service || service.clinic === 'GENERAL') return undefined;
+  return service.id;
+}
+
 function shiftCoversNow(startsAt: string, endsAt: string, now: Date): boolean {
   const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const [startHour = 0, startMinute = 0] = startsAt.split(':').map(Number);
@@ -224,7 +248,7 @@ export async function offerNextDoctor(
       language: true,
       queueEntry: true,
       pharmacy: { select: { name: true } },
-      service: { select: { discipline: true } },
+      service: { select: { id: true, discipline: true, clinic: true } },
       appointment: { select: { doctorId: true, state: true } },
     },
   });
@@ -245,6 +269,7 @@ export async function offerNextDoctor(
 
   const candidates = await collectCandidates(consultationId, db, clock, {
     discipline: consultation.service?.discipline,
+    rosteredFor: clinicRoster(consultation.service),
     // The patient chose this person and paid for them; nobody else may take it.
     appointmentWith: consultation.appointment?.doctorId,
   });
