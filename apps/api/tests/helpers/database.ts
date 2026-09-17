@@ -234,3 +234,18 @@ export async function setDoctorOnDutyRequired(required: boolean): Promise<void> 
   // The settings cache holds values for 30s, which is longer than a test.
   invalidateSettingsCache(SETTING_KEYS.REQUIRE_DOCTOR_ON_DUTY);
 }
+
+/**
+ * Switches the patient-direct service on or off for one test (v2).
+ *
+ * Off in production and in every test that does not ask for it, which is why
+ * the public service list is empty unless a test says otherwise.
+ */
+export async function setDirectChannelEnabled(enabled: boolean): Promise<void> {
+  await getPrisma().systemSetting.update({
+    where: { key: SETTING_KEYS.CHANNELS_DIRECT_ENABLED },
+    data: { value: enabled },
+  });
+
+  invalidateSettingsCache(SETTING_KEYS.CHANNELS_DIRECT_ENABLED);
+}

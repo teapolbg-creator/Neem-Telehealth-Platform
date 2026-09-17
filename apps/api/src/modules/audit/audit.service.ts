@@ -73,6 +73,10 @@ export const AUDIT_ACTIONS = {
 
   PAYMENT_CONFIRMED: 'payment.confirmed',
   PAYMENT_ANOMALY: 'payment.anomaly',
+
+  /** What a patient may book and what it costs is money, so both are audited (v2). */
+  SERVICE_CREATED: 'service.created',
+  SERVICE_UPDATED: 'service.updated',
   REFUND_REQUESTED: 'refund.requested',
   REFUND_DECIDED: 'refund.decided',
   PAYOUT_CALCULATED: 'payout.calculated',

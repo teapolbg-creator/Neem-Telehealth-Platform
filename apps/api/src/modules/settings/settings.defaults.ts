@@ -19,6 +19,8 @@ export const SETTING_KEYS = {
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
   REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
+  CHANNELS_DIRECT_ENABLED: 'channels.directEnabled',
+
   REVENUE_PHARMACY_BP: 'revenue.pharmacySharePctBp',
   REVENUE_NEEM_BP: 'revenue.neemSharePctBp',
 
@@ -128,6 +130,22 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'boolean',
     description:
       'Refuse to start, or take payment for, a consultation when no doctor is on duty — active, licensed, paid up and on a confirmed shift covering now (D50).',
+    category: 'consultation',
+    requiresConfirm: true,
+  },
+  {
+    key: K.CHANNELS_DIRECT_ENABLED,
+    value: false,
+    valueType: 'boolean',
+    /*
+     * Off until the patient-direct service is finished and authorised.
+     *
+     * While it is off, the public service list is empty and says so, so a
+     * half-built journey cannot be reached by guessing a URL. The pharmacy
+     * counter does not read this setting at all.
+     */
+    description:
+      'Whether patients can book consultations themselves, without a pharmacy (v2). Off until the journey is complete and authorised.',
     category: 'consultation',
     requiresConfirm: true,
   },

@@ -34,6 +34,56 @@ const LANGUAGES = [
  * Night shift is seeded inactive — the business document lists 8pm–8am as a
  * future expansion, not part of the pilot (spec §25).
  */
+/**
+ * What a patient can book (v2), at the prices agreed for launch.
+ *
+ * Seeded so an administrator has something to edit rather than an empty
+ * screen, exactly as the settings are. A later seed never overwrites a price
+ * an administrator has changed.
+ *
+ * All three weight-loss disciplines are priced the same for now. Whether a
+ * dietitian or trainer session should cost what a doctor's does is a
+ * commercial question, flagged in docs/v2-patient-direct-plan.md §7.
+ */
+const SERVICES = [
+  {
+    code: 'GENERAL_CONSULTATION',
+    name: 'General consultation',
+    description: 'A licensed Ghanaian doctor, by video or audio.',
+    clinic: 'GENERAL' as const,
+    discipline: 'DOCTOR' as const,
+    priceMinor: 5000,
+    sortOrder: 1,
+  },
+  {
+    code: 'WEIGHT_LOSS_DOCTOR',
+    name: 'Weight-loss clinic — doctor',
+    description: 'Medical assessment and management of weight, with a doctor.',
+    clinic: 'WEIGHT_LOSS' as const,
+    discipline: 'DOCTOR' as const,
+    priceMinor: 10000,
+    sortOrder: 1,
+  },
+  {
+    code: 'WEIGHT_LOSS_DIETITIAN',
+    name: 'Weight-loss clinic — dietitian',
+    description: 'Nutrition assessment and an eating plan, with a dietitian.',
+    clinic: 'WEIGHT_LOSS' as const,
+    discipline: 'DIETITIAN' as const,
+    priceMinor: 10000,
+    sortOrder: 2,
+  },
+  {
+    code: 'WEIGHT_LOSS_TRAINER',
+    name: 'Weight-loss clinic — personal trainer',
+    description: 'An exercise plan and coaching, with a personal trainer.',
+    clinic: 'WEIGHT_LOSS' as const,
+    discipline: 'TRAINER' as const,
+    priceMinor: 10000,
+    sortOrder: 3,
+  },
+];
+
 const SHIFTS = [
   {
     code: 'MORNING',
@@ -177,6 +227,21 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
         },
       });
     }
+  }
+
+  for (const service of SERVICES) {
+    await prisma.service.upsert({
+      where: { code: service.code },
+      // Never overwrite a price or an availability an admin has tuned.
+      update: {
+        name: service.name,
+        description: service.description,
+        clinic: service.clinic,
+        discipline: service.discipline,
+        sortOrder: service.sortOrder,
+      },
+      create: service,
+    });
   }
 
   for (const category of COMPLAINT_CATEGORIES) {

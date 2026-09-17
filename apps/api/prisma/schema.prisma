@@ -108,6 +108,20 @@ enum ConsultationChannel {
   DIRECT
 }
 
+/// Who delivers a service (v2). Every professional who existed before v2 is a
+/// DOCTOR; the weight-loss clinic adds the other two.
+enum ProfessionalDiscipline {
+  DOCTOR
+  DIETITIAN
+  TRAINER
+}
+
+/// How services are grouped for the patient choosing one (v2).
+enum ServiceClinic {
+  GENERAL
+  WEIGHT_LOSS
+}
+
 enum ConsultationType {
   AUDIO
   VIDEO
@@ -804,6 +818,9 @@ model Consultation {
   pharmacyId String?
   /// Which service started it. COUNTER is every consultation that existed before v2.
   channel    ConsultationChannel @default(COUNTER)
+  /// What the patient booked, and the price they were shown (v2). Null for a
+  /// counter consultation, which is priced from settings.
+  serviceId  String?
   doctorId   String?
   state      ConsultationState   @default(PENDING_PAYMENT)
   type       ConsultationType?
@@ -842,6 +859,7 @@ model Consultation {
   doctor    Doctor?    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   language  Language?  @relation(fields: [languageId], references: [id], onDelete: Restrict)
   promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  service   Service?   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
 
   stateEvents         ConsultationStateEvent[]
   accessTokens        ConsultationAccessToken[]
@@ -1726,6 +1744,34 @@ model ConsultationSummary {
 
 /// OPERATIONAL — contact details held on consent, for the duration of the
 /// pilot programme. See docs/data-retention.md.
+/// A bookable service, with the price the patient is shown before paying (v2).
+///
+/// The price lives here rather than in settings because v2 has more than one:
+/// a general consultation and each weight-loss discipline are priced apart.
+/// The consultation keeps its own snapshot of what was charged, so changing a
+/// price here never rewrites what someone already paid.
+model Service {
+  id              String                 @id @default(uuid(7))
+  code            String                 @unique @db.VarChar(40)
+  name            String                 @db.VarChar(120)
+  description     String?                @db.VarChar(500)
+  clinic          ServiceClinic          @default(GENERAL)
+  discipline      ProfessionalDiscipline @default(DOCTOR)
+  priceMinor      Int
+  currency        String                 @default("GHS") @db.Char(3)
+  /// Null means the platform default consultation length applies.
+  durationSeconds Int?
+  isActive        Boolean                @default(true)
+  sortOrder       Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  consultations Consultation[]
+
+  @@index([isActive, clinic, sortOrder])
+  @@map("services")
+}
+
 model PilotApplication {
   id       String @id @default(uuid(7))
   publicId String @unique @db.VarChar(32)

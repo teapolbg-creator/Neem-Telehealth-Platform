@@ -24,6 +24,7 @@ import { promotionRoutes } from './modules/payment/promotion.routes.ts';
 import { notificationRoutes } from './modules/notification/notification.routes.ts';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
 import { qualityRoutes } from './modules/quality/quality.routes.ts';
+import { serviceRoutes } from './modules/service/service.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
 import { mediaRoutes } from './modules/media/media.routes.ts';
 import { retentionRoutes } from './modules/retention/retention.routes.ts';
@@ -147,6 +148,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(notificationRoutes);
       await api.register(analyticsRoutes);
       await api.register(qualityRoutes);
+      await api.register(serviceRoutes);
     },
     { prefix: '/api/v1' },
   );

@@ -86,6 +86,7 @@ GET    /patient/complaint-categories      what a complaint may be about
 POST   /patient/feedback                  { doctorRating, neemRating, category, complaintCategoryCode?, comment? }
 POST   /patient/session/leave             ends the session on the server, not just the cookie
 POST   /patient/refund-request            { reason } — recorded, never granted
+GET    /patient/services                  what may be booked and what it costs (v2); empty while channels.directEnabled is off
 
 NOT BUILT
 GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone
@@ -328,6 +329,7 @@ GET    /admin/promotions | POST | POST /admin/promotions/:code/deactivate
 GET    /admin/notification-templates | PATCH /admin/notification-templates/:code/:channel
 GET    /admin/complaints | POST /admin/complaints/:publicId/decide
 GET    /admin/quality   | POST /admin/quality/recompute
+GET    /admin/services  | POST /admin/services | PATCH /admin/services/:code   the v2 catalogue and its prices
 GET    /admin/audit-logs                             filterable, read-only, cursor-paged
 GET    /admin/system-health                          providers, demo mode, database
 

@@ -231,6 +231,14 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
       'write endpoint acceptable — pilot.test.ts asserts that it grants nothing',
   ],
   ['POST /api/v1/s/exchange', 'the patient has a QR token and nothing else'],
+  [
+    'GET /api/v1/patient/services',
+    'a patient choosing a service has no account yet, and the price must be ' +
+      'visible before they are asked to pay (v2). It reads a catalogue an ' +
+      'administrator publishes — no patient data, and it is empty until ' +
+      'channels.directEnabled is switched on',
+  ],
+
   ['GET /api/v1/verify/:kind/:code', 'a document is verified by whoever holds it (spec §44)'],
   ['POST /api/v1/webhooks/payment', 'authenticated by HMAC over the raw body, not a session'],
 ]);
