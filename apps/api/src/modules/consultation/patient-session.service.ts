@@ -17,6 +17,7 @@ import { transition } from './consultation.service.ts';
 import { isTerminal } from '../../domain/consultation-state.ts';
 import type { PatientPrincipal } from './access-token.service.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * The patient session (spec §10, §11).
@@ -219,7 +220,7 @@ export async function buildSessionView(
     consultationPublicId: consultation.publicId,
     state: consultation.state,
     step,
-    pharmacyName: consultation.pharmacy.name,
+    pharmacyName: originName(consultation.pharmacy),
     identityCaptured,
     language: consultation.language
       ? { code: consultation.language.code, label: consultation.language.label }

@@ -5,6 +5,7 @@ import { decryptField, decryptNullable, normaliseConsultationReference } from '.
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { VitalsReadings } from './clinical-record.service.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * Archived Consultation Retrieval (decision D27).
@@ -235,7 +236,7 @@ export async function retrieveArchivedConsultation(
     destroyAt: consultation.retentionJobs[0]?.scheduledFor.toISOString() ?? null,
     encounter: {
       date: consultation.createdAt.toISOString(),
-      pharmacyName: consultation.pharmacy.name,
+      pharmacyName: originName(consultation.pharmacy),
       doctorName: consultation.doctor?.fullName ?? null,
       type: consultation.type,
       language: consultation.language?.label ?? null,

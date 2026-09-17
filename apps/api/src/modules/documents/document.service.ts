@@ -196,9 +196,12 @@ export async function issueReferral(
     db,
   );
 
-  emitToPharmacy(consultation.pharmacyId, 'referral.issued', {
-    referralPublicId: referral.publicId,
-  });
+  // No counter to tell when the patient booked directly (v2).
+  if (consultation.pharmacyId) {
+    emitToPharmacy(consultation.pharmacyId, 'referral.issued', {
+      referralPublicId: referral.publicId,
+    });
+  }
 
   return referral;
 }
@@ -462,7 +465,7 @@ const isoDay = (value: Date): string => value.toISOString().slice(0, 10);
 function prescriptionStatus(prescription: {
   state: string;
   dispensedAt: Date | null;
-  pharmacy: { name: string };
+  pharmacy: { name: string } | null;
 }): Status {
   if (prescription.state === 'REVOKED') {
     return {
@@ -484,8 +487,10 @@ function prescriptionStatus(prescription: {
       code: 'DISPENSED',
       label: 'Dispensed',
       detail: prescription.dispensedAt
-        ? `Dispensed at ${prescription.pharmacy.name} on ${isoDay(prescription.dispensedAt)}.`
-        : `Dispensed at ${prescription.pharmacy.name}.`,
+        ? `Dispensed at ${prescription.pharmacy?.name ?? 'a pharmacy'} on ${isoDay(
+            prescription.dispensedAt,
+          )}.`
+        : `Dispensed at ${prescription.pharmacy?.name ?? 'a pharmacy'}.`,
     };
   }
 
@@ -516,9 +521,11 @@ function prescriptionStatus(prescription: {
      * and anyone holding the document can confirm it is genuine by scanning
      * the code on it — which is the thing a stranger behind a counter needs.
      */
-    detail:
-      `${prescription.pharmacy.name} can dispense this. Any pharmacy or hospital can check it ` +
-      'is genuine by scanning the code printed on the document.',
+    detail: prescription.pharmacy
+      ? `${prescription.pharmacy.name} can dispense this. Any pharmacy or hospital can check it ` +
+        'is genuine by scanning the code printed on the document.'
+      : 'Take this to any pharmacy. They can check it is genuine by scanning the code ' +
+        'printed on the document.',
   };
 }
 
@@ -654,7 +661,8 @@ export interface StaffReadableDocument {
   /** The row id, which is what the audit trail records. */
   id: string;
   doctorId: string;
-  pharmacyId: string;
+  /** Null for a patient-direct consultation, which no pharmacy may read (v2). */
+  pharmacyId: string | null;
   pdfStorageKey: string | null;
 }
 

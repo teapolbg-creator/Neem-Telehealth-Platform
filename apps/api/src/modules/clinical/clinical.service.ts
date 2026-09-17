@@ -206,10 +206,13 @@ export async function completeConsultation(
   );
 
   emitToConsultation(consultation.publicId, 'consultation.state_changed', { state: 'COMPLETED' });
-  emitToPharmacy(consultation.pharmacyId, 'consultation.completed', {
-    consultationPublicId: consultation.publicId,
-    outcome: input.outcome,
-  });
+  // No counter watching a patient-direct consultation (v2).
+  if (consultation.pharmacyId) {
+    emitToPharmacy(consultation.pharmacyId, 'consultation.completed', {
+      consultationPublicId: consultation.publicId,
+      outcome: input.outcome,
+    });
+  }
 
   /**
    * The consultation reference, by SMS (decision D24).

@@ -21,6 +21,7 @@ import {
   type QueueWeights,
   type RankingResult,
 } from '../../domain/queue-scoring.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * The allocation engine (spec §28, §29, §30).
@@ -295,7 +296,7 @@ export async function offerNextDoctor(
   void notify({
     templateCode: 'doctor.consultation.offered',
     recipient: { type: 'DOCTOR', doctorId: best.doctorId },
-    variables: { pharmacyName: consultation.pharmacy.name, seconds: windowSeconds },
+    variables: { pharmacyName: originName(consultation.pharmacy), seconds: windowSeconds },
   });
   emitToConsultation(consultation.publicId, 'consultation.state_changed', { state: 'ASSIGNED' });
 
@@ -321,7 +322,7 @@ async function handleNoEligibleDoctor(
   consultation: {
     id: string;
     publicId: string;
-    pharmacyId: string;
+    pharmacyId: string | null;
     language: { code: string; label: string } | null;
   },
   ranking: RankingResult,
@@ -392,11 +393,14 @@ async function handleNoEligibleDoctor(
       },
     });
 
-    void notify({
-      templateCode: 'pharmacy.consultation.no-doctor',
-      recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
-      variables: { consultationReference: consultation.publicId },
-    });
+    // A patient-direct consultation has no counter waiting on it (v2).
+    if (consultation.pharmacyId) {
+      void notify({
+        templateCode: 'pharmacy.consultation.no-doctor',
+        recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
+        variables: { consultationReference: consultation.publicId },
+      });
+    }
   }
 
   const delaySeconds = await getIntSetting(SETTING_KEYS.QUEUE_DELAY_ALERT_SECONDS, db);
@@ -504,11 +508,13 @@ export async function acceptOffer(
    * only to someone watching it. A patient who put the phone down to wait, at
    * a counter, needs the SMS.
    */
-  void notify({
-    templateCode: 'pharmacy.consultation.doctor-assigned',
-    recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
-    variables: { consultationReference: consultation.publicId },
-  });
+  if (consultation.pharmacyId) {
+    void notify({
+      templateCode: 'pharmacy.consultation.doctor-assigned',
+      recipient: { type: 'PHARMACY', pharmacyId: consultation.pharmacyId },
+      variables: { consultationReference: consultation.publicId },
+    });
+  }
 
   void notify({
     templateCode: 'patient.consultation.ready',
@@ -616,7 +622,7 @@ export async function enforceResponseWindow(
       void notify({
         templateCode: 'doctor.consultation.missed',
         recipient: { type: 'DOCTOR', doctorId: assignment.doctorId },
-        variables: { pharmacyName: assignment.consultation.pharmacy.name },
+        variables: { pharmacyName: originName(assignment.consultation.pharmacy) },
       });
 
       // Straight back into allocation; the patient is never left stranded.

@@ -10,6 +10,7 @@ import { getPaymentProvider } from '../../adapters/payment/index.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { notify } from '../notification/notification.service.ts';
 import { formatMoney, money } from '../../lib/money.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * Refunds (spec §41, docs/payment-flow.md §7).
@@ -162,10 +163,13 @@ export async function requestRefund(
  * of a pair of notifications goes missing.
  */
 function notifyRefundDecision(
-  refund: { consultation: { publicId: string; pharmacyId: string } },
+  refund: { consultation: { publicId: string; pharmacyId: string | null } },
   decision: 'approved' | 'rejected',
   correlationId?: string,
 ): void {
+  // Nobody at a counter to tell when the patient booked directly (v2).
+  if (!refund.consultation.pharmacyId) return;
+
   void notify({
     templateCode: 'pharmacy.refund.decided',
     recipient: { type: 'PHARMACY', pharmacyId: refund.consultation.pharmacyId },
@@ -438,6 +442,6 @@ export async function listRefunds(
     decisionNote: refund.decisionNote,
     consultationReference: refund.consultation.publicId,
     consultationState: refund.consultation.state,
-    pharmacyName: refund.consultation.pharmacy.name,
+    pharmacyName: originName(refund.consultation.pharmacy),
   }));
 }

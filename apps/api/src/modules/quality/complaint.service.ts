@@ -70,7 +70,7 @@ export async function listComplaints(
     resolvedAt: complaint.resolvedAt?.toISOString() ?? null,
     resolutionNote: decryptNullable(complaint.resolutionNoteEnc),
     consultationReference: complaint.consultation?.publicId ?? null,
-    pharmacyName: complaint.consultation?.pharmacy.name ?? null,
+    pharmacyName: complaint.consultation?.pharmacy?.name ?? null,
     // Named because a complaint about a consultation is usually about the
     // clinician. Their quality score is elsewhere and is not shown to them
     // (spec §24, §52).

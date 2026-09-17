@@ -311,7 +311,7 @@ export interface PrescriptionPdfInput {
   issuedAt: Date;
   patient: { name: string; age: number; sex: string };
   doctor: { fullName: string; mdcNumber: string };
-  pharmacy: { name: string; city: string };
+  pharmacy: { name: string; city: string } | null;
   signatureDataEnc: string | null;
   items: Array<{
     medication: string;
@@ -343,10 +343,12 @@ export function renderPrescriptionPdf(input: PrescriptionPdfInput): Promise<Buff
       ['Age', String(input.patient.age)],
       ['Sex', input.patient.sex],
     ]);
-    labelledRow(doc, [
-      ['Prescription', input.publicId],
-      ['Pharmacy', `${input.pharmacy.name}, ${input.pharmacy.city}`],
-    ]);
+    const referenceRow: Array<[string, string]> = [['Prescription', input.publicId]];
+    // A patient-direct consultation has no pharmacy to name (v2).
+    if (input.pharmacy) {
+      referenceRow.push(['Pharmacy', `${input.pharmacy.name}, ${input.pharmacy.city}`]);
+    }
+    labelledRow(doc, referenceRow);
 
     sectionHeading(doc, 'Medication');
 
@@ -473,7 +475,7 @@ export interface SummaryPdfInput {
   issuedAt: Date;
   patient: { name: string; age: number; sex: string };
   doctor: { fullName: string; mdcNumber: string };
-  pharmacy: { name: string; city: string };
+  pharmacy: { name: string; city: string } | null;
   presentingComplaint: string;
   assessment: string;
   advice: string;
@@ -509,10 +511,12 @@ export function renderSummaryPdf(input: SummaryPdfInput): Promise<Buffer> {
       ['Age', String(input.patient.age)],
       ['Sex', input.patient.sex],
     ]);
-    labelledRow(doc, [
-      ['Summary', input.publicId],
-      ['Pharmacy', `${input.pharmacy.name}, ${input.pharmacy.city}`],
-    ]);
+    const referenceRow: Array<[string, string]> = [['Summary', input.publicId]];
+    // A patient-direct consultation has no pharmacy to name (v2).
+    if (input.pharmacy) {
+      referenceRow.push(['Pharmacy', `${input.pharmacy.name}, ${input.pharmacy.city}`]);
+    }
+    labelledRow(doc, referenceRow);
 
     sectionHeading(doc, 'What you came in with');
     paragraph(doc, input.presentingComplaint);

@@ -77,6 +77,9 @@ export async function calculatePayouts(
   const totals = new Map<string, { amountMinor: number; currency: string }>();
   for (const allocation of allocations) {
     const pharmacyId = allocation.consultation.pharmacyId;
+    // Revenue from a patient-direct consultation is owed to no pharmacy (v2).
+    if (!pharmacyId) continue;
+
     const running = totals.get(pharmacyId) ?? { amountMinor: 0, currency: allocation.currency };
     running.amountMinor += allocation.pharmacyShareMinor;
     totals.set(pharmacyId, running);

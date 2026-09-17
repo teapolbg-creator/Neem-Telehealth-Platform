@@ -12,6 +12,7 @@ import {
   canProposeSubstitution,
   canRevoke,
 } from '../../domain/prescription-state.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * Prescriptions (spec §41–§48, §82).
@@ -237,17 +238,20 @@ export async function issuePrescription(
     db,
   );
 
-  emitToPharmacy(prescription.pharmacyId, 'prescription.issued', {
-    prescriptionPublicId: prescription.publicId,
-  });
+  // Both are for a counter. A patient-direct prescription has none (v2).
+  if (prescription.pharmacyId) {
+    emitToPharmacy(prescription.pharmacyId, 'prescription.issued', {
+      prescriptionPublicId: prescription.publicId,
+    });
 
-  void notify({
-    templateCode: 'pharmacy.prescription.issued',
-    recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
-    // The consultation reference only. What was prescribed stays behind the
-    // authenticated screen (spec §60).
-    variables: { consultationReference: issued.consultation.publicId },
-  });
+    void notify({
+      templateCode: 'pharmacy.prescription.issued',
+      recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
+      // The consultation reference only. What was prescribed stays behind the
+      // authenticated screen (spec §60).
+      variables: { consultationReference: issued.consultation.publicId },
+    });
+  }
 
   return issued;
 }
@@ -311,9 +315,11 @@ export async function revokePrescription(
     db,
   );
 
-  emitToPharmacy(prescription.pharmacyId, 'prescription.revoked', {
-    prescriptionPublicId: prescription.publicId,
-  });
+  if (prescription.pharmacyId) {
+    emitToPharmacy(prescription.pharmacyId, 'prescription.revoked', {
+      prescriptionPublicId: prescription.publicId,
+    });
+  }
 
   /**
    * The counter is told, on every channel the template declares including SMS.
@@ -324,11 +330,13 @@ export async function revokePrescription(
    * of the patient. The message carries the consultation reference and not a
    * word about what was prescribed or why it was withdrawn.
    */
-  void notify({
-    templateCode: 'pharmacy.prescription.revoked',
-    recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
-    variables: { consultationReference: prescription.consultation.publicId },
-  });
+  if (prescription.pharmacyId) {
+    void notify({
+      templateCode: 'pharmacy.prescription.revoked',
+      recipient: { type: 'PHARMACY', pharmacyId: prescription.pharmacyId },
+      variables: { consultationReference: prescription.consultation.publicId },
+    });
+  }
 
   return revoked;
 }
@@ -494,7 +502,7 @@ export async function proposeSubstitution(
   void notify({
     templateCode: 'doctor.substitution.requested',
     recipient: { type: 'DOCTOR', doctorId: prescription.doctorId },
-    variables: { pharmacyName: prescription.pharmacy.name },
+    variables: { pharmacyName: originName(prescription.pharmacy) },
   });
 
   return request;

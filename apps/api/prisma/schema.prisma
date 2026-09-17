@@ -101,6 +101,13 @@ enum ConsultationState {
   REFUNDED
 }
 
+/// Which service a consultation belongs to: the pharmacy counter, or a patient
+/// booking directly (v2). Consultations created before v2 are all COUNTER.
+enum ConsultationChannel {
+  COUNTER
+  DIRECT
+}
+
 enum ConsultationType {
   AUDIO
   VIDEO
@@ -791,11 +798,14 @@ model Language {
 /// after the purge this row is a complete and honest record of what happened
 /// without being a medical record (spec §12).
 model Consultation {
-  id         String            @id @default(uuid(7))
-  publicId   String            @unique @db.VarChar(32)
-  pharmacyId String
+  id         String              @id @default(uuid(7))
+  publicId   String              @unique @db.VarChar(32)
+  /// Null for a patient-direct consultation: no pharmacy takes part in it (v2).
+  pharmacyId String?
+  /// Which service started it. COUNTER is every consultation that existed before v2.
+  channel    ConsultationChannel @default(COUNTER)
   doctorId   String?
-  state      ConsultationState @default(PENDING_PAYMENT)
+  state      ConsultationState   @default(PENDING_PAYMENT)
   type       ConsultationType?
   languageId String?
 
@@ -828,7 +838,7 @@ model Consultation {
   isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
-  pharmacy  Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  pharmacy  Pharmacy?  @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
   doctor    Doctor?    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   language  Language?  @relation(fields: [languageId], references: [id], onDelete: Restrict)
   promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: Restrict)
@@ -1070,7 +1080,7 @@ model Prescription {
   verificationCode String            @unique @db.VarChar(40)
   consultationId   String
   doctorId         String
-  pharmacyId       String
+  pharmacyId       String?
   state            PrescriptionState @default(DRAFT)
 
   patientName String     @db.VarChar(160)
@@ -1094,7 +1104,7 @@ model Prescription {
 
   consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
   doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
   signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
 
   items         PrescriptionItem[]
@@ -1188,7 +1198,7 @@ model Referral {
   publicId       String     @unique @db.VarChar(32)
   consultationId String
   doctorId       String
-  pharmacyId     String
+  pharmacyId     String?
   hospitalName   String     @db.VarChar(200)
   department     String     @db.VarChar(160)
   reasonText     String     @db.Text
@@ -1203,7 +1213,7 @@ model Referral {
 
   consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
   doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
   signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
 
   @@index([pharmacyId, issuedAt])
@@ -1657,14 +1667,14 @@ model DisclosureLog {
 /// are Neem's own design and the constraints on them are product policy rather
 /// than legal requirement.
 model ConsultationSummary {
-  id               String @id @default(uuid(7))
-  publicId         String @unique @db.VarChar(32)
+  id               String  @id @default(uuid(7))
+  publicId         String  @unique @db.VarChar(32)
   /// High-entropy, behind the public verification page. A hospital shown this
   /// document must be able to confirm it is genuine (D25).
-  verificationCode String @unique @db.VarChar(40)
-  consultationId   String @unique
+  verificationCode String  @unique @db.VarChar(40)
+  consultationId   String  @unique
   doctorId         String
-  pharmacyId       String
+  pharmacyId       String?
 
   /// Copied BY VALUE at issue, like a prescription's. The sealed record is not
   /// reachable from here (spec §11, D23).
@@ -1692,7 +1702,7 @@ model ConsultationSummary {
 
   consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
   doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  pharmacy     Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  pharmacy     Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
   signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
 
   @@index([pharmacyId, issuedAt])

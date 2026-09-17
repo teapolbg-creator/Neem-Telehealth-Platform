@@ -11,6 +11,7 @@ import { acceptOffer, offerNextDoctor, processWaitingQueue } from './allocation.
 import { getPresence, goOffline, goOnline, heartbeat } from './presence.service.ts';
 import { readPatientPanel } from '../consultation/patient-session.service.ts';
 import { isSealed, readClinicalRecord } from '../retention/clinical-record.service.ts';
+import { originName } from '../../domain/consultation-origin.ts';
 
 /**
  * Doctor queue routes (spec §24, §30).
@@ -264,7 +265,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           state: entry.consultation.state,
           queueState: entry.state,
           language: entry.language,
-          pharmacyName: entry.consultation.pharmacy.name,
+          pharmacyName: originName(entry.consultation.pharmacy),
           waitingSeconds: Math.floor((now.getTime() - entry.enqueuedAt.getTime()) / 1000),
           offerAttempts: entry.offerAttempts,
           noLanguageMatch: entry.noMatchAlertedAt !== null,
