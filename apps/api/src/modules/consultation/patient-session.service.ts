@@ -262,7 +262,13 @@ export async function readPatientPanel(
   consultationId: string,
   db: Db = getPrisma(),
   options: { includePhone?: boolean } = {},
-): Promise<{ fullName: string; age: number; sex: string; phone?: string } | null> {
+): Promise<{
+  fullName: string;
+  age: number;
+  sex: string;
+  reason: string | null;
+  phone?: string;
+} | null> {
   const session = await db.patientSession.findUnique({ where: { consultationId } });
 
   // Pre-D23: hard-deleted at completion, so absence was the signal. Phase 5.5
@@ -277,6 +283,12 @@ export async function readPatientPanel(
     fullName: decryptNullable(session.fullNameEnc) ?? '',
     age: session.age,
     sex: session.sex,
+    /*
+     * What the patient wrote when they booked, for whoever is about to talk to
+     * them (v2). Null for every counter consultation, where the pharmacist is
+     * standing in front of them and nobody was asked to type it.
+     */
+    reason: decryptNullable(session.reasonEnc),
     // Off by default, and NOT included for the doctor. Call Me exists so that
     // neither party learns the other's number (spec §33); handing the doctor
     // the patient's number in a side panel would defeat it entirely. The

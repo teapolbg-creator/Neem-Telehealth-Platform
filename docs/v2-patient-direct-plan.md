@@ -195,6 +195,18 @@ disciplines; `ProfessionalService` linking a professional to the services they m
 (professional, service, start, end, state, reservation expiry, payment), with a unique constraint on
 professional and start time.
 
+> **Built, phase 6.** Three decisions worth recording. A slot is held by a unique `slotKey` that is
+> nulled when the appointment stops holding it, so the database refuses a double booking rather than
+> a check-then-write. Reservation expiry rides on the existing payment window and its sweep, so a
+> payment that lands late is verified and honoured exactly as D49 already provides. And a booked
+> appointment counts as the professional's duty for that minute — requiring a rota shift as well
+> would let a consultation booked a week earlier go to nobody; presence is still required, and the
+> wait limit still protects the patient if they do not appear.
+>
+> **Not built:** cancellation, rescheduling and no-show handling, which depend on business decision
+> §7.7. There is deliberately no route by which an appointment can be cancelled until that is
+> answered, because the refund rule is the decision.
+
 **M5 — earnings and payouts.** `ProfessionalEarning` (one per consultation: gross, split basis
 points snapshot, professional share, Neem share, reversal), `ProfessionalPayout` and
 `ProfessionalPayoutDetail` mirroring the pharmacy payout tables, and `ProfessionalPayoutDetail`

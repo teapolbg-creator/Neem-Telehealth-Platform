@@ -65,6 +65,21 @@ export async function loadQueueWeights(db: Db = getPrisma()): Promise<QueueWeigh
  */
 export interface CandidatePool {
   discipline?: ProfessionalDiscipline;
+  /**
+   * The professional a patient booked by name, for an appointment (v2).
+   *
+   * Two things follow from it. The pool is that one person — nobody else may
+   * take a consultation somebody paid to have with them. And they count as on
+   * duty for it, because the appointment IS their commitment to that minute;
+   * the shift rota is how the queue finds somebody who made no such promise,
+   * and asking for both would let a consultation booked a week ago go to
+   * nobody.
+   *
+   * Everything else still applies. A professional who is suspended, whose
+   * licence has lapsed, who is not online or who is at capacity is not offered
+   * it — the consultation waits, and the wait limit protects the patient (D50).
+   */
+  appointmentWith?: string;
 }
 
 /**
@@ -95,6 +110,7 @@ export async function collectCandidates(
          * also what every professional on the platform before v2 is.
          */
         discipline: pool.discipline ?? 'DOCTOR',
+        ...(pool.appointmentWith ? { id: pool.appointmentWith } : {}),
       },
       include: {
         languages: { include: { language: { select: { code: true } } } },
@@ -139,9 +155,11 @@ export async function collectCandidates(
 
     // A doctor is "on shift" when they hold a CONFIRMED assignment covering
     // now. Assigned-but-unconfirmed does not count: the doctor has not agreed.
-    const onShift = doctor.shiftAssignments.some((assignment) =>
-      shiftCoversNow(assignment.shiftDefinition.startsAt, assignment.shiftDefinition.endsAt, now),
-    );
+    const onShift =
+      pool.appointmentWith === doctor.id ||
+      doctor.shiftAssignments.some((assignment) =>
+        shiftCoversNow(assignment.shiftDefinition.startsAt, assignment.shiftDefinition.endsAt, now),
+      );
 
     return {
       doctorId: doctor.id,
@@ -207,6 +225,7 @@ export async function offerNextDoctor(
       queueEntry: true,
       pharmacy: { select: { name: true } },
       service: { select: { discipline: true } },
+      appointment: { select: { doctorId: true, state: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -226,6 +245,8 @@ export async function offerNextDoctor(
 
   const candidates = await collectCandidates(consultationId, db, clock, {
     discipline: consultation.service?.discipline,
+    // The patient chose this person and paid for them; nobody else may take it.
+    appointmentWith: consultation.appointment?.doctorId,
   });
   const ranking = rankDoctors(candidates, consultation.language.code, weights, clock.now());
 

@@ -6,6 +6,10 @@ import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
 import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service.ts';
+import {
+  openDueAppointments,
+  releaseLapsedReservations,
+} from '../modules/appointment/appointment.service.ts';
 import { recomputeQualityScores } from '../modules/quality/quality.service.ts';
 import {
   runSubscriptionExpirySweep,
@@ -79,6 +83,29 @@ const JOBS: JobDefinition[] = [
     intervalMs: 30 * SECOND,
     run: cancelUnservedConsultations,
     describe: (count) => `cancelled ${count} consultation(s) past the queue wait limit`,
+  },
+  {
+    /*
+     * Lets go of a slot whose reservation was never paid for (v2). It runs
+     * after `expire-pending-payments` has had its say, and only acts once the
+     * consultation is actually gone — so a payment that settled in the last
+     * second keeps the minute it paid for.
+     */
+    name: 'release-lapsed-reservations',
+    intervalMs: 30 * SECOND,
+    run: releaseLapsedReservations,
+    describe: (count) => `released ${count} unpaid appointment slot(s)`,
+  },
+  {
+    /*
+     * Hands a booked appointment over at its hour (v2). A minute of
+     * granularity is what the patient was promised; every 20 seconds is
+     * comfortably inside it.
+     */
+    name: 'open-due-appointments',
+    intervalMs: 20 * SECOND,
+    run: openDueAppointments,
+    describe: (count) => `opened ${count} appointment(s) whose time had come`,
   },
   {
     // Timer warnings only. This job emits events; it does NOT end a

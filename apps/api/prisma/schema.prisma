@@ -116,6 +116,19 @@ enum ProfessionalDiscipline {
   TRAINER
 }
 
+/// Where a booked appointment has got to (v2).
+enum AppointmentState {
+  /// The slot is held, and the patient has not paid yet.
+  RESERVED
+  /// Paid. The slot is theirs until it opens.
+  CONFIRMED
+  /// The time came and the consultation was handed to the professional.
+  OPENED
+  /// The reservation lapsed unpaid, and the slot went back.
+  EXPIRED
+  CANCELLED
+}
+
 /// How services are grouped for the patient choosing one (v2).
 enum ServiceClinic {
   GENERAL
@@ -609,7 +622,7 @@ model Doctor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents         DoctorDocument[]
   languages         DoctorLanguage[]
   signatures        DoctorSignature[]
@@ -626,6 +639,8 @@ model Doctor {
   qualityScores     DoctorQualityScore[]
   substitutions     SubstitutionRequest[]
   services          ProfessionalService[]
+  availability      ProfessionalAvailability[]
+  appointments      Appointment[]
 
   @@index([status])
   @@index([discipline, status])
@@ -906,6 +921,7 @@ model Consultation {
   retentionJobs       RetentionJob[]
   clinicalAccessLog   ClinicalRecordAccessLog[]
   promotionRedemption PromotionRedemption?
+  appointment         Appointment?
 
   @@index([pharmacyId, createdAt])
   @@index([doctorId, createdAt])
@@ -968,6 +984,14 @@ model PatientSession {
   phoneEnc               String?     @db.Text
   /// Recorded when the patient pays from a different number (spec §36).
   paymentPhoneEnc        String?     @db.Text
+  /// What the patient says they need, in their own words (v2).
+  ///
+  /// A counter patient tells the pharmacist and the doctor asks again. A
+  /// patient booking from home has nobody to tell, so they write it here and
+  /// the professional sees it in the patient panel. Encrypted and sealed with
+  /// the rest of this row, because a sentence about why somebody wants a
+  /// doctor is as sensitive as the consultation it starts.
+  reasonEnc              String?     @db.Text
   deviceSessionTokenHash String?     @unique @db.VarChar(64)
   deviceBoundAt          DateTime?
   expiresAt              DateTime?
@@ -1800,8 +1824,81 @@ model PatientAccount {
   codes         PatientAuthCode[]
   sessions      PatientAccountSession[]
   consultations Consultation[]
+  appointments  Appointment[]
 
   @@map("patient_accounts")
+}
+
+/// When a professional takes booked appointments (v2).
+///
+/// A recurring weekly window, in the same wall-clock form as a shift
+/// definition. Ghana keeps UTC year-round and the platform serves Ghana, so
+/// these times are both local and UTC; anywhere that stops being true, this is
+/// the model that has to gain a timezone.
+///
+/// Separate from `DoctorShiftAssignment` on purpose. A shift is when somebody
+/// is available to whoever the queue sends them; this is when a patient may
+/// choose them in advance.
+model ProfessionalAvailability {
+  id       String @id @default(uuid(7))
+  doctorId String
+  /// 0 = Sunday, to match `Date.getUTCDay()`.
+  weekday  Int    @db.SmallInt
+  startsAt String @db.VarChar(5)
+  endsAt   String @db.VarChar(5)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, weekday, startsAt])
+  @@index([doctorId, isActive])
+  @@map("professional_availability")
+}
+
+/// A consultation at an agreed time (v2).
+///
+/// It exists from the moment the patient picks a slot, before any money has
+/// moved, because holding the slot IS the reservation. `slotKey` is what makes
+/// that safe: it carries the start time while the appointment holds the slot
+/// and is nulled the moment it stops, and the unique index on it is what
+/// refuses the second of two people booking the same minute. Nulled rather
+/// than deleted, because an expired reservation is a thing that happened.
+model Appointment {
+  id               String   @id @default(uuid(7))
+  publicId         String   @unique @db.VarChar(32)
+  doctorId         String
+  serviceId        String
+  patientAccountId String
+  /// Created with the appointment: the consultation IS what was booked.
+  consultationId   String   @unique
+  startsAt         DateTime
+  endsAt           DateTime
+  /// The start time while this appointment holds the slot; null once released.
+  slotKey          String?  @db.VarChar(40)
+
+  state                AppointmentState @default(RESERVED)
+  /// When an unpaid reservation stops holding the slot. Mirrors the
+  /// consultation's payment deadline, so one clock governs both.
+  reservationExpiresAt DateTime?
+  openedAt             DateTime?
+  releasedAt           DateTime?
+  releasedReason       String?          @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor         Doctor         @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  service        Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  patientAccount PatientAccount @relation(fields: [patientAccountId], references: [id], onDelete: Restrict)
+  consultation   Consultation   @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, slotKey])
+  @@index([state, startsAt])
+  @@index([patientAccountId, startsAt])
+  @@map("appointments")
 }
 
 /// A one-time code sent to a patient's own contact (v2).
@@ -1868,6 +1965,7 @@ model Service {
 
   consultations Consultation[]
   professionals ProfessionalService[]
+  appointments  Appointment[]
 
   @@index([isActive, clinic, sortOrder])
   @@map("services")

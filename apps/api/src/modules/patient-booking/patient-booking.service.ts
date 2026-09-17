@@ -1,20 +1,16 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../db/prisma.ts';
 import { getEnv } from '../../config/env.ts';
 import { errors } from '../../lib/errors.ts';
 import { addMinutes, addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
-import {
-  encryptField,
-  generateConsultationReference,
-  generateToken,
-  hashIp,
-  hashToken,
-} from '../../lib/crypto.ts';
+import { generateToken } from '../../lib/crypto.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
 import { bookableServiceRow } from '../service/service.service.ts';
+import { createDirectConsultation } from './direct-consultation.ts';
+import { confirmPaidAppointment } from '../appointment/appointment.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { selectModeAndEnterQueue } from '../consultation/patient-session.service.ts';
 
@@ -83,71 +79,19 @@ export async function createImmediateBooking(
   const sessionExpiresAt = addMinutes(now, getEnv().PATIENT_SESSION_TIMEOUT_MINUTES);
   const paymentDeadlineAt = addSeconds(now, windowSeconds);
 
-  const consultation = await db.$transaction(async (tx) => {
-    const created = await tx.consultation.create({
-      data: {
-        publicId: generateConsultationReference(),
-        channel: 'DIRECT',
-        serviceId: service.id,
-        patientAccountId: accountId,
-        languageId: language.id,
-        type: input.type,
-        state: 'PENDING_PAYMENT',
-        // The price the patient was shown, kept here so a later change to the
-        // service cannot rewrite what they were charged.
-        priceMinor: service.priceMinor,
-        netMinor: service.priceMinor,
-        currency: service.currency,
-        paymentDeadlineAt,
-      },
-    });
-
-    await tx.consultationStateEvent.create({
-      data: {
-        consultationId: created.id,
-        fromState: null,
-        toState: 'PENDING_PAYMENT',
-        actorType: 'PATIENT',
-        accepted: true,
-      },
-    });
-
-    /*
-     * The same row the QR exchange writes, so the patient's screen, the call
-     * and the documents all work without knowing which service booked it.
-     */
-    await tx.patientSession.create({
-      data: {
-        consultationId: created.id,
-        fullNameEnc: encryptField(input.fullName),
-        age: input.age,
-        sex: input.sex,
-        phoneEnc: encryptField(input.phone),
-        deviceSessionTokenHash: hashToken(sessionToken),
-        deviceBoundAt: now,
-        expiresAt: sessionExpiresAt,
-      },
-    });
-
-    /*
-     * What they agreed to, recorded rather than assumed. Two separate records
-     * because they are two separate claims: that they accepted a remote
-     * consultation, and that they were told what to do in an emergency.
-     */
-    for (const purpose of ['consultation.remote', 'consultation.emergency-guidance']) {
-      await tx.consent.create({
-        data: {
-          consultationId: created.id,
-          purpose,
-          granted: true,
-          grantedAt: now,
-          evidence: { channel: 'DIRECT', ipHash: hashIp(context.ip) },
-        },
-      });
-    }
-
-    return created;
-  });
+  const consultation = await db.$transaction((tx) =>
+    createDirectConsultation(tx, {
+      service,
+      accountId,
+      languageId: language.id,
+      intake: input,
+      paymentDeadlineAt,
+      sessionToken,
+      sessionExpiresAt,
+      now,
+      ip: context.ip,
+    }),
+  );
 
   await recordAudit(
     {
@@ -178,7 +122,7 @@ export async function ownedBooking(
 ) {
   const consultation = await db.consultation.findUnique({
     where: { publicId: consultationReference },
-    include: { patientSession: true },
+    include: { patientSession: true, appointment: true },
   });
 
   // The same refusal for somebody else's booking and one that does not exist.
@@ -206,6 +150,16 @@ export async function admitPaidBooking(
 
   if (consultation.state !== 'ACTIVATED') return false;
   if (!consultation.patientSession) return false;
+
+  /*
+   * A booking for a time next week is paid for now and waits (v2). It joins
+   * the queue when its hour comes, not when the money clears, so payment
+   * confirms the appointment and stops there.
+   */
+  if (consultation.appointment) {
+    await confirmPaidAppointment(consultation.id, db, clock);
+    return false;
+  }
 
   await transition(
     consultation.id,

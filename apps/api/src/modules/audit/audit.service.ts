@@ -39,6 +39,8 @@ export const AUDIT_ACTIONS = {
   DOCTOR_SIGNATURE_CAPTURED: 'doctor.signature.captured',
   DOCTOR_COMPENSATION_CHANGED: 'doctor.compensation.changed',
   DOCTOR_PROFESSION_CHANGED: 'doctor.profession.changed',
+  APPOINTMENT_RESERVED: 'appointment.reserved',
+  APPOINTMENT_OPENED: 'appointment.opened',
   DOCTOR_LICENCE_EXPIRING: 'doctor.licence.expiring',
 
   PILOT_APPLICATION_RECEIVED: 'pilot-application.received',

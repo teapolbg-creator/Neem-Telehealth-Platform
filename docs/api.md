@@ -96,6 +96,9 @@ POST   /patient/account/logout            ends the account session on the server
 POST   /patient/bookings/immediate        { service, language, type, details, consent } → an unpaid consultation (v2)
 POST   /patient/bookings/:reference/payment   starts the Paystack checkout for it (v2)
 GET    /patient/bookings/:reference/payment   re-verifies, and joins the queue once paid (v2)
+GET    /patient/appointments/slots        free slots for a service, by professional (v2)
+GET    /patient/appointments | POST /patient/appointments | GET /patient/appointments/:reference
+GET    /doctor/availability | PUT /doctor/availability   the professional's own bookable week (v2)
 
 NOT BUILT
 GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone

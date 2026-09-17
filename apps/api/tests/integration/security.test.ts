@@ -703,6 +703,7 @@ describe('§102 (3) cross-patient access and session takeover', () => {
    */
   const PARAMETERISED_PATIENT_ROUTES = [
     '/api/v1/patient/account/documents/:kind/:publicId.pdf',
+    '/api/v1/patient/appointments/:reference',
     '/api/v1/patient/bookings/:reference/payment',
     '/api/v1/patient/documents/:kind/:publicId.pdf',
   ];
