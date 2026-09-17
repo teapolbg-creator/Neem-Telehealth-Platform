@@ -87,6 +87,12 @@ POST   /patient/feedback                  { doctorRating, neemRating, category, 
 POST   /patient/session/leave             ends the session on the server, not just the cookie
 POST   /patient/refund-request            { reason } — recorded, never granted
 GET    /patient/services                  what may be booked and what it costs (v2); empty while channels.directEnabled is off
+POST   /patient/account/code              { contact } — a six-digit code to the patient's own email (v2)
+POST   /patient/account/verify            { contact, code } → an account session cookie (v2)
+GET    /patient/account                   the account, and the consultations that belong to it (v2)
+GET    /patient/account/documents         their documents, grouped by consultation (v2)
+GET    /patient/account/documents/:kind/:publicId.pdf   the document itself (v2)
+POST   /patient/account/logout            ends the account session on the server (v2)
 
 NOT BUILT
 GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone

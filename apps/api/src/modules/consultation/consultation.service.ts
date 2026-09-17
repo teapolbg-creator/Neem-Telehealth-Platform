@@ -403,7 +403,10 @@ export async function cancelConsultation(
 
 /** Who a refund raised by a cancellation is recorded as coming from. */
 function refundRequesterFor(actorType: ActorType): 'PATIENT' | 'PHARMACY' | 'ADMIN' | 'SYSTEM' {
-  return actorType === 'DOCTOR' ? 'SYSTEM' : actorType;
+  if (actorType === 'DOCTOR') return 'SYSTEM';
+  // A patient is a patient, however they reached us (v2).
+  if (actorType === 'PATIENT_ACCOUNT') return 'PATIENT';
+  return actorType;
 }
 
 export interface ConsultationListFilters {

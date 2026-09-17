@@ -21,6 +21,10 @@ export const SETTING_KEYS = {
 
   CHANNELS_DIRECT_ENABLED: 'channels.directEnabled',
 
+  PATIENT_CODE_TTL_SECONDS: 'patient.accountCodeTtlSeconds',
+  PATIENT_CODE_MAX_ATTEMPTS: 'patient.accountCodeMaxAttempts',
+  PATIENT_SESSION_HOURS: 'patient.accountSessionHours',
+
   REVENUE_PHARMACY_BP: 'revenue.pharmacySharePctBp',
   REVENUE_NEEM_BP: 'revenue.neemSharePctBp',
 
@@ -148,6 +152,28 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
       'Whether patients can book consultations themselves, without a pharmacy (v2). Off until the journey is complete and authorised.',
     category: 'consultation',
     requiresConfirm: true,
+  },
+  {
+    key: K.PATIENT_CODE_TTL_SECONDS,
+    value: 600,
+    valueType: 'number',
+    description: 'How long a patient sign-in code stays valid (v2).',
+    category: 'patient',
+  },
+  {
+    key: K.PATIENT_CODE_MAX_ATTEMPTS,
+    value: 5,
+    valueType: 'number',
+    description: 'Wrong guesses allowed against one patient sign-in code before it is dead (v2).',
+    category: 'patient',
+  },
+  {
+    key: K.PATIENT_SESSION_HOURS,
+    value: 168,
+    valueType: 'number',
+    description:
+      'How long a patient stays signed in to their account, in hours (v2). Their documents are reachable for this long without a new code.',
+    category: 'patient',
   },
 
   // --- Revenue ------------------------------------------------------------

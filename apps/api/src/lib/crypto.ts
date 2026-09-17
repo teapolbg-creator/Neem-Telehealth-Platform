@@ -97,6 +97,18 @@ export function hashIp(ip: string | undefined): string | null {
 }
 
 /**
+ * A keyed digest of something short and guessable (v2).
+ *
+ * `hashToken` is right for 256 bits of randomness and wrong for a phone
+ * number or a six-digit code: there are few enough of those to walk a stolen
+ * table of plain digests. Keyed with the session secret, as IP addresses are,
+ * so the digest is worth nothing without it.
+ */
+export function keyedHash(value: string): string {
+  return createHmac('sha256', getEnv().SESSION_SECRET).update(value).digest('hex');
+}
+
+/**
  * Public-facing identifier. Non-sequential and non-enumerable, so exposing it
  * in a URL discloses nothing and cannot be walked (spec §65).
  */

@@ -67,8 +67,16 @@ describe('the notification catalogue', () => {
    * safe to read over someone's shoulder.
    */
   it('gives a patient nothing on SMS beyond a reference', () => {
-    const toPatients = NOTIFICATION_TEMPLATES.filter((template) =>
-      template.code.startsWith('patient.'),
+    /*
+     * Scoped to SMS, which is what the rule above is about (v2).
+     *
+     * A patient account's sign-in code has to reach the patient somehow, and
+     * it is not a consultation reference. It goes by email, which is behind
+     * the patient's own password, and never by SMS — so the rule that matters
+     * here is unchanged: nothing but a reference is ever texted to a patient.
+     */
+    const toPatients = NOTIFICATION_TEMPLATES.filter(
+      (template) => template.code.startsWith('patient.') && template.channels.includes('SMS'),
     );
 
     expect(toPatients.length).toBeGreaterThan(0);

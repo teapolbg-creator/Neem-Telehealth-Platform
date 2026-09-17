@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ActorType" ADD VALUE 'PATIENT_ACCOUNT';

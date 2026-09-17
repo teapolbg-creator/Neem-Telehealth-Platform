@@ -188,6 +188,17 @@ export const NOTIFICATION_TEMPLATES: TemplateDefinition[] = [
 
   // --- Patient --------------------------------------------------------------
   {
+    code: 'patient.account.code',
+    // Email only. An SMS to a patient carries a consultation reference and
+    // nothing else, and a sign-in code is not a reference.
+    channels: ['EMAIL'],
+    locale: 'en',
+    subject: 'Your Neem sign-in code',
+    body: 'Your Neem code is {{code}}. It expires in {{minutes}} minutes. If you did not ask for it, ignore this message.',
+    variables: ['code', 'minutes'],
+    description: 'A patient signing in to their own account (v2).',
+  },
+  {
     code: 'patient.consultation.ready',
     channels: ['SMS'],
     locale: 'en',

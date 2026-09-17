@@ -616,6 +616,43 @@ export async function listConsultationDocuments(
  * consultation: whether a given prescription exists at all is not something an
  * unrelated caller should be able to learn.
  */
+/**
+ * Which consultation a document belongs to, or null when no such document
+ * exists (v2).
+ *
+ * A patient account holds several consultations, so a caller cannot know which
+ * one a document id belongs to before asking. It lives here, beside the reader,
+ * so the three document tables are named in one place rather than two.
+ */
+export async function findDocumentConsultationId(
+  kind: Kind,
+  publicId: string,
+  db: Db = getPrisma(),
+): Promise<string | null> {
+  if (kind === 'prescription') {
+    const row = await db.prescription.findUnique({
+      where: { publicId },
+      select: { consultationId: true, state: true },
+    });
+    // A draft is not a document.
+    return row && row.state !== 'DRAFT' ? row.consultationId : null;
+  }
+
+  if (kind === 'referral') {
+    const row = await db.referral.findUnique({
+      where: { publicId },
+      select: { consultationId: true },
+    });
+    return row?.consultationId ?? null;
+  }
+
+  const row = await db.consultationSummary.findUnique({
+    where: { publicId },
+    select: { consultationId: true },
+  });
+  return row?.consultationId ?? null;
+}
+
 export async function readConsultationDocument(
   consultationId: string,
   kind: Kind,

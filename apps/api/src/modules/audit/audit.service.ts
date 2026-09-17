@@ -77,6 +77,11 @@ export const AUDIT_ACTIONS = {
   /** What a patient may book and what it costs is money, so both are audited (v2). */
   SERVICE_CREATED: 'service.created',
   SERVICE_UPDATED: 'service.updated',
+
+  /** A patient reaching their own account, which holds their documents (v2). */
+  PATIENT_ACCOUNT_CODE_SENT: 'patient-account.code.sent',
+  PATIENT_ACCOUNT_SIGNED_IN: 'patient-account.signed-in',
+  PATIENT_ACCOUNT_SIGN_IN_FAILED: 'patient-account.sign-in.failed',
   REFUND_REQUESTED: 'refund.requested',
   REFUND_DECIDED: 'refund.decided',
   PAYOUT_CALCULATED: 'payout.calculated',

@@ -40,6 +40,7 @@ export type Recipient =
   | { type: 'DOCTOR'; doctorId: string }
   | { type: 'PHARMACY'; pharmacyId: string }
   | { type: 'PATIENT'; consultationId: string }
+  | { type: 'PATIENT_ACCOUNT'; accountId: string }
   | { type: 'ADMIN' };
 
 export interface NotifyInput {
@@ -134,6 +135,23 @@ async function addressFor(
       });
       return channel === 'EMAIL' ? null : decryptNullable(session?.phoneEnc ?? null);
     }
+    case 'PATIENT_ACCOUNT': {
+      /*
+       * The one contact the patient gave, on the channel it belongs to (v2).
+       *
+       * An address is never used for SMS and a number is never used for email,
+       * so a sign-in code cannot be delivered somewhere the patient did not
+       * choose.
+       */
+      const account = await db.patientAccount.findUnique({
+        where: { id: recipient.accountId },
+        select: { contactKind: true, contactEnc: true },
+      });
+      if (!account) return null;
+
+      const belongsTo = account.contactKind === 'EMAIL' ? 'EMAIL' : 'SMS';
+      return channel === belongsTo ? decryptNullable(account.contactEnc) : null;
+    }
     case 'ADMIN':
       // Admins are notified in-app and by the operations mailbox, not
       // individually — there is no per-admin contact list to leak.
@@ -149,6 +167,8 @@ function recipientRef(recipient: Recipient): string {
       return recipient.pharmacyId;
     case 'PATIENT':
       return recipient.consultationId;
+    case 'PATIENT_ACCOUNT':
+      return recipient.accountId;
     case 'ADMIN':
       return 'admin';
   }
@@ -176,6 +196,9 @@ function emitInApp(
     case 'PATIENT':
       // The patient's screen polls its own session and has no socket room of
       // its own; there is nothing to emit to.
+      break;
+    case 'PATIENT_ACCOUNT':
+      // Nor does an account: a patient reads their own screen, not a feed.
       break;
   }
 }
@@ -544,6 +567,8 @@ function resolveRecipient(type: string, ref: string): Recipient | null {
       return { type: 'PHARMACY', pharmacyId: ref };
     case 'PATIENT':
       return { type: 'PATIENT', consultationId: ref };
+    case 'PATIENT_ACCOUNT':
+      return { type: 'PATIENT_ACCOUNT', accountId: ref };
     case 'ADMIN':
       return { type: 'ADMIN' };
     default:

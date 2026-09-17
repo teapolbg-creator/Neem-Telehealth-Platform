@@ -232,6 +232,20 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
   ],
   ['POST /api/v1/s/exchange', 'the patient has a QR token and nothing else'],
   [
+    'POST /api/v1/patient/account/code',
+    'a patient asking for a sign-in code has no session yet, and it answers ' +
+      'the same way whether or not the contact is known, so it discloses ' +
+      'nothing about who is a patient (v2)',
+  ],
+  [
+    'POST /api/v1/patient/account/verify',
+    'exchanges a code for a session; this is where a patient session begins (v2)',
+  ],
+  [
+    'POST /api/v1/patient/account/logout',
+    'ending a session you may no longer hold must not require holding one (v2)',
+  ],
+  [
     'GET /api/v1/patient/services',
     'a patient choosing a service has no account yet, and the price must be ' +
       'visible before they are asked to pay (v2). It reads a catalogue an ' +
@@ -680,7 +694,10 @@ describe('§102 (3) cross-patient access and session takeover', () => {
    * behavioural half is asserted directly beneath rather than assumed, and the
    * scoping itself is covered in tests/integration/patient-documents.test.ts.
    */
-  const PARAMETERISED_PATIENT_ROUTES = ['/api/v1/patient/documents/:kind/:publicId.pdf'];
+  const PARAMETERISED_PATIENT_ROUTES = [
+    '/api/v1/patient/account/documents/:kind/:publicId.pdf',
+    '/api/v1/patient/documents/:kind/:publicId.pdf',
+  ];
 
   it('gives the patient no route that takes a consultation id', async () => {
     const routes = await collectRoutes();
