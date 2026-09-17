@@ -367,6 +367,9 @@ export async function settlePayment(
         paidAt: verified.paidAt ?? now,
         verifiedAt: now,
         channel: verified.channel ?? payment.channel,
+        // What it cost to collect, when the provider says. Kept because the
+        // professional's share is taken after it (v2).
+        feeMinor: verified.feeMinor ?? payment.feeMinor,
       },
     });
 

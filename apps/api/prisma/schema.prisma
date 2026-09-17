@@ -641,6 +641,9 @@ model Doctor {
   services          ProfessionalService[]
   availability      ProfessionalAvailability[]
   appointments      Appointment[]
+  earnings          ProfessionalEarning[]
+  payouts           ProfessionalPayout[]
+  payoutDetail      ProfessionalPayoutDetail?
 
   @@index([status])
   @@index([discipline, status])
@@ -922,6 +925,7 @@ model Consultation {
   clinicalAccessLog   ClinicalRecordAccessLog[]
   promotionRedemption PromotionRedemption?
   appointment         Appointment?
+  earning             ProfessionalEarning?
 
   @@index([pharmacyId, createdAt])
   @@index([doctorId, createdAt])
@@ -1302,6 +1306,12 @@ model Payment {
   /// Idempotency #2 — one provider transaction, at most one payment row.
   providerReference    String        @unique @db.VarChar(200)
   amountMinor          Int
+  /// What the provider charged to collect it, as the provider reported it (v2).
+  ///
+  /// Null when the provider did not say — an older payment, a mock, or a
+  /// response without the field. Null is not zero, and nothing may treat it as
+  /// zero: a fee-based split refuses rather than quietly splitting the gross.
+  feeMinor             Int?
   currency             String        @default("GHS") @db.Char(3)
   status               PaymentStatus @default(PENDING)
   channel              String?       @db.VarChar(60)
@@ -1314,9 +1324,10 @@ model Payment {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
-  consultation       Consultation?       @relation(fields: [consultationId], references: [id], onDelete: Restrict)
-  doctorSubscription DoctorSubscription? @relation(fields: [doctorSubscriptionId], references: [id], onDelete: Restrict)
+  consultation       Consultation?        @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctorSubscription DoctorSubscription?  @relation(fields: [doctorSubscriptionId], references: [id], onDelete: Restrict)
   revenue            RevenueAllocation?
+  earning            ProfessionalEarning?
   refunds            Refund[]
 
   @@index([status, paidAt])
@@ -1346,6 +1357,96 @@ model PaymentWebhookEvent {
 /// Idempotency #3 — UNIQUE on paymentId makes double-counting structurally
 /// impossible. The rate in force at calculation time is stored, so historical
 /// splits stay reproducible after an admin changes the setting.
+/// What one professional earned from one consultation (v2).
+///
+/// Beside `RevenueAllocation`, not inside it. The three facts a reconciliation
+/// needs — what the patient paid, what was earned, what was actually sent —
+/// are three records, because collapsing them makes it impossible to say which
+/// of the three went wrong.
+///
+/// Written at completion rather than at settlement: at the moment the money
+/// clears, an immediate consultation has no professional yet. Whoever
+/// completed it is who earned it.
+///
+/// The rate is copied in, never referenced. A share changed next month must
+/// not rewrite what somebody has already been told they earned.
+model ProfessionalEarning {
+  id             String @id @default(uuid(7))
+  consultationId String @unique
+  paymentId      String @unique
+  doctorId       String
+
+  /// What the patient actually paid for this consultation.
+  grossMinor             Int
+  /// What the provider charged to collect it, taken off before the split.
+  /// Zero when the provider did not report one — visible rather than assumed.
+  feeMinor               Int                    @default(0)
+  /// Gross less the fee: the amount the split was actually applied to.
+  netMinor               Int
+  professionalSharePctBp Int
+  professionalShareMinor Int
+  neemShareMinor         Int
+  currency               String                 @default("GHS") @db.Char(3)
+  /// The discipline at the time, so a statement can be read years later.
+  discipline             ProfessionalDiscipline
+
+  calculatedAt DateTime  @default(now())
+  /// Set when the consultation was refunded: it was never earned after all.
+  reversedAt   DateTime?
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+
+  @@index([doctorId, calculatedAt])
+  @@map("professional_earnings")
+}
+
+/// Money Neem owes a professional for a period, and whether it was sent (v2).
+///
+/// Mirrors the pharmacy payout in every respect, including that nothing here
+/// moves money: it works out what is owed and records that a human sent it.
+model ProfessionalPayout {
+  id               String       @id @default(uuid(7))
+  publicId         String       @unique @db.VarChar(32)
+  doctorId         String
+  periodStart      DateTime     @db.Date
+  periodEnd        DateTime     @db.Date
+  amountDueMinor   Int
+  amountPaidMinor  Int          @default(0)
+  currency         String       @default("GHS") @db.Char(3)
+  status           PayoutStatus @default(PENDING)
+  paidAt           DateTime?
+  paymentReference String?      @db.VarChar(200)
+  markedByAdminId  String?
+  reconciledAt     DateTime?
+  note             String?      @db.VarChar(500)
+  createdAt        DateTime     @default(now())
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+
+  /// One payout per professional per period. The duplicate is refused by the
+  /// database rather than by remembering to check.
+  @@unique([doctorId, periodStart, periodEnd])
+  @@index([status])
+  @@map("professional_payouts")
+}
+
+/// Where a professional's money is sent. Encrypted as a pharmacy's is (v2).
+model ProfessionalPayoutDetail {
+  doctorId         String    @id
+  method           String    @db.VarChar(40)
+  accountNameEnc   String    @db.Text
+  accountNumberEnc String    @db.Text
+  bankOrNetwork    String    @db.VarChar(120)
+  verifiedAt       DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@map("professional_payout_details")
+}
+
 model RevenueAllocation {
   id                 String    @id @default(uuid(7))
   consultationId     String    @unique

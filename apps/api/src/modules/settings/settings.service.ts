@@ -1,6 +1,6 @@
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { DEFAULT_SETTINGS, type SettingKey } from './settings.defaults.ts';
+import { DEFAULT_SETTINGS, SETTING_KEYS, type SettingKey } from './settings.defaults.ts';
 
 /**
  * System settings (spec §56).
@@ -96,6 +96,38 @@ export async function listSettings(db: Db = getPrisma()) {
 }
 
 /**
+ * Refuses to switch professional earnings on without a share to pay (v2).
+ *
+ * The two settings are meaningless apart: the switch decides whether anybody
+ * earns, and the share decides how much. Enabled with a share of zero, the
+ * system credits real work with nothing and says so only in a log line, so the
+ * pair is checked here — the one place both of them are written.
+ */
+async function assertProfessionalShareIsUsable(
+  key: SettingKey,
+  value: unknown,
+  db: Db,
+): Promise<void> {
+  const enabling = key === SETTING_KEYS.REVENUE_PROFESSIONAL_EARNINGS_ENABLED && value === true;
+  const changingShare = key === SETTING_KEYS.REVENUE_PROFESSIONAL_BP;
+  if (!enabling && !changingShare) return;
+
+  const enabled =
+    enabling || (await getBooleanSetting(SETTING_KEYS.REVENUE_PROFESSIONAL_EARNINGS_ENABLED, db));
+  if (!enabled) return;
+
+  const shareBp = changingShare
+    ? Number(value)
+    : await getIntSetting(SETTING_KEYS.REVENUE_PROFESSIONAL_BP, db);
+
+  if (!Number.isInteger(shareBp) || shareBp <= 0 || shareBp >= 10_000) {
+    throw errors.businessRule(
+      "The professional's share must be between 1 and 9999 basis points while earnings are switched on. Set the share first, then switch it on.",
+    );
+  }
+}
+
+/**
  * Updates a setting, recording the previous value in append-only history and
  * requiring a reason for the ones flagged as sensitive (spec §96).
  */
@@ -115,6 +147,8 @@ export async function updateSetting(
       'This setting affects pricing, revenue or clinical routing. Provide a reason for the change.',
     );
   }
+
+  await assertProfessionalShareIsUsable(key, value, db);
 
   await db.systemSetting.update({
     where: { key },

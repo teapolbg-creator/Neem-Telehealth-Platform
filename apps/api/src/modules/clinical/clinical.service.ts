@@ -10,6 +10,8 @@ import {
   type ClinicalNotesInput,
 } from '../retention/clinical-record.service.ts';
 import { endMediaSession } from '../media/media.service.ts';
+import { recordEarning } from '../payment/earnings.service.ts';
+import { getLogger } from '../../lib/logger.ts';
 import { emitToConsultation, emitToPharmacy } from '../realtime/realtime.service.ts';
 import { notify } from '../notification/notification.service.ts';
 
@@ -181,6 +183,22 @@ export async function completeConsultation(
    * and its retention schedule are what matter.
    */
   await endMediaSession(consultationId, 'consultation_completed', db, clock).catch(() => undefined);
+
+  /**
+   * What the professional earned, recorded now rather than at settlement (v2).
+   *
+   * Settlement is too early: an immediate consultation has no professional
+   * then. Completion is when it is known who did the work, and doing the work
+   * is what earns the share.
+   *
+   * Outside the transaction, and swallowed, for the same reason media teardown
+   * is: a consultation the doctor has finished must not be rolled back because
+   * a bookkeeping row failed. The earning can be recovered from the payment
+   * and the consultation; the completion cannot be recovered at all.
+   */
+  await recordEarning(consultationId, db, clock).catch((error: unknown) => {
+    getLogger().error({ err: error, consultationId }, 'could not record professional earning');
+  });
 
   const retention = await db.retentionJob.findFirst({
     where: { consultationId, status: 'SCHEDULED' },

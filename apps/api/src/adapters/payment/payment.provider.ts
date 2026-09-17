@@ -42,6 +42,14 @@ export interface VerifiedPayment {
   status: VerifiedPaymentStatus;
   /** What the provider says was actually paid, in minor units. */
   amountMinor: number;
+  /**
+   * What the provider charged to collect it, in minor units.
+   *
+   * Undefined when the provider did not report it. Never defaulted to zero
+   * here: a caller that splits net of fees has to be able to tell "no fee"
+   * from "not told".
+   */
+  feeMinor?: number;
   currency: string;
   channel?: string;
   paidAt?: Date;

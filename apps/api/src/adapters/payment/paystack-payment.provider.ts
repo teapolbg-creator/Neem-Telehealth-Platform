@@ -190,6 +190,8 @@ export class PaystackPaymentProvider implements PaymentProvider {
       channel?: string;
       paid_at?: string;
       gateway_response?: string;
+      /** Paystack's own charge for the transaction, in pesewas. */
+      fees?: number;
     }>(`/transaction/verify/${encodeURIComponent(providerReference)}`, { method: 'GET' });
 
     const status = mapStatus(data.status);
@@ -198,6 +200,9 @@ export class PaystackPaymentProvider implements PaymentProvider {
       providerReference,
       status,
       amountMinor: data.amount ?? 0,
+      // Reported only on a transaction that actually went through, and left
+      // undefined rather than zeroed when Paystack does not say.
+      feeMinor: typeof data.fees === 'number' ? data.fees : undefined,
       currency: data.currency ?? 'GHS',
       channel: data.channel,
       paidAt: status === 'SUCCESS' && data.paid_at ? new Date(data.paid_at) : undefined,

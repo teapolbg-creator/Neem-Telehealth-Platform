@@ -212,8 +212,33 @@ points snapshot, professional share, Neem share, reversal), `ProfessionalPayout`
 `ProfessionalPayoutDetail` mirroring the pharmacy payout tables, and `ProfessionalPayoutDetail`
 bank/mobile-money details encrypted as the pharmacy's are.
 
-Per-consultation earnings are written at settlement, beside the existing `RevenueAllocation`, so
-patient payment, earned revenue and actual payout stay three separate records.
+Per-consultation earnings are written beside the existing `RevenueAllocation`, so patient payment,
+earned revenue and actual payout stay three separate records.
+
+> **Built, phase 7, and inert.** Four things worth recording.
+>
+> **Earnings are written at completion, not at settlement** — the plan said settlement, which is
+> wrong: when the money clears, an immediate consultation has no professional yet. Whoever completed
+> it is who earned it.
+>
+> **Nothing is recorded until the split is agreed.** `revenue.professionalEarningsEnabled` is off and
+> `revenue.professionalSharePctBp` is 0, and the settings service refuses to switch the first on
+> while the second is unset. No number has been invented anywhere in the code.
+>
+> **Counter consultations earn nothing.** They are worked by salaried doctors and paid through
+> payroll; recording a share as well would pay for the same hour twice. Whether that should change is
+> §7.6 below and is not assumed here.
+>
+> **Fees come off before the split**, per the operator's answer of 2026-09-17. That needed the work
+> this plan flagged as missing: `VerifiedPayment` now carries `feeMinor`, the Paystack adapter reads
+> `fees` from the verify response, `Payment.feeMinor` records it, and each earning stores the fee and
+> the net it was actually split on. A payment the provider reported no fee for is split on the gross
+> and says `feeMinor: 0`, which the reconciliation shows rather than hiding.
+>
+> **Answers recorded (2026-09-17):** 50% to the professional, of the amount after provider fees;
+> monthly manual transfer, as pharmacies are paid today. The share is now the seeded default; the
+> switch that makes any of it happen is still off, because agreeing a rate and running it in
+> production are two decisions and only the first has been made.
 
 ---
 
@@ -241,11 +266,12 @@ answered.
 
 ## 7. Business decisions needed
 
-1. **Revenue split.** What percentage of a completed consultation goes to the professional, by
-   discipline if it differs?
-2. **Payment fees.** Are Paystack fees deducted before or after the split?
-3. **Payout schedule and method.** Weekly or monthly; manual transfer as pharmacies are paid today,
-   or Paystack transfers (new adapter work, and Neem holds the float either way)?
+1. ~~**Revenue split.**~~ **Answered 2026-09-17: 50%** to the professional, one rate for all three
+   disciplines. Seeded as `revenue.professionalSharePctBp = 5000`.
+2. ~~**Payment fees.**~~ **Answered 2026-09-17: deducted before the split.** Built — see the note
+   under M5 above.
+3. ~~**Payout schedule and method.**~~ **Answered 2026-09-17: monthly, manual transfer**, the same
+   arrangement as pharmacy payouts. No Paystack transfer integration is needed or built.
 4. **Prices.** Confirm GHS 50 general and GHS 100 weight-loss as launch prices.
 5. **Weight-loss commercial shape.** Separately bookable consultations, as assumed here, or a package
    or subscription? This changes phases 7 and 8 substantially.

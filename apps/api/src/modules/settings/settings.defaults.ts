@@ -27,6 +27,8 @@ export const SETTING_KEYS = {
 
   REVENUE_PHARMACY_BP: 'revenue.pharmacySharePctBp',
   REVENUE_NEEM_BP: 'revenue.neemSharePctBp',
+  REVENUE_PROFESSIONAL_EARNINGS_ENABLED: 'revenue.professionalEarningsEnabled',
+  REVENUE_PROFESSIONAL_BP: 'revenue.professionalSharePctBp',
 
   QUEUE_RESPONSE_WINDOW_SECONDS: 'queue.responseWindowSeconds',
   QUEUE_MAX_OFFER_ATTEMPTS: 'queue.maxOfferAttemptsBeforeAlert',
@@ -191,6 +193,39 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: 7000,
     valueType: 'number',
     description: 'Neem share in basis points. Must complement the pharmacy share to 10000.',
+    category: 'revenue',
+    requiresConfirm: true,
+  },
+  {
+    key: K.REVENUE_PROFESSIONAL_EARNINGS_ENABLED,
+    value: false,
+    valueType: 'boolean',
+    /*
+     * Off, and it stays off until somebody has decided what a professional is
+     * paid (v2).
+     *
+     * The share below has no honest default — a number invented here would be
+     * a number somebody is paid — so this switch is what stops the machinery
+     * running on a guess. While it is off no earning is recorded at all, and
+     * turning it on with the share still at zero is refused.
+     */
+    description:
+      'Whether a share of each patient-direct consultation is recorded as earned by the professional (v2). Off until the split is agreed.',
+    category: 'revenue',
+    requiresConfirm: true,
+  },
+  {
+    key: K.REVENUE_PROFESSIONAL_BP,
+    value: 5000,
+    valueType: 'number',
+    /*
+     * 50%, confirmed by the operator on 2026-09-17, of what is left after the
+     * provider's fee. The switch above is still off: agreeing a rate and
+     * running the machinery in production are two decisions, and this is only
+     * the first.
+     */
+    description:
+      "The professional's share of a patient-direct consultation after provider fees, in basis points. 5000 = 50.00% (v2).",
     category: 'revenue',
     requiresConfirm: true,
   },

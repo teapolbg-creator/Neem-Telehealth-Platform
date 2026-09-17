@@ -6,6 +6,7 @@ import { generatePublicId } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { canTransition } from '../../domain/consultation-state.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
+import { reverseEarning } from './earnings.service.ts';
 import { getPaymentProvider } from '../../adapters/payment/index.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { notify } from '../notification/notification.service.ts';
@@ -355,6 +356,13 @@ async function reverseAllocation(consultationId: string, at: Date, db: Db): Prom
     where: { consultationId, reversedAt: null },
     data: { reversedAt: at },
   });
+
+  /*
+   * And what the professional earned from it (v2). A refunded consultation
+   * earned nobody anything; leaving the earning behind would pay somebody out
+   * of money the patient has had back.
+   */
+  await reverseEarning(consultationId, at, db);
 }
 
 /**

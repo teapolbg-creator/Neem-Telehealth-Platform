@@ -99,6 +99,10 @@ GET    /patient/bookings/:reference/payment   re-verifies, and joins the queue o
 GET    /patient/appointments/slots        free slots for a service, by professional (v2)
 GET    /patient/appointments | POST /patient/appointments | GET /patient/appointments/:reference
 GET    /doctor/availability | PUT /doctor/availability   the professional's own bookable week (v2)
+GET    /doctor/earnings/statement         their own share, line by line, reversals shown (v2)
+GET    /admin/professional-payouts | POST /admin/professional-payouts/calculate
+POST   /admin/professional-payouts/:publicId/mark-paid   { paymentReference, note? } (v2)
+GET    /admin/professional-payouts/reconciliation        collected, earned and paid, side by side (v2)
 
 NOT BUILT
 GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone
