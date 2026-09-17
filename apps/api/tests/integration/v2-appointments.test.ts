@@ -1,7 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request } from '../helpers/app.ts';
-import { createTestDoctor, resetDatabase, setDirectChannelEnabled } from '../helpers/database.ts';
+import {
+  createTestDoctor,
+  resetDatabase,
+  setDirectChannelEnabled,
+  setDoctorOnDutyRequired,
+} from '../helpers/database.ts';
 import {
   MockNotificationProvider,
   resetNotificationProviders,
@@ -82,6 +87,12 @@ let provider: ScriptedProvider;
 beforeEach(async () => {
   await resetDatabase();
   await setDirectChannelEnabled(true);
+  /*
+   * Production's rule, on (D50). An appointment is booked for a time, so
+   * nobody needs to be on duty at the moment it is paid for — which is the
+   * whole point of one of the tests below.
+   */
+  await setDoctorOnDutyRequired(true);
 
   provider = new ScriptedProvider();
   setPaymentProviderForTesting(provider);
@@ -357,6 +368,29 @@ describe('paying for a reservation', () => {
     });
     expect(appointment.state).toBe('CONFIRMED');
     expect(appointment.slotKey).not.toBeNull();
+  });
+
+  /**
+   * Nobody is on duty at the moment an appointment is paid for, and that is
+   * fine.
+   *
+   * The professional agreed to that minute by publishing it. Asking "is
+   * somebody working right now" — the right question for a consultation that
+   * starts now — would refuse payment for every appointment booked outside
+   * clinic hours, and leave a patient holding a slot they cannot pay for.
+   */
+  it('is payable although nobody is on duty at this moment', async () => {
+    const dietitian = await bookableDietitian();
+    // No shift and no heartbeat: for the queue's purposes, nobody is working.
+    await getPrisma().doctorShiftAssignment.deleteMany({ where: { doctorId: dietitian.id } });
+
+    const cookies = await signedInPatient(PATIENT);
+    const booked = await paidAppointment(cookies, await firstSlot(cookies));
+
+    const appointment = await getPrisma().appointment.findUniqueOrThrow({
+      where: { publicId: booked.appointmentReference },
+    });
+    expect(appointment.state).toBe('CONFIRMED');
   });
 
   it('belongs to nobody else, however well they know the reference', async () => {

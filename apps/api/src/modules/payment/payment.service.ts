@@ -66,6 +66,7 @@ export async function initiatePayment(
     include: {
       payments: { orderBy: { createdAt: 'desc' } },
       service: { select: { id: true, discipline: true, clinic: true } },
+      appointment: { select: { id: true, startsAt: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -113,13 +114,24 @@ export async function initiatePayment(
     };
   }
 
-  // Checked again at the moment money is asked for, not only at creation: a
-  // shift can end between the two. After the reuse above, so a payment already
-  // in flight is never stranded by it (D50).
-  await assertDoctorOnDuty(db, clock, {
-    discipline: consultation.service?.discipline,
-    rosteredFor: clinicRoster(consultation.service),
-  });
+  /*
+   * Checked again at the moment money is asked for, not only at creation: a
+   * shift can end between the two. After the reuse above, so a payment already
+   * in flight is never stranded by it (D50).
+   *
+   * Not for an appointment (v2). "Is somebody on duty now" is the right
+   * question for a consultation that starts now, and the wrong one for a
+   * consultation booked for Friday morning: the professional agreed to that
+   * minute by publishing it, and asking again about this one would refuse the
+   * payment for every appointment booked outside clinic hours — leaving a
+   * patient holding a slot they are not allowed to pay for.
+   */
+  if (!consultation.appointment) {
+    await assertDoctorOnDuty(db, clock, {
+      discipline: consultation.service?.discipline,
+      rosteredFor: clinicRoster(consultation.service),
+    });
+  }
 
   // Our own reference doubles as the idempotency key. Unique per attempt, so a
   // retry after a genuine failure is a distinct charge, not a duplicate.

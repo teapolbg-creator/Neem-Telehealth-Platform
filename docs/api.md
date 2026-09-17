@@ -97,6 +97,7 @@ POST   /patient/bookings/immediate        { service, language, type, details, co
 POST   /patient/bookings/:reference/payment   starts the Paystack checkout for it (v2)
 GET    /patient/bookings/:reference/payment   re-verifies, and joins the queue once paid (v2)
 GET    /patient/clinics                   the catalogue grouped into clinics, with a from-price (v2)
+GET    /patient/languages                 with either a consultation session or an account one (v2)
 GET    /patient/appointments/slots        free slots for a service, by professional (v2)
 GET    /patient/appointments | POST /patient/appointments | GET /patient/appointments/:reference
 GET    /doctor/availability | PUT /doctor/availability   the professional's own bookable week (v2)

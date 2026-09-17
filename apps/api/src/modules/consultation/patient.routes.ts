@@ -16,6 +16,8 @@ import {
   readConsultationDocument,
 } from '../documents/document.service.ts';
 import { patientSessionIsUsable } from '../../domain/consultation-state.ts';
+import { resolveAccountSession } from '../patient-account/patient-account.service.ts';
+import { PATIENT_ACCOUNT_COOKIE } from '../patient-account/patient-account.routes.ts';
 import { requestRefund } from '../payment/refund.service.ts';
 import {
   PATIENT_SESSION_COOKIE,
@@ -121,9 +123,17 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: view, meta: { requestId: request.correlationId } });
   });
 
-  /** Languages the patient may choose between (spec §29). */
+  /**
+   * Languages the patient may choose between (spec §29).
+   *
+   * Reachable with either credential a patient can hold. The counter's patient
+   * has a consultation session; a patient booking for themselves is choosing a
+   * language before any consultation exists, and holds an account session
+   * instead (v2). Still authenticated either way — the list is not public.
+   */
   app.get('/patient/languages', async (request, reply) => {
-    await requirePatient(request);
+    const account = await resolveAccountSession(request.cookies[PATIENT_ACCOUNT_COOKIE]);
+    if (!account) await requirePatient(request);
 
     const languages = await getPrisma().language.findMany({
       where: { isActive: true },

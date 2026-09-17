@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountIndexRouteImport } from './routes/account.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminArchiveRouteImport } from './routes/admin.archive'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
@@ -27,6 +28,8 @@ import { Route as AdminVerificationRouteImport } from './routes/admin.verificati
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthResetRouteImport } from './routes/auth.reset'
+import { Route as BookIndexRouteImport } from './routes/book.index'
+import { Route as BookServiceCodeRouteImport } from './routes/book.$serviceCode'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
 import { Route as DoctorMembershipRouteImport } from './routes/doctor.membership'
@@ -49,6 +52,11 @@ import { Route as VerifyKindCodeRouteImport } from './routes/verify.$kind.$code'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/account/',
+  path: '/account/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -134,6 +142,16 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const AuthResetRoute = AuthResetRouteImport.update({
   id: '/auth/reset',
   path: '/auth/reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookIndexRoute = BookIndexRouteImport.update({
+  id: '/book/',
+  path: '/book/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookServiceCodeRoute = BookServiceCodeRouteImport.update({
+  id: '/book/$serviceCode',
+  path: '/book/$serviceCode',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
@@ -247,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/book/$serviceCode': typeof BookServiceCodeRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -259,7 +278,9 @@ export interface FileRoutesByFullPath {
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
+  '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/book/': typeof BookIndexRoute
   '/doctor/': typeof DoctorIndexRoute
   '/patient/': typeof PatientIndexRoute
   '/pharmacy/': typeof PharmacyIndexRoute
@@ -285,6 +306,7 @@ export interface FileRoutesByTo {
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/book/$serviceCode': typeof BookServiceCodeRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -297,7 +319,9 @@ export interface FileRoutesByTo {
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
+  '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
+  '/book': typeof BookIndexRoute
   '/doctor': typeof DoctorIndexRoute
   '/patient': typeof PatientIndexRoute
   '/pharmacy': typeof PharmacyIndexRoute
@@ -324,6 +348,7 @@ export interface FileRoutesById {
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
+  '/book/$serviceCode': typeof BookServiceCodeRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -336,7 +361,9 @@ export interface FileRoutesById {
   '/pharmacy/onboarding': typeof PharmacyOnboardingRoute
   '/pharmacy/prescriptions': typeof PharmacyPrescriptionsRoute
   '/s/$token': typeof STokenRoute
+  '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/book/': typeof BookIndexRoute
   '/doctor/': typeof DoctorIndexRoute
   '/patient/': typeof PatientIndexRoute
   '/pharmacy/': typeof PharmacyIndexRoute
@@ -364,6 +391,7 @@ export interface FileRouteTypes {
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/book/$serviceCode'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -376,7 +404,9 @@ export interface FileRouteTypes {
     | '/pharmacy/onboarding'
     | '/pharmacy/prescriptions'
     | '/s/$token'
+    | '/account/'
     | '/admin/'
+    | '/book/'
     | '/doctor/'
     | '/patient/'
     | '/pharmacy/'
@@ -402,6 +432,7 @@ export interface FileRouteTypes {
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/book/$serviceCode'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -414,7 +445,9 @@ export interface FileRouteTypes {
     | '/pharmacy/onboarding'
     | '/pharmacy/prescriptions'
     | '/s/$token'
+    | '/account'
     | '/admin'
+    | '/book'
     | '/doctor'
     | '/patient'
     | '/pharmacy'
@@ -440,6 +473,7 @@ export interface FileRouteTypes {
     | '/auth/forgot'
     | '/auth/login'
     | '/auth/reset'
+    | '/book/$serviceCode'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -452,7 +486,9 @@ export interface FileRouteTypes {
     | '/pharmacy/onboarding'
     | '/pharmacy/prescriptions'
     | '/s/$token'
+    | '/account/'
     | '/admin/'
+    | '/book/'
     | '/doctor/'
     | '/patient/'
     | '/pharmacy/'
@@ -479,6 +515,7 @@ export interface RootRouteChildren {
   AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthResetRoute: typeof AuthResetRoute
+  BookServiceCodeRoute: typeof BookServiceCodeRoute
   DoctorEarningsRoute: typeof DoctorEarningsRoute
   DoctorMembershipRoute: typeof DoctorMembershipRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
@@ -491,7 +528,9 @@ export interface RootRouteChildren {
   PharmacyOnboardingRoute: typeof PharmacyOnboardingRoute
   PharmacyPrescriptionsRoute: typeof PharmacyPrescriptionsRoute
   STokenRoute: typeof STokenRoute
+  AccountIndexRoute: typeof AccountIndexRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  BookIndexRoute: typeof BookIndexRoute
   DoctorIndexRoute: typeof DoctorIndexRoute
   PatientIndexRoute: typeof PatientIndexRoute
   PharmacyIndexRoute: typeof PharmacyIndexRoute
@@ -507,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account/': {
+      id: '/account/'
+      path: '/account'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -626,6 +672,20 @@ declare module '@tanstack/react-router' {
       path: '/auth/reset'
       fullPath: '/auth/reset'
       preLoaderRoute: typeof AuthResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/': {
+      id: '/book/'
+      path: '/book'
+      fullPath: '/book/'
+      preLoaderRoute: typeof BookIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$serviceCode': {
+      id: '/book/$serviceCode'
+      path: '/book/$serviceCode'
+      fullPath: '/book/$serviceCode'
+      preLoaderRoute: typeof BookServiceCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/': {
@@ -775,6 +835,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthResetRoute: AuthResetRoute,
+  BookServiceCodeRoute: BookServiceCodeRoute,
   DoctorEarningsRoute: DoctorEarningsRoute,
   DoctorMembershipRoute: DoctorMembershipRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
@@ -787,7 +848,9 @@ const rootRouteChildren: RootRouteChildren = {
   PharmacyOnboardingRoute: PharmacyOnboardingRoute,
   PharmacyPrescriptionsRoute: PharmacyPrescriptionsRoute,
   STokenRoute: STokenRoute,
+  AccountIndexRoute: AccountIndexRoute,
   AdminIndexRoute: AdminIndexRoute,
+  BookIndexRoute: BookIndexRoute,
   DoctorIndexRoute: DoctorIndexRoute,
   PatientIndexRoute: PatientIndexRoute,
   PharmacyIndexRoute: PharmacyIndexRoute,

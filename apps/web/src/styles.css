@@ -115,6 +115,24 @@
   box-shadow: 0 1px 2px 0 oklch(0.2 0.02 250 / 0.04);
 }
 
+/*
+ * The patient's forms are typed on a phone, one thumb at a time, so every
+ * field is full width and comfortably tall enough to hit (v2).
+ */
+@utility input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  outline: none;
+
+  &:focus {
+    border-color: var(--color-brand);
+  }
+}
+
 @utility chip {
   display: inline-flex;
   align-items: center;
