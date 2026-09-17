@@ -72,7 +72,7 @@ function Result({
     kind: string;
     publicId: string;
     issuedAt: string;
-    doctor: { fullName: string; mdcNumber: string };
+    doctor: { fullName: string; credential: string | null };
     revoked?: boolean;
     dispensed?: boolean;
   };
@@ -126,7 +126,7 @@ function Details({
     kind: string;
     publicId: string;
     issuedAt: string;
-    doctor: { fullName: string; mdcNumber: string };
+    doctor: { fullName: string; credential: string | null };
   };
 }) {
   return (
@@ -135,8 +135,12 @@ function Details({
       <Row label="Reference" value={result.publicId} mono />
       <Row label="Issued" value={new Date(result.issuedAt).toLocaleDateString()} />
       {/* Who signed it — the point of verifying at all. */}
-      <Row label="Issuing doctor" value={result.doctor.fullName} />
-      <Row label="MDC number" value={result.doctor.mdcNumber} mono />
+      <Row label="Issued by" value={result.doctor.fullName} />
+      {/* A professional with no registration recorded shows no row, rather
+          than an empty one a reader would have to interpret. */}
+      {result.doctor.credential && (
+        <Row label="Registration" value={result.doctor.credential} mono />
+      )}
     </dl>
   );
 }

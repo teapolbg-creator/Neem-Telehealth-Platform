@@ -94,9 +94,10 @@ function DoctorDashboard() {
           <p className="mb-1 text-sm font-semibold text-brand">Doctor</p>
           <h1 className="text-3xl font-bold tracking-tight">{doctor.fullName}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            MDC {doctor.mdcNumber}
+            {doctor.credential}
+            {doctor.credential && doctor.languages.length > 0 && " · "}
             {doctor.languages.length > 0 &&
-              ` · ${doctor.languages.map((language) => language.label).join(", ")}`}
+              doctor.languages.map((language) => language.label).join(", ")}
           </p>
         </div>
         <Chip tone={doctor.status === "ACTIVE" ? "medical" : "warning"}>

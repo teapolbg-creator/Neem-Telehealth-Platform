@@ -182,6 +182,13 @@ today.
 (default `DOCTOR`); `mdcNumber` made nullable with credential type and number columns for other
 disciplines; `ProfessionalService` linking a professional to the services they may take.
 
+> **Built, phase 5.** One deviation, recorded here rather than left to be discovered: the queue
+> narrows candidates by **discipline** only. `ProfessionalService` is written and administered, but
+> is not yet an eligibility condition — every professional already on the platform has no roster
+> row, so enforcing it now would empty the pool. Phase 8 turns it on with the clinic it was built
+> for. A non-doctor's registration is recorded in `credentialType`/`credentialNumber` and printed
+> on documents in place of an MDC number, which is now nullable.
+
 **M4 — patient accounts and appointments.** `PatientAccount` (verified phone or email, encrypted),
 `PatientAuthToken` (one-time codes), `Consultation.patientAccountId`;
 `ProfessionalAvailability` (recurring windows per professional) and `Appointment`

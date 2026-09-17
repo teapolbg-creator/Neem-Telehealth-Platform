@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { PERMISSIONS, type Permission } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -102,7 +102,24 @@ const itemSchema = z.object({
 });
 
 export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
-  const doctorOnly = guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_CONDUCT] });
+  /**
+   * Conducting a consultation is one right; what may be issued at the end of
+   * it is another (v2).
+   *
+   * A dietitian and a personal trainer hold `consultation:conduct` and reach
+   * every screen a doctor does — the notes, the call, the summary. They do not
+   * hold the prescribing permissions, so the four routes below refuse them
+   * here, before any handler runs. `assertMayIssue` refuses them again in the
+   * service, from the database rather than the session.
+   */
+  const doctorWith = (...permissions: Permission[]) =>
+    guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_CONDUCT, ...permissions] });
+
+  const doctorOnly = doctorWith();
+  const prescriberOnly = doctorWith(PERMISSIONS.PRESCRIPTION_CREATE);
+  const revokerOnly = doctorWith(PERMISSIONS.PRESCRIPTION_REVOKE);
+  const substitutionDeciderOnly = doctorWith(PERMISSIONS.SUBSTITUTION_DECIDE);
+  const referrerOnly = doctorWith(PERMISSIONS.REFERRAL_CREATE);
   const pharmacyOnly = guard({ roles: ['PHARMACY'] });
 
   // -------------------------------------------------------------------------
@@ -248,7 +265,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/doctor/consultations/:publicId/prescriptions',
-    { preHandler: doctorOnly },
+    { preHandler: prescriberOnly },
     async (request, reply) => {
       const doctorId = requireDoctor(request);
       const { publicId } = publicIdParams.parse(request.params);
@@ -273,7 +290,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/doctor/prescriptions/:publicId/issue',
-    { preHandler: doctorOnly },
+    { preHandler: prescriberOnly },
     async (request, reply) => {
       const doctorId = requireDoctor(request);
       const { publicId } = publicIdParams.parse(request.params);
@@ -298,7 +315,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/doctor/prescriptions/:publicId/revoke',
-    { preHandler: doctorOnly },
+    { preHandler: revokerOnly },
     async (request, reply) => {
       const doctorId = requireDoctor(request);
       const { publicId } = publicIdParams.parse(request.params);
@@ -344,71 +361,75 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
    * responsibly. Nothing clinical from the consultation appears here, and the
    * sealed record is not read (D23).
    */
-  app.get('/doctor/substitutions', { preHandler: doctorOnly }, async (request, reply) => {
-    const doctorId = requireDoctor(request);
+  app.get(
+    '/doctor/substitutions',
+    { preHandler: substitutionDeciderOnly },
+    async (request, reply) => {
+      const doctorId = requireDoctor(request);
 
-    const pending = await getPrisma().substitutionRequest.findMany({
-      where: {
-        state: 'PENDING',
-        prescription: { doctorId, state: 'PENDING_SUBSTITUTION' },
-      },
-      include: {
-        prescription: {
-          select: {
-            publicId: true,
-            patientName: true,
-            patientAge: true,
-            patientSex: true,
-            issuedAt: true,
-            pharmacy: { select: { name: true, city: true } },
-            consultation: { select: { publicId: true } },
+      const pending = await getPrisma().substitutionRequest.findMany({
+        where: {
+          state: 'PENDING',
+          prescription: { doctorId, state: 'PENDING_SUBSTITUTION' },
+        },
+        include: {
+          prescription: {
+            select: {
+              publicId: true,
+              patientName: true,
+              patientAge: true,
+              patientSex: true,
+              issuedAt: true,
+              pharmacy: { select: { name: true, city: true } },
+              consultation: { select: { publicId: true } },
+            },
+          },
+          prescriptionItem: {
+            select: {
+              id: true,
+              medication: true,
+              strength: true,
+              form: true,
+              dose: true,
+              frequency: true,
+              durationText: true,
+              quantity: true,
+              instructions: true,
+            },
           },
         },
-        prescriptionItem: {
-          select: {
-            id: true,
-            medication: true,
-            strength: true,
-            form: true,
-            dose: true,
-            frequency: true,
-            durationText: true,
-            quantity: true,
-            instructions: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+      });
 
-    return reply.send({
-      data: pending.map((proposal) => ({
-        id: proposal.id,
-        requestedAt: proposal.createdAt.toISOString(),
-        reason: proposal.reason,
-        proposed: {
-          medication: proposal.proposedMedication,
-          strength: proposal.proposedStrength,
-          form: proposal.proposedForm,
-        },
-        prescribed: proposal.prescriptionItem,
-        prescriptionPublicId: proposal.prescription.publicId,
-        consultationReference: proposal.prescription.consultation.publicId,
-        issuedAt: proposal.prescription.issuedAt?.toISOString() ?? null,
-        pharmacy: proposal.prescription.pharmacy,
-        patient: {
-          fullName: proposal.prescription.patientName,
-          age: proposal.prescription.patientAge,
-          sex: proposal.prescription.patientSex,
-        },
-      })),
-      meta: { requestId: request.correlationId },
-    });
-  });
+      return reply.send({
+        data: pending.map((proposal) => ({
+          id: proposal.id,
+          requestedAt: proposal.createdAt.toISOString(),
+          reason: proposal.reason,
+          proposed: {
+            medication: proposal.proposedMedication,
+            strength: proposal.proposedStrength,
+            form: proposal.proposedForm,
+          },
+          prescribed: proposal.prescriptionItem,
+          prescriptionPublicId: proposal.prescription.publicId,
+          consultationReference: proposal.prescription.consultation.publicId,
+          issuedAt: proposal.prescription.issuedAt?.toISOString() ?? null,
+          pharmacy: proposal.prescription.pharmacy,
+          patient: {
+            fullName: proposal.prescription.patientName,
+            age: proposal.prescription.patientAge,
+            sex: proposal.prescription.patientSex,
+          },
+        })),
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
 
   app.post(
     '/doctor/substitutions/:id/decide',
-    { preHandler: doctorOnly },
+    { preHandler: substitutionDeciderOnly },
     async (request, reply) => {
       const doctorId = requireDoctor(request);
       const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
@@ -438,7 +459,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/doctor/consultations/:publicId/referrals',
-    { preHandler: doctorOnly },
+    { preHandler: referrerOnly },
     async (request, reply) => {
       const doctorId = requireDoctor(request);
       const { publicId } = publicIdParams.parse(request.params);

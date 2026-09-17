@@ -7,6 +7,8 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { getStorageProvider } from '../../adapters/storage/local-storage.provider.ts';
 import { buildStorageKey } from '../../adapters/storage/storage.provider.ts';
 import { emitToPharmacy } from '../realtime/realtime.service.ts';
+import { CREDENTIAL_SELECT, signatory } from '../../domain/professional-credential.ts';
+import { assertMayIssue } from '../doctor/discipline.service.ts';
 import { renderPrescriptionPdf, renderReferralPdf, renderSummaryPdf } from './pdf.service.ts';
 import type {
   ConsultationDocument as Document,
@@ -53,7 +55,7 @@ export async function generatePrescriptionPdf(
     where: { id: prescriptionId },
     include: {
       items: { orderBy: [{ isActive: 'desc' }, { sortOrder: 'asc' }] },
-      doctor: { select: { fullName: true, mdcNumber: true } },
+      doctor: { select: { fullName: true, ...CREDENTIAL_SELECT } },
       pharmacy: { select: { name: true, city: true } },
       consultation: { select: { publicId: true } },
       signature: { select: { signatureDataEnc: true } },
@@ -71,7 +73,7 @@ export async function generatePrescriptionPdf(
       age: prescription.patientAge,
       sex: prescription.patientSex,
     },
-    doctor: prescription.doctor,
+    doctor: signatory(prescription.doctor),
     pharmacy: prescription.pharmacy,
     signatureDataEnc: prescription.signature?.signatureDataEnc ?? null,
     items: prescription.items,
@@ -108,6 +110,9 @@ export async function issueReferral(
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
 ) {
+  // Asked of the doctors table, not of the session that got here (v2).
+  await assertMayIssue(doctorId, 'referral', db);
+
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
     include: { patientSession: true },
@@ -172,7 +177,7 @@ export async function issueReferral(
       age: referral.patientAge,
       sex: referral.patientSex,
     },
-    doctor: { fullName: doctor.fullName, mdcNumber: doctor.mdcNumber },
+    doctor: signatory(doctor),
     hospitalName: referral.hospitalName,
     department: referral.department,
     urgency: referral.urgency,
@@ -324,7 +329,7 @@ export async function issueSummary(
     consultationReference: consultation.publicId,
     issuedAt: summary.issuedAt,
     patient: { name: summary.patientName, age: summary.patientAge, sex: summary.patientSex },
-    doctor: { fullName: doctor.fullName, mdcNumber: doctor.mdcNumber },
+    doctor: signatory(doctor),
     pharmacy: consultation.pharmacy,
     presentingComplaint: summary.presentingComplaint,
     assessment: summary.assessment,
@@ -364,8 +369,8 @@ export interface VerificationResult {
   genuine: true;
   publicId: string;
   issuedAt: string;
-  /** The issuing doctor, so the reader can confirm who signed it. */
-  doctor: { fullName: string; mdcNumber: string };
+  /** Who issued it, so the reader can confirm who signed it. */
+  doctor: { fullName: string; credential: string | null };
   /** Present for a prescription; a revoked one must be visibly refused. */
   state?: string;
   revoked?: boolean;
@@ -391,7 +396,7 @@ export async function verifyDocument(
   if (kind === 'rx') {
     const prescription = await db.prescription.findUnique({
       where: { verificationCode: code },
-      include: { doctor: { select: { fullName: true, mdcNumber: true } } },
+      include: { doctor: { select: { fullName: true, ...CREDENTIAL_SELECT } } },
     });
     // Drafts are not documents and must not verify.
     if (!prescription || prescription.state === 'DRAFT') {
@@ -403,7 +408,7 @@ export async function verifyDocument(
       genuine: true,
       publicId: prescription.publicId,
       issuedAt: (prescription.issuedAt ?? prescription.createdAt).toISOString(),
-      doctor: prescription.doctor,
+      doctor: signatory(prescription.doctor),
       state: prescription.state,
       revoked: prescription.state === 'REVOKED',
       dispensed: prescription.state === 'DISPENSED',
@@ -413,7 +418,7 @@ export async function verifyDocument(
   if (kind === 'referral') {
     const referral = await db.referral.findUnique({
       where: { publicId: code },
-      include: { doctor: { select: { fullName: true, mdcNumber: true } } },
+      include: { doctor: { select: { fullName: true, ...CREDENTIAL_SELECT } } },
     });
     if (!referral) throw errors.notFound('No document matches that code.');
 
@@ -422,13 +427,13 @@ export async function verifyDocument(
       genuine: true,
       publicId: referral.publicId,
       issuedAt: referral.issuedAt.toISOString(),
-      doctor: referral.doctor,
+      doctor: signatory(referral.doctor),
     };
   }
 
   const summary = await db.consultationSummary.findUnique({
     where: { verificationCode: code },
-    include: { doctor: { select: { fullName: true, mdcNumber: true } } },
+    include: { doctor: { select: { fullName: true, ...CREDENTIAL_SELECT } } },
   });
   if (!summary) throw errors.notFound('No document matches that code.');
 
@@ -437,7 +442,7 @@ export async function verifyDocument(
     genuine: true,
     publicId: summary.publicId,
     issuedAt: summary.issuedAt.toISOString(),
-    doctor: summary.doctor,
+    doctor: signatory(summary.doctor),
   };
 }
 

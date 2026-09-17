@@ -1,4 +1,4 @@
-import type { UserRole } from './enums.ts';
+import type { ProfessionalDiscipline, UserRole } from './enums.ts';
 
 /**
  * Role-based access control.
@@ -118,9 +118,66 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   ADMIN: Object.values(P),
 };
 
+/**
+ * Everything a non-doctor professional may never hold (v2).
+ *
+ * A dietitian and a personal trainer sign in through the same DOCTOR role and
+ * see the same workspace, because to the queue, the call and the notes they
+ * are the same thing: a professional with a patient in front of them. They are
+ * not the same thing at the end of it. Prescribing is an act of a registered
+ * medical practitioner, and a referral to a hospital department is a clinical
+ * judgement about a patient neither of them is qualified to make.
+ *
+ * Written as a subtraction from the role rather than as three separate grants,
+ * so a permission added to DOCTOR later cannot be quietly withheld from them
+ * by omission — and so this list is the whole of what discipline decides,
+ * readable in one place.
+ *
+ * This is one of two enforcement points. The other is the service layer, which
+ * asks the database what the professional is rather than what their session
+ * says: see `assertMayPrescribe`.
+ */
+const NON_PRESCRIBING_WITHHELD: readonly Permission[] = [
+  P.PRESCRIPTION_CREATE,
+  P.PRESCRIPTION_READ,
+  P.PRESCRIPTION_REVOKE,
+  P.SUBSTITUTION_DECIDE,
+  P.REFERRAL_CREATE,
+  P.REFERRAL_READ,
+];
+
+const DISCIPLINE_WITHHELD: Record<ProfessionalDiscipline, readonly Permission[]> = {
+  DOCTOR: [],
+  DIETITIAN: NON_PRESCRIBING_WITHHELD,
+  TRAINER: NON_PRESCRIBING_WITHHELD,
+};
+
 /** Patient sessions carry no permissions. Their routes are session-scoped. */
 export function permissionsForRole(role: UserRole): Permission[] {
   return [...ROLE_PERMISSIONS[role]];
+}
+
+/**
+ * What this particular professional holds: their role, less what their
+ * discipline may not do.
+ *
+ * A missing discipline is treated as DOCTOR, because every professional who
+ * existed before v2 was one.
+ */
+export function permissionsForProfessional(
+  role: UserRole,
+  discipline: ProfessionalDiscipline | null | undefined,
+): Permission[] {
+  const withheld = DISCIPLINE_WITHHELD[discipline ?? 'DOCTOR'];
+  if (withheld.length === 0) return permissionsForRole(role);
+
+  return ROLE_PERMISSIONS[role].filter((permission) => !withheld.includes(permission));
+}
+
+export function disciplineMayPrescribe(
+  discipline: ProfessionalDiscipline | null | undefined,
+): boolean {
+  return (discipline ?? 'DOCTOR') === 'DOCTOR';
 }
 
 export function roleHasPermission(role: UserRole, permission: Permission): boolean {

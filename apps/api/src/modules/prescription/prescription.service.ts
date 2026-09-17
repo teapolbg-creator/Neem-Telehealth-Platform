@@ -13,6 +13,7 @@ import {
   canRevoke,
 } from '../../domain/prescription-state.ts';
 import { originName } from '../../domain/consultation-origin.ts';
+import { assertMayIssue } from '../doctor/discipline.service.ts';
 
 /**
  * Prescriptions (spec §41–§48, §82).
@@ -57,6 +58,9 @@ export async function createDraft(
   if (items.length === 0) {
     throw errors.businessRule('A prescription needs at least one medication.');
   }
+
+  // Asked of the doctors table, not of the session that got here (v2).
+  await assertMayIssue(doctorId, 'prescription', db);
 
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },

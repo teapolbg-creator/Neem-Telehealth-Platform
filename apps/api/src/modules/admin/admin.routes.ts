@@ -4,6 +4,7 @@ import {
   DOCTOR_STATUSES,
   PHARMACY_STATUSES,
   PERMISSIONS,
+  PROFESSIONAL_DISCIPLINES,
   accountStatusChangeSchema,
   doctorCompensationSchema,
   documentVerificationSchema,
@@ -18,6 +19,7 @@ import {
   doctorTransitionOptions,
   listDoctors,
   setDoctorCompensation,
+  setProfession,
 } from '../doctor/doctor.service.ts';
 import {
   changePharmacyStatus,
@@ -123,6 +125,38 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         data: { current: doctor.status, allowed: doctorTransitionOptions(doctor.status) },
         meta: { requestId: request.correlationId },
       });
+    },
+  );
+
+  /**
+   * What this professional is (v2).
+   *
+   * The only way a dietitian or a trainer comes into being, and therefore the
+   * only way somebody loses the right to prescribe or gains it. An
+   * administrator does it deliberately, and the audit log keeps what it was.
+   */
+  app.patch(
+    '/admin/doctors/:publicId/profession',
+    { preHandler: doctorAdmin },
+    async (request, reply) => {
+      const principal = requireAuth(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+
+      const body = z
+        .object({
+          discipline: z.enum(PROFESSIONAL_DISCIPLINES),
+          credentialType: z.string().trim().max(120).nullish(),
+          credentialNumber: z.string().trim().max(60).nullish(),
+          serviceCodes: z.array(z.string().trim().min(3).max(40)).max(40).optional(),
+        })
+        .parse(request.body);
+
+      const profession = await setProfession(publicId, body, {
+        adminId: principal.userId,
+        correlationId: request.correlationId,
+      });
+
+      return reply.send({ data: profession, meta: { requestId: request.correlationId } });
     },
   );
 

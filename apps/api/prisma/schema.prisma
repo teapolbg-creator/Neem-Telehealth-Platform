@@ -559,11 +559,27 @@ model PharmacyPayoutDetail {
 // =============================================================================
 
 model Doctor {
-  id                String       @id @default(uuid(7))
-  publicId          String       @unique @db.VarChar(32)
-  userId            String       @unique
-  fullName          String       @db.VarChar(160)
-  mdcNumber         String       @unique @db.VarChar(60)
+  id       String @id @default(uuid(7))
+  publicId String @unique @db.VarChar(32)
+  userId   String @unique
+  fullName String @db.VarChar(160)
+
+  /// What this professional is, and therefore what they may issue (v2).
+  /// Every professional on the platform before v2 is a doctor, so the default
+  /// is what every existing row already was.
+  discipline ProfessionalDiscipline @default(DOCTOR)
+
+  /// The Medical and Dental Council number. Null for a dietitian or a
+  /// trainer, who are not registered with the MDC and must not be given a
+  /// number that implies they are; their registration is recorded in
+  /// `credentialType` and `credentialNumber` instead.
+  mdcNumber        String? @unique @db.VarChar(60)
+  /// The body a non-doctor is registered with, e.g. the Ghana Academy of
+  /// Nutrition and Dietetics. Free text: there is no register to validate it
+  /// against, and pretending otherwise would be the same lie as an MDC number.
+  credentialType   String? @db.VarChar(120)
+  credentialNumber String? @db.VarChar(60)
+
   mdcIssuedAt       DateTime?
   /// Drives the daily expiry-warning job. NO automated MDC verification exists
   /// and the UI must not imply otherwise (spec §22).
@@ -609,8 +625,10 @@ model Doctor {
   performanceEvents DoctorPerformanceEvent[]
   qualityScores     DoctorQualityScore[]
   substitutions     SubstitutionRequest[]
+  services          ProfessionalService[]
 
   @@index([status])
+  @@index([discipline, status])
   @@index([mdcExpiresAt])
   @@map("doctors")
 }
@@ -1849,9 +1867,32 @@ model Service {
   updatedAt       DateTime               @updatedAt
 
   consultations Consultation[]
+  professionals ProfessionalService[]
 
   @@index([isActive, clinic, sortOrder])
   @@map("services")
+}
+
+/// Which services a professional may be offered (v2).
+///
+/// Discipline says what someone is; this says what they have actually been
+/// signed up to deliver. A doctor on the platform for general consultations is
+/// not thereby part of the weight-loss clinic, and the queue must not offer
+/// them its patients.
+model ProfessionalService {
+  id        String   @id @default(uuid(7))
+  doctorId  String
+  serviceId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, serviceId])
+  @@index([serviceId, isActive])
+  @@map("professional_services")
 }
 
 model PilotApplication {

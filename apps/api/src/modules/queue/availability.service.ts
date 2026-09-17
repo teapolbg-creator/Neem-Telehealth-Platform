@@ -4,7 +4,8 @@ import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getBooleanSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { checkStandingEligibility } from '../../domain/queue-scoring.ts';
-import { collectCandidates } from './allocation.service.ts';
+import { collectCandidates, type CandidatePool } from './allocation.service.ts';
+import type { ProfessionalDiscipline } from '@neem/contracts';
 
 /**
  * Whether a consultation may be started at all (decision D50).
@@ -29,8 +30,9 @@ const NO_CONSULTATION = '00000000-0000-0000-0000-000000000000';
 export async function isAnyDoctorOnDuty(
   db: Db = getPrisma(),
   clock: Clock = systemClock,
+  pool: CandidatePool = {},
 ): Promise<boolean> {
-  const candidates = await collectCandidates(NO_CONSULTATION, db, clock);
+  const candidates = await collectCandidates(NO_CONSULTATION, db, clock, pool);
   return candidates.some((candidate) => checkStandingEligibility(candidate).eligible);
 }
 
@@ -42,11 +44,24 @@ export async function isAnyDoctorOnDuty(
 export async function assertDoctorOnDuty(
   db: Db = getPrisma(),
   clock: Clock = systemClock,
+  pool: CandidatePool = {},
 ): Promise<void> {
   if (!(await getBooleanSetting(SETTING_KEYS.REQUIRE_DOCTOR_ON_DUTY, db))) return;
-  if (await isAnyDoctorOnDuty(db, clock)) return;
+  if (await isAnyDoctorOnDuty(db, clock, pool)) return;
+
+  /*
+   * Named, because "no doctor is on duty" is wrong and confusing when the
+   * patient asked for a dietitian and there are doctors working (v2).
+   */
+  const profession = PROFESSION_LABEL[pool.discipline ?? 'DOCTOR'];
 
   throw errors.businessRule(
-    'No doctor is on duty right now, so a consultation cannot be started. Please try again during clinic hours.',
+    `No ${profession} is on duty right now, so a consultation cannot be started. Please try again during clinic hours.`,
   );
 }
+
+const PROFESSION_LABEL: Record<ProfessionalDiscipline, string> = {
+  DOCTOR: 'doctor',
+  DIETITIAN: 'dietitian',
+  TRAINER: 'trainer',
+};

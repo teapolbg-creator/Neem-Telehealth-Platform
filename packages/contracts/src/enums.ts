@@ -9,6 +9,16 @@
 export const USER_ROLES = ['ADMIN', 'DOCTOR', 'PHARMACY'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
+/**
+ * What a professional is (v2).
+ *
+ * Not a role. All three sign in as DOCTOR and use the same consultation
+ * workspace; what separates them is what they are allowed to issue at the end
+ * of it, which `permissionsForProfessional` decides.
+ */
+export const PROFESSIONAL_DISCIPLINES = ['DOCTOR', 'DIETITIAN', 'TRAINER'] as const;
+export type ProfessionalDiscipline = (typeof PROFESSIONAL_DISCIPLINES)[number];
+
 /** Patients are not users. They hold a consultation-scoped session instead. */
 export const PRINCIPAL_KINDS = ['ADMIN', 'DOCTOR', 'PHARMACY', 'PATIENT'] as const;
 export type PrincipalKind = (typeof PRINCIPAL_KINDS)[number];

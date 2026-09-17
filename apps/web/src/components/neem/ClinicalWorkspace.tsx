@@ -11,7 +11,9 @@ import {
   ShieldAlert,
   Trash2,
 } from "lucide-react";
+import { PERMISSIONS } from "@neem/contracts";
 import { ApiError } from "@/lib/api-client";
+import { useSession } from "@/features/auth/use-session";
 import {
   useCompleteConsultation,
   useCreatePrescription,
@@ -52,6 +54,26 @@ export function ClinicalWorkspace({
   const [tab, setTab] = useState<Tab>("notes");
   const { data: workspace, isLoading, error } = useWorkspace(consultationPublicId);
 
+  /*
+   * A dietitian and a trainer use this same workspace and may not prescribe or
+   * refer (v2). The API refuses them either way; this is so they are not shown
+   * a tab that only ever ends in a refusal.
+   */
+  const { can } = useSession();
+  const tabs = (
+    [
+      { key: "notes", label: "Notes", icon: FileText, allowed: true },
+      {
+        key: "prescribe",
+        label: "Prescribe",
+        icon: Pill,
+        allowed: can(PERMISSIONS.PRESCRIPTION_CREATE),
+      },
+      { key: "refer", label: "Refer", icon: Send, allowed: can(PERMISSIONS.REFERRAL_CREATE) },
+      { key: "summary", label: "Summary", icon: ShieldAlert, allowed: true },
+    ] as const
+  ).filter((item) => item.allowed);
+
   const sealed = error instanceof ApiError && error.status === 403;
 
   if (isLoading) {
@@ -80,14 +102,7 @@ export function ClinicalWorkspace({
   return (
     <div className="card-soft overflow-hidden">
       <div className="flex gap-1 border-b border-border bg-slate-50 p-1.5">
-        {(
-          [
-            { key: "notes", label: "Notes", icon: FileText },
-            { key: "prescribe", label: "Prescribe", icon: Pill },
-            { key: "refer", label: "Refer", icon: Send },
-            { key: "summary", label: "Summary", icon: ShieldAlert },
-          ] as const
-        ).map((item) => (
+        {tabs.map((item) => (
           <button
             key={item.key}
             type="button"

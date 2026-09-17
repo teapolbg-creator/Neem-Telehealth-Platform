@@ -1,6 +1,6 @@
 import type { DoctorStatus, PrismaClient } from '@prisma/client';
 import { notify } from '../notification/notification.service.ts';
-import type { DoctorRegistration } from '@neem/contracts';
+import type { DoctorRegistration, ProfessionalDiscipline } from '@neem/contracts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { generatePublicId, hashPassword, encryptField, hashIp } from '../../lib/crypto.ts';
@@ -9,6 +9,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { revokeAllSessionsForUser } from '../auth/session.service.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { computeMonthlyCompensation, type Compensation } from '../../domain/compensation.ts';
+import { credentialLine } from '../../domain/professional-credential.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import {
   canDoctorTransition,
@@ -379,7 +380,9 @@ export async function listDoctors(filters: DoctorListFilters, db: Db = getPrisma
     items: page.map((doctor) => ({
       publicId: doctor.publicId,
       fullName: doctor.fullName,
+      discipline: doctor.discipline,
       mdcNumber: doctor.mdcNumber,
+      credential: credentialLine(doctor),
       mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
       specialty: doctor.specialty,
       yearsExperience: doctor.yearsExperience,
@@ -482,4 +485,122 @@ export async function setDoctorCompensation(
   );
 
   return compensation;
+}
+
+/**
+ * Records what a professional is, and what they are signed up to deliver (v2).
+ *
+ * An administrator decides this, not the professional: discipline is what
+ * decides whether someone may prescribe, and a registration number is a claim
+ * about the outside world that a human being has to have checked. Nothing here
+ * verifies anything automatically, for a doctor's MDC number either (spec §22).
+ *
+ * Changing a discipline is audited with what it was, because it moves somebody
+ * in or out of prescribing.
+ */
+export async function setProfession(
+  publicId: string,
+  input: {
+    discipline: ProfessionalDiscipline;
+    credentialType?: string | null;
+    credentialNumber?: string | null;
+    /** The services this professional may be offered. Replaces the roster. */
+    serviceCodes?: string[];
+  },
+  context: { adminId: string; correlationId?: string },
+  db: PrismaClient = getPrisma(),
+): Promise<{
+  publicId: string;
+  discipline: ProfessionalDiscipline;
+  credential: string | null;
+  services: string[];
+}> {
+  const doctor = await db.doctor.findUnique({
+    where: { publicId },
+    select: { id: true, discipline: true, mdcNumber: true },
+  });
+  if (!doctor) throw errors.notFound('Doctor not found.');
+
+  /*
+   * A doctor is the only discipline the MDC registers. Leaving an MDC number
+   * on somebody who has become a dietitian would leave a number on their
+   * documents that the Council has never heard of, so it is cleared — and the
+   * audit entry below records that it was.
+   */
+  const clearsMdc = input.discipline !== 'DOCTOR' && doctor.mdcNumber !== null;
+
+  const services =
+    input.serviceCodes === undefined
+      ? null
+      : await db.service.findMany({
+          where: { code: { in: input.serviceCodes } },
+          select: { id: true, code: true, discipline: true },
+        });
+
+  if (services && services.length !== new Set(input.serviceCodes).size) {
+    throw errors.notFound('One of those services does not exist.');
+  }
+
+  const mismatched = services?.find((service) => service.discipline !== input.discipline);
+  if (mismatched) {
+    throw errors.businessRule(
+      `${mismatched.code} is delivered by a ${mismatched.discipline.toLowerCase()}, not a ${input.discipline.toLowerCase()}.`,
+    );
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.doctor.update({
+      where: { id: doctor.id },
+      data: {
+        discipline: input.discipline,
+        credentialType: input.credentialType ?? null,
+        credentialNumber: input.credentialNumber ?? null,
+        ...(clearsMdc ? { mdcNumber: null } : {}),
+      },
+    });
+
+    if (services) {
+      await tx.professionalService.deleteMany({
+        where: { doctorId: doctor.id, serviceId: { notIn: services.map((s) => s.id) } },
+      });
+
+      for (const service of services) {
+        await tx.professionalService.upsert({
+          where: { doctorId_serviceId: { doctorId: doctor.id, serviceId: service.id } },
+          create: { doctorId: doctor.id, serviceId: service.id },
+          update: { isActive: true },
+        });
+      }
+    }
+  });
+
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.DOCTOR_PROFESSION_CHANGED,
+      actorType: 'ADMIN',
+      actorId: context.adminId,
+      entityType: 'doctor',
+      entityId: doctor.id,
+      correlationId: context.correlationId,
+      metadata: {
+        from: doctor.discipline,
+        to: input.discipline,
+        mdcNumberCleared: clearsMdc,
+        services: services?.map((service) => service.code) ?? null,
+      },
+    },
+    db,
+  );
+
+  return {
+    publicId,
+    discipline: input.discipline,
+    credential: credentialLine({
+      discipline: input.discipline,
+      mdcNumber: clearsMdc ? null : doctor.mdcNumber,
+      credentialType: input.credentialType,
+      credentialNumber: input.credentialNumber,
+    }),
+    services: services?.map((service) => service.code) ?? [],
+  };
 }

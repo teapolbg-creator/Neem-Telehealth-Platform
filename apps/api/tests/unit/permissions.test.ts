@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   PERMISSIONS,
+  PROFESSIONAL_DISCIPLINES,
   ROLE_PERMISSIONS,
+  disciplineMayPrescribe,
+  permissionsForProfessional,
   permissionsForRole,
   roleHasPermission,
 } from '@neem/contracts';
@@ -97,6 +100,61 @@ describe('role permissions', () => {
         roleHasPermission(role, PERMISSIONS.REFUND_DECIDE),
       );
       expect(deciders).toEqual(['ADMIN']);
+    });
+  });
+
+  /**
+   * Discipline (v2).
+   *
+   * A dietitian and a personal trainer hold the DOCTOR role, so the role alone
+   * is not the answer to what they may do. These are the cases where getting
+   * it wrong means a prescription in the name of somebody who cannot write one.
+   */
+  describe('disciplines', () => {
+    const PRESCRIBING = [
+      PERMISSIONS.PRESCRIPTION_CREATE,
+      PERMISSIONS.PRESCRIPTION_REVOKE,
+      PERMISSIONS.REFERRAL_CREATE,
+      PERMISSIONS.SUBSTITUTION_DECIDE,
+    ] as const;
+
+    it.each(['DIETITIAN', 'TRAINER'] as const)('withholds prescribing from a %s', (discipline) => {
+      const held = permissionsForProfessional('DOCTOR', discipline);
+
+      for (const permission of PRESCRIBING) {
+        expect(held).not.toContain(permission);
+      }
+      expect(disciplineMayPrescribe(discipline)).toBe(false);
+    });
+
+    it('leaves them everything a consultation itself needs', () => {
+      const held = permissionsForProfessional('DOCTOR', 'DIETITIAN');
+
+      expect(held).toContain(PERMISSIONS.CONSULTATION_CONDUCT);
+      expect(held).toContain(PERMISSIONS.CONSULTATION_COMPLETE);
+      expect(held).toContain(PERMISSIONS.CLINICAL_NOTES_WRITE);
+    });
+
+    it('gives a doctor exactly what the role gives', () => {
+      expect(permissionsForProfessional('DOCTOR', 'DOCTOR')).toEqual(permissionsForRole('DOCTOR'));
+    });
+
+    /** Every professional who existed before v2 has no discipline recorded. */
+    it('treats a missing discipline as a doctor', () => {
+      expect(permissionsForProfessional('DOCTOR', null)).toEqual(permissionsForRole('DOCTOR'));
+      expect(disciplineMayPrescribe(undefined)).toBe(true);
+    });
+
+    it('answers for every discipline there is', () => {
+      for (const discipline of PROFESSIONAL_DISCIPLINES) {
+        expect(permissionsForProfessional('DOCTOR', discipline).length).toBeGreaterThan(0);
+      }
+    });
+
+    /** Discipline narrows a professional. It has no bearing on anyone else. */
+    it('does not touch pharmacies or administrators', () => {
+      expect(permissionsForProfessional('PHARMACY', null)).toEqual(permissionsForRole('PHARMACY'));
+      expect(permissionsForProfessional('ADMIN', null)).toEqual(permissionsForRole('ADMIN'));
     });
   });
 

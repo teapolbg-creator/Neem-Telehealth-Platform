@@ -322,6 +322,7 @@ No route returns a doctor's own ratings or quality score (spec §24, §52).
 GET    /admin/doctors | GET /doctors/:publicId | POST /admin/doctors/:publicId/status
 GET    /admin/doctors/:publicId/transitions          only the moves the machine permits
 PATCH  /admin/doctors/:publicId/compensation
+PATCH  /admin/doctors/:publicId/profession   discipline, registration and the services they deliver (v2)
 POST   /admin/doctors/:publicId/subscription
 GET    /admin/doctors/documents/:id | POST /admin/doctors/documents/:id/verify
 GET    /admin/doctors/licences/expiring

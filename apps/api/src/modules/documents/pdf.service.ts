@@ -4,6 +4,15 @@ import { getEnv } from '../../config/env.ts';
 import { decryptField } from '../../lib/crypto.ts';
 
 /**
+ * Who signed it: a name, and the registration line their discipline gives them
+ * (v2). Built by `signatory()`, never assembled here.
+ */
+export interface Signatory {
+  fullName: string;
+  credential: string | null;
+}
+
+/**
  * Prescription, referral and consultation-summary PDFs (spec §43, §49, D7, D25).
  *
  * PDFKit rather than a headless browser: server-side, deterministic, no
@@ -183,7 +192,7 @@ function paragraph(doc: PDFKit.PDFDocument, text: string): void {
  */
 function drawSignature(
   doc: PDFKit.PDFDocument,
-  doctor: { fullName: string; mdcNumber: string },
+  doctor: Signatory,
   signatureDataUrl: string | null,
 ): void {
   /**
@@ -220,11 +229,17 @@ function drawSignature(
     .fontSize(10)
     .font('Helvetica-Bold')
     .text(doctor.fullName, PAGE_MARGIN, top + 68);
-  doc
-    .fillColor(MUTED)
-    .fontSize(8)
-    .font('Helvetica')
-    .text(`MDC ${doctor.mdcNumber}`, PAGE_MARGIN, doc.y + 1);
+  /*
+   * Omitted rather than filled in when the professional has no registration to
+   * print (v2). Nothing is invented under a signature.
+   */
+  if (doctor.credential) {
+    doc
+      .fillColor(MUTED)
+      .fontSize(8)
+      .font('Helvetica')
+      .text(doctor.credential, PAGE_MARGIN, doc.y + 1);
+  }
 }
 
 function drawFooter(
@@ -310,7 +325,7 @@ export interface PrescriptionPdfInput {
   consultationReference: string;
   issuedAt: Date;
   patient: { name: string; age: number; sex: string };
-  doctor: { fullName: string; mdcNumber: string };
+  doctor: Signatory;
   pharmacy: { name: string; city: string } | null;
   signatureDataEnc: string | null;
   items: Array<{
@@ -411,7 +426,7 @@ export interface ReferralPdfInput {
   consultationReference: string;
   issuedAt: Date;
   patient: { name: string; age: number; sex: string };
-  doctor: { fullName: string; mdcNumber: string };
+  doctor: Signatory;
   hospitalName: string;
   department: string;
   urgency: string | null;
@@ -474,7 +489,7 @@ export interface SummaryPdfInput {
   consultationReference: string;
   issuedAt: Date;
   patient: { name: string; age: number; sex: string };
-  doctor: { fullName: string; mdcNumber: string };
+  doctor: Signatory;
   pharmacy: { name: string; city: string } | null;
   presentingComplaint: string;
   assessment: string;

@@ -22,6 +22,7 @@ import {
   type RankingResult,
 } from '../../domain/queue-scoring.ts';
 import { originName } from '../../domain/consultation-origin.ts';
+import type { ProfessionalDiscipline } from '@neem/contracts';
 
 /**
  * The allocation engine (spec §28, §29, §30).
@@ -50,6 +51,23 @@ export async function loadQueueWeights(db: Db = getPrisma()): Promise<QueueWeigh
 }
 
 /**
+ * Which professionals are in the running at all (v2).
+ *
+ * Discipline is not an eligibility score, it is a different profession: a
+ * patient who booked a dietitian must never be offered a doctor, however well
+ * that doctor ranks. So it narrows the pool rather than joining the ranking.
+ *
+ * The roster — `ProfessionalService`, who is signed up to deliver what — is
+ * recorded but deliberately not applied here yet. Applying it before the
+ * clinic's onboarding exists would empty the pool for every professional
+ * already on the platform, none of whom has a roster row. Phase 8 turns it on
+ * with the weight-loss clinic it was built for.
+ */
+export interface CandidatePool {
+  discipline?: ProfessionalDiscipline;
+}
+
+/**
  * Gathers the pool for one consultation.
  *
  * Reads presence, shifts, subscriptions and performance in one pass. The pure
@@ -60,6 +78,7 @@ export async function collectCandidates(
   consultationId: string,
   db: Db = getPrisma(),
   clock: Clock = systemClock,
+  pool: CandidatePool = {},
 ): Promise<DoctorCandidate[]> {
   const now = clock.now();
   const heartbeatCutoff = new Date(now.getTime() - 90_000);
@@ -68,7 +87,15 @@ export async function collectCandidates(
 
   const [doctors, offered] = await Promise.all([
     db.doctor.findMany({
-      where: { status: { in: ['ACTIVE', 'SUSPENDED', 'APPROVED'] } },
+      where: {
+        status: { in: ['ACTIVE', 'SUSPENDED', 'APPROVED'] },
+        /*
+         * Always narrowed, never left open. A consultation with no service is
+         * one the counter created, and the counter sells a doctor — which is
+         * also what every professional on the platform before v2 is.
+         */
+        discipline: pool.discipline ?? 'DOCTOR',
+      },
       include: {
         languages: { include: { language: { select: { code: true } } } },
         presence: true,
@@ -175,7 +202,12 @@ export async function offerNextDoctor(
 ): Promise<OfferResult> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    include: { language: true, queueEntry: true, pharmacy: { select: { name: true } } },
+    include: {
+      language: true,
+      queueEntry: true,
+      pharmacy: { select: { name: true } },
+      service: { select: { discipline: true } },
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -192,7 +224,9 @@ export async function offerNextDoctor(
     getIntSetting(SETTING_KEYS.QUEUE_MAX_OFFER_ATTEMPTS, db),
   ]);
 
-  const candidates = await collectCandidates(consultationId, db, clock);
+  const candidates = await collectCandidates(consultationId, db, clock, {
+    discipline: consultation.service?.discipline,
+  });
   const ranking = rankDoctors(candidates, consultation.language.code, weights, clock.now());
 
   if (ranking.ranked.length === 0) {

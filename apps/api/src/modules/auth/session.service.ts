@@ -1,5 +1,9 @@
 import type { User, UserRole } from '@prisma/client';
-import { permissionsForRole, type Permission } from '@neem/contracts';
+import {
+  permissionsForProfessional,
+  type Permission,
+  type ProfessionalDiscipline,
+} from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { generateToken, hashToken, hashIp } from '../../lib/crypto.ts';
 import { addHours, addMinutes, systemClock, type Clock } from '../../lib/clock.ts';
@@ -34,6 +38,12 @@ export interface AuthenticatedPrincipal {
   permissions: Permission[];
   /** The doctor or pharmacy this account acts for; null for admins. */
   organisationId: string | null;
+  /**
+   * What kind of professional this is, for anyone who must say so in words
+   * (v2). Null for an administrator or a pharmacy. Nothing enforces a rule
+   * from this field: the permissions above already have the discipline applied.
+   */
+  discipline: ProfessionalDiscipline | null;
   twoFactorEnabled: boolean;
 }
 
@@ -88,7 +98,7 @@ export async function resolveSession(
     include: {
       user: {
         include: {
-          doctor: { select: { id: true, status: true } },
+          doctor: { select: { id: true, status: true, discipline: true } },
           pharmacyMembership: { select: { pharmacyId: true } },
         },
       },
@@ -114,6 +124,13 @@ export async function resolveSession(
         ? (user.pharmacyMembership?.pharmacyId ?? null)
         : null;
 
+  /*
+   * A dietitian and a trainer sign in as DOCTOR and are refused the things
+   * only a doctor may issue here, on every request, from what the database
+   * says they are — not from anything carried in the session (v2).
+   */
+  const discipline = user.role === 'DOCTOR' ? (user.doctor?.discipline ?? null) : null;
+
   return {
     kind: user.role,
     sessionId: session.id,
@@ -121,8 +138,9 @@ export async function resolveSession(
     userPublicId: user.publicId,
     email: user.email,
     role: user.role,
-    permissions: permissionsForRole(user.role),
+    permissions: permissionsForProfessional(user.role, discipline),
     organisationId,
+    discipline,
     twoFactorEnabled: user.twoFactorEnabledAt !== null,
   };
 }

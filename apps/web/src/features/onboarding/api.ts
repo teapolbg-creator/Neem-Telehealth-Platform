@@ -91,7 +91,9 @@ export interface ServiceHours {
 export interface DoctorProfile {
   publicId: string;
   fullName: string;
-  mdcNumber: string;
+  mdcNumber: string | null;
+  /** How this professional is registered; a trainer has no MDC number (v2). */
+  credential: string | null;
   mdcExpiresAt: string | null;
   specialty: string | null;
   bio: string | null;
@@ -359,7 +361,7 @@ export function useExpiringLicences() {
         Array<{
           publicId: string;
           fullName: string;
-          mdcNumber: string;
+          mdcNumber: string | null;
           mdcExpiresAt: string;
           daysRemaining: number;
         }>

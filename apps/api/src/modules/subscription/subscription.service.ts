@@ -228,7 +228,8 @@ export async function findExpiringLicences(
   Array<{
     publicId: string;
     fullName: string;
-    mdcNumber: string;
+    /** Null is possible in principle (v2); a licence expiry implies one. */
+    mdcNumber: string | null;
     mdcExpiresAt: Date;
     daysRemaining: number;
   }>

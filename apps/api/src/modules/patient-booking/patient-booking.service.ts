@@ -70,7 +70,7 @@ export async function createImmediateBooking(
    * Refused before a price is quoted, let alone charged (D50). A patient at
    * home has no counter staff to explain why nothing happened afterwards.
    */
-  await assertDoctorOnDuty(db, clock);
+  await assertDoctorOnDuty(db, clock, { discipline: service.discipline });
 
   const language = await db.language.findFirst({
     where: { code: input.languageCode, isActive: true },

@@ -62,7 +62,10 @@ export async function initiatePayment(
 ): Promise<InitiatePaymentResult> {
   const consultation = await db.consultation.findUnique({
     where: { publicId: consultationPublicId },
-    include: { payments: { orderBy: { createdAt: 'desc' } } },
+    include: {
+      payments: { orderBy: { createdAt: 'desc' } },
+      service: { select: { discipline: true } },
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -112,7 +115,7 @@ export async function initiatePayment(
   // Checked again at the moment money is asked for, not only at creation: a
   // shift can end between the two. After the reuse above, so a payment already
   // in flight is never stranded by it (D50).
-  await assertDoctorOnDuty(db, clock);
+  await assertDoctorOnDuty(db, clock, { discipline: consultation.service?.discipline });
 
   // Our own reference doubles as the idempotency key. Unique per attempt, so a
   // retry after a genuine failure is a distinct charge, not a duplicate.

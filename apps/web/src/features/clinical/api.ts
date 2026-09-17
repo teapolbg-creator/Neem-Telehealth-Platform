@@ -425,7 +425,8 @@ export interface VerificationResult {
   genuine: true;
   publicId: string;
   issuedAt: string;
-  doctor: { fullName: string; mdcNumber: string };
+  /** The registration line is the professional's own; a trainer has no MDC. */
+  doctor: { fullName: string; credential: string | null };
   state?: string;
   revoked?: boolean;
   dispensed?: boolean;

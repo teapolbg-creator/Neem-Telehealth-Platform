@@ -3,6 +3,7 @@ import { doctorSignatureSchema, DOCTOR_DOCUMENT_TYPES, PERMISSIONS } from '@neem
 import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
+import { credentialLine } from '../../domain/professional-credential.ts';
 import { systemClock } from '../../lib/clock.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -75,7 +76,10 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
       data: {
         publicId: doctor.publicId,
         fullName: doctor.fullName,
+        discipline: doctor.discipline,
         mdcNumber: doctor.mdcNumber,
+        /** The registration line to show: not every professional has an MDC. */
+        credential: credentialLine(doctor),
         mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
         specialty: doctor.specialty,
         bio: doctor.bio,
@@ -380,7 +384,9 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
         data: {
           publicId: doctor.publicId,
           fullName: doctor.fullName,
+          discipline: doctor.discipline,
           mdcNumber: doctor.mdcNumber,
+          credential: credentialLine(doctor),
           mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
           qualifiedAt: doctor.qualifiedAt?.toISOString() ?? null,
           yearsExperience: doctor.yearsExperience,
