@@ -43,8 +43,20 @@ export interface InitiatePaymentResult {
  */
 export async function initiatePayment(
   consultationPublicId: string,
-  input: { payerPhone?: string; pharmacyId: string },
-  context: { actorId: string; correlationId?: string },
+  input: {
+    payerPhone?: string;
+    /** The patient's own address, when there is one to send a receipt to (v2). */
+    payerEmail?: string;
+    /** The counter proves ownership by its pharmacy… */
+    pharmacyId?: string;
+    /** …and a patient-direct booking by the account that made it (v2). */
+    patientAccountId?: string;
+  },
+  /*
+   * The counter pays as a member of staff; a patient at home pays as
+   * themselves, and has no staff id to give (v2).
+   */
+  context: { actorType?: 'PHARMACY' | 'PATIENT'; actorId?: string; correlationId?: string },
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<InitiatePaymentResult> {
@@ -53,8 +65,18 @@ export async function initiatePayment(
     include: { payments: { orderBy: { createdAt: 'desc' } } },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
-  if (consultation.pharmacyId !== input.pharmacyId)
-    throw errors.notFound('Consultation not found.');
+
+  /*
+   * Whoever pays must own it, and the two services prove that differently.
+   * Neither proof given is not a mistake worth guessing about: it is refused.
+   */
+  const owned = input.pharmacyId
+    ? consultation.pharmacyId === input.pharmacyId
+    : input.patientAccountId
+      ? consultation.patientAccountId === input.patientAccountId
+      : false;
+
+  if (!owned) throw errors.notFound('Consultation not found.');
 
   if (!isAwaitingPayment(consultation.state)) {
     throw errors.businessRule(
@@ -103,6 +125,7 @@ export async function initiatePayment(
     // Non-clinical context only (spec §60).
     metadata: { consultationPublicId: consultation.publicId },
     payerPhone: input.payerPhone,
+    payerEmail: input.payerEmail,
   });
 
   const payment = await db.payment.create({
@@ -124,7 +147,7 @@ export async function initiatePayment(
     await transition(
       consultation.id,
       'PAYMENT_PROCESSING',
-      { actorType: 'PHARMACY', actorId: context.actorId },
+      { actorType: context.actorType ?? 'PHARMACY', actorId: context.actorId },
       db,
       clock,
     );

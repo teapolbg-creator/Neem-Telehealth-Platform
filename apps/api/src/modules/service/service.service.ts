@@ -66,8 +66,13 @@ export async function listServices(
   return rows.map(toView);
 }
 
-/** The service a booking names, refused when it is unknown or withdrawn. */
-export async function getBookableService(code: string, db: Db = getPrisma()): Promise<ServiceView> {
+/**
+ * The service a booking names, refused when it is unknown or withdrawn.
+ *
+ * The row rather than the view, for callers inside the API that need its id
+ * and its price in pesewas — a booking has to record both.
+ */
+export async function bookableServiceRow(code: string, db: Db = getPrisma()) {
   const row = await db.service.findUnique({ where: { code } });
 
   if (!row) throw errors.notFound('That service does not exist.');
@@ -75,7 +80,12 @@ export async function getBookableService(code: string, db: Db = getPrisma()): Pr
     throw errors.businessRule('That service is not currently offered.');
   }
 
-  return toView(row);
+  return row;
+}
+
+/** The same rule, shaped for anything that shows a service to a patient. */
+export async function getBookableService(code: string, db: Db = getPrisma()): Promise<ServiceView> {
+  return toView(await bookableServiceRow(code, db));
 }
 
 export interface ServiceInput {

@@ -694,8 +694,16 @@ describe('§102 (3) cross-patient access and session takeover', () => {
    * behavioural half is asserted directly beneath rather than assumed, and the
    * scoping itself is covered in tests/integration/patient-documents.test.ts.
    */
+  /*
+   * Each of these takes an identifier because an account holds more than one
+   * consultation, which the counter's single device-bound session never did
+   * (v2). Ownership is asked of the database on every one of them, and the
+   * refusal for somebody else's id is the refusal for an id that does not
+   * exist — see v2-patient-account.test.ts and v2-booking.test.ts.
+   */
   const PARAMETERISED_PATIENT_ROUTES = [
     '/api/v1/patient/account/documents/:kind/:publicId.pdf',
+    '/api/v1/patient/bookings/:reference/payment',
     '/api/v1/patient/documents/:kind/:publicId.pdf',
   ];
 

@@ -26,6 +26,7 @@ import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
 import { qualityRoutes } from './modules/quality/quality.routes.ts';
 import { serviceRoutes } from './modules/service/service.routes.ts';
 import { patientAccountRoutes } from './modules/patient-account/patient-account.routes.ts';
+import { patientBookingRoutes } from './modules/patient-booking/patient-booking.routes.ts';
 import { queueRoutes } from './modules/queue/queue.routes.ts';
 import { mediaRoutes } from './modules/media/media.routes.ts';
 import { retentionRoutes } from './modules/retention/retention.routes.ts';
@@ -151,6 +152,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(qualityRoutes);
       await api.register(serviceRoutes);
       await api.register(patientAccountRoutes);
+      await api.register(patientBookingRoutes);
     },
     { prefix: '/api/v1' },
   );

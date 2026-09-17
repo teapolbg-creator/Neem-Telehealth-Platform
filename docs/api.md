@@ -93,6 +93,9 @@ GET    /patient/account                   the account, and the consultations tha
 GET    /patient/account/documents         their documents, grouped by consultation (v2)
 GET    /patient/account/documents/:kind/:publicId.pdf   the document itself (v2)
 POST   /patient/account/logout            ends the account session on the server (v2)
+POST   /patient/bookings/immediate        { service, language, type, details, consent } → an unpaid consultation (v2)
+POST   /patient/bookings/:reference/payment   starts the Paystack checkout for it (v2)
+GET    /patient/bookings/:reference/payment   re-verifies, and joins the queue once paid (v2)
 
 NOT BUILT
 GET    /patient/session/prescription      the prescription goes to the pharmacy, not the phone
