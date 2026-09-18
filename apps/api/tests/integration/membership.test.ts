@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
-import { createTestUser, resetDatabase } from '../helpers/database.ts';
+import { createTestUser, resetDatabase, setMembershipRequired } from '../helpers/database.ts';
 import {
   MockPaymentProvider,
   setPaymentProviderForTesting,
@@ -61,6 +61,8 @@ async function setUpDoctor(status: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE', statusReas
 
 beforeEach(async () => {
   await resetDatabase();
+  // Dropped in production (D53); proven here so it can be switched back on.
+  await setMembershipRequired(true);
   setPaymentProviderForTesting(new MockPaymentProvider());
 });
 

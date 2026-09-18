@@ -276,7 +276,16 @@ function FinancialBreakdown({
         <Row label="Discounts given" value={formatMinor(data.discountMinor, data.currency)} />
         <Row label="Net" value={formatMinor(data.netMinor, data.currency)} strong />
         <Row label="Pharmacy share" value={formatMinor(data.pharmacyShareMinor, data.currency)} />
-        <Row label="Neem share" value={formatMinor(data.neemShareMinor, data.currency)} />
+        {/*
+          "After pharmacies", not "Neem share": since doctors and the clinic's
+          professionals earn a share, what is left after the pharmacy is split
+          again, and the row beneath says by how much.
+        */}
+        <Row label="After pharmacies" value={formatMinor(data.neemShareMinor, data.currency)} />
+        <Row
+          label="Professionals' share"
+          value={formatMinor(data.professionalShareMinor, data.currency)}
+        />
         <Row label="Doctor memberships" value={formatMinor(data.membershipMinor, data.currency)} />
       </dl>
 

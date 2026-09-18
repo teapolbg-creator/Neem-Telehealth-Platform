@@ -276,8 +276,9 @@ answered.
 5. ~~**Weight-loss commercial shape.**~~ **Answered 2026-09-17: separately bookable consultations.**
    Built in phase 8: one clinic, three professions, three prices, each booked and paid for on its
    own. No package, no subscription, and nothing in the code assumes one.
-6. **Existing doctors.** Do salaried doctors move to revenue share, and what happens to the
-   membership fee in the v2 model?
+6. ~~**Existing doctors.**~~ **Answered 2026-09-18 (D53):** counter doctors move to a share from
+   1 October 2026 — pharmacy 20% of the gross, fee off the rest, doctor and Neem 50/50. The
+   membership fee is dropped, effective on deploy. The counter price moves to GHS 50.
 7. **Cancellation, rescheduling, no-show.** Free-cancellation window, refund proportion, and what a
    no-show forfeits.
 8. **Patient identity minimum.** Phone only, email only, or either.
@@ -315,9 +316,17 @@ environment and, later, more capacity.
 - **Patient routes** live in the same web app: `/` for the public service list, `/book` for the two
   booking journeys, `/account` for returning patients. The pharmacy, doctor and admin portals keep
   their paths. A second domain is unnecessary and would complicate cookies.
-- **Staging:** `staging-app.neemtelehealth.com` and `staging-api.neemtelehealth.com`, a second Render
-  service, a separate Supabase project, Paystack **test** keys, email to a mock or a single internal
-  address, SMS off. Its own CSRF cookie domain.
+- **Staging:** `app.staging.neemtelehealth.com` and `api.staging.neemtelehealth.com`, a second Render
+  service, a separate Supabase project, Paystack **test** keys, email to a single internal address,
+  SMS off. Its own CSRF cookie domain _and name_.
+
+  > **Corrected 2026-09-18.** The host names first proposed here, `staging-app.` and `staging-api.`,
+  > would have received production's CSRF cookie — which is set on the whole parent domain (D47) — and
+  > with the same cookie name on both, staging would have refused signed-in changes at random. And
+  > "email to a mock" is not possible: staging is a production build, and production builds refuse
+  > the mock. Both are now enforced by the config loader when `DEPLOY_ENV=staging`, alongside a
+  > refusal of live Paystack keys. Setup is in `docs/staging.md`.
+
 - **No production migration or deploy** happens without explicit authorisation.
 
 ---

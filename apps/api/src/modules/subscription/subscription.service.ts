@@ -4,7 +4,7 @@ import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { getIntSetting } from '../settings/settings.service.ts';
+import { getBooleanSetting, getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { changeDoctorStatus } from '../doctor/doctor.service.ts';
 
@@ -100,6 +100,14 @@ export async function runSubscriptionExpirySweep(
   const now = clock.now();
   const graceDays = await getIntSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_GRACE_DAYS, db);
 
+  /*
+   * With the fee dropped, a lapsed membership is still recorded as expired —
+   * that is simply true — but nobody is suspended for it and nobody is warned
+   * about it. Suspending a doctor for not paying a fee that no longer exists
+   * would take them out of the queue for nothing.
+   */
+  const required = await getBooleanSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED, db);
+
   const lapsed = await db.doctorSubscription.findMany({
     where: { status: { in: ['ACTIVE', 'GRACE'] }, periodEnd: { lt: now } },
     include: { doctor: { select: { id: true, publicId: true, status: true } } },
@@ -114,7 +122,7 @@ export async function runSubscriptionExpirySweep(
       subscription.graceEndsAt ??
       new Date(subscription.periodEnd.getTime() + graceDays * 86_400_000);
 
-    if (now < graceEndsAt) {
+    if (required && now < graceEndsAt) {
       if (subscription.status !== 'GRACE') {
         await db.doctorSubscription.update({
           where: { id: subscription.id },
@@ -142,7 +150,7 @@ export async function runSubscriptionExpirySweep(
       db,
     );
 
-    if (subscription.doctor.status === 'ACTIVE') {
+    if (required && subscription.doctor.status === 'ACTIVE') {
       try {
         await changeDoctorStatus(
           subscription.doctor.publicId,
@@ -168,7 +176,7 @@ export async function runSubscriptionExpirySweep(
     }
   }
 
-  const warned = await warnExpiringMemberships(db, clock);
+  const warned = required ? await warnExpiringMemberships(db, clock) : 0;
 
   return { expired, suspended, enteringGrace, warned };
 }

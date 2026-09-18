@@ -362,7 +362,7 @@ describe('the settings console (spec §96)', () => {
     >('/admin/settings/revenue.pharmacySharePctBp/history', { cookies });
 
     expect(history.body.data![0]).toMatchObject({
-      oldValue: 3000,
+      oldValue: 2000,
       newValue: 4000,
       reason: 'Agreed uplift for the Accra pilot.',
     });

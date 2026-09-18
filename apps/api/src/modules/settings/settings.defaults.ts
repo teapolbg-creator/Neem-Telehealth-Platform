@@ -29,6 +29,8 @@ export const SETTING_KEYS = {
   REVENUE_NEEM_BP: 'revenue.neemSharePctBp',
   REVENUE_PROFESSIONAL_EARNINGS_ENABLED: 'revenue.professionalEarningsEnabled',
   REVENUE_PROFESSIONAL_BP: 'revenue.professionalSharePctBp',
+  REVENUE_COUNTER_SHARE_FROM: 'revenue.counterShareFrom',
+  DOCTOR_MEMBERSHIP_REQUIRED: 'doctor.membershipRequired',
 
   QUEUE_RESPONSE_WINDOW_SECONDS: 'queue.responseWindowSeconds',
   QUEUE_MAX_OFFER_ATTEMPTS: 'queue.maxOfferAttemptsBeforeAlert',
@@ -86,9 +88,12 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     key: K.CONSULTATION_PRICE_MINOR,
     // Seeded, not fixed. The business documents never settle on a figure and
     // the specification forbids hard-coding one (spec §38).
-    value: 4000,
+    // GHS 50, matching a general consultation booked directly (operator's
+    // decision, 2026-09-18). Seeded for new environments only: a live
+    // environment keeps the price its administrator set until they change it.
+    value: 5000,
     valueType: 'number',
-    description: 'Consultation fee in minor units (pesewas). 4000 = GH₵ 40.00.',
+    description: 'Counter consultation fee in minor units (pesewas). 5000 = GH₵ 50.00.',
     category: 'consultation',
     requiresConfirm: true,
   },
@@ -181,16 +186,17 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   // --- Revenue ------------------------------------------------------------
   {
     key: K.REVENUE_PHARMACY_BP,
-    value: 3000,
+    // 20%, of what the patient paid (operator's decision, 2026-09-18).
+    value: 2000,
     valueType: 'number',
     description:
-      'Pharmacy share of net consultation revenue, in basis points. 3000 = 30.00%. Doctors are NOT paid from this split (spec §39).',
+      "Pharmacy share of a counter consultation, of what the patient paid, in basis points. 2000 = 20.00%. The doctor's share comes out of the remainder, after the provider fee.",
     category: 'revenue',
     requiresConfirm: true,
   },
   {
     key: K.REVENUE_NEEM_BP,
-    value: 7000,
+    value: 8000,
     valueType: 'number',
     description: 'Neem share in basis points. Must complement the pharmacy share to 10000.',
     category: 'revenue',
@@ -389,6 +395,38 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
       '800000 = GH₵ 8,000.00. Part-time pay is this figure scaled by contracted ' +
       'hours over a full week (decision D28). Neem computes compensation and never ' +
       'transfers it (spec §26).',
+    category: 'workforce',
+    requiresConfirm: true,
+  },
+  {
+    key: K.REVENUE_COUNTER_SHARE_FROM,
+    /*
+     * When counter doctors stop being paid a salary and start earning a share
+     * (operator's decision, 2026-09-18). The first of a month, always: the
+     * salary is a monthly figure, and a cut-over in the middle of one would pay
+     * the second half of it twice.
+     */
+    value: '2026-10-01',
+    valueType: 'string',
+    description:
+      'The first day counter consultations earn the doctor a share instead of salary (YYYY-MM-01). Payroll shows no salary from this month.',
+    category: 'revenue',
+    requiresConfirm: true,
+  },
+  {
+    key: K.DOCTOR_MEMBERSHIP_REQUIRED,
+    /*
+     * Dropped (operator's decision, 2026-09-18), and effective on deploy rather
+     * than at the pay cut-over. A membership runs for six months and a lapsed
+     * one suspends the doctor, so keeping it until the 1st would force anyone
+     * lapsing before then to buy six months of a fee that no longer exists —
+     * or be suspended. While this is off nobody is sold one, warned about one,
+     * or suspended for lacking one.
+     */
+    value: false,
+    valueType: 'boolean',
+    description:
+      'Whether doctors must hold a paid membership to receive consultations. Off: the fee has been dropped.',
     category: 'workforce',
     requiresConfirm: true,
   },

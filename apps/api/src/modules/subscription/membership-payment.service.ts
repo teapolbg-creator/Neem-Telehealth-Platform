@@ -6,7 +6,7 @@ import { getLogger } from '../../lib/logger.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getPaymentProvider } from '../../adapters/payment/index.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { getIntSetting } from '../settings/settings.service.ts';
+import { getBooleanSetting, getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { changeDoctorStatus } from '../doctor/doctor.service.ts';
 
@@ -66,6 +66,12 @@ export async function initiateMembershipPayment(
    */
   if (doctor.status === 'REJECTED') {
     throw errors.businessRule('This account cannot take out a membership.');
+  }
+
+  // Not sold once it has been dropped: nobody pays for something that does
+  // nothing (2026-09-18).
+  if (!(await getBooleanSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED, db))) {
+    throw errors.businessRule('Membership is no longer required, so there is nothing to pay.');
   }
 
   const provider = getPaymentProvider();
@@ -242,6 +248,8 @@ export async function settleMembershipPayment(
 }
 
 export interface MembershipView {
+  /** False once the fee has been dropped; the screen then says so. */
+  required: boolean;
   status: string;
   periodStart: string | null;
   periodEnd: string | null;
@@ -275,6 +283,7 @@ export async function membershipView(
   });
 
   const amountMinor = await getIntSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_FEE_MINOR, db);
+  const required = await getBooleanSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED, db);
   const current = doctor.subscriptions[0];
   const now = clock.now();
 
@@ -283,6 +292,7 @@ export async function membershipView(
     : null;
 
   return {
+    required,
     status: current?.status ?? 'NONE',
     periodStart: current?.periodStart.toISOString() ?? null,
     periodEnd: current?.periodEnd.toISOString() ?? null,
@@ -291,9 +301,10 @@ export async function membershipView(
     currency: current?.currency ?? 'GHS',
     daysRemaining,
     renewalDue:
-      !current ||
-      current.status !== 'ACTIVE' ||
-      (daysRemaining !== null && daysRemaining <= RENEWAL_PROMPT_DAYS),
+      required &&
+      (!current ||
+        current.status !== 'ACTIVE' ||
+        (daysRemaining !== null && daysRemaining <= RENEWAL_PROMPT_DAYS)),
     doctorStatus: doctor.status,
     suspendedForNonPayment:
       doctor.status === 'SUSPENDED' && doctor.statusReason === MEMBERSHIP_SUSPENSION_REASON,

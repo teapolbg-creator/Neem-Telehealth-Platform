@@ -9,7 +9,11 @@ import { errors } from '../../lib/errors.ts';
 import { addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
-import { getIntSetting, getNumberSetting } from '../settings/settings.service.ts';
+import {
+  getBooleanSetting,
+  getIntSetting,
+  getNumberSetting,
+} from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import { emitToConsultation, emitToDoctor, emitToAdmins } from '../realtime/realtime.service.ts';
@@ -108,6 +112,10 @@ export async function collectCandidates(
   const dayAgo = new Date(now.getTime() - 86_400_000);
   const serviceDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
+  // The membership fee was dropped (2026-09-18). While it is not required, a
+  // lapsed one keeps nobody out of the queue.
+  const membershipRequired = await getBooleanSetting(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED, db);
+
   const [doctors, offered] = await Promise.all([
     db.doctor.findMany({
       where: {
@@ -178,7 +186,10 @@ export async function collectCandidates(
       primaryLanguageCode: doctor.languages.find((entry) => entry.isPrimary)?.language.code ?? null,
       status: doctor.status,
       subscriptionUsable:
-        !subscription || subscription.status === 'ACTIVE' || subscription.status === 'GRACE',
+        !membershipRequired ||
+        !subscription ||
+        subscription.status === 'ACTIVE' ||
+        subscription.status === 'GRACE',
       licenceValid: !doctor.mdcExpiresAt || doctor.mdcExpiresAt > now,
       onShift,
       present: Boolean(

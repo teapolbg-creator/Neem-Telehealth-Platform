@@ -46,6 +46,7 @@ export interface FinancialSummary {
   netMinor: number;
   pharmacyShareMinor: number;
   neemShareMinor: number;
+  professionalShareMinor: number;
   refundedMinor: number;
   membershipMinor: number;
   paidConsultations: number;

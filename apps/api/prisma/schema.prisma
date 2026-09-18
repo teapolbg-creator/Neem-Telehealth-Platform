@@ -1378,6 +1378,9 @@ model ProfessionalEarning {
 
   /// What the patient actually paid for this consultation.
   grossMinor             Int
+  /// The pharmacy's share of a counter consultation, taken off first, from
+  /// the settlement snapshot. Zero for a patient-direct one.
+  pharmacyShareMinor     Int                    @default(0)
   /// What the provider charged to collect it, taken off before the split.
   /// Zero when the provider did not report one — visible rather than assumed.
   feeMinor               Int                    @default(0)

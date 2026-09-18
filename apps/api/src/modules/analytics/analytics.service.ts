@@ -209,7 +209,16 @@ export interface FinancialSummary {
   discountMinor: number;
   netMinor: number;
   pharmacyShareMinor: number;
+  /** What is left after pharmacies — before any professional's share. */
   neemShareMinor: number;
+  /**
+   * What professionals earned in the period, reversals excluded (v2).
+   *
+   * Beside the split rather than subtracted from it: an earning is recorded at
+   * completion and an allocation at payment, so the two land in different
+   * periods at the edges, and a subtraction would be wrong by exactly those.
+   */
+  professionalShareMinor: number;
   refundedMinor: number;
   membershipMinor: number;
   paidConsultations: number;
@@ -232,7 +241,7 @@ export async function financialSummary(
 ): Promise<FinancialSummary> {
   const window = { gte: period.from, lte: period.to };
 
-  const [allocations, reversed, refunds, membership] = await Promise.all([
+  const [allocations, reversed, refunds, membership, earnings] = await Promise.all([
     db.revenueAllocation.findMany({
       where: { calculatedAt: window, reversedAt: null },
       select: {
@@ -253,6 +262,10 @@ export async function financialSummary(
       where: { status: 'SUCCESS', paidAt: window, doctorSubscriptionId: { not: null } },
       _sum: { amountMinor: true },
     }),
+    db.professionalEarning.aggregate({
+      where: { calculatedAt: window, reversedAt: null },
+      _sum: { professionalShareMinor: true },
+    }),
   ]);
 
   const sum = (field: keyof (typeof allocations)[number]) =>
@@ -266,6 +279,7 @@ export async function financialSummary(
     netMinor: sum('netMinor'),
     pharmacyShareMinor: sum('pharmacyShareMinor'),
     neemShareMinor: sum('neemShareMinor'),
+    professionalShareMinor: earnings._sum.professionalShareMinor ?? 0,
     refundedMinor: refunds._sum.amountMinor ?? 0,
     // A doctor's membership is Neem income with no pharmacy share, so it is
     // reported beside the split rather than inside it.

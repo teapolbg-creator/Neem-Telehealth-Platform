@@ -249,3 +249,20 @@ export async function setDirectChannelEnabled(enabled: boolean): Promise<void> {
 
   invalidateSettingsCache(SETTING_KEYS.CHANNELS_DIRECT_ENABLED);
 }
+
+/**
+ * Turns the doctor membership requirement on or off for one test.
+ *
+ * The fee was dropped (D53), so it is off by default. The capability is kept
+ * rather than deleted — an administrator can turn it back on — and the files
+ * that cover it ask for it here, as the SMS tests do, so it stays proven while
+ * switched off in production.
+ */
+export async function setMembershipRequired(required: boolean): Promise<void> {
+  await getPrisma().systemSetting.update({
+    where: { key: SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED },
+    data: { value: required },
+  });
+
+  invalidateSettingsCache(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED);
+}

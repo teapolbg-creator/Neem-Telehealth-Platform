@@ -69,8 +69,8 @@ describe('creating a consultation', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.data?.state).toBe('PENDING_PAYMENT');
-    // The seeded default is GH₵40.00 — read from system_settings (spec §38).
-    expect(response.body.data?.net).toEqual({ amountMinor: 4000, currency: 'GHS' });
+    // The seeded default is GH₵50.00 (D53) — read from system_settings (spec §38).
+    expect(response.body.data?.net).toEqual({ amountMinor: 5000, currency: 'GHS' });
     expect(response.body.data?.secondsRemaining).toBeGreaterThan(0);
   });
 
@@ -175,12 +175,12 @@ describe('payment', () => {
 
     const allocations = await getPrisma().revenueAllocation.findMany();
     expect(allocations).toHaveLength(1);
-    // 30% of GH₵40.00, with the remainder to Neem (spec §39).
+    // 20% of GH₵50.00 to the pharmacy, the remainder after it (D53, spec §39).
     expect(allocations[0]).toMatchObject({
-      netMinor: 4000,
-      pharmacySharePctBp: 3000,
-      pharmacyShareMinor: 1200,
-      neemShareMinor: 2800,
+      netMinor: 5000,
+      pharmacySharePctBp: 2000,
+      pharmacyShareMinor: 1000,
+      neemShareMinor: 4000,
     });
   });
 
@@ -710,7 +710,7 @@ describe('webhooks (spec §68)', () => {
       JSON.stringify({
         id: 'evt_duplicate_test',
         event: 'charge.completed',
-        data: { reference, status: 'success', amount: 4000, currency: 'GHS' },
+        data: { reference, status: 'success', amount: 5000, currency: 'GHS' },
       }),
     );
     const signature = provider.signWebhook(body);

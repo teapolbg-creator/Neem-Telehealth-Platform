@@ -1564,3 +1564,50 @@ is refused.
   so there is no legitimate remote target to allow for.
 
 Covered by `tests/unit/seed-demo-guard.test.ts`.
+
+---
+
+### D53 — Counter doctors are paid by share, and the membership fee is dropped · 2026-09-18 · **DECIDED**
+
+**Issue.** v2 pays its professionals a share of each consultation. The counter
+paid its doctors a salary — GHS 8,000 a month full-time, pro rata below 40
+hours — and charged them a six-month membership fee. Running both side by side
+meant two ways of paying the same doctor for the same kind of work, and a
+counter price (GHS 30 in production) that differed from v2's GHS 50 for the
+same general consultation.
+
+**Decision, by the operator.**
+
+- **Price.** A counter consultation is GHS 50, the same as a general
+  consultation booked directly.
+- **Split.** The pharmacy keeps **20% of what the patient paid**, on the same
+  basis as before. The provider's fee comes off what is left, and the doctor and
+  Neem **split the remainder 50/50**. On GHS 50 with a GHS 1 fee: pharmacy 10,
+  doctor 19.50, Neem 19.50.
+- **Cut-over.** Counter doctors are salaried to the end of September and paid by
+  share from **1 October 2026**. Payroll shows no salary from October; a counter
+  consultation earns a share only if it completes on or after the cut-over.
+- **Membership.** Dropped. Not sold, not warned about, and nobody suspended for
+  a lapsed one — **effective on deploy, not at the cut-over**. A membership runs
+  six months and a lapsed one suspends the doctor, so keeping it until the 1st
+  would have forced anyone lapsing in late September to buy six months of a fee
+  that no longer exists, or be suspended. Existing records are kept; the switch
+  is `doctor.membershipRequired`.
+
+**How it is held.**
+
+- The pharmacy's share is read from the settlement snapshot, not recomputed —
+  the doctor is paid out of the same figure the pharmacy was credited.
+- `revenue.counterShareFrom` must be the first of a month. The salary is
+  monthly; a cut-over on the 15th would pay the second half of that month twice.
+- Price and pharmacy share are seeded defaults for new environments. A live
+  environment keeps what its administrator set until they change it — in
+  production that is two admin-setting changes, and telling pharmacies first.
+
+**Found on the way.** A patient-direct consultation was being split as though a
+pharmacy took part, recording a 30% pharmacy share that belonged to no one.
+Payouts skip rows without a pharmacy, so no money went astray, but the finance
+summary would have reported it as paid to pharmacies. Direct consultations now
+record none. No production data was affected; none exists yet.
+
+Covered by `tests/integration/counter-doctor-share.test.ts`.

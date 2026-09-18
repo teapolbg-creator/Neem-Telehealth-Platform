@@ -60,7 +60,24 @@ function DoctorMembership() {
           </div>
         )}
 
-        {data && (
+        {/*
+          The fee was dropped (2026-09-18). Said in words rather than by hiding
+          the page, because a doctor who paid one will come looking for it.
+        */}
+        {data && !data.required && (
+          <div className="card-soft mt-6 flex items-start gap-3 p-6">
+            <BadgeCheck className="mt-0.5 size-5 shrink-0 text-medical" />
+            <div className="text-sm text-slate-600">
+              <p className="font-bold text-slate-900">Membership is no longer required.</p>
+              <p className="mt-1 leading-relaxed">
+                There is nothing to pay and nothing to renew. You now earn a share of each
+                consultation you complete instead, shown under Earnings.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {data && data.required && (
           <>
             {data.suspendedForNonPayment && (
               <div className="card-soft mt-6 flex items-start gap-3 border-red-200 bg-red-50 p-6">

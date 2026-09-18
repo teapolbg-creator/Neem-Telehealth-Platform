@@ -222,7 +222,9 @@ export async function settlePayment(
   const payment = await db.payment.findUnique({
     where: { providerReference: verified.providerReference },
     include: {
-      consultation: { select: { id: true, state: true, netMinor: true, currency: true } },
+      consultation: {
+        select: { id: true, state: true, netMinor: true, currency: true, pharmacyId: true },
+      },
     },
   });
 
@@ -372,7 +374,16 @@ export async function settlePayment(
     return settleAfterClose(payment, consultation, verified, context, db, clock);
   }
 
-  const pharmacySharePctBp = await getIntSetting(SETTING_KEYS.REVENUE_PHARMACY_BP, db);
+  /*
+   * No pharmacy, no pharmacy share (v2). A patient-direct consultation used to
+   * be split like a counter one, recording a pharmacy share that belonged to
+   * nobody: no money went astray — payouts skip a row with no pharmacy — but
+   * the finance summary reported it as paid to pharmacies and understated
+   * Neem's own share by the same amount.
+   */
+  const pharmacySharePctBp = consultation.pharmacyId
+    ? await getIntSetting(SETTING_KEYS.REVENUE_PHARMACY_BP, db)
+    : 0;
   const now = clock.now();
 
   await db.$transaction(async (tx) => {

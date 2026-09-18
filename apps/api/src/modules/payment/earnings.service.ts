@@ -3,7 +3,7 @@ import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts'
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { splitRevenue } from '../../lib/money.ts';
-import { getBooleanSetting, getIntSetting } from '../settings/settings.service.ts';
+import { getBooleanSetting, getIntSetting, getSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 
@@ -31,12 +31,30 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
  */
 
 /**
- * Only patient-direct consultations earn a share.
+ * The first day a counter consultation earns its doctor a share (§7.6).
  *
- * Counter consultations are worked by salaried doctors and paid through
- * payroll (spec §26); recording a share for one as well would pay for the same
- * hour twice. Whether that arrangement should change is business decision §7.6
- * and is not something this module may assume.
+ * Doctors were salaried, and are paid by share from this date — the operator's
+ * decision of 2026-09-18. Before it, a counter consultation earns nothing here,
+ * because the salary already paid for that hour. Always the first of a month,
+ * which the settings service enforces: the salary is monthly.
+ */
+export async function counterShareFrom(db: Db = getPrisma()): Promise<Date> {
+  const value = String(await getSetting(SETTING_KEYS.REVENUE_COUNTER_SHARE_FROM, db));
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+/**
+ * Records what the professional earned from a completed consultation.
+ *
+ * **Patient-direct:** the provider's fee comes off, and what is left is split
+ * between the professional and Neem.
+ *
+ * **Counter, from the cut-over:** the pharmacy's share comes off first — of
+ * what the patient paid, exactly as it always has, read from the settlement
+ * snapshot rather than recomputed — then the fee, then the same split. On a
+ * GHS 50 consultation at 20% and 50%, that is pharmacy 10, and doctor and Neem
+ * half each of 40 less the fee. Before the cut-over a counter consultation
+ * earns nothing here: the doctor's salary paid for it.
  */
 export async function recordEarning(
   consultationId: string,
@@ -66,6 +84,8 @@ export async function recordEarning(
       doctorId: true,
       netMinor: true,
       currency: true,
+      completedAt: true,
+      revenue: { select: { pharmacyShareMinor: true, reversedAt: true } },
       doctor: { select: { discipline: true } },
       payments: {
         where: { status: 'SUCCESS' },
@@ -77,11 +97,27 @@ export async function recordEarning(
   });
 
   if (!consultation) return false;
-  if (consultation.channel !== 'DIRECT') return false;
   if (!consultation.doctorId || !consultation.doctor) return false;
 
   const payment = consultation.payments[0];
   if (!payment) return false;
+
+  let pharmacyShareMinor = 0;
+
+  if (consultation.channel === 'COUNTER') {
+    const from = await counterShareFrom(db);
+    const completedAt = consultation.completedAt ?? clock.now();
+    // Salaried work. Recording a share as well would pay for it twice.
+    if (completedAt < from) return false;
+
+    /*
+     * The pharmacy's share as it was fixed when the money cleared. Recomputing
+     * it here from today's setting would pay the doctor out of a different
+     * figure from the one the pharmacy was actually credited.
+     */
+    if (!consultation.revenue || consultation.revenue.reversedAt) return false;
+    pharmacyShareMinor = consultation.revenue.pharmacyShareMinor;
+  }
 
   /*
    * The fee comes off first, so the cost of collecting the money is shared
@@ -89,15 +125,16 @@ export async function recordEarning(
    * about is split on the gross and says `feeMinor: 0`, which a reconciliation
    * can see; it is never a silently assumed zero inside an arithmetic.
    */
-  const feeMinor = Math.min(payment.feeMinor ?? 0, consultation.netMinor);
+  const afterPharmacy = consultation.netMinor - pharmacyShareMinor;
+  const feeMinor = Math.min(payment.feeMinor ?? 0, afterPharmacy);
   if (payment.feeMinor === null) {
     getLogger().warn(
       { consultationId, paymentId: payment.id },
-      'no provider fee recorded; splitting the gross',
+      'no provider fee recorded; splitting without one',
     );
   }
 
-  const netMinor = consultation.netMinor - feeMinor;
+  const netMinor = afterPharmacy - feeMinor;
 
   /*
    * The platform's one split function, invariant and rounding included. Its
@@ -117,6 +154,7 @@ export async function recordEarning(
         paymentId: payment.id,
         doctorId: consultation.doctorId,
         grossMinor: consultation.netMinor,
+        pharmacyShareMinor,
         feeMinor,
         netMinor,
         professionalSharePctBp: shareBp,
@@ -182,6 +220,8 @@ export interface EarningStatement {
     consultationReference: string;
     completedAt: string | null;
     grossMinor: number;
+    /** The pharmacy's 20% of a counter consultation; zero for a direct one. */
+    pharmacyShareMinor: number;
     /** Taken off before the share was worked out. */
     feeMinor: number;
     netMinor: number;
@@ -222,6 +262,7 @@ export async function earningStatement(
       consultationReference: row.consultation.publicId,
       completedAt: row.consultation.completedAt?.toISOString() ?? null,
       grossMinor: row.grossMinor,
+      pharmacyShareMinor: row.pharmacyShareMinor,
       feeMinor: row.feeMinor,
       netMinor: row.netMinor,
       sharePctBp: row.professionalSharePctBp,

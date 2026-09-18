@@ -147,6 +147,8 @@ export function usePharmacyFinance() {
 // ---------------------------------------------------------------------------
 
 export interface Membership {
+  /** False once the fee has been dropped. */
+  required: boolean;
   status: "NONE" | "PENDING" | "ACTIVE" | "GRACE" | "EXPIRED" | "CANCELLED";
   periodStart: string | null;
   periodEnd: string | null;
@@ -222,6 +224,8 @@ export function useMembershipPaymentStatus(enabled: boolean) {
 // ---------------------------------------------------------------------------
 
 export interface DoctorEarnings {
+  /** Salary until the cut-over; a share of each consultation from it. */
+  paidBy: "SALARY" | "SHARE";
   period: { isoYear: number; fromIsoWeek: number; toIsoWeek: number };
   contractedHoursPerWeek: number | null;
   employmentType: string | null;
@@ -237,6 +241,40 @@ export function useDoctorEarnings() {
   return useQuery({
     queryKey: ["doctor", "earnings"],
     queryFn: ({ signal }) => api.get<DoctorEarnings>("/doctor/earnings", signal),
+  });
+}
+
+export interface EarningStatement {
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  totalMinor: number;
+  consultations: number;
+  lines: Array<{
+    consultationReference: string;
+    completedAt: string | null;
+    grossMinor: number;
+    pharmacyShareMinor: number;
+    feeMinor: number;
+    netMinor: number;
+    sharePctBp: number;
+    shareMinor: number;
+    reversed: boolean;
+  }>;
+}
+
+/** This month's share, consultation by consultation — the professional's own only. */
+export function useEarningStatement() {
+  const now = new Date();
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+
+  return useQuery({
+    queryKey: ["doctor", "earnings", "statement", from],
+    queryFn: ({ signal }) =>
+      api.get<EarningStatement>(
+        `/doctor/earnings/statement?from=${encodeURIComponent(from)}&to=${encodeURIComponent(now.toISOString())}`,
+        signal,
+      ),
   });
 }
 

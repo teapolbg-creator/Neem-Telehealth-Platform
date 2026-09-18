@@ -150,6 +150,20 @@ export async function updateSetting(
 
   await assertProfessionalShareIsUsable(key, value, db);
 
+  /*
+   * The first of a month, and nothing else. The salary it replaces is a
+   * monthly figure, so a cut-over on the 15th would pay the second half of
+   * that month twice — once as salary, once as shares.
+   */
+  if (key === SETTING_KEYS.REVENUE_COUNTER_SHARE_FROM) {
+    const match = /^(\d{4})-(\d{2})-01$/.exec(String(value));
+    if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) {
+      throw errors.businessRule(
+        'The counter share must start on the first of a month, written YYYY-MM-01.',
+      );
+    }
+  }
+
   await db.systemSetting.update({
     where: { key },
     data: { value: value as never, updatedByAdminId: context.adminId },

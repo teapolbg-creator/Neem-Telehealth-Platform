@@ -1270,12 +1270,12 @@ describe('payment manipulation (spec §79)', () => {
     );
 
     expect(created.status).toBe(201);
-    expect(created.body.data?.net.amountMinor).toBe(4000);
+    expect(created.body.data?.net.amountMinor).toBe(5000);
 
     const row = await prisma.consultation.findUniqueOrThrow({
       where: { publicId: created.body.data!.publicId },
     });
-    expect(row.netMinor).toBe(4000);
+    expect(row.netMinor).toBe(5000);
     expect(row.discountMinor).toBe(0);
   });
 
@@ -1307,7 +1307,7 @@ describe('payment manipulation (spec §79)', () => {
     const body = JSON.stringify({
       id: 'evt_forged',
       event: 'charge.success',
-      data: { reference, status: 'success', amount: 4000, currency: 'GHS' },
+      data: { reference, status: 'success', amount: 5000, currency: 'GHS' },
     });
 
     // A perfectly-shaped success event for a real reference, with a signature
@@ -1374,7 +1374,7 @@ describe('payment manipulation (spec §79)', () => {
     const body = JSON.stringify({
       id: 'evt_replay',
       event: 'charge.success',
-      data: { reference, status: 'success', amount: 4000, currency: 'GHS' },
+      data: { reference, status: 'success', amount: 5000, currency: 'GHS' },
     });
     const secret = getEnv().PAYSTACK_WEBHOOK_SECRET || getEnv().SESSION_SECRET;
     const signature = createHmac('sha512', secret).update(Buffer.from(body)).digest('hex');
