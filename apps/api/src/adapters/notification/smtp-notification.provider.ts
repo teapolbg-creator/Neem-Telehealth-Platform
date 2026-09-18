@@ -20,25 +20,70 @@ import {
  * would be slower and would exhaust a relay's connection limit under any real
  * load.
  */
+/**
+ * Who a message is actually sent to (v2 plan §9).
+ *
+ * On staging every message goes to one internal inbox, and the subject says
+ * who it was meant for — so a tester can still follow a journey, and a test
+ * record carrying somebody's real address never reaches them. The config
+ * loader requires the redirect on staging and refuses it in production.
+ */
+export function addressFor(
+  input: Pick<SendMessageInput, 'to' | 'subject'>,
+  redirect: string | undefined,
+): { to: string; subject: string } {
+  const subject = input.subject ?? 'Neem';
+  if (!redirect) return { to: input.to, subject };
+
+  return { to: redirect, subject: `[staging → ${input.to}] ${subject}` };
+}
+
+export type SmtpTarget = 'smtp' | 'mailhog';
+
+/**
+ * Where a message actually goes.
+ *
+ * `mailhog` means the local catcher and nothing else: its own host and port,
+ * no credentials, no TLS. The SMTP_* settings are not read at all in that
+ * mode, so a development `.env` that also holds a real mailbox's credentials
+ * cannot send through it by accident — which is what the mode's name has
+ * always promised and, until this function, did not do.
+ */
+export function smtpTransportOptions(
+  target: SmtpTarget,
+  env: Pick<
+    ReturnType<typeof getEnv>,
+    'SMTP_HOST' | 'SMTP_PORT' | 'SMTP_USER' | 'SMTP_PASSWORD' | 'MAILHOG_HOST' | 'MAILHOG_SMTP_PORT'
+  >,
+) {
+  if (target === 'mailhog') {
+    return { host: env.MAILHOG_HOST, port: env.MAILHOG_SMTP_PORT, secure: false };
+  }
+
+  return {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    // Implicit TLS on 465; STARTTLS is negotiated on everything else.
+    secure: env.SMTP_PORT === 465,
+    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+  };
+}
+
 export class SmtpNotificationProvider implements NotificationProvider {
-  readonly name = 'smtp';
+  readonly name: string;
   readonly channel: NotificationChannel = 'EMAIL';
   readonly isMock = false;
 
   private transporter: Transporter | undefined;
 
+  constructor(private readonly target: SmtpTarget = 'smtp') {
+    this.name = target;
+  }
+
   private transport(): Transporter {
     if (this.transporter) return this.transporter;
 
-    const env = getEnv();
-
-    this.transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      // Implicit TLS on 465; STARTTLS is negotiated on everything else.
-      secure: env.SMTP_PORT === 465,
-      auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
-    });
+    this.transporter = nodemailer.createTransport(smtpTransportOptions(this.target, getEnv()));
 
     return this.transporter;
   }
@@ -48,11 +93,13 @@ export class SmtpNotificationProvider implements NotificationProvider {
       throw new PermanentDeliveryError(`Not an email address: ${input.to}`);
     }
 
+    const addressed = addressFor(input, getEnv().STAGING_EMAIL_REDIRECT);
+
     try {
       const info = await this.transport().sendMail({
         from: getEnv().SMTP_FROM,
-        to: input.to,
-        subject: input.subject ?? 'Neem',
+        to: addressed.to,
+        subject: addressed.subject,
         text: input.body,
         headers: {
           // Ties a bounce back to our own notification row without putting

@@ -73,9 +73,43 @@ export const PROVIDER_MODES = {
   whatsapp: ['mock'],
 } as const;
 
+/**
+ * `KEY=` in a `.env` file arrives as an empty string, not as nothing.
+ *
+ * For a plain optional string that is harmless. For one that is validated —
+ * an email address, an enum — it is a boot failure over a line that plainly
+ * means "not set", which is exactly how `.env.example` ships these.
+ */
+function blankIsUnset<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema);
+}
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    /**
+     * Which deployment this is, as distinct from how it was built (v2 plan §9).
+     *
+     * Staging runs a production build — NODE_ENV=production, real providers,
+     * every production guard — so NODE_ENV alone cannot tell it from the live
+     * service. This can, and the guards below use it for the one difference
+     * that matters most: staging must never be able to take real money, and
+     * production must never quietly take none.
+     *
+     * Left unset, a production build is taken to be production. That is the
+     * safe reading, and it means the live service needs no change to adopt
+     * this.
+     */
+    DEPLOY_ENV: blankIsUnset(z.enum(['development', 'staging', 'production']).optional()),
+    /**
+     * Staging only: every email is delivered here instead of to its recipient.
+     *
+     * A staging service cannot use the mock email provider — production builds
+     * refuse mocks — so it sends real email. This is what keeps that email from
+     * reaching a real doctor, pharmacist or patient whose address is in a test
+     * record. Required in staging, refused in production.
+     */
+    STAGING_EMAIL_REDIRECT: blankIsUnset(z.string().email().optional()),
     API_PORT: port.default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
     /**
@@ -108,6 +142,23 @@ const envSchema = z
       .toLowerCase()
       .transform((value) => value.replace(/^\./, '') || undefined)
       .optional(),
+    /**
+     * The CSRF cookie's name. Production keeps the default.
+     *
+     * The cookie is set on the parent domain (D47), so every host beneath it
+     * receives it — including a staging service on the same domain. Two
+     * services sharing one cookie name there means the browser holds two
+     * `neem_csrf` cookies, the app reads whichever comes first, and a signed-in
+     * change on staging is refused whenever that is production's. A staging
+     * service therefore names its own, and the web build is told the same name
+     * through VITE_CSRF_COOKIE_NAME.
+     */
+    CSRF_COOKIE_NAME: blankIsUnset(
+      z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{2,40}$/, 'Lowercase letters, digits and underscores.')
+        .default('neem_csrf'),
+    ),
     // 'silent' is a real pino level and is what test runs use.
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
@@ -235,6 +286,16 @@ const envSchema = z
 
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: port.default(1025),
+    /**
+     * Where `EMAIL_PROVIDER=mailhog` delivers, and the only place it does.
+     *
+     * Separate from SMTP_HOST on purpose. `mailhog` used to mean "the SMTP
+     * provider, pointed at whatever SMTP_HOST says" — so a development `.env`
+     * carrying real mailbox credentials sent real email while its provider
+     * line promised a local catcher. It did, once, during testing.
+     */
+    MAILHOG_HOST: z.string().default('localhost'),
+    MAILHOG_SMTP_PORT: port.default(1025),
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: z.string().default('Neem <no-reply@neem.local>'),
@@ -437,6 +498,10 @@ const envSchema = z
         });
       }
 
+      for (const issue of deploymentIssues(env)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, ...issue });
+      }
+
       /**
        * Rate limits raised for local development must never reach production.
        *
@@ -464,6 +529,108 @@ const envSchema = z
       }
     }
   });
+
+/**
+ * What staging and production must each refuse (v2 plan §9).
+ *
+ * Paystack's test and live keys differ only by a prefix, and before this
+ * nothing in the code looked at it. A staging service is a production build,
+ * so it would have booted happily on live keys and charged real patients for
+ * test bookings — the one outcome a staging environment exists to rule out.
+ * The reverse is quieter and nearly as bad: production on test keys takes no
+ * money at all, while every consultation it activates looks paid.
+ *
+ * Only called for production builds, which is every build either can be.
+ */
+function deploymentIssues(env: {
+  DEPLOY_ENV?: 'development' | 'staging' | 'production';
+  CSRF_COOKIE_NAME: string;
+  PAYMENT_PROVIDER: string;
+  PAYSTACK_SECRET_KEY?: string;
+  PAYSTACK_PUBLIC_KEY?: string;
+  SMS_PROVIDER: string;
+  STAGING_EMAIL_REDIRECT?: string;
+}): Array<{ path: string[]; message: string }> {
+  const deploy = env.DEPLOY_ENV ?? 'production';
+  const paystack = env.PAYMENT_PROVIDER === 'paystack';
+  const issues: Array<{ path: string[]; message: string }> = [];
+
+  if (deploy === 'development') {
+    issues.push({
+      path: ['DEPLOY_ENV'],
+      message:
+        'DEPLOY_ENV=development on a production build. A server is staging or production; ' +
+        'say which, because the guards that keep test and live money apart depend on it.',
+    });
+  }
+
+  if (deploy === 'staging') {
+    if (paystack && env.PAYSTACK_SECRET_KEY?.startsWith('sk_live_')) {
+      issues.push({
+        path: ['PAYSTACK_SECRET_KEY'],
+        message:
+          'Staging is configured with a LIVE Paystack secret key. Every test booking would ' +
+          'charge a real account. Use the sk_test_ key from the Paystack dashboard.',
+      });
+    }
+    if (paystack && env.PAYSTACK_PUBLIC_KEY?.startsWith('pk_live_')) {
+      issues.push({
+        path: ['PAYSTACK_PUBLIC_KEY'],
+        message: 'Staging is configured with a LIVE Paystack public key. Use the pk_test_ key.',
+      });
+    }
+    if (!env.STAGING_EMAIL_REDIRECT) {
+      issues.push({
+        path: ['STAGING_EMAIL_REDIRECT'],
+        message:
+          'Staging sends real email — production builds refuse the mock — so it must be told ' +
+          'where to send it. Set STAGING_EMAIL_REDIRECT to one internal inbox; otherwise a ' +
+          'test record with a real address reaches a real person.',
+      });
+    }
+    if (env.CSRF_COOKIE_NAME === 'neem_csrf') {
+      issues.push({
+        path: ['CSRF_COOKIE_NAME'],
+        message:
+          'Staging is using the production CSRF cookie name. Production sets that cookie on ' +
+          'the whole parent domain, so a browser that has used both would hold two with the ' +
+          'same name and staging would refuse signed-in changes at random. Set ' +
+          'CSRF_COOKIE_NAME (and VITE_CSRF_COOKIE_NAME on the staging web build) to ' +
+          'something like neem_staging_csrf.',
+      });
+    }
+    if (env.SMS_PROVIDER !== 'none') {
+      issues.push({
+        path: ['SMS_PROVIDER'],
+        message:
+          `SMS_PROVIDER="${env.SMS_PROVIDER}" on staging. Staging sends no SMS (plan §9): there ` +
+          'is no redirect for a text message, so a test notification would reach a real phone. ' +
+          'Set SMS_PROVIDER=none.',
+      });
+    }
+  }
+
+  if (deploy === 'production') {
+    if (paystack && env.PAYSTACK_SECRET_KEY?.startsWith('sk_test_')) {
+      issues.push({
+        path: ['PAYSTACK_SECRET_KEY'],
+        message:
+          'Production is configured with a TEST Paystack secret key. No money would move, and ' +
+          'every consultation would still activate as though it had been paid for.',
+      });
+    }
+    if (env.STAGING_EMAIL_REDIRECT) {
+      issues.push({
+        path: ['STAGING_EMAIL_REDIRECT'],
+        message:
+          'STAGING_EMAIL_REDIRECT is set in production. Every email — including the doctor ' +
+          'offers the queue depends on — would go to one inbox instead of its recipient.',
+      });
+    }
+  }
+
+  return issues;
+}
 
 /** Whether a cookie set for `domain` is visible on `host`: the domain itself or a subdomain of it. */
 function hostWithin(host: string, domain: string): boolean {

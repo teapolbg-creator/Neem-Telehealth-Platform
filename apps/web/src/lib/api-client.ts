@@ -12,7 +12,12 @@ import { ERROR_CODES, type ErrorCode } from "@neem/contracts";
  * appears to apply is independently enforced server-side (spec §92).
  */
 
-const CSRF_COOKIE = "neem_csrf";
+/**
+ * Must match the API's CSRF_COOKIE_NAME. Production keeps the default; a
+ * staging build sets its own, because production's cookie is visible on every
+ * host beneath the shared parent domain (D47).
+ */
+const CSRF_COOKIE = (import.meta.env.VITE_CSRF_COOKIE_NAME as string | undefined) || "neem_csrf";
 const CSRF_HEADER = "x-neem-csrf";
 
 export const API_BASE_URL =
@@ -52,6 +57,11 @@ export class ApiError extends Error {
     }
     return result;
   }
+}
+
+/** The CSRF token to echo on a mutation, for callers that build their own request. */
+export function readCsrfToken(): string | undefined {
+  return readCookie(CSRF_COOKIE);
 }
 
 function readCookie(name: string): string | undefined {

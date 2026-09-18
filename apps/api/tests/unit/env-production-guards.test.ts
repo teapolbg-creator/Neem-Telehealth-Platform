@@ -276,3 +276,107 @@ describe('the CSRF cookie domain', () => {
     ]);
   });
 });
+
+/**
+ * Staging and production, told apart (v2 plan §9).
+ *
+ * Both are production builds. Paystack's test and live keys differ only by a
+ * prefix, and nothing looked at it: staging would have booted on live keys and
+ * charged real accounts for test bookings, and production on test keys would
+ * have taken no money while activating every consultation as paid.
+ */
+describe('the deployment the build is running as', () => {
+  /** What a correctly configured staging service looks like. */
+  function stagingEnv(overrides: Record<string, string | undefined> = {}) {
+    return productionEnv({
+      DEPLOY_ENV: 'staging',
+      WEB_ORIGIN: 'https://staging-app.neem.example',
+      API_PUBLIC_URL: 'https://staging-api.neem.example',
+      PAYSTACK_SECRET_KEY: 'sk_test_not_a_real_key',
+      PAYSTACK_PUBLIC_KEY: 'pk_test_not_a_real_key',
+      SMS_PROVIDER: 'none',
+      HUBTEL_CLIENT_ID: undefined,
+      HUBTEL_CLIENT_SECRET: undefined,
+      HUBTEL_SENDER_ID: undefined,
+      STAGING_EMAIL_REDIRECT: 'staging-inbox@neem.example',
+      CSRF_COOKIE_NAME: 'neem_staging_csrf',
+      ...overrides,
+    });
+  }
+
+  const keys = (source: NodeJS.ProcessEnv) =>
+    collectIssues(source).map((issue) => issue.path.join('.'));
+
+  it('treats a production build with no DEPLOY_ENV as production, so the live service needs no change', () => {
+    expect(() => loadEnv(productionEnv())).not.toThrow();
+  });
+
+  it('accepts a correctly configured staging service', () => {
+    expect(keys(stagingEnv())).toEqual([]);
+  });
+
+  it('refuses staging on a live secret key — test bookings would charge real accounts', () => {
+    expect(keys(stagingEnv({ PAYSTACK_SECRET_KEY: 'sk_live_not_a_real_key' }))).toEqual([
+      'PAYSTACK_SECRET_KEY',
+    ]);
+  });
+
+  it('refuses staging on a live public key', () => {
+    expect(keys(stagingEnv({ PAYSTACK_PUBLIC_KEY: 'pk_live_not_a_real_key' }))).toEqual([
+      'PAYSTACK_PUBLIC_KEY',
+    ]);
+  });
+
+  it('refuses staging with nowhere to send its email, because it sends real email', () => {
+    expect(keys(stagingEnv({ STAGING_EMAIL_REDIRECT: undefined }))).toEqual([
+      'STAGING_EMAIL_REDIRECT',
+    ]);
+  });
+
+  it('refuses staging that could text a real phone', () => {
+    expect(
+      keys(
+        stagingEnv({
+          SMS_PROVIDER: 'hubtel',
+          HUBTEL_CLIENT_ID: 'id',
+          HUBTEL_CLIENT_SECRET: 'secret',
+          HUBTEL_SENDER_ID: 'Neem',
+        }),
+      ),
+    ).toEqual(['SMS_PROVIDER']);
+  });
+
+  it('refuses production on a test secret key — it would take no money', () => {
+    expect(keys(productionEnv({ PAYSTACK_SECRET_KEY: 'sk_test_not_a_real_key' }))).toEqual([
+      'PAYSTACK_SECRET_KEY',
+    ]);
+  });
+
+  it('refuses a staging email redirect in production, which would swallow every doctor offer', () => {
+    expect(keys(productionEnv({ STAGING_EMAIL_REDIRECT: 'somebody@neem.example' }))).toEqual([
+      'STAGING_EMAIL_REDIRECT',
+    ]);
+  });
+
+  it("refuses staging on production's CSRF cookie name, which the shared domain would collide", () => {
+    expect(keys(stagingEnv({ CSRF_COOKIE_NAME: undefined }))).toEqual(['CSRF_COOKIE_NAME']);
+  });
+
+  it('leaves production on the name it has always used', () => {
+    expect(loadEnv(productionEnv()).CSRF_COOKIE_NAME).toBe('neem_csrf');
+  });
+
+  it('refuses a server that calls itself development', () => {
+    expect(keys(productionEnv({ DEPLOY_ENV: 'development' }))).toEqual(['DEPLOY_ENV']);
+  });
+});
+
+describe('a blank line in .env', () => {
+  it('means unset, so the example file boots as it ships', () => {
+    // Blank redirect is no redirect; blank DEPLOY_ENV on a production build is
+    // production. Neither is a malformed value to be refused.
+    expect(() =>
+      loadEnv(productionEnv({ STAGING_EMAIL_REDIRECT: '', DEPLOY_ENV: '' })),
+    ).not.toThrow();
+  });
+});

@@ -1,0 +1,125 @@
+# Render blueprint for the Neem STAGING API (v2 plan §9, docs/staging.md).
+#
+# A second service, built from the same code as production and configured so
+# that it cannot touch anything real. Everything below that differs from
+# render.yaml differs for that reason, and the config loader enforces the parts
+# that matter when DEPLOY_ENV=staging — it refuses to boot rather than trusting
+# this file to have been copied correctly:
+#
+#   * Paystack TEST keys only. A live key is refused at boot.
+#   * Every email goes to STAGING_EMAIL_REDIRECT, one internal inbox.
+#   * SMS off. There is no way to redirect a text message.
+#   * Its own CSRF cookie name, because production's is set on the whole
+#     parent domain and would otherwise collide (D47).
+#   * Its own database — a separate Supabase project, never production's.
+#
+# Render reads render.yaml by default. Create this one as a separate Blueprint
+# and give it this file's path.
+
+services:
+  - type: web
+    name: neem-api-staging
+    runtime: node
+    # Same machine as production, for the same reason: the job sweeps run in
+    # process and must never sleep or run twice (see render.yaml).
+    plan: 0.5c-512mb
+    region: frankfurt # Must match the staging Supabase project's region.
+    # Its own branch, so v2 can be exercised here without being on `main` —
+    # which is what production deploys.
+    branch: staging
+
+    buildCommand: >-
+      npm ci --include=dev &&
+      npm run build --workspace @neem/contracts &&
+      npm run db:generate --workspace @neem/api &&
+      npm run build --workspace @neem/api
+
+    preDeployCommand: npm run db:deploy --workspace @neem/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/v1/health
+
+    disk:
+      name: neem-staging-uploads
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # The line that turns the staging guards on. Without it this is
+      # production as far as the loader is concerned.
+      - key: DEPLOY_ENV
+        value: staging
+
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_PATH
+        value: /var/data/uploads
+
+      # --- Set in the Render dashboard, never in this file -------------------
+      # The STAGING Supabase project's pooler URLs — see render.yaml for which
+      # host and port each needs. Never production's.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
+      # Fresh secrets, not copies of production's. A staging key that matched
+      # production's would decrypt production data if the two ever crossed.
+      - key: SESSION_SECRET
+        sync: false
+      - key: CSRF_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+
+      # --- Origins ------------------------------------------------------------
+      - key: WEB_ORIGIN
+        value: https://app.staging.neemtelehealth.com
+      - key: API_PUBLIC_URL
+        value: https://api.staging.neemtelehealth.com
+      - key: CSRF_COOKIE_DOMAIN
+        value: staging.neemtelehealth.com
+      # Must match VITE_CSRF_COOKIE_NAME on the staging web build.
+      - key: CSRF_COOKIE_NAME
+        value: neem_staging_csrf
+
+      # --- Providers ----------------------------------------------------------
+      - key: VIDEO_PROVIDER
+        value: whereby
+      - key: WHEREBY_API_KEY
+        sync: false
+
+      # TEST keys (sk_test_ / pk_test_). The loader refuses live ones here.
+      - key: PAYMENT_PROVIDER
+        value: paystack
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_RECEIPT_DOMAIN
+        value: receipts.staging.neemtelehealth.com
+
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_HOST
+        value: mail.privateemail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        value: hello@neemtelehealth.com
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        value: "Neem staging <hello@neemtelehealth.com>"
+      # Every email, whoever it is addressed to, lands here instead. Required
+      # on staging; the subject line keeps the intended recipient.
+      - key: STAGING_EMAIL_REDIRECT
+        sync: false
+
+      - key: VOICE_PROVIDER
+        value: none
+      - key: SMS_PROVIDER
+        value: none
+
+      - key: SEED_DEMO_DATA
+        value: "false"

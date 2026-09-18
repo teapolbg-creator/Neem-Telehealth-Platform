@@ -18,8 +18,15 @@ import { getEnv } from '../../config/env.ts';
  */
 
 export const SESSION_COOKIE = 'neem_session';
-export const CSRF_COOKIE = 'neem_csrf';
 export const CSRF_HEADER = 'x-neem-csrf';
+
+/**
+ * The CSRF cookie's name, which a staging service changes so it cannot collide
+ * with production's on a shared parent domain. See CSRF_COOKIE_NAME.
+ */
+export function csrfCookieName(): string {
+  return getEnv().CSRF_COOKIE_NAME;
+}
 
 export interface IssuedSession {
   sessionToken: string;

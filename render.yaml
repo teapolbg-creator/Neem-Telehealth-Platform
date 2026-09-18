@@ -180,9 +180,10 @@ services:
       # read by nothing, because Neem's payment flow is server-initiated and has
       # no frontend checkout widget to hand it to.
       #
-      # Use the LIVE pair here. Test keys belong on a developer's machine; the
-      # two differ only by an `sk_test_` / `sk_live_` prefix, and nothing in the
-      # code distinguishes them.
+      # Use the LIVE pair here. Test keys belong on a developer's machine and on
+      # staging (render.staging.yaml). The two differ only by an `sk_test_` /
+      # `sk_live_` prefix — which the config loader now reads: this service
+      # refuses to boot on a test secret key, and staging refuses a live one.
       - key: PAYMENT_PROVIDER
         value: paystack
       - key: PAYSTACK_SECRET_KEY

@@ -5,7 +5,7 @@ import type {
   PharmacyRegistration,
   PharmacySummary,
 } from "@neem/contracts";
-import { api, API_BASE_URL } from "@/lib/api-client";
+import { api, API_BASE_URL, readCsrfToken } from "@/lib/api-client";
 
 /**
  * Onboarding, verification and scheduling queries.
@@ -138,12 +138,14 @@ async function postDocument(
   form.append("documentType", input.documentType);
   form.append("file", input.file);
 
-  const csrf = document.cookie.match(/(?:^|;\s*)neem_csrf=([^;]*)/)?.[1];
+  // The same reader the JSON client uses, so a staging build's own cookie name
+  // is honoured here too rather than hard-coded a second time.
+  const csrf = readCsrfToken();
 
   const response = await fetch(`${API_BASE_URL}/api/v1${path}`, {
     method: "POST",
     credentials: "include",
-    headers: csrf ? { "x-neem-csrf": decodeURIComponent(csrf) } : {},
+    headers: csrf ? { "x-neem-csrf": csrf } : {},
     body: form,
   });
 

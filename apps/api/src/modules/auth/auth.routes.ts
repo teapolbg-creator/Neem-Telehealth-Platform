@@ -22,7 +22,7 @@ import {
   verifyTwoFactor,
 } from './auth.service.ts';
 import {
-  CSRF_COOKIE,
+  csrfCookieName,
   SESSION_COOKIE,
   revokeSession,
   type IssuedSession,
@@ -59,7 +59,7 @@ function setSessionCookies(reply: FastifyReply, session: IssuedSession) {
   // (D47). Being readable on sibling hosts gives them nothing to use: the
   // token is worthless without the session cookie, which stays host-only, and
   // CORS allows credentials for the app's origin only.
-  reply.setCookie(CSRF_COOKIE, session.csrfToken, {
+  reply.setCookie(csrfCookieName(), session.csrfToken, {
     httpOnly: false,
     secure,
     sameSite: 'lax',
@@ -73,12 +73,12 @@ function clearSessionCookies(reply: FastifyReply) {
   const domain = getEnv().CSRF_COOKIE_DOMAIN;
 
   reply.clearCookie(SESSION_COOKIE, { path: '/' });
-  reply.clearCookie(CSRF_COOKIE, { path: '/', domain });
+  reply.clearCookie(csrfCookieName(), { path: '/', domain });
 
   // A host-only CSRF cookie set before the domain was configured would linger
   // beside the shared one. The browser holds them as two cookies, so removing
   // it takes a second clear.
-  if (domain) reply.clearCookie(CSRF_COOKIE, { path: '/' });
+  if (domain) reply.clearCookie(csrfCookieName(), { path: '/' });
 }
 
 /**
