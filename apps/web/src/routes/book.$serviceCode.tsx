@@ -123,6 +123,45 @@ function BookingFlow() {
  * not the address is already known to Neem, so this screen never becomes a way
  * of asking whether somebody is a patient.
  */
+/**
+ * Which address a code was just sent to, kept for this tab only.
+ *
+ * On a phone the patient leaves for their mail app to read the code, and the
+ * browser often reloads the page when they come back. Without this they land
+ * on "Your email address" again and the code they are holding looks useless.
+ * sessionStorage dies with the tab, and the entry is dropped after the code
+ * could have expired anyway; the API is what actually enforces expiry.
+ */
+const PENDING_KEY = "neem.patient.pendingSignIn";
+const PENDING_FOR_MS = 15 * 60 * 1000;
+
+function readPending(): string | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    const pending = JSON.parse(raw) as { contact?: string; sentAt?: number };
+    if (!pending.contact || !pending.sentAt || Date.now() - pending.sentAt > PENDING_FOR_MS) {
+      window.sessionStorage.removeItem(PENDING_KEY);
+      return null;
+    }
+    return pending.contact;
+  } catch {
+    return null;
+  }
+}
+
+function writePending(contact: string | null) {
+  try {
+    if (contact) {
+      window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ contact, sentAt: Date.now() }));
+    } else {
+      window.sessionStorage.removeItem(PENDING_KEY);
+    }
+  } catch {
+    // Private mode or blocked storage: the patient just re-enters their address.
+  }
+}
+
 function SignInPanel() {
   const [contact, setContact] = useState("");
   const [code, setCode] = useState("");
@@ -131,13 +170,28 @@ function SignInPanel() {
   const requestCode = useRequestSignInCode();
   const verify = useVerifySignInCode();
 
+  // Read after mount, not during render: the server has no sessionStorage.
+  useEffect(() => {
+    const pending = readPending();
+    if (pending) {
+      setContact(pending);
+      setSent(true);
+    }
+  }, []);
+
   if (!sent) {
     return (
       <form
         className="card-soft space-y-4 p-6"
         onSubmit={(event) => {
           event.preventDefault();
-          requestCode.mutate(contact.trim(), { onSuccess: () => setSent(true) });
+          const address = contact.trim();
+          requestCode.mutate(address, {
+            onSuccess: () => {
+              writePending(address);
+              setSent(true);
+            },
+          });
         }}
       >
         <div>
@@ -176,7 +230,10 @@ function SignInPanel() {
       className="card-soft space-y-4 p-6"
       onSubmit={(event) => {
         event.preventDefault();
-        verify.mutate({ contact: contact.trim(), code: code.trim() });
+        verify.mutate(
+          { contact: contact.trim(), code: code.trim() },
+          { onSuccess: () => writePending(null) },
+        );
       }}
     >
       <div>
@@ -209,6 +266,7 @@ function SignInPanel() {
       <button
         type="button"
         onClick={() => {
+          writePending(null);
           setSent(false);
           setCode("");
         }}
