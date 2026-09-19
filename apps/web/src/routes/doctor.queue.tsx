@@ -5,6 +5,7 @@ import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import {
+  consultationOrigin,
   useAcceptOffer,
   useCountdown,
   useGoOffline,
@@ -189,9 +190,7 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
             {offer.language?.label ?? "Consultation"} ·{" "}
             <span className="capitalize">{offer.type?.replace("_", " ").toLowerCase()}</span>
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {offer.pharmacy.name}, {offer.pharmacy.city}
-          </p>
+          <p className="mt-1 text-sm text-slate-500">{consultationOrigin(offer.pharmacy)}</p>
         </div>
 
         <div className="text-right">

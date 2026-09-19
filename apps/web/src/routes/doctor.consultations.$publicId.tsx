@@ -15,7 +15,7 @@ import { ClinicalWorkspace } from "@/components/neem/ClinicalWorkspace";
 import { CallStage } from "@/components/neem/CallStage";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
-import { useDoctorConsultation } from "@/features/queue/api";
+import { consultationOrigin, useDoctorConsultation } from "@/features/queue/api";
 import {
   useDoctorTimer,
   useJoinDoctorMedia,
@@ -105,7 +105,7 @@ function DoctorConsultation() {
             <h1 className="text-3xl font-bold">Consultation</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
               <MapPin className="size-4" />
-              {data.pharmacy.name}, {data.pharmacy.city}
+              {consultationOrigin(data.pharmacy)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -345,6 +345,7 @@ function PatientPanel({
   consultation,
 }: {
   consultation: {
+    pharmacy: { name: string; city: string } | null;
     patient: { fullName: string; age: number; sex: string } | null;
     vitals: Record<string, unknown> | null;
     tests: Array<{ code: string; label: string; result: string; recordedAt: string }>;
@@ -369,7 +370,7 @@ function PatientPanel({
       )}
 
       <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-slate-400">
-        Recorded at the pharmacy
+        {consultation.pharmacy ? "Recorded at the pharmacy" : "Recorded before the consultation"}
       </h3>
       {vitals ? (
         <dl className="mt-2 space-y-1.5 text-sm">

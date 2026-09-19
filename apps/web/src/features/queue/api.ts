@@ -73,10 +73,19 @@ export interface QueueOffer {
   consultationPublicId: string;
   type: string | null;
   language: { code: string; label: string } | null;
-  pharmacy: { name: string; city: string };
+  /** Null for a patient who booked on Neem themselves (v2). */
+  pharmacy: { name: string; city: string } | null;
   offeredAt: string;
   respondByAt: string;
   secondsRemaining: number;
+}
+
+/**
+ * Where a consultation came from, as the doctor is told it. A patient who
+ * booked online has no pharmacy, and saying so is the answer, not a blank.
+ */
+export function consultationOrigin(pharmacy: { name: string; city: string } | null): string {
+  return pharmacy ? `${pharmacy.name}, ${pharmacy.city}` : "Booked online by the patient";
 }
 
 export function useQueue(enabled: boolean) {
@@ -187,7 +196,8 @@ export interface DoctorConsultation {
   state: string;
   type: "AUDIO" | "VIDEO" | "CALL_ME" | null;
   language: { code: string; label: string } | null;
-  pharmacy: { name: string; city: string };
+  /** Null for a patient who booked on Neem themselves (v2). */
+  pharmacy: { name: string; city: string } | null;
   patient: { fullName: string; age: number; sex: string } | null;
   vitals: Record<string, unknown> | null;
   tests: Array<{ code: string; label: string; result: string; recordedAt: string }>;
