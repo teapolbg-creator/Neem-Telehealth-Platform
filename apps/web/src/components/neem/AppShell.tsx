@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { NeemLogo } from "@/components/neem/Logo";
 import { useLogout, useSession } from "@/features/auth/use-session";
 import { ApiError } from "@/lib/api-client";
+import { PERMISSIONS, type Permission } from "@neem/contracts";
 
 type AppKey = "pharmacy" | "doctor" | "admin";
 
@@ -19,7 +20,12 @@ type AppKey = "pharmacy" | "doctor" | "admin";
  * The patient portal deliberately does not use this shell: patients have no
  * account, no navigation, and a phone-first layout of their own.
  */
-const NAV: Record<AppKey, { label: string; to: string }[]> = {
+/**
+ * `permission`, where given, hides an item from somebody the API would refuse
+ * anyway — a dietitian has no substitutions to decide (v2). Presentation only;
+ * the route behind it still checks for itself.
+ */
+const NAV: Record<AppKey, { label: string; to: string; permission?: Permission }[]> = {
   pharmacy: [
     { label: "Dashboard", to: "/pharmacy" },
     { label: "New consultation", to: "/pharmacy/new" },
@@ -30,7 +36,12 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
   doctor: [
     { label: "Queue", to: "/doctor/queue" },
     { label: "Dashboard", to: "/doctor" },
-    { label: "Substitutions", to: "/doctor/substitutions" },
+    {
+      label: "Substitutions",
+      to: "/doctor/substitutions",
+      permission: PERMISSIONS.SUBSTITUTION_DECIDE,
+    },
+    { label: "Bookable hours", to: "/doctor/availability" },
     { label: "Earnings", to: "/doctor/earnings" },
     { label: "Membership", to: "/doctor/membership" },
     { label: "Onboarding", to: "/doctor/onboarding" },
@@ -41,7 +52,9 @@ const NAV: Record<AppKey, { label: string; to: string }[]> = {
     { label: "Scheduling", to: "/admin/scheduling" },
     { label: "Refunds", to: "/admin/refunds" },
     { label: "Payouts", to: "/admin/payouts" },
+    { label: "Professional pay", to: "/admin/professional-payouts" },
     { label: "Payroll", to: "/admin/payroll" },
+    { label: "Services", to: "/admin/services" },
     { label: "Promotions", to: "/admin/promotions" },
     { label: "Verification", to: "/admin/verification" },
     { label: "Pilot", to: "/admin/pilot" },
@@ -69,11 +82,11 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { user, isLoading } = useSession();
+  const { user, isLoading, can } = useSession();
   const logout = useLogout();
   const navigate = useNavigate();
 
-  const navItems = NAV[active] ?? [];
+  const navItems = (NAV[active] ?? []).filter((item) => !item.permission || can(item.permission));
   const initials = initialsFor(user?.displayName);
 
   // The shell renders regardless of session state; each route guards its own

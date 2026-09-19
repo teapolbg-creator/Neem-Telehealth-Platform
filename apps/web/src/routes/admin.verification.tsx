@@ -24,6 +24,12 @@ import {
   useExpiringLicences,
   useVerifyDocument,
 } from "@/features/onboarding/api";
+import {
+  DISCIPLINE_LABEL,
+  useAdminServices,
+  useSetProfession,
+  type Discipline,
+} from "@/features/professionals/api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/verification")({
@@ -185,7 +191,18 @@ function DoctorQueue({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold">{doctor.fullName}</p>
-                <p className="font-mono text-xs text-slate-500">{doctor.mdcNumber}</p>
+                {/*
+                  A dietitian or trainer has no MDC number; their registration
+                  line is shown instead, and what they are is said beside it.
+                */}
+                <p className="font-mono text-xs text-slate-500">
+                  {doctor.credential ?? doctor.mdcNumber}
+                </p>
+                {doctor.discipline !== "DOCTOR" ? (
+                  <p className="text-xs font-semibold text-medical">
+                    {DISCIPLINE_LABEL[doctor.discipline]}
+                  </p>
+                ) : null}
               </div>
               <Chip tone={STATUS_TONE[doctor.status] ?? "muted"}>
                 {doctor.status.replace("_", " ")}
@@ -259,7 +276,12 @@ function DoctorDetail({ publicId }: { publicId: string }) {
 
   const doctor = data as {
     fullName: string;
-    mdcNumber: string;
+    discipline: Discipline;
+    mdcNumber: string | null;
+    credential: string | null;
+    credentialType: string | null;
+    credentialNumber: string | null;
+    services: string[];
     mdcExpiresAt: string | null;
     specialty: string | null;
     yearsExperience: number | null;
@@ -287,11 +309,14 @@ function DoctorDetail({ publicId }: { publicId: string }) {
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-        <Detail label="MDC number" value={doctor.mdcNumber} mono />
-        <Detail
-          label="Licence expires"
-          value={doctor.mdcExpiresAt ? new Date(doctor.mdcExpiresAt).toLocaleDateString() : "—"}
-        />
+        <Detail label="Profession" value={DISCIPLINE_LABEL[doctor.discipline] ?? "Doctor"} />
+        <Detail label="Registration" value={doctor.credential ?? "—"} mono />
+        {doctor.discipline === "DOCTOR" ? (
+          <Detail
+            label="Licence expires"
+            value={doctor.mdcExpiresAt ? new Date(doctor.mdcExpiresAt).toLocaleDateString() : "—"}
+          />
+        ) : null}
         <Detail label="Experience" value={`${doctor.yearsExperience ?? "—"} years`} />
         <Detail label="Specialty" value={doctor.specialty ?? "—"} />
         <Detail label="Signature" value={doctor.hasSignature ? "Captured" : "Not captured"} />
@@ -299,8 +324,173 @@ function DoctorDetail({ publicId }: { publicId: string }) {
 
       <DocumentReview kind="doctors" heading="Credential documents" documents={doctor.documents} />
 
+      <ProfessionPanel
+        key={publicId}
+        publicId={publicId}
+        discipline={doctor.discipline}
+        credentialType={doctor.credentialType}
+        credentialNumber={doctor.credentialNumber}
+        services={doctor.services}
+      />
+
       <StatusActions kind="doctors" publicId={publicId} />
     </div>
+  );
+}
+
+/**
+ * What this professional is, and which services they deliver (v2).
+ *
+ * An administrator's decision, not theirs: discipline decides whether someone
+ * may prescribe, and joining the weight-loss clinic is what lets the queue
+ * offer them its patients. General practice needs no ticking; every doctor
+ * takes general consultations by default.
+ *
+ * Changing a doctor into anything else clears their MDC number, and the audit
+ * log records that it did.
+ */
+function ProfessionPanel({
+  publicId,
+  discipline: current,
+  credentialType,
+  credentialNumber,
+  services: joined,
+}: {
+  publicId: string;
+  discipline: Discipline;
+  credentialType: string | null;
+  credentialNumber: string | null;
+  services: string[];
+}) {
+  const catalogue = useAdminServices();
+  const save = useSetProfession(publicId);
+
+  const [discipline, setDiscipline] = useState<Discipline>(current);
+  const [body, setBody] = useState(credentialType ?? "");
+  const [number, setNumber] = useState(credentialNumber ?? "");
+  const [codes, setCodes] = useState<string[]>(joined);
+
+  // Only the clinic services a professional of this kind can deliver.
+  const offered = (catalogue.data ?? []).filter(
+    (service) => service.discipline === discipline && service.clinic !== "GENERAL",
+  );
+
+  const changingAwayFromDoctor = current === "DOCTOR" && discipline !== "DOCTOR";
+
+  return (
+    <section className="mt-6 border-t border-border pt-6">
+      <h3 className="text-sm font-bold">Profession and clinic</h3>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        What they are decides what they may issue: only a doctor prescribes or refers. Joining a
+        clinic service is what lets the queue offer them its patients.
+      </p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {(Object.keys(DISCIPLINE_LABEL) as Discipline[]).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => {
+              setDiscipline(value);
+              // A service for another profession is not theirs to keep.
+              setCodes([]);
+            }}
+            className={cn(
+              "rounded-xl border px-3 py-2.5 text-sm font-semibold",
+              discipline === value
+                ? "border-brand bg-brand/5 text-brand"
+                : "border-border text-slate-600 hover:bg-slate-50",
+            )}
+          >
+            {DISCIPLINE_LABEL[value]}
+          </button>
+        ))}
+      </div>
+
+      {discipline !== "DOCTOR" ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold">Registered with</span>
+            <input
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              className="input"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold">Registration number</span>
+            <input
+              value={number}
+              onChange={(event) => setNumber(event.target.value)}
+              className="input"
+            />
+          </label>
+        </div>
+      ) : null}
+
+      <div className="mt-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Clinic services</p>
+        {offered.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">
+            No clinic service is offered for this profession.
+          </p>
+        ) : (
+          <div className="mt-2 space-y-2">
+            {offered.map((service) => (
+              <label key={service.code} className="flex items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={codes.includes(service.code)}
+                  onChange={(event) =>
+                    setCodes((existing) =>
+                      event.target.checked
+                        ? [...existing, service.code]
+                        : existing.filter((code) => code !== service.code),
+                    )
+                  }
+                  className="size-4"
+                />
+                {service.name}
+                {!service.isActive ? (
+                  <span className="text-xs text-slate-400">(not currently offered)</span>
+                ) : null}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {changingAwayFromDoctor ? (
+        <p className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          Saving removes their MDC number and their right to prescribe or refer. It is recorded in
+          the audit log.
+        </p>
+      ) : null}
+
+      {save.error ? (
+        <p className="mt-3 text-sm text-red-600">
+          {save.error instanceof ApiError ? save.error.message : "Could not save."}
+        </p>
+      ) : null}
+      {save.isSuccess ? <p className="mt-3 text-sm text-medical">Saved.</p> : null}
+
+      <button
+        type="button"
+        disabled={save.isPending || (discipline !== "DOCTOR" && (!body.trim() || !number.trim()))}
+        onClick={() =>
+          save.mutate({
+            discipline,
+            credentialType: discipline === "DOCTOR" ? null : body.trim(),
+            credentialNumber: discipline === "DOCTOR" ? null : number.trim(),
+            serviceCodes: codes,
+          })
+        }
+        className="mt-4 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save profession"}
+      </button>
+    </section>
   );
 }
 

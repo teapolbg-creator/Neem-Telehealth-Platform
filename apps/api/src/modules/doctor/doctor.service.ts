@@ -43,8 +43,14 @@ export async function registerDoctor(
     );
   }
 
-  const mdcExpiresAt = new Date(input.mdcExpiresAt);
-  if (mdcExpiresAt <= clock.now()) {
+  /*
+   * Only a doctor holds an MDC licence, so only a doctor's is checked. The
+   * contract has already refused a doctor without one, and a dietitian or
+   * trainer with one (v2).
+   */
+  const isDoctor = input.discipline === 'DOCTOR';
+  const mdcExpiresAt = isDoctor && input.mdcExpiresAt ? new Date(input.mdcExpiresAt) : null;
+  if (mdcExpiresAt && mdcExpiresAt <= clock.now()) {
     throw errors.businessRule(
       'That MDC licence expiry date is in the past. A valid licence is required to apply.',
     );
@@ -84,9 +90,12 @@ export async function registerDoctor(
           publicId: generatePublicId('doc'),
           userId: user.id,
           fullName: input.fullName,
-          mdcNumber: input.mdcNumber,
-          mdcIssuedAt: input.mdcIssuedAt ? new Date(input.mdcIssuedAt) : null,
+          discipline: input.discipline,
+          mdcNumber: isDoctor ? (input.mdcNumber ?? null) : null,
+          mdcIssuedAt: isDoctor && input.mdcIssuedAt ? new Date(input.mdcIssuedAt) : null,
           mdcExpiresAt,
+          credentialType: isDoctor ? null : (input.credentialType ?? null),
+          credentialNumber: isDoctor ? null : (input.credentialNumber ?? null),
           qualifiedAt: new Date(input.qualifiedAt),
           yearsExperience: input.yearsExperience,
           specialty: input.specialty ?? null,
@@ -192,14 +201,20 @@ export async function changeDoctorStatus(
   if (next === 'ACTIVE') {
     const verifiedDocuments = doctor.documents.filter((document) => document.verifiedAt !== null);
 
+    // Said in terms of what they are: a trainer has no MDC licence to verify.
+    const credential =
+      doctor.discipline === 'DOCTOR'
+        ? 'their MDC licence'
+        : 'their registration with their professional body';
+
     if (verifiedDocuments.length === 0) {
       throw errors.businessRule(
-        'This doctor has no verified credential documents. Verify their MDC licence and identification before activating them.',
+        `This professional has no verified credential documents. Verify ${credential} and identification before activating them.`,
       );
     }
     if (doctor.signatures.length === 0) {
       throw errors.businessRule(
-        'This doctor has not captured a digital signature. They cannot sign prescriptions until they do.',
+        'This professional has not captured a digital signature. They cannot sign the documents they issue until they do.',
       );
     }
     if (doctor.mdcExpiresAt && doctor.mdcExpiresAt <= clock.now()) {

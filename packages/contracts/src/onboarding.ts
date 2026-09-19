@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { passwordSchema, emailSchema } from './auth.ts';
-import { DOCTOR_STATUSES, PHARMACY_STATUSES, EMPLOYMENT_TYPES } from './enums.ts';
+import {
+  DOCTOR_STATUSES,
+  PHARMACY_STATUSES,
+  EMPLOYMENT_TYPES,
+  PROFESSIONAL_DISCIPLINES,
+} from './enums.ts';
 
 /**
  * Pharmacy and doctor onboarding contracts (spec §20, §21).
@@ -112,15 +117,30 @@ export type PharmacySummary = z.infer<typeof pharmacySummarySchema>;
  */
 export const DOCTOR_MIN_YEARS_EXPERIENCE = 3;
 
-export const doctorRegistrationSchema = z.object({
+const professionalRegistrationFields = z.object({
   email: emailSchema,
   password: passwordSchema,
 
   fullName: z.string().trim().min(2).max(160),
-  /** Verified manually. Neem performs NO automated MDC lookup (spec §22). */
-  mdcNumber: z.string().trim().min(3).max(60),
+  /**
+   * What the applicant is (v2). Declared by them, and safe to let them
+   * declare: a dietitian or trainer can do less than a doctor — no
+   * prescribing, no referrals, never a doctor's consultation — so choosing one
+   * can only narrow an account. Claiming to be a doctor still needs an MDC
+   * number and an administrator's verification before anything is allowed.
+   */
+  discipline: z.enum(PROFESSIONAL_DISCIPLINES).default('DOCTOR'),
+  /**
+   * Verified manually. Neem performs NO automated MDC lookup (spec §22).
+   * Required of a doctor and of nobody else: an MDC number on a dietitian
+   * would claim a registration the Council never made.
+   */
+  mdcNumber: z.string().trim().min(3).max(60).optional(),
   mdcIssuedAt: z.string().date().optional(),
-  mdcExpiresAt: z.string().date(),
+  mdcExpiresAt: z.string().date().optional(),
+  /** A dietitian's or trainer's registering body, and their number with it. */
+  credentialType: z.string().trim().min(2).max(120).optional(),
+  credentialNumber: z.string().trim().min(2).max(60).optional(),
   qualifiedAt: z.string().date(),
   yearsExperience: z.number().int().min(0).max(70),
   specialty: z.string().trim().max(160).optional(),
@@ -132,10 +152,49 @@ export const doctorRegistrationSchema = z.object({
     .array(z.string().min(2).max(12))
     .min(1, 'Select at least one language you can consult in'),
 });
+
+export const doctorRegistrationSchema = professionalRegistrationFields.superRefine((input, ctx) => {
+  if (input.discipline === 'DOCTOR') {
+    if (!input.mdcNumber) {
+      ctx.addIssue({ code: 'custom', path: ['mdcNumber'], message: 'Your MDC number is required' });
+    }
+    if (!input.mdcExpiresAt) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mdcExpiresAt'],
+        message: 'Your MDC licence expiry date is required',
+      });
+    }
+    return;
+  }
+
+  if (input.mdcNumber) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['mdcNumber'],
+      message: 'Only a doctor registers with an MDC number',
+    });
+  }
+  if (!input.credentialType || !input.credentialNumber) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['credentialNumber'],
+      message: 'Your registering body and registration number are required',
+    });
+  }
+});
 export type DoctorRegistration = z.infer<typeof doctorRegistrationSchema>;
 
-export const doctorProfileUpdateSchema = doctorRegistrationSchema
-  .omit({ email: true, password: true, mdcNumber: true })
+export const doctorProfileUpdateSchema = professionalRegistrationFields
+  .omit({
+    email: true,
+    password: true,
+    mdcNumber: true,
+    // What someone is changes only by an administrator's decision.
+    discipline: true,
+    credentialType: true,
+    credentialNumber: true,
+  })
   .partial();
 
 /**
@@ -153,7 +212,11 @@ export const doctorSignatureSchema = z.object({
 export const doctorSummarySchema = z.object({
   publicId: z.string(),
   fullName: z.string(),
-  mdcNumber: z.string(),
+  /** What they are (v2). A dietitian or trainer has no MDC number. */
+  discipline: z.enum(PROFESSIONAL_DISCIPLINES),
+  mdcNumber: z.string().nullable(),
+  /** The registration line to show, whatever they are. */
+  credential: z.string().nullable(),
   mdcExpiresAt: z.string().nullable(),
   specialty: z.string().nullable(),
   yearsExperience: z.number().int().nullable(),

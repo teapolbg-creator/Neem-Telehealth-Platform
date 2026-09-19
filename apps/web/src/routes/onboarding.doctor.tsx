@@ -22,12 +22,17 @@ function DoctorApplication() {
   const { data: languages } = useLanguages();
   const register = useRegisterDoctor();
 
+  const [discipline, setDiscipline] = useState<"DOCTOR" | "DIETITIAN" | "TRAINER">("DOCTOR");
+  const isDoctor = discipline === "DOCTOR";
+
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     password: "",
     mdcNumber: "",
     mdcExpiresAt: "",
+    credentialType: "",
+    credentialNumber: "",
     qualifiedAt: "",
     yearsExperience: "",
     specialty: "",
@@ -83,8 +88,12 @@ function DoctorApplication() {
             email: form.email,
             password: form.password,
             fullName: form.fullName,
-            mdcNumber: form.mdcNumber,
-            mdcExpiresAt: form.mdcExpiresAt,
+            discipline,
+            // Each discipline sends its own registration and nothing of the
+            // other's: the API refuses an MDC number from a non-doctor.
+            ...(isDoctor
+              ? { mdcNumber: form.mdcNumber, mdcExpiresAt: form.mdcExpiresAt }
+              : { credentialType: form.credentialType, credentialNumber: form.credentialNumber }),
             qualifiedAt: form.qualifiedAt,
             yearsExperience: Number(form.yearsExperience),
             specialty: form.specialty || undefined,
@@ -99,9 +108,42 @@ function DoctorApplication() {
           <h1 className="text-2xl font-bold">Apply to practise on Neem</h1>
           <p className="mt-1 text-sm text-slate-500">
             Neem requires a minimum of {DOCTOR_MIN_YEARS_EXPERIENCE} years of post-qualification
-            clinical experience and a valid MDC licence.
+            experience
+            {isDoctor
+              ? " and a valid MDC licence."
+              : " and registration with your professional body."}
           </p>
         </div>
+
+        {/*
+          What you are decides what you may issue: only a doctor prescribes or
+          refers. A dietitian or trainer is never asked for an MDC number,
+          because they do not have one.
+        */}
+        <Section title="I am applying as">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(
+              [
+                ["DOCTOR", "A doctor"],
+                ["DIETITIAN", "A dietitian"],
+                ["TRAINER", "A personal trainer"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDiscipline(value)}
+                className={
+                  discipline === value
+                    ? "rounded-xl border-2 border-brand bg-brand/5 px-4 py-3 text-sm font-semibold text-brand"
+                    : "rounded-xl border border-border px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Section>
 
         <Section title="About you">
           <Field
@@ -139,21 +181,47 @@ function DoctorApplication() {
         </Section>
 
         <Section title="Credentials">
-          <Field
-            label="MDC number"
-            value={form.mdcNumber}
-            onChange={set("mdcNumber")}
-            error={fieldErrors.mdcNumber}
-            required
-          />
-          <Field
-            label="Licence expires"
-            type="date"
-            value={form.mdcExpiresAt}
-            onChange={set("mdcExpiresAt")}
-            error={fieldErrors.mdcExpiresAt}
-            required
-          />
+          {isDoctor ? (
+            <>
+              <Field
+                label="MDC number"
+                value={form.mdcNumber}
+                onChange={set("mdcNumber")}
+                error={fieldErrors.mdcNumber}
+                required
+              />
+              <Field
+                label="Licence expires"
+                type="date"
+                value={form.mdcExpiresAt}
+                onChange={set("mdcExpiresAt")}
+                error={fieldErrors.mdcExpiresAt}
+                required
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                label="Registered with"
+                value={form.credentialType}
+                onChange={set("credentialType")}
+                error={fieldErrors.credentialType}
+                help={
+                  discipline === "DIETITIAN"
+                    ? "For example the Ghana Academy of Nutrition and Dietetics."
+                    : "The body you are certified or registered with."
+                }
+                required
+              />
+              <Field
+                label="Registration number"
+                value={form.credentialNumber}
+                onChange={set("credentialNumber")}
+                error={fieldErrors.credentialNumber}
+                required
+              />
+            </>
+          )}
           <Field
             label="Date qualified"
             type="date"

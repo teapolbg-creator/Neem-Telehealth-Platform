@@ -18,11 +18,13 @@ import { Route as AdminNotificationsRouteImport } from './routes/admin.notificat
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
 import { Route as AdminPilotRouteImport } from './routes/admin.pilot'
+import { Route as AdminProfessionalPayoutsRouteImport } from './routes/admin.professional-payouts'
 import { Route as AdminPromotionsRouteImport } from './routes/admin.promotions'
 import { Route as AdminQualityRouteImport } from './routes/admin.quality'
 import { Route as AdminQueueRouteImport } from './routes/admin.queue'
 import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
 import { Route as AdminSchedulingRouteImport } from './routes/admin.scheduling'
+import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
@@ -32,6 +34,7 @@ import { Route as BookIndexRouteImport } from './routes/book.index'
 import { Route as BookServiceCodeRouteImport } from './routes/book.$serviceCode'
 import { Route as BookPaidRouteImport } from './routes/book.paid'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
+import { Route as DoctorAvailabilityRouteImport } from './routes/doctor.availability'
 import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
 import { Route as DoctorMembershipRouteImport } from './routes/doctor.membership'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
@@ -95,6 +98,12 @@ const AdminPilotRoute = AdminPilotRouteImport.update({
   path: '/admin/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminProfessionalPayoutsRoute =
+  AdminProfessionalPayoutsRouteImport.update({
+    id: '/admin/professional-payouts',
+    path: '/admin/professional-payouts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminPromotionsRoute = AdminPromotionsRouteImport.update({
   id: '/admin/promotions',
   path: '/admin/promotions',
@@ -118,6 +127,11 @@ const AdminRefundsRoute = AdminRefundsRouteImport.update({
 const AdminSchedulingRoute = AdminSchedulingRouteImport.update({
   id: '/admin/scheduling',
   path: '/admin/scheduling',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminServicesRoute = AdminServicesRouteImport.update({
+  id: '/admin/services',
+  path: '/admin/services',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -163,6 +177,11 @@ const BookPaidRoute = BookPaidRouteImport.update({
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
   id: '/doctor/',
   path: '/doctor/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoctorAvailabilityRoute = DoctorAvailabilityRouteImport.update({
+  id: '/doctor/availability',
+  path: '/doctor/availability',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorEarningsRoute = DoctorEarningsRouteImport.update({
@@ -261,11 +280,13 @@ export interface FileRoutesByFullPath {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/pilot': typeof AdminPilotRoute
+  '/admin/professional-payouts': typeof AdminProfessionalPayoutsRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/scheduling': typeof AdminSchedulingRoute
+  '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -273,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
   '/book/paid': typeof BookPaidRoute
+  '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -303,11 +325,13 @@ export interface FileRoutesByTo {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/pilot': typeof AdminPilotRoute
+  '/admin/professional-payouts': typeof AdminProfessionalPayoutsRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/scheduling': typeof AdminSchedulingRoute
+  '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -315,6 +339,7 @@ export interface FileRoutesByTo {
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
   '/book/paid': typeof BookPaidRoute
+  '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -346,11 +371,13 @@ export interface FileRoutesById {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
   '/admin/pilot': typeof AdminPilotRoute
+  '/admin/professional-payouts': typeof AdminProfessionalPayoutsRoute
   '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/quality': typeof AdminQualityRoute
   '/admin/queue': typeof AdminQueueRoute
   '/admin/refunds': typeof AdminRefundsRoute
   '/admin/scheduling': typeof AdminSchedulingRoute
+  '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
@@ -358,6 +385,7 @@ export interface FileRoutesById {
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
   '/book/paid': typeof BookPaidRoute
+  '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -390,11 +418,13 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/pilot'
+    | '/admin/professional-payouts'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/scheduling'
+    | '/admin/services'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -402,6 +432,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/book/$serviceCode'
     | '/book/paid'
+    | '/doctor/availability'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -432,11 +463,13 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/pilot'
+    | '/admin/professional-payouts'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/scheduling'
+    | '/admin/services'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -444,6 +477,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/book/$serviceCode'
     | '/book/paid'
+    | '/doctor/availability'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -474,11 +508,13 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/payroll'
     | '/admin/pilot'
+    | '/admin/professional-payouts'
     | '/admin/promotions'
     | '/admin/quality'
     | '/admin/queue'
     | '/admin/refunds'
     | '/admin/scheduling'
+    | '/admin/services'
     | '/admin/settings'
     | '/admin/verification'
     | '/auth/forgot'
@@ -486,6 +522,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/book/$serviceCode'
     | '/book/paid'
+    | '/doctor/availability'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -517,11 +554,13 @@ export interface RootRouteChildren {
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
   AdminPilotRoute: typeof AdminPilotRoute
+  AdminProfessionalPayoutsRoute: typeof AdminProfessionalPayoutsRoute
   AdminPromotionsRoute: typeof AdminPromotionsRoute
   AdminQualityRoute: typeof AdminQualityRoute
   AdminQueueRoute: typeof AdminQueueRoute
   AdminRefundsRoute: typeof AdminRefundsRoute
   AdminSchedulingRoute: typeof AdminSchedulingRoute
+  AdminServicesRoute: typeof AdminServicesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
@@ -529,6 +568,7 @@ export interface RootRouteChildren {
   AuthResetRoute: typeof AuthResetRoute
   BookServiceCodeRoute: typeof BookServiceCodeRoute
   BookPaidRoute: typeof BookPaidRoute
+  DoctorAvailabilityRoute: typeof DoctorAvailabilityRoute
   DoctorEarningsRoute: typeof DoctorEarningsRoute
   DoctorMembershipRoute: typeof DoctorMembershipRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
@@ -617,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPilotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/professional-payouts': {
+      id: '/admin/professional-payouts'
+      path: '/admin/professional-payouts'
+      fullPath: '/admin/professional-payouts'
+      preLoaderRoute: typeof AdminProfessionalPayoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/promotions': {
       id: '/admin/promotions'
       path: '/admin/promotions'
@@ -650,6 +697,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/scheduling'
       fullPath: '/admin/scheduling'
       preLoaderRoute: typeof AdminSchedulingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/services': {
+      id: '/admin/services'
+      path: '/admin/services'
+      fullPath: '/admin/services'
+      preLoaderRoute: typeof AdminServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/settings': {
@@ -713,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/doctor'
       fullPath: '/doctor/'
       preLoaderRoute: typeof DoctorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doctor/availability': {
+      id: '/doctor/availability'
+      path: '/doctor/availability'
+      fullPath: '/doctor/availability'
+      preLoaderRoute: typeof DoctorAvailabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/earnings': {
@@ -845,11 +906,13 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,
   AdminPilotRoute: AdminPilotRoute,
+  AdminProfessionalPayoutsRoute: AdminProfessionalPayoutsRoute,
   AdminPromotionsRoute: AdminPromotionsRoute,
   AdminQualityRoute: AdminQualityRoute,
   AdminQueueRoute: AdminQueueRoute,
   AdminRefundsRoute: AdminRefundsRoute,
   AdminSchedulingRoute: AdminSchedulingRoute,
+  AdminServicesRoute: AdminServicesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,
@@ -857,6 +920,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthResetRoute: AuthResetRoute,
   BookServiceCodeRoute: BookServiceCodeRoute,
   BookPaidRoute: BookPaidRoute,
+  DoctorAvailabilityRoute: DoctorAvailabilityRoute,
   DoctorEarningsRoute: DoctorEarningsRoute,
   DoctorMembershipRoute: DoctorMembershipRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,

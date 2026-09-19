@@ -690,3 +690,85 @@ describe('doctor compensation', () => {
     expect(response.status).toBe(403);
   });
 });
+
+/**
+ * Registering as something other than a doctor (v2).
+ *
+ * A dietitian or personal trainer used to be unable to apply at all without
+ * inventing an MDC number. They now say what they are, and give the
+ * registration they actually hold. Declaring it is safe because it can only
+ * narrow what the account may do; claiming to be a doctor still needs an MDC
+ * number and an administrator.
+ */
+describe('registering as a dietitian or trainer', () => {
+  function dietitian(overrides: Record<string, unknown> = {}) {
+    const {
+      mdcNumber: _mdc,
+      mdcExpiresAt: _expiry,
+      ...rest
+    } = validDoctor({
+      email: 'dietitian@test.local',
+      fullName: 'Adjoa Nkrumah',
+    });
+    return {
+      ...rest,
+      discipline: 'DIETITIAN',
+      credentialType: 'Ghana Academy of Nutrition and Dietetics',
+      credentialNumber: 'GAND-7781',
+      ...overrides,
+    };
+  }
+
+  it('is accepted with their own registration and no MDC number', async () => {
+    const response = await request('/onboarding/doctor', { method: 'POST', payload: dietitian() });
+
+    expect(response.status).toBe(201);
+
+    const row = await getPrisma().doctor.findFirstOrThrow();
+    expect(row.discipline).toBe('DIETITIAN');
+    expect(row.mdcNumber).toBeNull();
+    expect(row.mdcExpiresAt).toBeNull();
+    expect(row.credentialType).toBe('Ghana Academy of Nutrition and Dietetics');
+    expect(row.credentialNumber).toBe('GAND-7781');
+  });
+
+  it('refuses an MDC number from somebody who is not a doctor', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: dietitian({ mdcNumber: 'MDC-NOT-THEIRS' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await getPrisma().doctor.count()).toBe(0);
+  });
+
+  it('refuses a dietitian with no registration at all', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: dietitian({ credentialNumber: undefined }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await getPrisma().doctor.count()).toBe(0);
+  });
+
+  it('still requires an MDC number of a doctor', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: validDoctor({ discipline: 'DOCTOR', mdcNumber: undefined }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await getPrisma().doctor.count()).toBe(0);
+  });
+
+  it('treats an application that names no discipline as a doctor, as every earlier one was', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: validDoctor(),
+    });
+
+    expect(response.status).toBe(201);
+    expect((await getPrisma().doctor.findFirstOrThrow()).discipline).toBe('DOCTOR');
+  });
+});

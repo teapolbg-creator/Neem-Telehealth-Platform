@@ -380,6 +380,13 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
       const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
       const doctor = await getDoctorByPublicId(publicId);
 
+      // The services they have joined, so the profession panel opens on what
+      // is true rather than on an empty form (v2).
+      const roster = await getPrisma().professionalService.findMany({
+        where: { doctorId: doctor.id, isActive: true },
+        select: { service: { select: { code: true } } },
+      });
+
       return reply.send({
         data: {
           publicId: doctor.publicId,
@@ -387,6 +394,9 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
           discipline: doctor.discipline,
           mdcNumber: doctor.mdcNumber,
           credential: credentialLine(doctor),
+          credentialType: doctor.credentialType,
+          credentialNumber: doctor.credentialNumber,
+          services: roster.map((entry) => entry.service.code),
           mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
           qualifiedAt: doctor.qualifiedAt?.toISOString() ?? null,
           yearsExperience: doctor.yearsExperience,
