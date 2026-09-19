@@ -595,7 +595,8 @@ function DetailsForm({
 /**
  * The only screen that decides nothing.
  *
- * It opens Paystack in another tab and then watches the server, which
+ * It sends the patient to Paystack, which returns them to /book/paid; until
+ * then (or if they approve a prompt on a phone) it watches the server, which
  * re-verifies with the provider on every poll. Nothing the checkout tab says
  * reaches this page, and no button here can mark a consultation paid.
  */
@@ -688,9 +689,12 @@ function PaymentPanel({
         ) : null}
 
         {start.data?.authorizationUrl ? (
+          /*
+           * Same tab: Paystack sends the patient back to /book/paid when they
+           * finish, so there is no second tab to find on a phone.
+           */
           <a
             href={start.data.authorizationUrl}
-            target="_blank"
             rel="noreferrer"
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:brightness-110"
           >
@@ -715,8 +719,8 @@ function PaymentPanel({
         <ErrorNote error={start.error} />
 
         <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          Payment opens in another tab. Approve the prompt on your phone and come back here — this
-          page moves on by itself once Paystack confirms it. Nothing is confirmed from this device.
+          You pay on Paystack&rsquo;s page, then come straight back to Neem. Your booking is
+          confirmed only once Paystack confirms the payment to us.
         </p>
       </div>
 

@@ -119,6 +119,9 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
         // counter has to use (spec §60).
         payerEmail:
           principal.contactKind === 'EMAIL' ? (principal.contact ?? undefined) : undefined,
+        // Back to Neem when the checkout is done. The page it lands on asks
+        // the API what happened; Paystack's own query string decides nothing.
+        callbackUrl: `${getEnv().WEB_ORIGIN}/book/paid?booking=${encodeURIComponent(consultation.publicId)}`,
       },
       { actorType: 'PATIENT', correlationId: request.correlationId },
     );
@@ -161,6 +164,10 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
 
     const queued = await admitPaidBooking(reference, principal.accountId);
     const fresh = await ownedBooking(principal.accountId, reference);
+    const appointment = await getPrisma().appointment.findFirst({
+      where: { consultationId: fresh.id },
+      select: { startsAt: true },
+    });
 
     return reply.send({
       data: {
@@ -170,6 +177,8 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
         secondsRemaining: secondsRemaining(fresh.paymentDeadlineAt),
         isMockProvider: isMockPaymentProvider(),
         joinedQueue: queued || fresh.state === 'WAITING_FOR_DOCTOR',
+        // So the page Paystack returns to knows which kind of booking it is.
+        appointmentAt: appointment?.startsAt.toISOString() ?? null,
       },
       meta: { requestId: request.correlationId },
     });

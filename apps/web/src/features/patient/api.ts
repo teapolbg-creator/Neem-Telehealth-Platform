@@ -230,6 +230,8 @@ export interface BookingPaymentStatus {
   secondsRemaining: number | null;
   isMockProvider: boolean;
   joinedQueue: boolean;
+  /** Set for a booking with a chosen time; null for one that starts now. */
+  appointmentAt: string | null;
 }
 
 /**

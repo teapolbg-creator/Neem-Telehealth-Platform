@@ -48,6 +48,11 @@ export async function initiatePayment(
     payerPhone?: string;
     /** The patient's own address, when there is one to send a receipt to (v2). */
     payerEmail?: string;
+    /**
+     * Where the provider's checkout sends the payer when they finish (v2). The
+     * counter has none: its checkout is on the patient's phone, not a page.
+     */
+    callbackUrl?: string;
     /** The counter proves ownership by its pharmacy… */
     pharmacyId?: string;
     /** …and a patient-direct booking by the account that made it (v2). */
@@ -145,6 +150,7 @@ export async function initiatePayment(
     metadata: { consultationPublicId: consultation.publicId },
     payerPhone: input.payerPhone,
     payerEmail: input.payerEmail,
+    callbackUrl: input.callbackUrl,
   });
 
   const payment = await db.payment.create({

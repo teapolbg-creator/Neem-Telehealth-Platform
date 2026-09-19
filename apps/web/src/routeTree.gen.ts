@@ -30,6 +30,7 @@ import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthResetRouteImport } from './routes/auth.reset'
 import { Route as BookIndexRouteImport } from './routes/book.index'
 import { Route as BookServiceCodeRouteImport } from './routes/book.$serviceCode'
+import { Route as BookPaidRouteImport } from './routes/book.paid'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
 import { Route as DoctorMembershipRouteImport } from './routes/doctor.membership'
@@ -154,6 +155,11 @@ const BookServiceCodeRoute = BookServiceCodeRouteImport.update({
   path: '/book/$serviceCode',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookPaidRoute = BookPaidRouteImport.update({
+  id: '/book/paid',
+  path: '/book/paid',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
   id: '/doctor/',
   path: '/doctor/',
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
+  '/book/paid': typeof BookPaidRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
+  '/book/paid': typeof BookPaidRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -349,6 +357,7 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/reset': typeof AuthResetRoute
   '/book/$serviceCode': typeof BookServiceCodeRoute
+  '/book/paid': typeof BookPaidRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
@@ -392,6 +401,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/reset'
     | '/book/$serviceCode'
+    | '/book/paid'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/reset'
     | '/book/$serviceCode'
+    | '/book/paid'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -474,6 +485,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/reset'
     | '/book/$serviceCode'
+    | '/book/paid'
     | '/doctor/earnings'
     | '/doctor/membership'
     | '/doctor/onboarding'
@@ -516,6 +528,7 @@ export interface RootRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthResetRoute: typeof AuthResetRoute
   BookServiceCodeRoute: typeof BookServiceCodeRoute
+  BookPaidRoute: typeof BookPaidRoute
   DoctorEarningsRoute: typeof DoctorEarningsRoute
   DoctorMembershipRoute: typeof DoctorMembershipRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
@@ -688,6 +701,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookServiceCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/paid': {
+      id: '/book/paid'
+      path: '/book/paid'
+      fullPath: '/book/paid'
+      preLoaderRoute: typeof BookPaidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/doctor/': {
       id: '/doctor/'
       path: '/doctor'
@@ -836,6 +856,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthResetRoute: AuthResetRoute,
   BookServiceCodeRoute: BookServiceCodeRoute,
+  BookPaidRoute: BookPaidRoute,
   DoctorEarningsRoute: DoctorEarningsRoute,
   DoctorMembershipRoute: DoctorMembershipRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
