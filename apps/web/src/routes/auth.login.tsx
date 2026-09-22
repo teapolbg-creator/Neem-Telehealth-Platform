@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
+import { usePatientClinics } from "@/features/patient/api";
 import { ApiError } from "@/lib/api-client";
 import {
   useBeginTwoFactorEnrollment,
@@ -92,6 +93,8 @@ function CredentialsStep({
   onChallenge: (challengeId: string, enrollmentRequired: boolean) => void;
 }) {
   const login = useLogin();
+  const clinics = usePatientClinics();
+  const bookingOpen = clinics.data?.enabled === true;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -115,7 +118,7 @@ function CredentialsStep({
     <div className="card-soft p-8">
       <h1 className="text-2xl font-bold">Sign in to Neem</h1>
       <p className="text-sm text-slate-500 mt-1">
-        For pharmacy, doctor and administrator accounts.
+        For pharmacies, health professionals and Neem administrators.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
@@ -162,9 +165,24 @@ function CredentialsStep({
         Forgot your password?
       </Link>
 
-      <p className="mt-6 text-xs text-slate-500 leading-relaxed">
-        Patients do not sign in. A consultation opens from the one-time QR code the pharmacy
-        provides.
+      {/*
+        Patients have two ways in, and neither is this form: a pharmacy
+        counter hands them a one-time code, and a patient at home books for
+        themselves. The booking half is only mentioned where booking is
+        actually open, so this never offers what the deployment refuses.
+      */}
+      <p className="mt-6 text-xs leading-relaxed text-slate-500">
+        Patients do not sign in here.{" "}
+        {bookingOpen ? (
+          <>
+            <Link to="/book" className="font-semibold text-brand hover:underline">
+              Book a consultation
+            </Link>{" "}
+            for yourself, or open the one-time code your pharmacy gives you.
+          </>
+        ) : (
+          <>A consultation opens from the one-time code the pharmacy provides.</>
+        )}
       </p>
     </div>
   );
