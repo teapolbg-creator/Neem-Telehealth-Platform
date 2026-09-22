@@ -73,6 +73,12 @@ function documentTypesFor(discipline: DoctorProfile["discipline"]): DocumentType
   ];
 }
 
+const ROLE_TITLE: Record<DoctorProfile["discipline"], string> = {
+  DOCTOR: "Doctor",
+  DIETITIAN: "Dietitian",
+  TRAINER: "Personal trainer",
+};
+
 const HEADING: Record<DoctorProfile["discipline"], string> = {
   DOCTOR: "Doctor onboarding",
   DIETITIAN: "Dietitian onboarding",
@@ -126,7 +132,11 @@ function DoctorOnboarding() {
   return (
     <AppShell active="doctor">
       <header>
-        <p className="mb-1 text-sm font-semibold text-brand">{HEADING[profile.discipline]}</p>
+        <p className="mb-1 text-sm font-semibold text-brand">
+          {profile.status === "ACTIVE"
+            ? `${ROLE_TITLE[profile.discipline]} credentials`
+            : HEADING[profile.discipline]}
+        </p>
         <h1 className="text-3xl font-bold tracking-tight">{profile.fullName}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Chip tone={STATUS_TONE[profile.status] ?? "muted"}>

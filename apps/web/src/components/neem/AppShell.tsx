@@ -49,6 +49,8 @@ const NAV: Record<
     // A doctor may still have a membership on file to look at; a dietitian or
     // trainer never had one, so the tab would only ever say there is nothing.
     { label: "Membership", to: "/doctor/membership", doctorsOnly: true },
+    // Renamed below once the account is active: by then it is where their
+    // documents and signature are kept, not a process still under way.
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
   admin: [
@@ -136,7 +138,9 @@ export function AppShell({
                         : "text-slate-500 hover:bg-white/60",
                     )}
                   >
-                    {item.label}
+                    {item.to === "/doctor/onboarding" && user?.organisation?.status === "ACTIVE"
+                      ? "Credentials"
+                      : item.label}
                   </Link>
                 );
               })}
