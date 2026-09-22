@@ -142,7 +142,11 @@ function DoctorConsultation() {
           use on a laptop.
         */}
         <div className="mt-6">
-          <ClinicalWorkspace consultationPublicId={publicId} onCompleted={setCompletion} />
+          <ClinicalWorkspace
+            consultationPublicId={publicId}
+            viaPharmacy={Boolean(data.pharmacy)}
+            onCompleted={setCompletion}
+          />
         </div>
 
         <p className="mt-6 flex items-start gap-2 rounded-2xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">

@@ -46,9 +46,15 @@ type Tab = "notes" | "prescribe" | "refer" | "summary";
 
 export function ClinicalWorkspace({
   consultationPublicId,
+  viaPharmacy = true,
   onCompleted,
 }: {
   consultationPublicId: string;
+  /**
+   * False for a patient who booked on Neem themselves (v2): nothing goes to a
+   * pharmacy, and the patient finds what was issued under My care.
+   */
+  viaPharmacy?: boolean;
   onCompleted: (result: { destroyAt: string | null }) => void;
 }) {
   const [tab, setTab] = useState<Tab>("notes");
@@ -124,9 +130,15 @@ export function ClinicalWorkspace({
         {tab === "notes" && (
           <NotesPanel consultationPublicId={consultationPublicId} workspace={workspace} />
         )}
-        {tab === "prescribe" && <PrescribePanel consultationPublicId={consultationPublicId} />}
-        {tab === "refer" && <ReferPanel consultationPublicId={consultationPublicId} />}
-        {tab === "summary" && <SummaryPanel consultationPublicId={consultationPublicId} />}
+        {tab === "prescribe" && (
+          <PrescribePanel consultationPublicId={consultationPublicId} viaPharmacy={viaPharmacy} />
+        )}
+        {tab === "refer" && (
+          <ReferPanel consultationPublicId={consultationPublicId} viaPharmacy={viaPharmacy} />
+        )}
+        {tab === "summary" && (
+          <SummaryPanel consultationPublicId={consultationPublicId} viaPharmacy={viaPharmacy} />
+        )}
       </div>
 
       <CompletionBar consultationPublicId={consultationPublicId} onCompleted={onCompleted} />
@@ -252,7 +264,13 @@ const EMPTY_ITEM: PrescriptionItemInput = {
   instructions: "",
 };
 
-function PrescribePanel({ consultationPublicId }: { consultationPublicId: string }) {
+function PrescribePanel({
+  consultationPublicId,
+  viaPharmacy,
+}: {
+  consultationPublicId: string;
+  viaPharmacy: boolean;
+}) {
   const create = useCreatePrescription(consultationPublicId);
   const issue = useIssuePrescription(consultationPublicId);
 
@@ -271,12 +289,13 @@ function PrescribePanel({ consultationPublicId }: { consultationPublicId: string
         </div>
         <h3 className="mt-4 font-bold">Prescription issued</h3>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-sm text-slate-500">
-          It is signed with your digital signature and is now with the pharmacy.
+          It is signed with your digital signature and is now{" "}
+          {viaPharmacy ? "with the pharmacy" : "with the patient, under My care"}.
         </p>
         <p className="mt-3 font-mono text-xs text-slate-500">{issued}</p>
         <p className="mx-auto mt-4 max-w-sm text-pretty text-xs leading-relaxed text-slate-500">
-          You can revoke it from your dashboard until the pharmacy dispenses it. Once dispensed it
-          cannot be revoked — the medicine is with the patient.
+          You can revoke it from your dashboard until it is dispensed. Once dispensed it cannot be
+          revoked — the medicine is with the patient.
         </p>
       </div>
     );
@@ -392,12 +411,12 @@ function PrescribePanel({ consultationPublicId }: { consultationPublicId: string
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white hover:brightness-110 disabled:opacity-40"
       >
         {(create.isPending || issue.isPending) && <Loader2 className="size-4 animate-spin" />}
-        Sign and send to the pharmacy
+        {viaPharmacy ? "Sign and send to the pharmacy" : "Sign and send prescription"}
       </button>
 
       <p className="text-xs leading-relaxed text-slate-500">
-        Signing binds your digital signature to this prescription. The pharmacy cannot change what
-        you prescribe — it can only propose a substitution for you to decide.
+        Signing binds your digital signature to this prescription. A pharmacy cannot change what you
+        prescribe — it can only propose a substitution for you to decide.
       </p>
     </div>
   );
@@ -407,7 +426,13 @@ function PrescribePanel({ consultationPublicId }: { consultationPublicId: string
 // Referral
 // ---------------------------------------------------------------------------
 
-function ReferPanel({ consultationPublicId }: { consultationPublicId: string }) {
+function ReferPanel({
+  consultationPublicId,
+  viaPharmacy,
+}: {
+  consultationPublicId: string;
+  viaPharmacy: boolean;
+}) {
   const refer = useIssueReferral(consultationPublicId);
   const [form, setForm] = useState({
     hospitalName: "",
@@ -424,8 +449,10 @@ function ReferPanel({ consultationPublicId }: { consultationPublicId: string }) 
         </div>
         <h3 className="mt-4 font-bold">Referral issued</h3>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-sm text-slate-500">
-          The patient can collect it from the pharmacy. The receiving hospital can confirm it is
-          genuine from the code on the document.
+          {viaPharmacy
+            ? "The patient can collect it from the pharmacy."
+            : "The patient has it under My care."}{" "}
+          The receiving hospital can confirm it is genuine from the code on the document.
         </p>
       </div>
     );
@@ -506,7 +533,13 @@ function ReferPanel({ consultationPublicId }: { consultationPublicId: string }) 
 // Consultation summary (decision D25)
 // ---------------------------------------------------------------------------
 
-function SummaryPanel({ consultationPublicId }: { consultationPublicId: string }) {
+function SummaryPanel({
+  consultationPublicId,
+  viaPharmacy,
+}: {
+  consultationPublicId: string;
+  viaPharmacy: boolean;
+}) {
   const issue = useIssueSummary(consultationPublicId);
   const [form, setForm] = useState({
     presentingComplaint: "",
@@ -523,7 +556,9 @@ function SummaryPanel({ consultationPublicId }: { consultationPublicId: string }
         </div>
         <h3 className="mt-4 font-bold">Summary issued</h3>
         <p className="mx-auto mt-2 max-w-sm text-pretty text-sm text-slate-500">
-          The patient can collect it from the pharmacy.
+          {viaPharmacy
+            ? "The patient can collect it from the pharmacy."
+            : "The patient has it under My care."}
         </p>
       </div>
     );
