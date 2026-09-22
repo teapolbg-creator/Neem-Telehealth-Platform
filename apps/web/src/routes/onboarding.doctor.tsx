@@ -24,6 +24,7 @@ function DoctorApplication() {
 
   const [discipline, setDiscipline] = useState<"DOCTOR" | "DIETITIAN" | "TRAINER">("DOCTOR");
   const isDoctor = discipline === "DOCTOR";
+  const isTrainer = discipline === "TRAINER";
 
   const [form, setForm] = useState({
     fullName: "",
@@ -31,7 +32,6 @@ function DoctorApplication() {
     password: "",
     mdcNumber: "",
     mdcExpiresAt: "",
-    credentialType: "",
     credentialNumber: "",
     qualifiedAt: "",
     yearsExperience: "",
@@ -89,14 +89,17 @@ function DoctorApplication() {
             password: form.password,
             fullName: form.fullName,
             discipline,
-            // Each discipline sends its own registration and nothing of the
-            // other's: the API refuses an MDC number from a non-doctor.
+            // Each sends its own registration and nothing of another's: the
+            // API refuses an MDC number from a non-doctor. A dietitian gives an
+            // AHPC licence number; a trainer has no register to give.
             ...(isDoctor
               ? { mdcNumber: form.mdcNumber, mdcExpiresAt: form.mdcExpiresAt }
-              : { credentialType: form.credentialType, credentialNumber: form.credentialNumber }),
+              : discipline === "DIETITIAN"
+                ? { credentialNumber: form.credentialNumber }
+                : {}),
             qualifiedAt: form.qualifiedAt,
             yearsExperience: Number(form.yearsExperience),
-            specialty: form.specialty || undefined,
+            specialty: isTrainer ? undefined : form.specialty || undefined,
             phone: form.phone,
             languageCodes: selectedLanguages,
           } as never);
@@ -111,14 +114,16 @@ function DoctorApplication() {
             experience
             {isDoctor
               ? " and a valid MDC licence."
-              : " and registration with your professional body."}
+              : discipline === "DIETITIAN"
+                ? " and a valid AHPC licence."
+                : "."}
           </p>
         </div>
 
         {/*
           What you are decides what you may issue: only a doctor prescribes or
           refers. A dietitian or trainer is never asked for an MDC number,
-          because they do not have one.
+          because they do not have one; a trainer has no register at all.
         */}
         <Section title="I am applying as">
           <div className="grid gap-2 sm:grid-cols-3">
@@ -180,7 +185,7 @@ function DoctorApplication() {
           />
         </Section>
 
-        <Section title="Credentials">
+        <Section title={isTrainer ? "Experience" : "Credentials"}>
           {isDoctor ? (
             <>
               <Field
@@ -199,29 +204,16 @@ function DoctorApplication() {
                 required
               />
             </>
-          ) : (
-            <>
-              <Field
-                label="Registered with"
-                value={form.credentialType}
-                onChange={set("credentialType")}
-                error={fieldErrors.credentialType}
-                help={
-                  discipline === "DIETITIAN"
-                    ? "For example the Ghana Academy of Nutrition and Dietetics."
-                    : "The body you are certified or registered with."
-                }
-                required
-              />
-              <Field
-                label="Registration number"
-                value={form.credentialNumber}
-                onChange={set("credentialNumber")}
-                error={fieldErrors.credentialNumber}
-                required
-              />
-            </>
-          )}
+          ) : discipline === "DIETITIAN" ? (
+            <Field
+              label="AHPC licence number"
+              value={form.credentialNumber}
+              onChange={set("credentialNumber")}
+              error={fieldErrors.credentialNumber}
+              help="Your Allied Health Professions Council licence."
+              required
+            />
+          ) : null}
           <Field
             label="Date qualified"
             type="date"
@@ -238,12 +230,14 @@ function DoctorApplication() {
             error={fieldErrors.yearsExperience}
             required
           />
-          <Field
-            label="Specialty"
-            value={form.specialty}
-            onChange={set("specialty")}
-            help="Optional."
-          />
+          {isTrainer ? null : (
+            <Field
+              label="Specialty"
+              value={form.specialty}
+              onChange={set("specialty")}
+              help="Optional."
+            />
+          )}
         </Section>
 
         <div>
@@ -293,8 +287,12 @@ function DoctorApplication() {
         </button>
 
         <p className="text-xs leading-relaxed text-slate-500">
-          Your application is reviewed by a Neem administrator. Neem does not verify licences
-          automatically with the Medical &amp; Dental Council.
+          Your application is reviewed by a Neem administrator.{" "}
+          {isDoctor
+            ? "Neem does not verify licences automatically with the Medical & Dental Council."
+            : discipline === "DIETITIAN"
+              ? "After you sign in you upload your CV, AHPC licence and a valid government ID."
+              : "After you sign in you upload your CV, a portfolio of your work and a valid government ID."}
         </p>
       </form>
     </Shell>

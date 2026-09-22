@@ -234,6 +234,12 @@ enum DoctorDocumentType {
   EMPLOYMENT_VERIFICATION
   PRACTICE_EVIDENCE
   OTHER
+  /// A dietitian and a trainer (v2).
+  CV
+  /// A dietitian's Allied Health Professions Council licence (v2).
+  AHPC_LICENCE
+  /// A trainer's evidence of their work (v2).
+  PORTFOLIO
 }
 
 enum PharmacyCapabilityKind {

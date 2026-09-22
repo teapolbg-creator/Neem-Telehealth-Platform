@@ -51,7 +51,7 @@ function Landing() {
                 href="/onboarding/doctor"
                 className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
               >
-                Apply as a doctor
+                Apply as a health professional
               </a>
               <a
                 href="/onboarding/pharmacy"

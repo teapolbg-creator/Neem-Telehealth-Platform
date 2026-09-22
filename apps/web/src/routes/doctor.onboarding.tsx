@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PROFESSIONAL_DOCUMENTS, type ProfessionalDocumentType } from "@neem/contracts";
 import { useRef, useState } from "react";
 import { AlertCircle, Check, Clock, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
 import { AppShell } from "@/components/neem/AppShell";
@@ -10,6 +11,7 @@ import {
   useDoctorProfile,
   useUploadDocument,
   type DoctorDocument,
+  type DoctorProfile,
 } from "@/features/onboarding/api";
 import { cn } from "@/lib/utils";
 
@@ -18,35 +20,64 @@ export const Route = createFileRoute("/doctor/onboarding")({
 });
 
 /**
- * Required credentials (spec §21). "Employment verification, where applicable"
- * is genuinely optional; the other three are not.
+ * What each document is, as the professional is asked for it.
+ *
+ * Which documents a professional sees comes from PROFESSIONAL_DOCUMENTS, the
+ * same list the API enforces (v2): a doctor is asked for an MDC licence, a
+ * dietitian for a CV and an AHPC licence, a trainer for a CV and a portfolio.
+ * "Other" is accepted from a doctor but not asked for, so it is not shown.
  */
-const DOCUMENT_TYPES = [
-  {
-    code: "MDC_LICENCE",
+const DOCUMENT_TEXT: Record<ProfessionalDocumentType, { label: string; help: string }> = {
+  MDC_LICENCE: {
     label: "MDC practising licence",
     help: "Your current Medical & Dental Council licence.",
-    required: true,
   },
-  {
-    code: "GOVERNMENT_ID",
-    label: "Government-issued ID",
+  GOVERNMENT_ID: {
+    label: "Valid government-issued ID",
     help: "Passport, Ghana Card or driver’s licence.",
-    required: true,
   },
-  {
-    code: "PRACTICE_EVIDENCE",
+  PRACTICE_EVIDENCE: {
     label: "Evidence of active clinical practice",
     help: "A letter, rota or similar showing current practice.",
-    required: true,
   },
-  {
-    code: "EMPLOYMENT_VERIFICATION",
+  EMPLOYMENT_VERIFICATION: {
     label: "Employment verification",
     help: "Where applicable to your current post.",
-    required: false,
   },
-];
+  OTHER: { label: "Other supporting document", help: "" },
+  CV: { label: "CV", help: "Your current curriculum vitae." },
+  AHPC_LICENCE: {
+    label: "AHPC licence",
+    help: "Your current Allied Health Professions Council licence.",
+  },
+  PORTFOLIO: {
+    label: "Portfolio",
+    help: "Evidence of your work: programmes you have run, clients, certifications.",
+  },
+};
+
+type DocumentType = {
+  code: ProfessionalDocumentType;
+  label: string;
+  help: string;
+  required: boolean;
+};
+
+function documentTypesFor(discipline: DoctorProfile["discipline"]): DocumentType[] {
+  const { required, optional } = PROFESSIONAL_DOCUMENTS[discipline];
+  return [
+    ...required.map((code) => ({ code, ...DOCUMENT_TEXT[code], required: true })),
+    ...optional
+      .filter((code) => code !== "OTHER")
+      .map((code) => ({ code, ...DOCUMENT_TEXT[code], required: false })),
+  ];
+}
+
+const HEADING: Record<DoctorProfile["discipline"], string> = {
+  DOCTOR: "Doctor onboarding",
+  DIETITIAN: "Dietitian onboarding",
+  TRAINER: "Personal trainer onboarding",
+};
 
 const STATUS_TONE: Record<string, "brand" | "medical" | "warning" | "muted" | "danger"> = {
   PENDING: "warning",
@@ -84,6 +115,8 @@ function DoctorOnboarding() {
     );
   }
 
+  const isDoctor = profile.discipline === "DOCTOR";
+  const DOCUMENT_TYPES = documentTypesFor(profile.discipline);
   const uploaded = new Set(profile.documents.map((document) => document.type));
   const requiredOutstanding = DOCUMENT_TYPES.filter(
     (type) => type.required && !uploaded.has(type.code),
@@ -93,13 +126,15 @@ function DoctorOnboarding() {
   return (
     <AppShell active="doctor">
       <header>
-        <p className="mb-1 text-sm font-semibold text-brand">Doctor onboarding</p>
+        <p className="mb-1 text-sm font-semibold text-brand">{HEADING[profile.discipline]}</p>
         <h1 className="text-3xl font-bold tracking-tight">{profile.fullName}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Chip tone={STATUS_TONE[profile.status] ?? "muted"}>
             {profile.status.replace("_", " ")}
           </Chip>
-          <span className="font-mono text-xs text-slate-500">{profile.mdcNumber}</span>
+          {profile.credential ? (
+            <span className="font-mono text-xs text-slate-500">{profile.credential}</span>
+          ) : null}
         </div>
       </header>
 
@@ -122,8 +157,10 @@ function DoctorOnboarding() {
               </span>
             </div>
             <p className="mb-5 text-xs leading-relaxed text-slate-500">
-              A Neem administrator reviews each document by hand. Neem does not check licences
-              automatically with the Medical &amp; Dental Council.
+              A Neem administrator reviews each document by hand.
+              {isDoctor
+                ? " Neem does not check licences automatically with the Medical & Dental Council."
+                : ""}
             </p>
 
             <div className="space-y-3">
@@ -164,24 +201,41 @@ function DoctorOnboarding() {
           </section>
 
           <section className="card-soft p-6">
-            <h2 className="mb-4 font-bold">Licence</h2>
+            <h2 className="mb-4 font-bold">
+              {isDoctor
+                ? "Licence"
+                : profile.discipline === "DIETITIAN"
+                  ? "Registration"
+                  : "Experience"}
+            </h2>
             <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  MDC number
-                </dt>
-                <dd className="mt-0.5 font-mono">{profile.mdcNumber}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Expires
-                </dt>
-                <dd className="mt-0.5">
-                  {profile.mdcExpiresAt
-                    ? new Date(profile.mdcExpiresAt).toLocaleDateString()
-                    : "Not recorded"}
-                </dd>
-              </div>
+              {isDoctor ? (
+                <>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      MDC number
+                    </dt>
+                    <dd className="mt-0.5 font-mono">{profile.mdcNumber}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Expires
+                    </dt>
+                    <dd className="mt-0.5">
+                      {profile.mdcExpiresAt
+                        ? new Date(profile.mdcExpiresAt).toLocaleDateString()
+                        : "Not recorded"}
+                    </dd>
+                  </div>
+                </>
+              ) : profile.discipline === "DIETITIAN" ? (
+                <div>
+                  <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    AHPC licence
+                  </dt>
+                  <dd className="mt-0.5 font-mono">{profile.credential ?? "Not recorded"}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Experience
@@ -189,10 +243,16 @@ function DoctorOnboarding() {
                 <dd className="mt-0.5">{profile.yearsExperience ?? "—"} years</dd>
               </div>
             </dl>
-            <p className="mt-4 text-xs leading-relaxed text-slate-500">
-              You must hold a valid MDC licence for as long as your account is active. Neem flags
-              licences approaching expiry.
-            </p>
+            {isDoctor ? (
+              <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                You must hold a valid MDC licence for as long as your account is active. Neem flags
+                licences approaching expiry.
+              </p>
+            ) : profile.discipline === "DIETITIAN" ? (
+              <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                You must hold a valid AHPC licence for as long as your account is active.
+              </p>
+            ) : null}
           </section>
 
           {profile.subscription && (
@@ -274,13 +334,7 @@ function StatusBanner({
   );
 }
 
-function DocumentRow({
-  type,
-  documents,
-}: {
-  type: (typeof DOCUMENT_TYPES)[number];
-  documents: DoctorDocument[];
-}) {
+function DocumentRow({ type, documents }: { type: DocumentType; documents: DoctorDocument[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadDocument();
   const latest = documents[0];

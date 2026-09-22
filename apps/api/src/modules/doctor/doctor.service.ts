@@ -1,6 +1,10 @@
 import type { DoctorStatus, PrismaClient } from '@prisma/client';
 import { notify } from '../notification/notification.service.ts';
-import type { DoctorRegistration, ProfessionalDiscipline } from '@neem/contracts';
+import {
+  DIETITIAN_REGISTERING_BODY,
+  type DoctorRegistration,
+  type ProfessionalDiscipline,
+} from '@neem/contracts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { generatePublicId, hashPassword, encryptField, hashIp } from '../../lib/crypto.ts';
@@ -94,11 +98,11 @@ export async function registerDoctor(
           mdcNumber: isDoctor ? (input.mdcNumber ?? null) : null,
           mdcIssuedAt: isDoctor && input.mdcIssuedAt ? new Date(input.mdcIssuedAt) : null,
           mdcExpiresAt,
-          credentialType: isDoctor ? null : (input.credentialType ?? null),
-          credentialNumber: isDoctor ? null : (input.credentialNumber ?? null),
+          ...registrationFor(input.discipline, input.credentialNumber),
           qualifiedAt: new Date(input.qualifiedAt),
           yearsExperience: input.yearsExperience,
-          specialty: input.specialty ?? null,
+          // A trainer is not asked for a specialty, and one sent anyway is dropped.
+          specialty: input.discipline === 'TRAINER' ? null : (input.specialty ?? null),
           bio: input.bio ?? null,
           // Needed to bridge a Call Me consultation (spec §33). Encrypted, and
           // never read back to any client — only handed to the voice provider.
@@ -205,7 +209,9 @@ export async function changeDoctorStatus(
     const credential =
       doctor.discipline === 'DOCTOR'
         ? 'their MDC licence'
-        : 'their registration with their professional body';
+        : doctor.discipline === 'DIETITIAN'
+          ? 'their AHPC licence, CV'
+          : 'their CV, portfolio';
 
     if (verifiedDocuments.length === 0) {
       throw errors.businessRule(
@@ -568,8 +574,8 @@ export async function setProfession(
       where: { id: doctor.id },
       data: {
         discipline: input.discipline,
-        credentialType: input.credentialType ?? null,
-        credentialNumber: input.credentialNumber ?? null,
+        ...registrationFor(input.discipline, input.credentialNumber),
+        ...(input.discipline === 'TRAINER' ? { specialty: null } : {}),
         ...(clearsMdc ? { mdcNumber: null } : {}),
       },
     });
@@ -613,9 +619,28 @@ export async function setProfession(
     credential: credentialLine({
       discipline: input.discipline,
       mdcNumber: clearsMdc ? null : doctor.mdcNumber,
-      credentialType: input.credentialType,
-      credentialNumber: input.credentialNumber,
+      ...registrationFor(input.discipline, input.credentialNumber),
     }),
     services: services?.map((service) => service.code) ?? [],
   };
+}
+
+/**
+ * The registration a professional of each kind carries (v2).
+ *
+ * A doctor's is their MDC number, held in its own columns. A dietitian's is an
+ * AHPC licence: the body is always the AHPC, so it is recorded here rather than
+ * typed. A trainer has no statutory register, so carries none.
+ */
+function registrationFor(
+  discipline: ProfessionalDiscipline,
+  credentialNumber: string | null | undefined,
+): { credentialType: string | null; credentialNumber: string | null } {
+  if (discipline === 'DIETITIAN') {
+    return {
+      credentialType: DIETITIAN_REGISTERING_BODY,
+      credentialNumber: credentialNumber ?? null,
+    };
+  }
+  return { credentialType: null, credentialNumber: null };
 }

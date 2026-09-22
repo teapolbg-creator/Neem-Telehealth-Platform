@@ -138,7 +138,11 @@ const professionalRegistrationFields = z.object({
   mdcNumber: z.string().trim().min(3).max(60).optional(),
   mdcIssuedAt: z.string().date().optional(),
   mdcExpiresAt: z.string().date().optional(),
-  /** A dietitian's or trainer's registering body, and their number with it. */
+  /**
+   * A dietitian's AHPC licence number. The body is not asked for: every
+   * dietitian on Neem is registered with the AHPC, so the API records it. A
+   * trainer has no statutory register and gives neither.
+   */
   credentialType: z.string().trim().min(2).max(120).optional(),
   credentialNumber: z.string().trim().min(2).max(60).optional(),
   qualifiedAt: z.string().date(),
@@ -175,14 +179,20 @@ export const doctorRegistrationSchema = professionalRegistrationFields.superRefi
       message: 'Only a doctor registers with an MDC number',
     });
   }
-  if (!input.credentialType || !input.credentialNumber) {
+  if (input.discipline === 'DIETITIAN' && !input.credentialNumber) {
     ctx.addIssue({
       code: 'custom',
       path: ['credentialNumber'],
-      message: 'Your registering body and registration number are required',
+      message: 'Your AHPC licence number is required',
     });
   }
 });
+
+/**
+ * The body every dietitian on Neem is registered with: the Allied Health
+ * Professions Council. Recorded by the API rather than typed by the applicant.
+ */
+export const DIETITIAN_REGISTERING_BODY = 'AHPC';
 export type DoctorRegistration = z.infer<typeof doctorRegistrationSchema>;
 
 export const doctorProfileUpdateSchema = professionalRegistrationFields
@@ -246,7 +256,49 @@ export const DOCTOR_DOCUMENT_TYPES = [
   'EMPLOYMENT_VERIFICATION',
   'PRACTICE_EVIDENCE',
   'OTHER',
+  'CV',
+  'AHPC_LICENCE',
+  'PORTFOLIO',
 ] as const;
+export type ProfessionalDocumentType = (typeof DOCTOR_DOCUMENT_TYPES)[number];
+
+/**
+ * What each kind of professional uploads (v2).
+ *
+ * A dietitian or trainer is never asked for anything of a doctor's, and the
+ * API refuses a document type that is not on their list, so an MDC licence
+ * cannot end up on a trainer's file. Operational policy, not a statement of
+ * Ghanaian law: an administrator still looks at every file and decides.
+ */
+export const PROFESSIONAL_DOCUMENTS: Record<
+  (typeof PROFESSIONAL_DISCIPLINES)[number],
+  { required: ProfessionalDocumentType[]; optional: ProfessionalDocumentType[] }
+> = {
+  DOCTOR: {
+    required: ['MDC_LICENCE', 'GOVERNMENT_ID', 'PRACTICE_EVIDENCE'],
+    optional: ['EMPLOYMENT_VERIFICATION', 'OTHER'],
+  },
+  DIETITIAN: { required: ['CV', 'AHPC_LICENCE', 'GOVERNMENT_ID'], optional: [] },
+  TRAINER: { required: ['CV', 'GOVERNMENT_ID', 'PORTFOLIO'], optional: [] },
+};
+
+export function documentTypesFor(
+  discipline: (typeof PROFESSIONAL_DISCIPLINES)[number],
+): ProfessionalDocumentType[] {
+  const { required, optional } = PROFESSIONAL_DOCUMENTS[discipline];
+  return [...required, ...optional];
+}
+
+export const PROFESSIONAL_DOCUMENT_LABELS: Record<ProfessionalDocumentType, string> = {
+  MDC_LICENCE: 'MDC practising licence',
+  GOVERNMENT_ID: 'Government-issued ID',
+  EMPLOYMENT_VERIFICATION: 'Employment verification',
+  PRACTICE_EVIDENCE: 'Evidence of active clinical practice',
+  OTHER: 'Other supporting document',
+  CV: 'CV',
+  AHPC_LICENCE: 'AHPC licence',
+  PORTFOLIO: 'Portfolio',
+};
 
 /**
  * Documents a pharmacy is asked to supply.

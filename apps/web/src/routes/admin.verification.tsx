@@ -10,7 +10,12 @@ import {
   Stethoscope,
   X,
 } from "lucide-react";
-import type { DoctorSummary, PharmacySummary } from "@neem/contracts";
+import {
+  PROFESSIONAL_DOCUMENT_LABELS,
+  type DoctorSummary,
+  type PharmacySummary,
+  type ProfessionalDocumentType,
+} from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -328,7 +333,6 @@ function DoctorDetail({ publicId }: { publicId: string }) {
         key={publicId}
         publicId={publicId}
         discipline={doctor.discipline}
-        credentialType={doctor.credentialType}
         credentialNumber={doctor.credentialNumber}
         services={doctor.services}
       />
@@ -352,13 +356,11 @@ function DoctorDetail({ publicId }: { publicId: string }) {
 function ProfessionPanel({
   publicId,
   discipline: current,
-  credentialType,
   credentialNumber,
   services: joined,
 }: {
   publicId: string;
   discipline: Discipline;
-  credentialType: string | null;
   credentialNumber: string | null;
   services: string[];
 }) {
@@ -366,7 +368,6 @@ function ProfessionPanel({
   const save = useSetProfession(publicId);
 
   const [discipline, setDiscipline] = useState<Discipline>(current);
-  const [body, setBody] = useState(credentialType ?? "");
   const [number, setNumber] = useState(credentialNumber ?? "");
   const [codes, setCodes] = useState<string[]>(joined);
 
@@ -407,18 +408,14 @@ function ProfessionPanel({
         ))}
       </div>
 
-      {discipline !== "DOCTOR" ? (
+      {/*
+        A dietitian's registration is an AHPC licence, and the API records the
+        body itself. A trainer has no statutory register, so nothing is asked.
+      */}
+      {discipline === "DIETITIAN" ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm">
-            <span className="mb-1 block font-semibold">Registered with</span>
-            <input
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              className="input"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-semibold">Registration number</span>
+            <span className="mb-1 block font-semibold">AHPC licence number</span>
             <input
               value={number}
               onChange={(event) => setNumber(event.target.value)}
@@ -477,12 +474,11 @@ function ProfessionPanel({
 
       <button
         type="button"
-        disabled={save.isPending || (discipline !== "DOCTOR" && (!body.trim() || !number.trim()))}
+        disabled={save.isPending || (discipline === "DIETITIAN" && !number.trim())}
         onClick={() =>
           save.mutate({
             discipline,
-            credentialType: discipline === "DOCTOR" ? null : body.trim(),
-            credentialNumber: discipline === "DOCTOR" ? null : number.trim(),
+            credentialNumber: discipline === "DIETITIAN" ? number.trim() : null,
             serviceCodes: codes,
           })
         }
@@ -542,7 +538,8 @@ function DocumentReview({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">
-                    {document.type.replace(/_/g, " ").toLowerCase()}
+                    {PROFESSIONAL_DOCUMENT_LABELS[document.type as ProfessionalDocumentType] ??
+                      document.type.replace(/_/g, " ").toLowerCase()}
                   </p>
                   <p className="text-xs text-slate-500">
                     {new Date(document.uploadedAt).toLocaleDateString()}

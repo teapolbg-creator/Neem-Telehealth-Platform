@@ -91,6 +91,7 @@ export interface ServiceHours {
 export interface DoctorProfile {
   publicId: string;
   fullName: string;
+  discipline: "DOCTOR" | "DIETITIAN" | "TRAINER";
   mdcNumber: string | null;
   /** How this professional is registered; a trainer has no MDC number (v2). */
   credential: string | null;

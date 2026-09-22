@@ -713,13 +713,24 @@ describe('registering as a dietitian or trainer', () => {
     return {
       ...rest,
       discipline: 'DIETITIAN',
-      credentialType: 'Ghana Academy of Nutrition and Dietetics',
-      credentialNumber: 'GAND-7781',
+      credentialNumber: 'AHPC-7781',
       ...overrides,
     };
   }
 
-  it('is accepted with their own registration and no MDC number', async () => {
+  function trainer(overrides: Record<string, unknown> = {}) {
+    const {
+      mdcNumber: _mdc,
+      mdcExpiresAt: _expiry,
+      ...rest
+    } = validDoctor({
+      email: 'trainer@test.local',
+      fullName: 'Kwame Asante',
+    });
+    return { ...rest, discipline: 'TRAINER', ...overrides };
+  }
+
+  it('accepts a dietitian with an AHPC licence number and no MDC number', async () => {
     const response = await request('/onboarding/doctor', { method: 'POST', payload: dietitian() });
 
     expect(response.status).toBe(201);
@@ -728,8 +739,45 @@ describe('registering as a dietitian or trainer', () => {
     expect(row.discipline).toBe('DIETITIAN');
     expect(row.mdcNumber).toBeNull();
     expect(row.mdcExpiresAt).toBeNull();
-    expect(row.credentialType).toBe('Ghana Academy of Nutrition and Dietetics');
-    expect(row.credentialNumber).toBe('GAND-7781');
+    // The body is recorded by Neem, not typed: every dietitian is AHPC-registered.
+    expect(row.credentialType).toBe('AHPC');
+    expect(row.credentialNumber).toBe('AHPC-7781');
+  });
+
+  it('records AHPC whatever body a dietitian types', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: dietitian({ credentialType: 'Somebody else' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect((await getPrisma().doctor.findFirstOrThrow()).credentialType).toBe('AHPC');
+  });
+
+  it('accepts a trainer with no registration, and drops any specialty', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: trainer({ specialty: 'Strength', credentialNumber: 'IGNORED-1' }),
+    });
+
+    expect(response.status).toBe(201);
+
+    const row = await getPrisma().doctor.findFirstOrThrow();
+    expect(row.discipline).toBe('TRAINER');
+    expect(row.mdcNumber).toBeNull();
+    expect(row.credentialType).toBeNull();
+    expect(row.credentialNumber).toBeNull();
+    expect(row.specialty).toBeNull();
+  });
+
+  it('refuses an MDC number from a trainer', async () => {
+    const response = await request('/onboarding/doctor', {
+      method: 'POST',
+      payload: trainer({ mdcNumber: 'MDC-NOT-THEIRS' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await getPrisma().doctor.count()).toBe(0);
   });
 
   it('refuses an MDC number from somebody who is not a doctor', async () => {
@@ -742,7 +790,7 @@ describe('registering as a dietitian or trainer', () => {
     expect(await getPrisma().doctor.count()).toBe(0);
   });
 
-  it('refuses a dietitian with no registration at all', async () => {
+  it('refuses a dietitian with no AHPC licence number', async () => {
     const response = await request('/onboarding/doctor', {
       method: 'POST',
       payload: dietitian({ credentialNumber: undefined }),

@@ -302,11 +302,12 @@ describe('recording what a professional is', () => {
 
     const result = await setProfession(
       before.publicId,
-      { discipline: 'DIETITIAN', credentialType: 'GAND', credentialNumber: 'D-9001' },
+      { discipline: 'DIETITIAN', credentialNumber: 'D-9001' },
       { adminId: ADMIN_ID },
     );
 
-    expect(result.credential).toBe('GAND D-9001');
+    // A dietitian's registration is always an AHPC licence; the body is not typed.
+    expect(result.credential).toBe('AHPC D-9001');
 
     const after = await getPrisma().doctor.findUniqueOrThrow({
       where: { id: professional.doctorId },

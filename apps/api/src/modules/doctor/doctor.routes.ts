@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { doctorSignatureSchema, DOCTOR_DOCUMENT_TYPES, PERMISSIONS } from '@neem/contracts';
+import { doctorSignatureSchema, documentTypesFor, PERMISSIONS } from '@neem/contracts';
 import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -131,8 +131,19 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
     const documentType = String(
       (data.fields.documentType as { value?: string } | undefined)?.value ?? 'OTHER',
     );
-    if (!DOCTOR_DOCUMENT_TYPES.includes(documentType as never)) {
-      throw errors.validation([{ field: 'documentType', issue: 'Unknown document type' }]);
+    /*
+     * Only the documents asked of their profession (v2). A dietitian or
+     * trainer uploading an MDC licence would put a claim on their file that
+     * nobody asked them to make.
+     */
+    const { discipline } = await getPrisma().doctor.findUniqueOrThrow({
+      where: { id: doctorId },
+      select: { discipline: true },
+    });
+    if (!documentTypesFor(discipline).includes(documentType as never)) {
+      throw errors.validation([
+        { field: 'documentType', issue: 'That document is not one asked of your profession' },
+      ]);
     }
 
     const body = await data.toBuffer();
