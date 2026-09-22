@@ -291,7 +291,7 @@ function RemotePane({
             <p className="mt-1 text-xs leading-relaxed text-amber-100/90">
               {role === "DOCTOR"
                 ? "Live video and audio are not connected in this build. You cannot see or hear the patient."
-                : "Live video and audio are not connected in this build. The doctor cannot see or hear you."}{" "}
+                : "Live video and audio are not connected in this build. The other person cannot see or hear you."}{" "}
               Your own camera and microphone are working normally.
             </p>
           </div>

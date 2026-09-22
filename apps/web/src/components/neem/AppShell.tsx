@@ -25,7 +25,10 @@ type AppKey = "pharmacy" | "doctor" | "admin";
  * anyway — a dietitian has no substitutions to decide (v2). Presentation only;
  * the route behind it still checks for itself.
  */
-const NAV: Record<AppKey, { label: string; to: string; permission?: Permission }[]> = {
+const NAV: Record<
+  AppKey,
+  { label: string; to: string; permission?: Permission; doctorsOnly?: boolean }[]
+> = {
   pharmacy: [
     { label: "Dashboard", to: "/pharmacy" },
     { label: "New consultation", to: "/pharmacy/new" },
@@ -43,7 +46,9 @@ const NAV: Record<AppKey, { label: string; to: string; permission?: Permission }
     },
     { label: "Bookable hours", to: "/doctor/availability" },
     { label: "Earnings", to: "/doctor/earnings" },
-    { label: "Membership", to: "/doctor/membership" },
+    // A doctor may still have a membership on file to look at; a dietitian or
+    // trainer never had one, so the tab would only ever say there is nothing.
+    { label: "Membership", to: "/doctor/membership", doctorsOnly: true },
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
   admin: [
@@ -86,7 +91,10 @@ export function AppShell({
   const logout = useLogout();
   const navigate = useNavigate();
 
-  const navItems = (NAV[active] ?? []).filter((item) => !item.permission || can(item.permission));
+  const isDoctor = (user?.discipline ?? "DOCTOR") === "DOCTOR";
+  const navItems = (NAV[active] ?? []).filter(
+    (item) => (!item.permission || can(item.permission)) && (!item.doctorsOnly || isDoctor),
+  );
   const initials = initialsFor(user?.displayName);
 
   // The shell renders regardless of session state; each route guards its own

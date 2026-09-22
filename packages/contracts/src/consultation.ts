@@ -4,6 +4,7 @@ import {
   CONSULTATION_TYPES,
   FEEDBACK_CATEGORIES,
   PATIENT_SEXES,
+  PROFESSIONAL_DISCIPLINES,
 } from './enums.ts';
 import { ghanaPhoneSchema } from './onboarding.ts';
 import { moneySchema } from './common.ts';
@@ -192,6 +193,11 @@ export const patientSessionViewSchema = z.object({
    */
   availableTypes: z.array(z.enum(CONSULTATION_TYPES)),
   doctor: z.object({ fullName: z.string(), specialty: z.string().nullable() }).nullable(),
+  /**
+   * Who the patient is seeing, in kind (v2): a patient booked with a dietitian
+   * is not told a doctor is on the way. Every counter consultation is a doctor.
+   */
+  professional: z.enum(PROFESSIONAL_DISCIPLINES).default('DOCTOR'),
   waitingSinceSeconds: z.number().int().nullable(),
   /** Consultation length in seconds, so the client can show a timer. */
   consultationDurationSeconds: z.number().int(),

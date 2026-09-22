@@ -174,6 +174,7 @@ export async function buildSessionView(
       pharmacy: { select: { name: true } },
       language: { select: { code: true, label: true } },
       doctor: { select: { fullName: true, specialty: true } },
+      service: { select: { discipline: true } },
       patientSession: { select: { fullNameEnc: true, expiresAt: true } },
       queueEntry: { select: { enqueuedAt: true } },
       feedback: { select: { id: true } },
@@ -237,6 +238,7 @@ export async function buildSessionView(
     doctor: consultation.doctor
       ? { fullName: consultation.doctor.fullName, specialty: consultation.doctor.specialty }
       : null,
+    professional: consultation.service?.discipline ?? 'DOCTOR',
     waitingSinceSeconds: waitingSince
       ? Math.max(0, Math.floor((clock.now().getTime() - waitingSince.getTime()) / 1000))
       : null,

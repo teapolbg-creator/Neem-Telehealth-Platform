@@ -51,6 +51,24 @@ export const Route = createFileRoute("/patient/")({
  * Deliberately absent: queue position, waiting-list mechanics, doctor ratings
  * or scores. The patient sees their own status, never the platform's internals.
  */
+/**
+ * Who the patient is seeing, in words (v2).
+ *
+ * A patient who booked a dietitian or a trainer is not told a doctor is on
+ * the way, or asked to rate "the doctor". Every counter consultation is a
+ * doctor's, which is also what a session from before this field reads as.
+ */
+const SEEING: Record<string, { noun: string; title: string; prescribes: boolean }> = {
+  DOCTOR: { noun: "doctor", title: "The doctor", prescribes: true },
+  DIETITIAN: { noun: "dietitian", title: "The dietitian", prescribes: false },
+  TRAINER: { noun: "personal trainer", title: "The personal trainer", prescribes: false },
+};
+
+function useSeeing() {
+  const { data } = usePatientSession();
+  return SEEING[data?.professional ?? "DOCTOR"] ?? SEEING.DOCTOR;
+}
+
 function PatientPortal() {
   const { data: session, isLoading, error } = usePatientSession();
 
@@ -138,6 +156,7 @@ function PhoneFrame({
 }
 
 function IdentityStep() {
+  const seeing = useSeeing();
   const submit = useSubmitIdentity();
   const [form, setForm] = useState({
     fullName: "",
@@ -170,7 +189,8 @@ function IdentityStep() {
 
       <h1 className="mt-6 text-2xl font-bold">Your details</h1>
       <p className="mt-1 text-sm leading-relaxed text-slate-500">
-        The doctor needs these to advise you safely and to write a prescription if one is needed.
+        {seeing.title} needs these to advise you safely
+        {seeing.prescribes ? " and to write a prescription if one is needed" : ""}.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -266,8 +286,11 @@ function IdentityStep() {
         the lawful basis and the retention period, is with counsel (G7d).
       */}
       <p className="mt-5 rounded-2xl bg-brand-soft p-3 text-xs leading-relaxed text-brand/90">
-        Your record is kept private and sealed — no doctor or pharmacy can open it after this
-        consultation. Only a prescription, if the doctor issues one, is shared.
+        Your record is kept private and sealed — no {seeing.noun} or pharmacy can open it after this
+        consultation.{" "}
+        {seeing.prescribes
+          ? "Only a prescription, if the doctor issues one, is shared."
+          : `Only what the ${seeing.noun} issues to you is shared.`}
       </p>
 
       <button
@@ -283,6 +306,7 @@ function IdentityStep() {
 }
 
 function LanguageStep() {
+  const seeing = useSeeing();
   const { data: languages } = usePatientLanguages();
   const select = useSelectLanguage();
   const [chosen, setChosen] = useState<string | null>(null);
@@ -291,7 +315,7 @@ function LanguageStep() {
     <div className="flex flex-1 flex-col p-6">
       <h1 className="mt-2 text-xl font-bold">Choose your language</h1>
       <p className="mb-6 mt-1 text-sm text-slate-500">
-        You will only be matched with a doctor who speaks it.
+        You will only be matched with a {seeing.noun} who speaks it.
       </p>
 
       <div
@@ -338,6 +362,7 @@ function LanguageStep() {
 }
 
 function ModeStep({ availableTypes }: { availableTypes: readonly ConsultationType[] }) {
+  const seeing = useSeeing();
   const select = useSelectMode();
   const [chosen, setChosen] = useState<"AUDIO" | "VIDEO" | "CALL_ME" | null>(null);
 
@@ -346,14 +371,14 @@ function ModeStep({ availableTypes }: { availableTypes: readonly ConsultationTyp
       id: "VIDEO",
       icon: Video,
       title: "Video consultation",
-      desc: "See and speak with the doctor.",
+      desc: `See and speak with the ${seeing.noun}.`,
     },
     { id: "AUDIO", icon: Phone, title: "Audio consultation", desc: "Voice only — uses less data." },
     {
       id: "CALL_ME",
       icon: PhoneOutgoing,
       title: "Call me",
-      desc: "The doctor calls you through Neem. Best for a weak connection.",
+      desc: `${seeing.title} calls you through Neem. Best for a weak connection.`,
     },
   ] as const;
 
@@ -417,6 +442,7 @@ function ModeStep({ availableTypes }: { availableTypes: readonly ConsultationTyp
 }
 
 function WaitingStep({ session }: { session: PatientSessionView }) {
+  const seeing = useSeeing();
   const minutes = Math.floor((session.waitingSinceSeconds ?? 0) / 60);
   const seconds = (session.waitingSinceSeconds ?? 0) % 60;
 
@@ -424,7 +450,7 @@ function WaitingStep({ session }: { session: PatientSessionView }) {
     <div className="flex flex-1 flex-col p-8 text-center">
       <div className="chip mx-auto bg-brand/10 text-brand">
         <span className="size-1.5 animate-pulse rounded-full bg-brand" />
-        Finding a doctor
+        Finding a {seeing.noun}
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center">
@@ -434,7 +460,8 @@ function WaitingStep({ session }: { session: PatientSessionView }) {
 
         <h2 className="mt-6 text-2xl font-bold">Just a moment…</h2>
         <p className="mt-2 max-w-xs text-pretty text-slate-500">
-          We are matching you with a doctor who speaks {session.language?.label ?? "your language"}.
+          We are matching you with a {seeing.noun} who speaks{" "}
+          {session.language?.label ?? "your language"}.
         </p>
 
         {/*
@@ -472,7 +499,8 @@ function WaitingStep({ session }: { session: PatientSessionView }) {
  * call — so that case gets its own screen rather than an empty video stage.
  */
 function InConsultationStep({ session }: { session: PatientSessionView }) {
-  const doctorName = session.doctor?.fullName ?? "Your doctor";
+  const seeing = useSeeing();
+  const doctorName = session.doctor?.fullName ?? `Your ${seeing.noun}`;
 
   if (session.type === "CALL_ME") {
     return <AwaitingCallStep doctorName={doctorName} />;
@@ -488,6 +516,7 @@ function PatientCallStep({
   session: PatientSessionView;
   doctorName: string;
 }) {
+  const seeing = useSeeing();
   const join = useJoinPatientMedia();
   const leave = useLeavePatientMedia();
   const { data: timer } = usePatientTimer(true);
@@ -508,7 +537,7 @@ function PatientCallStep({
       <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
         <h2 className="text-xl font-bold">You have left the consultation</h2>
         <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
-          Please speak to the pharmacist if you still need to see the doctor.
+          Please speak to the pharmacist if you still need to see the {seeing.noun}.
         </p>
       </div>
     );
@@ -545,6 +574,7 @@ function PatientCallStep({
  * (spec §33).
  */
 function AwaitingCallStep({ doctorName }: { doctorName: string }) {
+  const seeing = useSeeing();
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
       <div className="grid size-20 place-items-center rounded-full bg-brand/10">
@@ -555,7 +585,7 @@ function AwaitingCallStep({ doctorName }: { doctorName: string }) {
         Keep your phone nearby. The call will show as coming from Neem.
       </p>
       <p className="mt-6 max-w-xs text-xs leading-relaxed text-slate-400">
-        Your number is never shared with the doctor, and theirs is never shared with you.
+        Your number is never shared with the {seeing.noun}, and theirs is never shared with you.
       </p>
     </div>
   );
@@ -568,6 +598,7 @@ function CompleteStep({
   session: PatientSessionView;
   onFinished: () => void;
 }) {
+  const seeing = useSeeing();
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
       <div className="grid size-20 place-items-center rounded-full bg-brand/10">
@@ -622,8 +653,8 @@ function CompleteStep({
       <FeedbackPanel submitted={session.feedbackSubmitted} />
 
       <p className="mt-6 max-w-xs text-pretty text-xs leading-relaxed text-slate-400">
-        Your consultation record is stored securely. No doctor or pharmacy can open it, now or at a
-        future visit.
+        Your consultation record is stored securely. No {seeing.noun} or pharmacy can open it, now
+        or at a future visit.
       </p>
 
       <FinishOnThisPhone reference={session.consultationPublicId} onFinished={onFinished} />
@@ -774,6 +805,7 @@ function FeedbackPanel({ submitted }: { submitted: boolean }) {
 }
 
 function FeedbackForm({ onCancel }: { onCancel: () => void }) {
+  const seeing = useSeeing();
   const submit = useSubmitFeedback();
   const [doctorRating, setDoctorRating] = useState(0);
   const [neemRating, setNeemRating] = useState(0);
@@ -798,7 +830,7 @@ function FeedbackForm({ onCancel }: { onCancel: () => void }) {
         Two ratings, not one. The doctor may have been excellent on a
         connection that kept dropping, and a single score cannot say so.
       */}
-      <Stars label="The doctor" value={doctorRating} onChange={setDoctorRating} />
+      <Stars label={seeing.title} value={doctorRating} onChange={setDoctorRating} />
       <Stars label="Neem" value={neemRating} onChange={setNeemRating} />
 
       <fieldset className="mt-4">
@@ -898,7 +930,7 @@ function FeedbackForm({ onCancel }: { onCancel: () => void }) {
         this.
       */}
       <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-        The doctor and the pharmacy never see this.
+        {seeing.title} and the pharmacy never see this.
       </p>
     </div>
   );
@@ -945,6 +977,7 @@ function ClosedStep({
   session: PatientSessionView;
   onFinished: () => void;
 }) {
+  const seeing = useSeeing();
   const reason =
     session.state === "CANCELLED"
       ? "This consultation was cancelled."
@@ -961,7 +994,7 @@ function ClosedStep({
       <AlertCircle className="size-10 text-slate-300" />
       <h1 className="mt-4 text-xl font-bold">{reason}</h1>
       <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
-        Please speak to the pharmacist if you still need to see a doctor.
+        Please speak to the pharmacist if you still need to see a {seeing.noun}.
       </p>
 
       {/*
@@ -999,6 +1032,7 @@ function ClosedStep({
  * the patient to wait for something that is not coming.
  */
 function DocumentsPanel() {
+  const seeing = useSeeing();
   const documents = usePatientDocuments();
 
   if (documents.isPending) {
@@ -1024,7 +1058,7 @@ function DocumentsPanel() {
           Your documents could not be loaded
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-          Ask the pharmacist — they have a copy of anything the doctor issued.
+          Ask the pharmacist — they have a copy of anything the {seeing.noun} issued.
         </p>
       </div>
     );
@@ -1117,6 +1151,7 @@ function DocumentCard({ document }: { document: ConsultationDocument }) {
  * not made.
  */
 function RefundPanel({ state }: { state: string }) {
+  const seeing = useSeeing();
   const request = useRequestRefund();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -1162,7 +1197,7 @@ function RefundPanel({ state }: { state: string }) {
           onChange={(event) => setReason(event.target.value)}
           rows={3}
           maxLength={500}
-          placeholder="No doctor was available and I had to leave."
+          placeholder={`No ${seeing.noun} was available and I had to leave.`}
           className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm"
         />
       </label>
