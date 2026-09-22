@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, CalendarClock, Loader2, Stethoscope, Wallet } from "lucide-react";
+import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -29,13 +30,14 @@ export const Route = createFileRoute("/doctor/earnings")({
  * without that caveat reads as a balance about to arrive.
  */
 function DoctorEarnings() {
+  const role = useProfessionalRole();
   const { data, isLoading, error } = useDoctorEarnings();
   const statement = useEarningStatement();
 
   return (
     <AppShell active="doctor">
       <div className="mx-auto w-full max-w-2xl">
-        <p className="text-xs font-bold uppercase tracking-wider text-brand">Doctor</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-brand">{role.title}</p>
         <h1 className="mt-1 text-3xl font-bold">Earnings</h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-slate-500">
           {data?.paidBy === "SHARE"

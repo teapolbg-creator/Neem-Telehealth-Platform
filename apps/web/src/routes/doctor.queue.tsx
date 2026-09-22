@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, Loader2, Phone, PhoneOutgoing, Video, Wifi, WifiOff } from "lucide-react";
+import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/doctor/queue")({
  *    does not return them to a doctor principal.
  */
 function DoctorQueue() {
+  const role = useProfessionalRole();
   const { data: presence, isLoading } = usePresence();
   const goOnline = useGoOnline();
   const goOffline = useGoOffline();
@@ -148,12 +150,12 @@ function DoctorQueue() {
         <h2 className="mb-3 font-bold">How consultations reach you</h2>
         <ul className="space-y-2 text-sm leading-relaxed text-slate-600">
           <li>
-            Neem matches each patient to a doctor who speaks their language, balancing workload
+            Neem matches each patient to a {role.noun} who speaks their language, balancing workload
             across everyone on shift.
           </li>
           <li>
             You have {queue?.windowSeconds ?? 90} seconds to accept. If you do not respond, the
-            consultation goes to another doctor and the missed response is recorded.
+            consultation goes to another {role.noun} and the missed response is recorded.
           </li>
           <li>Assigned consultations cannot be declined.</li>
         </ul>
@@ -165,6 +167,7 @@ function DoctorQueue() {
 function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds: number }) {
   const remaining = useCountdown(offer.respondByAt);
   const accept = useAcceptOffer();
+  const role = useProfessionalRole();
   const navigate = useNavigate();
 
   const fraction = Math.max(0, Math.min(1, remaining / windowSeconds));
@@ -256,7 +259,7 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
 
       {lapsed && (
         <p className="mt-3 text-center text-xs text-slate-500">
-          It is being offered to another doctor. This was recorded as a missed response.
+          It is being offered to another {role.noun}. This was recorded as a missed response.
         </p>
       )}
     </section>
@@ -316,7 +319,14 @@ function NotificationPrompt() {
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => void request()}
+          onClick={() =>
+            void request().then((answer) => {
+              // Answered either way: allowed, there is nothing left to ask;
+              // blocked, the browser will not ask again. Only a prompt the
+              // doctor closed without answering leaves the banner up.
+              if (answer !== "default") setHidden(true);
+            })
+          }
           className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white hover:brightness-110"
         >
           Turn on alerts

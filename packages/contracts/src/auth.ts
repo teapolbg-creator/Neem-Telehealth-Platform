@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES } from './enums.ts';
+import { PROFESSIONAL_DISCIPLINES, USER_ROLES } from './enums.ts';
 
 /**
  * Authentication contracts. Shared by the API (validation) and the web app
@@ -87,5 +87,10 @@ export const sessionUserSchema = z.object({
   permissions: z.array(z.string()),
   /** Present for DOCTOR and PHARMACY principals. */
   organisation: z.object({ publicId: z.string(), name: z.string(), status: z.string() }).nullable(),
+  /**
+   * What a professional is (v2), so every screen can call them what they are:
+   * a dietitian is not told about "doctor earnings". Null for anyone else.
+   */
+  discipline: z.enum(PROFESSIONAL_DISCIPLINES).nullable().optional(),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;

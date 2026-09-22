@@ -17,18 +17,21 @@ export type NotificationPermission_ = "default" | "granted" | "denied" | "unsupp
 
 export function useNotificationPermission(): {
   permission: NotificationPermission_;
-  request: () => Promise<void>;
+  /** Resolves with the answer, so a caller can act on it straight away. */
+  request: () => Promise<NotificationPermission_>;
 } {
   const [permission, setPermission] = useState<NotificationPermission_>(() =>
     typeof Notification === "undefined" ? "unsupported" : Notification.permission,
   );
 
   const request = useCallback(async () => {
-    if (typeof Notification === "undefined") return;
+    if (typeof Notification === "undefined") return "unsupported" as const;
     // Browsers require a user gesture, which is why this is called from a
     // button rather than on mount. Asking unprompted also gets denied by
     // habit, and a denial is sticky.
-    setPermission(await Notification.requestPermission());
+    const answer = await Notification.requestPermission();
+    setPermission(answer);
+    return answer;
   }, []);
 
   return { permission, request };

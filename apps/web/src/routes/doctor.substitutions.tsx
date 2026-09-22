@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, ArrowRight, Check, Loader2, X } from "lucide-react";
+import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -24,12 +25,13 @@ export const Route = createFileRoute("/doctor/substitutions")({
  * when the proposal arrived would otherwise never learn of it.
  */
 function DoctorSubstitutions() {
+  const role = useProfessionalRole();
   const { data, isLoading, error } = useDoctorSubstitutions();
 
   return (
     <AppShell active="doctor">
       <div className="mx-auto w-full max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-wider text-brand">Doctor</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-brand">{role.title}</p>
         <h1 className="mt-1 text-3xl font-bold">Substitutions</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
           A pharmacy has asked to dispense something other than what you prescribed. Nothing has

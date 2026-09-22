@@ -744,6 +744,15 @@ describe('registering as a dietitian or trainer', () => {
     expect(row.credentialNumber).toBe('AHPC-7781');
   });
 
+  it('tells the web app what the signed-in professional is, so it can call them that', async () => {
+    await request('/onboarding/doctor', { method: 'POST', payload: dietitian() });
+
+    const cookies = await signIn('dietitian@test.local', 'DoctorPassword123!');
+    const me = await request<{ discipline: string | null }>('/auth/me', { cookies });
+
+    expect(me.body.data?.discipline).toBe('DIETITIAN');
+  });
+
   it('records AHPC whatever body a dietitian types', async () => {
     const response = await request('/onboarding/doctor', {
       method: 'POST',

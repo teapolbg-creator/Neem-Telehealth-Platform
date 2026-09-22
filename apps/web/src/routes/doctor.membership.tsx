@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, BadgeCheck, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
+import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/doctor/membership")({
  * the screen waits for that rather than assuming it (spec §34).
  */
 function DoctorMembership() {
+  const role = useProfessionalRole();
   const { data, isLoading, error } = useMembership();
   const start = useStartMembershipPayment();
 
@@ -38,7 +40,7 @@ function DoctorMembership() {
   return (
     <AppShell active="doctor">
       <div className="mx-auto w-full max-w-2xl">
-        <p className="text-xs font-bold uppercase tracking-wider text-brand">Doctor</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-brand">{role.title}</p>
         <h1 className="mt-1 text-3xl font-bold">Membership</h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-slate-500">
           Your membership keeps your account active on Neem. It is separate from what you earn —

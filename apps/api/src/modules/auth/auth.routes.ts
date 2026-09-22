@@ -206,7 +206,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       where: { id: principal.userId },
       include: {
         admin: { select: { fullName: true } },
-        doctor: { select: { publicId: true, fullName: true, status: true } },
+        doctor: { select: { publicId: true, fullName: true, status: true, discipline: true } },
         pharmacyMembership: {
           select: { pharmacy: { select: { publicId: true, name: true, status: true } } },
         },
@@ -236,6 +236,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       mustEnrollTwoFactor: user.role === 'ADMIN' && user.twoFactorEnabledAt === null,
       permissions: principal.permissions,
       organisation,
+      discipline: user.doctor?.discipline ?? null,
     };
 
     return reply.send({ data, meta: { requestId: request.correlationId } });

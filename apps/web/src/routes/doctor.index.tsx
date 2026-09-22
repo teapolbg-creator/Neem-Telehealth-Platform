@@ -10,6 +10,7 @@ import {
   Stethoscope,
   Wallet,
 } from "lucide-react";
+import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/doctor/")({
  * this screen do not return them to a doctor principal (spec §24, §52).
  */
 function DoctorDashboard() {
+  const role = useProfessionalRole();
   const profile = useDoctorProfile();
   const presence = usePresence();
   const shifts = useDoctorShifts();
@@ -91,7 +93,7 @@ function DoctorDashboard() {
     <AppShell active="doctor">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mb-1 text-sm font-semibold text-brand">Doctor</p>
+          <p className="mb-1 text-sm font-semibold text-brand">{role.title}</p>
           <h1 className="text-3xl font-bold tracking-tight">{doctor.fullName}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {doctor.credential}
