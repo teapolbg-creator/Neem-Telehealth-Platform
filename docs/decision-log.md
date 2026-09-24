@@ -1612,7 +1612,7 @@ record none. No production data was affected; none exists yet.
 
 Covered by `tests/integration/counter-doctor-share.test.ts`.
 
-### D54 — Membership returns at GHS 5 a renewal, for every professional · 2026-09-24 · **DECIDED**
+### D54 — Membership is GHS 100 a renewal, and off for the pilot · 2026-09-24 · **DECIDED**
 
 **Issue.** D53 dropped the membership fee six days ago, on the reasoning that a
 doctor paid by share should not also pay to be on the platform. The operator
@@ -1622,7 +1622,12 @@ well — they use the same platform on the same terms.
 
 **Decision, by the operator.**
 
-- **Fee.** GHS 5 per renewal, `doctor.membershipFeeMinor` = 500.
+- **Fee.** GHS 100 per renewal, `doctor.membershipFeeMinor` = 10000. Briefly
+  set at GHS 5 the same day, before the operator settled on 100.
+- **Off for the pilot.** `doctor.membershipRequired` is false. The fee is
+  recorded so it is ready, and nobody is charged it while Neem is asking its
+  first professionals to try the platform. Switching it on is a later decision,
+  taken when Neem judges the platform worth paying for.
 - **Period.** Six months, unchanged, so about GHS 10 a year.
 - **Who.** Every professional, not only doctors. The machinery never looked at
   discipline, so nothing in it changes; the Membership tab, hidden from
@@ -1637,12 +1642,10 @@ well — they use the same platform on the same terms.
   anyone already covered. It creates no payment row: no money moved, and an
   invented payment would appear in the day's takings.
 
-**How it is held.** The seeded defaults change — `doctor.membershipRequired`
-true, `doctor.membershipFeeMinor` 500 — which decides what a fresh deployment
-does. Staging and production keep whatever an administrator set, so reinstating
-it there is three deliberate acts, in this order: run the grant, set the fee to
-500, then switch the requirement on. In the other order the first professional
-to renew is charged the old GHS 500.
+**How it is held.** The seeded defaults are `doctor.membershipRequired` false
+and `doctor.membershipFeeMinor` 10000. Staging and production keep whatever an
+administrator set, so charging it later is three deliberate acts, in this order:
+run the grant, confirm the fee, then switch the requirement on.
 
 Anyone already suspended for a lapsed membership stays suspended until an
 administrator reinstates them; the grant deliberately touches no account's

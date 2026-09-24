@@ -119,9 +119,14 @@ GH₵24.50.
 they were booked at, and earnings already recorded stand — a rollback changes
 what happens next, not what was earned.
 
-## Stage C — membership at GH₵5 (D54)
+## Stage C — membership, when the pilot is over (D54)
 
-In this order, or the first professional to renew is charged the old fee:
+**Not at launch.** The fee is GH₵100 a renewal, for every professional, and
+`doctor.membershipRequired` is off: Neem is asking its first professionals to
+try the platform, and charging them for the privilege is not how that is done.
+
+When it is switched on, in this order, or somebody is suspended for a debt they
+were never told about:
 
 1. With the production `DATABASE_URL`:
 
@@ -133,7 +138,7 @@ In this order, or the first professional to renew is charged the old fee:
    to the end of the following month, recorded in the audit log as a grant of
    zero.
 
-2. Set `doctor.membershipFeeMinor` to `500`.
+2. Confirm `doctor.membershipFeeMinor` is `10000` (GH₵100).
 3. Set `doctor.membershipRequired` to on.
 4. Reinstate, by hand, anyone suspended earlier for a lapsed membership. The
    grant deliberately changes nobody's status.

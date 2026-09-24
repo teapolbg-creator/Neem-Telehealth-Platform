@@ -417,14 +417,15 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   {
     key: K.DOCTOR_MEMBERSHIP_REQUIRED,
     /*
-     * Reinstated at GH₵5 per renewal (operator's decision, 2026-09-24), after
-     * being dropped in D53. It is a commitment to the platform rather than
-     * revenue, and it applies to every professional, not only doctors.
+     * Off for the pilot (operator's decision, 2026-09-24, D54).
      *
-     * A live deployment keeps whatever an administrator set, so switching this
-     * back on is a deliberate act there, not something a deploy does.
+     * The fee exists and is set — GH₵100 a renewal, for every professional and
+     * not only doctors — but charging the first professionals to try Neem for
+     * the privilege is not how a pilot recruits them. It is switched on when
+     * Neem judges the platform worth paying for, and `npm run membership:grant`
+     * exists so that switching it on suspends nobody overnight.
      */
-    value: true,
+    value: false,
     valueType: 'boolean',
     description: 'Whether a professional must hold a paid membership to receive consultations.',
     category: 'workforce',
@@ -432,13 +433,13 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   },
   {
     key: K.DOCTOR_MEMBERSHIP_FEE_MINOR,
-    // GHS 5.00 every six months, for every professional (operator's decision,
-    // 2026-09-24). Reinstated after being dropped in D53, at a fee that is a
-    // commitment to the platform rather than a source of revenue.
-    value: 500,
+    // GHS 100.00 every six months, for every professional (operator's
+    // decision, 2026-09-24, D54). Set but not charged: the requirement below is
+    // off for the pilot.
+    value: 10000,
     valueType: 'number',
     description:
-      'Membership fee per renewal in minor units, for every professional. 500 = GH₵ 5.00.',
+      'Membership fee per renewal in minor units, for every professional. 10000 = GH₵ 100.00.',
     category: 'workforce',
     requiresConfirm: true,
   },
