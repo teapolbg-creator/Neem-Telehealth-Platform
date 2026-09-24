@@ -46,9 +46,9 @@ const NAV: Record<
     },
     { label: "Bookable hours", to: "/doctor/availability" },
     { label: "Earnings", to: "/doctor/earnings" },
-    // A doctor may still have a membership on file to look at; a dietitian or
-    // trainer never had one, so the tab would only ever say there is nothing.
-    { label: "Membership", to: "/doctor/membership", doctorsOnly: true },
+    // Every professional pays the membership fee, so every professional needs
+    // somewhere to pay and renew it (operator decision, 2026-09-24).
+    { label: "Membership", to: "/doctor/membership" },
     // Renamed below once the account is active: by then it is where their
     // documents and signature are kept, not a process still under way.
     { label: "Onboarding", to: "/doctor/onboarding" },

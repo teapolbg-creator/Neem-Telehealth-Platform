@@ -15,7 +15,7 @@ import { ClinicalWorkspace } from "@/components/neem/ClinicalWorkspace";
 import { CallStage } from "@/components/neem/CallStage";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
-import { consultationOrigin, useDoctorConsultation } from "@/features/queue/api";
+import { channelLabel, consultationOrigin, useDoctorConsultation } from "@/features/queue/api";
 import {
   useDoctorTimer,
   useJoinDoctorMedia,
@@ -107,8 +107,16 @@ function DoctorConsultation() {
               <MapPin className="size-4" />
               {consultationOrigin(data.pharmacy)}
             </p>
+            {/* What the channel means in practice, rather than leaving the
+                professional to infer it from a pharmacy name. */}
+            <p className="mt-1 text-xs text-slate-400">
+              {data.pharmacy
+                ? "Anything you issue goes to this pharmacy, which may propose a substitution for you to decide."
+                : "No pharmacy is involved. The patient keeps whatever you issue, under My care."}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Chip tone={data.pharmacy ? "medical" : "muted"}>{channelLabel(data.pharmacy)}</Chip>
             {data.language && <Chip tone="muted">{data.language.label}</Chip>}
             <Chip tone="brand">{data.state.replace(/_/g, " ").toLowerCase()}</Chip>
           </div>

@@ -1611,3 +1611,44 @@ summary would have reported it as paid to pharmacies. Direct consultations now
 record none. No production data was affected; none exists yet.
 
 Covered by `tests/integration/counter-doctor-share.test.ts`.
+
+### D54 — Membership returns at GHS 5 a renewal, for every professional · 2026-09-24 · **DECIDED**
+
+**Issue.** D53 dropped the membership fee six days ago, on the reasoning that a
+doctor paid by share should not also pay to be on the platform. The operator
+wants a membership kept, at a price that is a commitment to Neem rather than a
+source of revenue, and wants it to apply to dietitians and personal trainers as
+well — they use the same platform on the same terms.
+
+**Decision, by the operator.**
+
+- **Fee.** GHS 5 per renewal, `doctor.membershipFeeMinor` = 500.
+- **Period.** Six months, unchanged, so about GHS 10 a year.
+- **Who.** Every professional, not only doctors. The machinery never looked at
+  discipline, so nothing in it changes; the Membership tab, hidden from
+  dietitians and trainers when the fee was dropped, comes back for them.
+- **Everything else unchanged.** Warned 14 days before expiry, 7 days' grace
+  after, then suspended until the renewal is paid.
+- **Nobody is blocked overnight.** Before the fee is switched on, every
+  professional is granted a free period to the end of the following month, so
+  the first thing anyone is asked to pay is a renewal rather than a debt they
+  were never told about. `npm run membership:grant` writes an ACTIVE
+  subscription of zero, records it in the audit log as a grant, and skips
+  anyone already covered. It creates no payment row: no money moved, and an
+  invented payment would appear in the day's takings.
+
+**How it is held.** The seeded defaults change — `doctor.membershipRequired`
+true, `doctor.membershipFeeMinor` 500 — which decides what a fresh deployment
+does. Staging and production keep whatever an administrator set, so reinstating
+it there is three deliberate acts, in this order: run the grant, set the fee to
+500, then switch the requirement on. In the other order the first professional
+to renew is charged the old GHS 500.
+
+Anyone already suspended for a lapsed membership stays suspended until an
+administrator reinstates them; the grant deliberately touches no account's
+status, because a suspension is an administrator's decision to reverse.
+
+The test suite turns the requirement off for itself, as it does the on-duty
+rule, because almost no test is about membership and almost none creates a
+subscription. `tests/integration/membership.test.ts` and
+`counter-doctor-share.test.ts` turn it on and are what prove it blocks.

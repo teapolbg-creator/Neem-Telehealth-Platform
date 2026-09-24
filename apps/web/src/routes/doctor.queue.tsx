@@ -6,6 +6,7 @@ import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import {
+  channelLabel,
   consultationOrigin,
   useAcceptOffer,
   useCountdown,
@@ -186,9 +187,14 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Chip tone={lapsed ? "muted" : "brand"} pulse={!lapsed}>
-            {lapsed ? "Offer expired" : "New consultation"}
-          </Chip>
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip tone={lapsed ? "muted" : "brand"} pulse={!lapsed}>
+              {lapsed ? "Offer expired" : "New consultation"}
+            </Chip>
+            {/* Which kind it is, before accepting: it decides what happens to
+                anything issued, and whether a pharmacy can propose a swap. */}
+            <Chip tone={offer.pharmacy ? "medical" : "muted"}>{channelLabel(offer.pharmacy)}</Chip>
+          </div>
           <h2 className="mt-3 text-2xl font-bold">
             {offer.language?.label ?? "Consultation"} ·{" "}
             <span className="capitalize">{offer.type?.replace("_", " ").toLowerCase()}</span>

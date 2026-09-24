@@ -416,26 +416,28 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   {
     key: K.DOCTOR_MEMBERSHIP_REQUIRED,
     /*
-     * Dropped (operator's decision, 2026-09-18), and effective on deploy rather
-     * than at the pay cut-over. A membership runs for six months and a lapsed
-     * one suspends the doctor, so keeping it until the 1st would force anyone
-     * lapsing before then to buy six months of a fee that no longer exists —
-     * or be suspended. While this is off nobody is sold one, warned about one,
-     * or suspended for lacking one.
+     * Reinstated at GH₵5 per renewal (operator's decision, 2026-09-24), after
+     * being dropped in D53. It is a commitment to the platform rather than
+     * revenue, and it applies to every professional, not only doctors.
+     *
+     * A live deployment keeps whatever an administrator set, so switching this
+     * back on is a deliberate act there, not something a deploy does.
      */
-    value: false,
+    value: true,
     valueType: 'boolean',
-    description:
-      'Whether doctors must hold a paid membership to receive consultations. Off: the fee has been dropped.',
+    description: 'Whether a professional must hold a paid membership to receive consultations.',
     category: 'workforce',
     requiresConfirm: true,
   },
   {
     key: K.DOCTOR_MEMBERSHIP_FEE_MINOR,
-    value: 50000,
+    // GHS 5.00 every six months, for every professional (operator's decision,
+    // 2026-09-24). Reinstated after being dropped in D53, at a fee that is a
+    // commitment to the platform rather than a source of revenue.
+    value: 500,
     valueType: 'number',
     description:
-      'Six-month doctor membership fee in minor units. Seeded placeholder — set before go-live.',
+      'Membership fee per renewal in minor units, for every professional. 500 = GH₵ 5.00.',
     category: 'workforce',
     requiresConfirm: true,
   },

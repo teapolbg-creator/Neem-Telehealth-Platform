@@ -88,6 +88,17 @@ export function consultationOrigin(pharmacy: { name: string; city: string } | nu
   return pharmacy ? `${pharmacy.name}, ${pharmacy.city}` : "Booked online by the patient";
 }
 
+/**
+ * Which kind of consultation this is, said plainly.
+ *
+ * It changes what the professional can do: a pharmacy is standing by to
+ * dispense and may propose a substitution, and an online patient keeps what
+ * is issued and takes it wherever they choose.
+ */
+export function channelLabel(pharmacy: { name: string; city: string } | null): string {
+  return pharmacy ? "At a pharmacy" : "Online patient";
+}
+
 export function useQueue(enabled: boolean) {
   return useQuery({
     queryKey: queueKey,

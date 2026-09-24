@@ -75,6 +75,15 @@ export async function resetDatabase(): Promise<void> {
    * is the file that proves the block.
    */
   await setDoctorOnDutyRequired(false);
+
+  /*
+   * Likewise off for the suite, on in production: every professional pays a
+   * membership (operator decision, 2026-09-24), and almost no test creates a
+   * subscription because almost none of them is about one.
+   * `membership.test.ts` and `counter-doctor-share.test.ts` turn it back on,
+   * and are the files that prove it blocks.
+   */
+  await setMembershipRequired(false);
 }
 
 export interface TestUserOptions {
