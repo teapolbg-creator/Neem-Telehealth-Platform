@@ -13,9 +13,10 @@ and the stages are separated so that each can be judged, and undone, on its own.
   the same platform with a second way in. The `staging` branch carries both and
   has been exercised end to end; `main` is what production runs.
 - **Every v2 behaviour is behind a switch**, and every switch is off in
-  production: patient booking (`channels.directEnabled`), professional earnings
-  (`revenue.professionalEarningsEnabled`), and the counter pay cut-over
-  (`revenue.counterShareFrom`, dated 2026-10-01).
+  production: patient booking (`channels.directEnabled`) and professional
+  earnings (`revenue.professionalEarningsEnabled`). The counter pay cut-over
+  (`revenue.counterShareFrom`) is dated 2026-09-01, so shares apply from the
+  moment earnings are switched on rather than from a future date (D55).
 - **Prices and shares are stored settings**, not code. A deploy never changes
   them.
 
@@ -79,40 +80,44 @@ first time the seed runs, which is why the two above are worth checking.
 **Rollback.** Redeploy the previous commit in Render. The migrations stay —
 they are additive, and v1 does not read the new columns.
 
-## Stage B — the money, on 2026-10-01
+## Stage B — the money, as soon as people have been told (D55)
 
-Three changes that belong to the same day, because they are one commercial
-decision (D53):
+One commercial decision, applied together rather than on a future date:
 
-| Setting                      | To     | Meaning                                         |
-| ---------------------------- | ------ | ----------------------------------------------- |
-| `consultation.priceMinor`    | `5000` | A counter consultation costs GH₵50              |
-| `revenue.pharmacySharePctBp` | `2000` | The pharmacy keeps 20% of what the patient paid |
-| `revenue.neemSharePctBp`     | `8000` | The remainder, before the doctor's half         |
+| Setting                               | To           | Meaning                                               |
+| ------------------------------------- | ------------ | ----------------------------------------------------- |
+| `consultation.priceMinor`             | `5000`       | A counter consultation costs GH₵50                    |
+| `revenue.pharmacySharePctBp`          | `2000`       | The pharmacy keeps 20% of what the patient paid       |
+| `revenue.neemSharePctBp`              | `8000`       | The complement; Neem's pool before the professional's |
+| `revenue.professionalSharePctBp`      | `5000`       | The professional takes 50% after the provider's fee   |
+| `revenue.counterShareFrom`            | `2026-09-01` | Counter consultations earn a share from September     |
+| `revenue.professionalEarningsEnabled` | on           | Earnings are recorded at all                          |
 
-`revenue.counterShareFrom` is already `2026-10-01`, so doctors move from salary
-to a share on that date without anyone touching it. Payroll shows no salary from
-October.
+On GH₵50 with a GH₵1 provider fee: pharmacy GH₵10, professional GH₵24.50, Neem
+GH₵14.50 at a counter, and professional GH₵24.50, Neem GH₵24.50 online. The
+professional is paid the same either way; the pharmacy's share comes out of
+Neem's.
 
-**To switch earnings on at the same time**, set
-`revenue.professionalEarningsEnabled` to on. Until it is on, no earning is
-recorded for anybody — so it must be on before the first consultation of
-October completes, or that consultation earns its doctor nothing.
+**Order matters.** Set the share and the price before switching earnings on.
+Nothing is recorded for anybody while earnings are off, and a consultation that
+completes in that window earns its professional nothing, retrospectively or
+otherwise.
 
-**Before the day, not on it:**
+**Before it, not after:**
 
-- Tell every pharmacy the price becomes GH₵50 and their share becomes 20% of
-  what the patient pays — GH₵10 a consultation, against GH₵9 today.
-- Tell every counter doctor that September is paid as salary and October is paid
-  as a share: half of what is left after the pharmacy's 20% and the payment
-  provider's fee. About GH₵19.50 on a GH₵50 consultation.
+- Tell every pharmacy the price becomes GH₵50 and their share stays 20% of what
+  the patient pays — GH₵10 a consultation, against GH₵9 today.
+- Tell every counter doctor that **September is paid by share, not salary**, and
+  what that means for a quiet month. This is the change that costs somebody
+  money, and it should not arrive as a surprise in a payslip.
 
-**Verification, the same day.** Complete one counter consultation and check
-Admin → Payouts shows GH₵10 to the pharmacy, and Admin → Professional pay shows
-the doctor's share.
+**Verification.** Complete one counter consultation and check Admin → Payouts
+shows GH₵10 to the pharmacy, and Admin → Professional pay shows the doctor's
+GH₵24.50.
 
-**Rollback.** Set the three settings back. Consultations already booked keep the
-price they were booked at, so nothing already sold is rewritten.
+**Rollback.** Set the settings back. Consultations already booked keep the price
+they were booked at, and earnings already recorded stand — a rollback changes
+what happens next, not what was earned.
 
 ## Stage C — membership at GH₵5 (D54)
 

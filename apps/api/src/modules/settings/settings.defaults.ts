@@ -186,11 +186,11 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   // --- Revenue ------------------------------------------------------------
   {
     key: K.REVENUE_PHARMACY_BP,
-    // 20%, of what the patient paid (operator's decision, 2026-09-18).
+    // 20%, of what the patient paid (operator's decision, 2026-09-24, D55).
     value: 2000,
     valueType: 'number',
     description:
-      "Pharmacy share of a counter consultation, of what the patient paid, in basis points. 2000 = 20.00%. The doctor's share comes out of the remainder, after the provider fee.",
+      "Pharmacy share of a counter consultation, of what the patient paid, in basis points. 2000 = 20.00%. It comes out of Neem's share, not the professional's.",
     category: 'revenue',
     requiresConfirm: true,
   },
@@ -204,19 +204,18 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   },
   {
     key: K.REVENUE_PROFESSIONAL_EARNINGS_ENABLED,
-    value: false,
+    value: true,
     valueType: 'boolean',
     /*
-     * Off, and it stays off until somebody has decided what a professional is
-     * paid (v2).
+     * On: the share is agreed (D55, 40% of what the patient paid less the
+     * provider's fee), so the machinery is no longer running on a guess.
      *
-     * The share below has no honest default — a number invented here would be
-     * a number somebody is paid — so this switch is what stops the machinery
-     * running on a guess. While it is off no earning is recorded at all, and
-     * turning it on with the share still at zero is refused.
+     * It remains a switch because a deployment that has not agreed a share
+     * must not record one. While it is off no earning is recorded at all, and
+     * turning it on with the share at zero is still refused.
      */
     description:
-      'Whether a share of each patient-direct consultation is recorded as earned by the professional (v2). Off until the split is agreed.',
+      'Whether each completed consultation records a share as earned by the professional.',
     category: 'revenue',
     requiresConfirm: true,
   },
@@ -225,13 +224,13 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: 5000,
     valueType: 'number',
     /*
-     * 50%, confirmed by the operator on 2026-09-17, of what is left after the
-     * provider's fee. The switch above is still off: agreeing a rate and
-     * running the machinery in production are two decisions, and this is only
-     * the first.
+     * 50% of what the patient paid less the provider's fee, whichever door the
+     * patient came through (operator's decision, 2026-09-24, D55). A pharmacy's
+     * 20% comes out of Neem's share, so the same work pays the same either way:
+     * Neem keeps 30% of a counter consultation and 50% of a direct one.
      */
     description:
-      "The professional's share of a patient-direct consultation after provider fees, in basis points. 5000 = 50.00% (v2).",
+      "The professional's share of a consultation after provider fees, in basis points. 5000 = 50.00%. Paid on counter and patient-direct consultations alike.",
     category: 'revenue',
     requiresConfirm: true,
   },
@@ -401,12 +400,14 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
   {
     key: K.REVENUE_COUNTER_SHARE_FROM,
     /*
-     * When counter doctors stop being paid a salary and start earning a share
-     * (operator's decision, 2026-09-18). The first of a month, always: the
-     * salary is a monthly figure, and a cut-over in the middle of one would pay
-     * the second half of it twice.
+     * When counter doctors stop being paid a salary and start earning a share.
+     * Brought forward to September (operator's decision, 2026-09-24): every
+     * change takes effect now rather than on the 1st of next month, so this
+     * month is paid by share and no salary is due for it. The first of a month,
+     * always: the salary is a monthly figure, and a cut-over in the middle of
+     * one would pay the second half of it twice.
      */
-    value: '2026-10-01',
+    value: '2026-09-01',
     valueType: 'string',
     description:
       'The first day counter consultations earn the doctor a share instead of salary (YYYY-MM-01). Payroll shows no salary from this month.',

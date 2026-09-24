@@ -182,7 +182,12 @@ async function completeWithSummary(fixture: Fixture) {
 }
 
 describe('recording what was earned', () => {
-  it('records nothing at all while the split is undecided', async () => {
+  it('records nothing at all while earnings are switched off', async () => {
+    await updateSetting(SETTING_KEYS.REVENUE_PROFESSIONAL_EARNINGS_ENABLED, false, {
+      adminId: ADMIN_ID,
+      reason: 'test',
+    });
+
     const fixture = await liveDirectConsultation();
 
     await completeWithSummary(fixture);
@@ -193,6 +198,10 @@ describe('recording what was earned', () => {
   it('refuses to switch earnings on before a share is set', async () => {
     // Clearing the share is allowed while nobody is earning; switching
     // earnings on afterwards is not.
+    await updateSetting(SETTING_KEYS.REVENUE_PROFESSIONAL_EARNINGS_ENABLED, false, {
+      adminId: ADMIN_ID,
+      reason: 'test',
+    });
     await updateSetting(SETTING_KEYS.REVENUE_PROFESSIONAL_BP, 0, {
       adminId: ADMIN_ID,
       reason: 'test',

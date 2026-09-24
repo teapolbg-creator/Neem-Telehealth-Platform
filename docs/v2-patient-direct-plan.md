@@ -276,9 +276,11 @@ answered.
 5. ~~**Weight-loss commercial shape.**~~ **Answered 2026-09-17: separately bookable consultations.**
    Built in phase 8: one clinic, three professions, three prices, each booked and paid for on its
    own. No package, no subscription, and nothing in the code assumes one.
-6. ~~**Existing doctors.**~~ **Answered 2026-09-18 (D53):** counter doctors move to a share from
-   1 October 2026 — pharmacy 20% of the gross, fee off the rest, doctor and Neem 50/50. The
-   membership fee is dropped, effective on deploy. The counter price moves to GHS 50.
+6. ~~**Existing doctors.**~~ **Answered 2026-09-18 (D53), revised 2026-09-24 (D55):** counter
+   doctors are paid by share from September 2026 rather than salary. The provider fee comes off
+   what the patient paid, the professional takes 50% of the rest at a counter and online alike,
+   the pharmacy keeps 20% of the gross out of Neem's share, and Neem keeps the remainder. The
+   counter price moves to GHS 50. Membership returns at GHS 5 a renewal (D54).
 7. **Cancellation, rescheduling, no-show.** Free-cancellation window, refund proportion, and what a
    no-show forfeits.
 8. **Patient identity minimum.** Phone only, email only, or either.

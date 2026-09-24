@@ -10,6 +10,10 @@ import {
   setPaymentProviderForTesting,
 } from '../../src/adapters/payment/index.ts';
 import { currentPayrollPeriod } from '../../src/modules/doctor/payroll.service.ts';
+import { updateSetting } from '../../src/modules/settings/settings.service.ts';
+import { SETTING_KEYS } from '../../src/modules/settings/settings.defaults.ts';
+
+const PAYROLL_ADMIN_ID = 'admin-test-id';
 
 /**
  * Payroll and promotions (spec §26, §42, decision D28).
@@ -88,6 +92,24 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('payroll (decision D28)', () => {
+  /*
+   * Salary ended in September 2026 (D55), and these tests are about the salary
+   * arithmetic rather than the date it stopped. Each one asks for a period
+   * that is still salaried by putting the cut-over in the month after this
+   * one; `counter-doctor-share.test.ts` is where the cut-over itself is proved.
+   */
+  beforeEach(async () => {
+    const next = new Date();
+    next.setUTCMonth(next.getUTCMonth() + 1, 1);
+    const month = String(next.getUTCMonth() + 1).padStart(2, '0');
+
+    await updateSetting(
+      SETTING_KEYS.REVENUE_COUNTER_SHARE_FROM,
+      `${next.getUTCFullYear()}-${month}-01`,
+      { adminId: PAYROLL_ADMIN_ID, reason: 'salary arithmetic, not the cut-over' },
+    );
+  });
+
   it('pays a full-time doctor the configured monthly figure', async () => {
     await createDoctor({
       email: 'full@payroll.test',

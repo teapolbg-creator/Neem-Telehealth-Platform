@@ -26,10 +26,11 @@ import { encryptField, generatePublicId } from '../../src/lib/crypto.ts';
  * 2026-09-18).
  *
  * GHS 50 a consultation; the pharmacy keeps 20% of what the patient paid, as
- * it always has; the provider's fee comes off what is left; the doctor and Neem
- * split the rest evenly. From the first of October, and not a day before —
- * September is paid as salary, and paying both would pay for it twice. The
- * membership fee is dropped outright.
+ * it always has; the provider's fee comes off the gross; the doctor takes 50%
+ * of what is left and Neem keeps the remainder, which is the pharmacy's 20%
+ * out of Neem's share rather than the doctor's (D55). Shares apply from the
+ * first of the cut-over month and not a day before — a month paid as salary
+ * and by share would be paid for twice.
  */
 
 const ADMIN_ID = 'admin-test-id';
@@ -163,7 +164,7 @@ async function complete(consultationId: string, doctorId: string) {
 }
 
 describe('a counter consultation from the cut-over', () => {
-  it('pays the pharmacy 20% of the gross, takes the fee off the rest, and splits it evenly', async () => {
+  it('pays the pharmacy 20% of the gross, and the doctor 50% of the rest after the fee', async () => {
     await sharesStartedAlready();
     const professional = await doctor();
     const consultation = await paidCounterConsultation(professional.id, 100);
@@ -176,13 +177,17 @@ describe('a counter consultation from the cut-over', () => {
       where: { consultationId: consultation.id },
     });
 
-    // GHS 50 paid; pharmacy 10; fee 1; 39 split evenly.
+    /*
+     * GHS 50 paid, fee 1. The doctor's 50% is of the 49 that is left, not of
+     * what the pharmacy left behind (D55): the pharmacy's 10 comes out of
+     * Neem's share, so the same work pays the same at a counter as online.
+     */
     expect(earning.grossMinor).toBe(5_000);
     expect(earning.pharmacyShareMinor).toBe(1_000);
     expect(earning.feeMinor).toBe(100);
-    expect(earning.netMinor).toBe(3_900);
-    expect(earning.professionalShareMinor).toBe(1_950);
-    expect(earning.neemShareMinor).toBe(1_950);
+    expect(earning.netMinor).toBe(4_900);
+    expect(earning.professionalShareMinor).toBe(2_450);
+    expect(earning.neemShareMinor).toBe(1_450);
 
     // Every pesewa accounted for, once.
     expect(
@@ -206,7 +211,8 @@ describe('a counter consultation from the cut-over', () => {
       where: { consultationId: consultation.id },
     });
     expect(earning.pharmacyShareMinor).toBe(1_000);
-    expect(earning.professionalShareMinor).toBe(2_000);
+    // Unmoved by the pharmacy's rate, at payment or today.
+    expect(earning.professionalShareMinor).toBe(2_500);
   });
 });
 

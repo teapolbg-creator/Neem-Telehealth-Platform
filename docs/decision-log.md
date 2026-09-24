@@ -1652,3 +1652,55 @@ The test suite turns the requirement off for itself, as it does the on-duty
 rule, because almost no test is about membership and almost none creates a
 subscription. `tests/integration/membership.test.ts` and
 `counter-doctor-share.test.ts` turn it on and are what prove it blocks.
+
+### D55 — The professional takes 50% either way, and every change takes effect now · 2026-09-24 · **DECIDED**
+
+**Issue.** [D53](#d53) set the counter split at pharmacy 20% of the gross, with
+the doctor and Neem halving what was left after the provider's fee, from
+2026-10-01. It also left a professional earning less at a counter than online
+for the same consultation, because the pharmacy's share came out of the pool the
+doctor was paid from.
+
+**Decision, by the operator.**
+
+- **The professional takes 50%** of what the patient paid less the provider's
+  fee, **whichever door the patient came through**. A pharmacy's share comes out
+  of Neem's, not the professional's, so the same work pays the same.
+- **Pharmacy 20%** of what the patient paid, unchanged from D53.
+- **Neem keeps the remainder**: about 30% of a counter consultation and 50% of a
+  patient-direct one, carrying the provider's fee in both.
+- **Now, not October.** `revenue.counterShareFrom` moves to **2026-09-01**, so
+  September is paid by share and no salary is due for it. Everything else —
+  price, percentages, earnings — applies as soon as an administrator sets it.
+
+On GHS 50 with a GHS 1 provider fee:
+
+|              | Counter | Patient-direct |
+| ------------ | ------- | -------------- |
+| Pharmacy     | 10.00   | —              |
+| Professional | 24.50   | 24.50          |
+| Neem         | 14.50   | 24.50          |
+| Provider fee | 1.00    | 1.00           |
+
+**How it is held.** `revenue.pharmacySharePctBp` 2000,
+`revenue.neemSharePctBp` 8000, `revenue.professionalSharePctBp` 5000,
+`revenue.counterShareFrom` 2026-09-01, and
+`revenue.professionalEarningsEnabled` now defaults on — the share is agreed, so
+the guard that existed while it was not no longer has anything to guard. A live
+deployment keeps whatever an administrator set; these are the values a fresh one
+starts from.
+
+In `earnings.service.ts` the professional's share is taken from the gross less
+the fee, and Neem's is the remainder after the pharmacy's share rather than a
+percentage of its own — three shares and a fee that must add up to what the
+patient paid, which a remainder cannot drift from however the rounding falls.
+
+**Why September costs nobody anything.** Paying a worked month by share rather
+than salary would normally be a decision to explain to the people it pays less.
+It is not one here: every professional account in production today was made for
+testing, the pilot has not started, and the first real doctor will be onboarded
+under these terms rather than moved onto them. Payroll shows no salary from
+September, and no salary was owed.
+
+Covered by `tests/integration/counter-doctor-share.test.ts` and
+`tests/integration/v2-earnings.test.ts`.

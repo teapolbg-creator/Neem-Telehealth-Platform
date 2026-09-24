@@ -46,15 +46,18 @@ export async function counterShareFrom(db: Db = getPrisma()): Promise<Date> {
 /**
  * Records what the professional earned from a completed consultation.
  *
- * **Patient-direct:** the provider's fee comes off, and what is left is split
- * between the professional and Neem.
+ * The provider's fee comes off what the patient paid, the professional takes
+ * their share of the rest, and Neem keeps the remainder — less the pharmacy's
+ * share, where a pharmacy was involved (D55).
  *
- * **Counter, from the cut-over:** the pharmacy's share comes off first — of
- * what the patient paid, exactly as it always has, read from the settlement
- * snapshot rather than recomputed — then the fee, then the same split. On a
- * GHS 50 consultation at 20% and 50%, that is pharmacy 10, and doctor and Neem
- * half each of 40 less the fee. Before the cut-over a counter consultation
- * earns nothing here: the doctor's salary paid for it.
+ * **Patient-direct.** On GHS 50 with a GHS 1 fee: professional 24.50, Neem
+ * 24.50.
+ *
+ * **Counter, from the cut-over.** The pharmacy's share is read from the
+ * settlement snapshot rather than recomputed, so the doctor is paid out of the
+ * same figure the pharmacy was credited from. On GHS 50 with a GHS 1 fee and a
+ * 20% pharmacy share: pharmacy 10, doctor 24.50, Neem 14.50. Before the
+ * cut-over a counter consultation earns nothing here: the salary paid for it.
  */
 export async function recordEarning(
   consultationId: string,
@@ -125,8 +128,7 @@ export async function recordEarning(
    * about is split on the gross and says `feeMinor: 0`, which a reconciliation
    * can see; it is never a silently assumed zero inside an arithmetic.
    */
-  const afterPharmacy = consultation.netMinor - pharmacyShareMinor;
-  const feeMinor = Math.min(payment.feeMinor ?? 0, afterPharmacy);
+  const feeMinor = Math.min(payment.feeMinor ?? 0, consultation.netMinor);
   if (payment.feeMinor === null) {
     getLogger().warn(
       { consultationId, paymentId: payment.id },
@@ -134,18 +136,31 @@ export async function recordEarning(
     );
   }
 
-  const netMinor = afterPharmacy - feeMinor;
+  const netMinor = consultation.netMinor - feeMinor;
 
   /*
-   * The platform's one split function, invariant and rounding included. Its
-   * fields say "pharmacy" because a pharmacy was the only counterparty when it
-   * was written; the arithmetic is the same arithmetic.
+   * The professional's share is of the consultation, not of what a pharmacy
+   * left behind (operator's decision, 2026-09-24, D55).
+   *
+   * The same work is paid the same whichever door the patient came through:
+   * 50% of what the patient paid less the provider's fee, whether or not a
+   * pharmacy took its 20%. The pharmacy's share therefore comes out of Neem's
+   * half rather than out of the professional's — which is the whole point of
+   * the change, and is why the base below is not reduced by it.
    */
-  const { pharmacyShareMinor: professionalShareMinor, neemShareMinor } = splitRevenue(
+  const { pharmacyShareMinor: professionalShareMinor } = splitRevenue(
     netMinor,
     shareBp,
     consultation.currency,
   );
+
+  /*
+   * Whatever is left, which is what Neem actually keeps. Computed as a
+   * remainder rather than as its own percentage: the three shares and the fee
+   * must add up to what the patient paid, and a remainder cannot drift from
+   * that however the rounding falls.
+   */
+  const neemShareMinor = netMinor - professionalShareMinor - pharmacyShareMinor;
 
   try {
     const earning = await db.professionalEarning.create({
