@@ -178,6 +178,7 @@ That guarantee is now **partly operational**: recording can be enabled in the Wh
 
 | Document                                                 | Contents                                                                     |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`docs/launch-runbook.md`](docs/launch-runbook.md)       | Putting the counter and patient-direct systems live, stage by stage          |
 | [`docs/demonstration.md`](docs/demonstration.md)         | A 15-minute walkthrough of the full business cycle on a seeded machine       |
 | [`docs/roadmap.md`](docs/roadmap.md)                     | Phases 0–11, what each built, and what building it exposed                   |
 | [`docs/decision-log.md`](docs/decision-log.md)           | D1–D34, engineering decisions with their reasoning                           |
