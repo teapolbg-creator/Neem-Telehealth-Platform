@@ -57,7 +57,7 @@ const SERVICES = [
   },
   {
     code: 'WEIGHT_LOSS_DOCTOR',
-    name: 'Weight-loss clinic — doctor',
+    name: 'Weight-loss clinic with a doctor',
     description: 'Medical assessment and management of weight, with a doctor.',
     clinic: 'WEIGHT_LOSS' as const,
     discipline: 'DOCTOR' as const,
@@ -66,7 +66,7 @@ const SERVICES = [
   },
   {
     code: 'WEIGHT_LOSS_DIETITIAN',
-    name: 'Weight-loss clinic — dietitian',
+    name: 'Weight-loss clinic with a dietitian',
     description: 'Nutrition assessment and an eating plan, with a dietitian.',
     clinic: 'WEIGHT_LOSS' as const,
     discipline: 'DIETITIAN' as const,
@@ -75,7 +75,7 @@ const SERVICES = [
   },
   {
     code: 'WEIGHT_LOSS_TRAINER',
-    name: 'Weight-loss clinic — personal trainer',
+    name: 'Weight-loss clinic with a personal trainer',
     description: 'An exercise plan and coaching, with a personal trainer.',
     clinic: 'WEIGHT_LOSS' as const,
     discipline: 'TRAINER' as const,
