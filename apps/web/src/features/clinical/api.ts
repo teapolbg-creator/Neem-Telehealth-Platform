@@ -265,7 +265,8 @@ export function useCompleteConsultation(publicId: string) {
 
   return useMutation({
     mutationFn: (input: {
-      outcome: Outcome;
+      /** Everything the consultation produced, at least one (D56). */
+      outcomes: Outcome[];
       notes?: { notes?: string; diagnosis?: string; treatment?: string };
     }) => api.post<CompletionResult>(`/doctor/consultations/${publicId}/complete`, input),
     onSuccess: () => {

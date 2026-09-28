@@ -94,6 +94,8 @@ export interface ArchivedConsultation {
     language: string | null;
     durationSeconds: number | null;
     outcome: string | null;
+    /** Everything it produced, for records written since D56. */
+    outcomes: string[];
   };
   patient: {
     fullName: string;
@@ -242,6 +244,7 @@ export async function retrieveArchivedConsultation(
       language: consultation.language?.label ?? null,
       durationSeconds: consultation.durationSeconds,
       outcome: consultation.outcome,
+      outcomes: consultation.outcomes,
     },
     patient: consultation.patientSession
       ? {

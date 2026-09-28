@@ -354,24 +354,41 @@ export interface OutcomeMix {
   outcomes: Array<{ outcome: string; count: number }>;
   /** Completed consultations with no outcome recorded, so the mix is honest. */
   unrecorded: number;
+  /**
+   * Completed consultations in the period (D56).
+   *
+   * A consultation can record several outcomes, so the counts above can add up
+   * to more than this. Given both, a screen can say "of 40 consultations"
+   * rather than implying the percentages sum to 100.
+   */
+  consultations: number;
   coverage: ClinicalCoverage;
 }
 
 export async function outcomeMix(period: Period, db: Db = getPrisma()): Promise<OutcomeMix> {
   const completed = await db.consultation.findMany({
     where: { state: 'COMPLETED', completedAt: { gte: period.from, lte: period.to } },
-    select: { outcome: true },
+    select: { outcome: true, outcomes: true },
   });
 
   const counts = new Map<string, number>();
   let unrecorded = 0;
 
   for (const row of completed) {
-    if (!row.outcome) {
+    /*
+     * The list where there is one, the old single column otherwise: a record
+     * written before D56 has no list, and is still a consultation that
+     * happened.
+     */
+    const recorded = row.outcomes.length > 0 ? row.outcomes : row.outcome ? [row.outcome] : [];
+
+    if (recorded.length === 0) {
       unrecorded += 1;
       continue;
     }
-    counts.set(row.outcome, (counts.get(row.outcome) ?? 0) + 1);
+    for (const outcome of recorded) {
+      counts.set(outcome, (counts.get(outcome) ?? 0) + 1);
+    }
   }
 
   return {
@@ -380,6 +397,7 @@ export async function outcomeMix(period: Period, db: Db = getPrisma()): Promise<
       .map(([outcome, count]) => ({ outcome, count }))
       .sort((a, b) => b.count - a.count),
     unrecorded,
+    consultations: completed.length,
     // Carried even though the outcome column survives destruction, so the
     // screen can say what proportion of the period's records still exist.
     coverage: await clinicalCoverage(period, db),

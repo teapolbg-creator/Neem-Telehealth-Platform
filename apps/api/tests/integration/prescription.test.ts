@@ -885,6 +885,110 @@ describe('completing a consultation', () => {
     expect(consultation.clinicalSealedAt).not.toBeNull();
   });
 
+  /*
+   * More than one thing can come out of one consultation (D56).
+   *
+   * A doctor who prescribed and referred used to have to pick which of the two
+   * the record would remember, and the other was simply lost.
+   */
+  it('records a prescription and a referral together', async () => {
+    const fixture = await liveConsultation();
+    await issuedPrescription(fixture);
+    await issueReferral(fixture.consultationId, fixture.doctorId, {
+      hospitalName: 'Korle Bu Teaching Hospital',
+      department: 'Cardiology',
+      reasonText: 'Needs an ECG.',
+      urgency: 'Urgent',
+    });
+
+    const result = await completeConsultation(fixture.consultationId, fixture.doctorId, {
+      outcomes: ['PRESCRIPTION', 'REFERRAL'],
+    });
+
+    expect(result.outcomes).toEqual(['PRESCRIPTION', 'REFERRAL']);
+
+    const consultation = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: fixture.consultationId },
+    });
+    expect(consultation.outcomes).toEqual(['PRESCRIPTION', 'REFERRAL']);
+    // The single column every older screen reads keeps the headline of the two.
+    expect(consultation.outcome).toBe('PRESCRIPTION');
+  });
+
+  it('checks each outcome against what was actually issued', async () => {
+    const fixture = await liveConsultation();
+    await issuedPrescription(fixture);
+
+    await expect(
+      completeConsultation(fixture.consultationId, fixture.doctorId, {
+        outcomes: ['PRESCRIPTION', 'REFERRAL'],
+      }),
+    ).rejects.toThrow(/referral was issued, but none exists/i);
+  });
+
+  it('refuses advice only alongside anything else, because it contradicts it', async () => {
+    const fixture = await liveConsultation();
+    await issuedPrescription(fixture);
+
+    await expect(
+      completeConsultation(fixture.consultationId, fixture.doctorId, {
+        outcomes: ['ADVICE_ONLY', 'PRESCRIPTION'],
+      }),
+    ).rejects.toThrow(/cannot be recorded alongside/i);
+  });
+
+  it('refuses a completion that says nothing at all', async () => {
+    const fixture = await liveConsultation();
+
+    await expect(
+      completeConsultation(fixture.consultationId, fixture.doctorId, { outcomes: [] }),
+    ).rejects.toThrow(/at least one outcome/i);
+  });
+
+  it('still takes the single outcome it always took', async () => {
+    const fixture = await liveConsultation();
+    await issuedPrescription(fixture);
+
+    const result = await completeConsultation(fixture.consultationId, fixture.doctorId, {
+      outcome: 'PRESCRIPTION',
+    });
+
+    expect(result.outcome).toBe('PRESCRIPTION');
+    // Recorded as a list of one, so a record written by an old client reads
+    // the same as one written by a new one.
+    expect(result.outcomes).toEqual(['PRESCRIPTION']);
+  });
+
+  it('accepts a list over the API, and reads it back on the doctor screen', async () => {
+    const fixture = await liveConsultation();
+    await issuedPrescription(fixture);
+    await issueReferral(fixture.consultationId, fixture.doctorId, {
+      hospitalName: 'Ridge Hospital',
+      department: 'Medicine',
+      reasonText: 'Ongoing management.',
+      urgency: 'Routine',
+    });
+
+    const cookies = await signIn(fixture.doctorEmail, DOCTOR_PASSWORD);
+    const completion = await request(
+      `/doctor/consultations/${fixture.consultationPublicId}/complete`,
+      {
+        method: 'POST',
+        cookies,
+        payload: { outcomes: ['PRESCRIPTION', 'EMERGENCY_REFERRAL'] },
+      },
+    );
+
+    expect(completion.status).toBe(200);
+
+    const detail = await request<{ outcome: string; outcomes: string[] }>(
+      `/doctor/consultations/${fixture.consultationPublicId}`,
+      { cookies },
+    );
+    expect(detail.body.data?.outcomes).toEqual(['PRESCRIPTION', 'EMERGENCY_REFERRAL']);
+    expect(detail.body.data?.outcome).toBe('EMERGENCY_REFERRAL');
+  });
+
   it('leaves the prescription readable after the record is sealed (scenario 11, 12)', async () => {
     const fixture = await liveConsultation();
     const prescription = await issuedPrescription(fixture);

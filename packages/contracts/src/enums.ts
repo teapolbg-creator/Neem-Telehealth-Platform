@@ -105,6 +105,48 @@ export const CONSULTATION_OUTCOMES = [
 ] as const;
 export type ConsultationOutcome = (typeof CONSULTATION_OUTCOMES)[number];
 
+/**
+ * Outcomes that claim a document, and the document each claims (D56).
+ *
+ * A consultation can produce several things at once — a prescription and a
+ * referral is the ordinary case, not an edge one — so these are checked per
+ * outcome rather than as a single choice.
+ */
+export const OUTCOME_REQUIRES: Partial<Record<ConsultationOutcome, 'prescription' | 'referral' | 'summary'>> = {
+  ADVICE_ONLY: 'summary',
+  PRESCRIPTION: 'prescription',
+  REFERRAL: 'referral',
+  EMERGENCY_REFERRAL: 'referral',
+};
+
+/**
+ * "Advice only" means nothing else was issued, so it cannot be ticked
+ * alongside something that was. Said here rather than in the screen, because
+ * the API is what has to refuse it.
+ */
+export const EXCLUSIVE_OUTCOMES: readonly ConsultationOutcome[] = ['ADVICE_ONLY'];
+
+/**
+ * The outcome a screen showing one thing should show, out of several.
+ *
+ * What the consultation produced for the patient, in the order a person would
+ * say it: a prescription outranks a referral, and both outrank advice.
+ */
+const OUTCOME_RANK: ConsultationOutcome[] = [
+  'EMERGENCY_REFERRAL',
+  'PRESCRIPTION',
+  'REFERRAL',
+  'ADVICE_ONLY',
+  'OTHER',
+];
+
+export function primaryOutcome(outcomes: readonly ConsultationOutcome[]): ConsultationOutcome | null {
+  for (const candidate of OUTCOME_RANK) {
+    if (outcomes.includes(candidate)) return candidate;
+  }
+  return outcomes[0] ?? null;
+}
+
 /** Spec §82 — DISPENSED can never become REVOKED. */
 export const PRESCRIPTION_STATES = [
   'DRAFT',

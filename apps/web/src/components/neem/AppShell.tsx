@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { LogOut, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NeemLogo } from "@/components/neem/Logo";
+import { DoctorAlerts } from "@/components/neem/DoctorAlerts";
 import { useLogout, useSession } from "@/features/auth/use-session";
 import { ApiError } from "@/lib/api-client";
 import { PERMISSIONS, type Permission } from "@neem/contracts";
@@ -73,6 +74,12 @@ const NAV: Record<
   ],
 };
 
+/**
+ * Pages that own a section of the app rather than a page within it. Everything
+ * under them belongs to a sibling tab, not to them.
+ */
+const SECTION_ROOTS = new Set(["/", "/doctor", "/pharmacy", "/admin"]);
+
 const ROLE_TO_APP: Record<string, AppKey> = {
   PHARMACY: "pharmacy",
   DOCTOR: "doctor",
@@ -122,11 +129,17 @@ export function AppShell({
           would keep growing and push items off the end instead of scrolling.
         */}
         {navItems.length > 1 && (
-          <div className="hidden min-w-0 flex-1 sm:flex justify-center overflow-x-auto">
-            <div className="flex shrink-0 gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex min-w-0 flex-1 overflow-x-auto">
+            <div className="mx-auto flex shrink-0 gap-1 rounded-xl bg-slate-100 p-1">
               {navItems.map((item) => {
+                /*
+                  Exact, or a page beneath this one — but a section root is not
+                  the parent of its siblings. "/doctor" and "/doctor/queue" are
+                  two different tabs, and prefix matching lit up both at once.
+                */
                 const isActive =
-                  item.to === pathname || (item.to !== "/" && pathname.startsWith(`${item.to}/`));
+                  item.to === pathname ||
+                  (!SECTION_ROOTS.has(item.to) && pathname.startsWith(`${item.to}/`));
                 return (
                   <Link
                     key={item.to}
@@ -198,6 +211,13 @@ export function AppShell({
           )}
         </div>
       </nav>
+
+      {/*
+        Rendered by the shell rather than by the queue screen, so a shift
+        assignment and a waiting patient reach a professional who is reading
+        their earnings. Mounted once, which is also what stops two chimes.
+      */}
+      {active === "doctor" && user?.role === "DOCTOR" ? <DoctorAlerts /> : null}
 
       {wrongPortal && (
         <div className="bg-warning-soft border-b border-warning/30 px-4 sm:px-6 py-2.5 flex items-center gap-2 text-xs text-slate-700">

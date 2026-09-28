@@ -896,6 +896,10 @@ model Consultation {
   clinicalSealedAt  DateTime?
 
   outcome            ConsultationOutcome?
+  /// Everything the consultation produced, not only its headline (D56). The
+  /// column above stays as the primary one so records written before this,
+  /// and every screen reading it, are unaffected.
+  outcomes           ConsultationOutcome[]
   hasPrescription    Boolean              @default(false)
   hasReferral        Boolean              @default(false)
   cancellationReason String?              @db.VarChar(500)

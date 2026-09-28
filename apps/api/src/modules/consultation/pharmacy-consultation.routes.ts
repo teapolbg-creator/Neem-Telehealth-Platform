@@ -223,6 +223,7 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
         hasReferral: consultation.hasReferral,
         durationSeconds: consultation.durationSeconds,
         outcome: consultation.outcome,
+        outcomes: consultation.outcomes,
       })),
       meta: {
         requestId: request.correlationId,
@@ -271,6 +272,7 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
           completedAt: consultation.completedAt?.toISOString() ?? null,
           durationSeconds: consultation.durationSeconds,
           outcome: consultation.outcome,
+          outcomes: consultation.outcomes,
           hasPrescription: consultation.hasPrescription,
           hasReferral: consultation.hasReferral,
           doctor: consultation.doctor,

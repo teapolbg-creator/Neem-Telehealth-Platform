@@ -644,7 +644,7 @@ const OUTCOMES: Array<{ value: Outcome; label: string; help: string }> = [
     label: "Emergency referral",
     help: "They need urgent in-person care.",
   },
-  { value: "OTHER", label: "Other", help: "" },
+  { value: "OTHER", label: "Other", help: "Something none of the above describes." },
 ];
 
 function CompletionBar({
@@ -655,46 +655,73 @@ function CompletionBar({
   onCompleted: (result: { destroyAt: string | null }) => void;
 }) {
   const complete = useCompleteConsultation(consultationPublicId);
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [outcomes, setOutcomes] = useState<Outcome[]>([]);
+
+  /*
+   * A consultation can produce several things at once, and the doctor who
+   * prescribed and referred had to pick one of the two to record (D56).
+   *
+   * "Advice only" is the exception: it claims nothing else was issued, so
+   * ticking it clears the rest and ticking anything else clears it. The API
+   * refuses the contradiction either way; this is so nobody meets that refusal
+   * having thought they were finished.
+   */
+  const toggle = (value: Outcome) => {
+    setOutcomes((current) => {
+      if (current.includes(value)) return current.filter((entry) => entry !== value);
+      if (value === "ADVICE_ONLY") return ["ADVICE_ONLY"];
+      return [...current.filter((entry) => entry !== "ADVICE_ONLY"), value];
+    });
+  };
 
   return (
     <div className="border-t border-border bg-slate-50 p-6">
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Outcome</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {OUTCOMES.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setOutcome(option.value)}
-            aria-pressed={outcome === option.value}
-            title={option.help}
-            className={cn(
-              "rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-colors",
-              outcome === option.value
-                ? "border-brand bg-brand-soft text-brand"
-                : "border-border bg-white hover:border-slate-300",
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        What did this consultation produce?
+      </p>
+      <p className="mt-0.5 text-xs text-slate-500">Tick everything that applies.</p>
 
-      {outcome && (
-        <p className="mt-2 text-xs text-slate-500">
-          {OUTCOMES.find((option) => option.value === outcome)?.help}
-        </p>
-      )}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {OUTCOMES.map((option) => {
+          const picked = outcomes.includes(option.value);
+          return (
+            <label
+              key={option.value}
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-sm transition-colors",
+                picked
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border bg-white hover:border-slate-300",
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={picked}
+                onChange={() => toggle(option.value)}
+                className="mt-0.5 size-4 shrink-0 accent-brand"
+              />
+              <span className="min-w-0">
+                <span className="block font-semibold">{option.label}</span>
+                {option.help ? (
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                    {option.help}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          );
+        })}
+      </div>
 
       <ErrorNote error={complete.error} />
 
       <button
         type="button"
-        disabled={!outcome || complete.isPending}
+        disabled={outcomes.length === 0 || complete.isPending}
         onClick={() =>
-          outcome &&
+          outcomes.length > 0 &&
           complete.mutate(
-            { outcome },
+            { outcomes },
             { onSuccess: (result) => onCompleted({ destroyAt: result.destroyAt }) },
           )
         }

@@ -45,6 +45,8 @@ export interface ArchivedConsultation {
     language: string | null;
     durationSeconds: number | null;
     outcome: string | null;
+    /** Everything it produced, for records written since D56. */
+    outcomes?: string[];
   };
   patient: {
     fullName: string;

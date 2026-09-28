@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS, type Permission } from '@neem/contracts';
+import { CONSULTATION_OUTCOMES, PERMISSIONS, type Permission } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -522,15 +522,16 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
       const { publicId } = publicIdParams.parse(request.params);
       const consultationId = await doctorConsultation(publicId, doctorId);
 
+      /*
+       * A list, and the single value this endpoint has always taken (D56).
+       * Both are accepted so that a client which has not been updated — and
+       * every consultation recorded by one — keeps working unchanged.
+       */
+      const outcomeEnum = z.enum(CONSULTATION_OUTCOMES);
       const body = z
         .object({
-          outcome: z.enum([
-            'ADVICE_ONLY',
-            'PRESCRIPTION',
-            'REFERRAL',
-            'EMERGENCY_REFERRAL',
-            'OTHER',
-          ]),
+          outcome: outcomeEnum.optional(),
+          outcomes: z.array(outcomeEnum).min(1).max(CONSULTATION_OUTCOMES.length).optional(),
           notes: z
             .object({
               notes: z.string().max(20_000).nullish(),
@@ -539,9 +540,16 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
             })
             .optional(),
         })
+        .refine((value) => value.outcomes ?? value.outcome, {
+          message: 'Say what the consultation produced: send at least one outcome.',
+          path: ['outcomes'],
+        })
         .parse(request.body);
 
-      const result = await completeConsultation(consultationId, doctorId, body);
+      const result = await completeConsultation(consultationId, doctorId, {
+        outcomes: body.outcomes ?? [body.outcome!],
+        notes: body.notes,
+      });
 
       return reply.send({ data: result, meta: { requestId: request.correlationId } });
     },

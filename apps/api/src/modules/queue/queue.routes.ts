@@ -227,6 +227,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           // as though nothing had been recorded.
           clinicalSealed: sealed,
           outcome: consultation.outcome,
+          outcomes: consultation.outcomes,
           durationSeconds: await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS),
         },
         meta: { requestId: request.correlationId },

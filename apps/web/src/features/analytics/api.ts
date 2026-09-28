@@ -70,6 +70,8 @@ export interface OutcomeMix {
   period: { from: string; to: string };
   outcomes: Array<{ outcome: string; count: number }>;
   unrecorded: number;
+  /** Completed consultations in the period. One can hold several outcomes. */
+  consultations: number;
   coverage: ClinicalCoverage;
 }
 

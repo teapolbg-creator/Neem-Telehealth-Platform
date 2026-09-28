@@ -192,6 +192,13 @@ export function useDoctorShifts() {
     queryKey: ["doctor", "shifts"],
     queryFn: ({ signal }) =>
       api.get<{ serviceHours: ServiceHours; shifts: DoctorShift[] }>("/doctor/shifts", signal),
+    /*
+     * Polled, because an admin can assign a shift while the professional is
+     * looking at another screen, and an unaccepted shift is what keeps the
+     * queue from reaching them. The socket refreshes it sooner; this is the
+     * fallback for a socket that dropped.
+     */
+    refetchInterval: 60_000,
   });
 }
 

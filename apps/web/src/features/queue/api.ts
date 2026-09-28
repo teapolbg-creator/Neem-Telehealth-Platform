@@ -220,6 +220,8 @@ export interface DoctorConsultation {
    */
   clinicalSealed: boolean;
   outcome: string | null;
+  /** Everything it produced, for records written since D56. */
+  outcomes?: string[];
   durationSeconds: number;
 }
 

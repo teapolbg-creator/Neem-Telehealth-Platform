@@ -17,11 +17,10 @@ import {
   useQueue,
   type QueueOffer,
 } from "@/features/queue/api";
-import { useRealtimeEvent, useRealtimeInvalidation } from "@/features/realtime/socket";
+import { useRealtimeInvalidation } from "@/features/realtime/socket";
 import {
   dismissNotificationPrompt,
   useNotificationPermission,
-  useOfferAlert,
   useShouldPromptForNotifications,
 } from "@/features/realtime/use-offer-alert";
 import { cn } from "@/lib/utils";
@@ -52,7 +51,6 @@ function DoctorQueue() {
   useHeartbeat(online);
 
   const { data: queue } = useQueue(online);
-  const alert = useOfferAlert();
   const shouldPrompt = useShouldPromptForNotifications();
 
   /**
@@ -64,20 +62,6 @@ function DoctorQueue() {
    * that to decide whether the patient is seen.
    */
   useRealtimeInvalidation("queue.offer", ["doctor", "queue"], online);
-
-  useRealtimeEvent<{ consultationPublicId: string }>(
-    "queue.offer",
-    () => {
-      // A sound and a browser notification, for the doctor who is not looking
-      // at this tab. Nothing clinical in either — a browser notification is
-      // rendered by the operating system and visible to anyone nearby.
-      alert({
-        title: "A consultation is waiting",
-        body: "Open Neem to accept it before the window closes.",
-      });
-    },
-    online,
-  );
 
   if (isLoading) {
     return (

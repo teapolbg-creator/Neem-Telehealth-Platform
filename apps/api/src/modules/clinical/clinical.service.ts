@@ -2,6 +2,11 @@ import type { ConsultationOutcome, PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
+import {
+  EXCLUSIVE_OUTCOMES,
+  OUTCOME_REQUIRES,
+  primaryOutcome,
+} from '@neem/contracts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import {
@@ -40,7 +45,13 @@ export async function readWorkspace(consultationId: string, db: Db = getPrisma()
 }
 
 export interface CompletionInput {
-  outcome: ConsultationOutcome;
+  /** Everything the consultation produced, at least one (D56). */
+  outcomes?: ConsultationOutcome[];
+  /**
+   * The single outcome this took before D56. Still accepted, and treated as a
+   * list of one, so a caller that has not been updated keeps working.
+   */
+  outcome?: ConsultationOutcome;
   notes?: ClinicalNotesInput;
 }
 
@@ -53,6 +64,9 @@ export interface CompletionResult {
   hasPrescription: boolean;
   hasReferral: boolean;
   hasSummary: boolean;
+  /** What was recorded, in full, and the one a single-line screen shows. */
+  outcomes: ConsultationOutcome[];
+  outcome: ConsultationOutcome;
 }
 
 /**
@@ -89,33 +103,56 @@ export async function completeConsultation(
     );
   }
 
+  /*
+   * The same rules as ever, now applied to each outcome rather than to the one
+   * the doctor had to choose between them (D56). Duplicates are dropped and
+   * the order the screen sent them in is kept.
+   */
+  const outcomes = [...new Set(input.outcomes ?? (input.outcome ? [input.outcome] : []))];
+  if (outcomes.length === 0) {
+    throw errors.businessRule('Say what the consultation produced: choose at least one outcome.');
+  }
+
+  /**
+   * "Advice only" is a claim that nothing else was issued.
+   *
+   * Ticked alongside a prescription it contradicts itself, and the record
+   * would say two incompatible things about the same consultation.
+   */
+  const exclusive = outcomes.find((outcome) => EXCLUSIVE_OUTCOMES.includes(outcome));
+  if (exclusive && outcomes.length > 1) {
+    throw errors.businessRule(
+      'Advice only means nothing else was issued, so it cannot be recorded alongside another ' +
+        'outcome. Untick it, or untick the others.',
+    );
+  }
+
   /**
    * An advice-only consultation must leave the patient with something
    * (decision D25).
    *
    * It is the outcome where the patient is talked out of the medicine they
    * came in for, and the one where they would otherwise walk out with no
-   * evidence a doctor was ever involved — and no consultation reference.
+   * evidence a doctor was ever involved, and no consultation reference.
    */
-  if (input.outcome === 'ADVICE_ONLY' && !consultation.summary) {
-    throw errors.businessRule(
-      'Write a consultation summary before completing. An advice-only consultation must leave ' +
-        'the patient with a record of what you found and advised.',
-    );
-  }
+  const held = {
+    summary: Boolean(consultation.summary),
+    prescription: consultation.prescriptions.length > 0,
+    referral: consultation.referrals.length > 0,
+  };
 
-  if (input.outcome === 'PRESCRIPTION' && consultation.prescriptions.length === 0) {
-    throw errors.businessRule(
+  const REFUSAL: Record<'summary' | 'prescription' | 'referral', string> = {
+    summary:
+      'Write a consultation summary before completing. An advice-only consultation must leave ' +
+      'the patient with a record of what you found and advised.',
+    prescription:
       'This outcome says a prescription was issued, but none exists on this consultation.',
-    );
-  }
-  if (
-    (input.outcome === 'REFERRAL' || input.outcome === 'EMERGENCY_REFERRAL') &&
-    consultation.referrals.length === 0
-  ) {
-    throw errors.businessRule(
-      'This outcome says a referral was issued, but none exists on this consultation.',
-    );
+    referral: 'This outcome says a referral was issued, but none exists on this consultation.',
+  };
+
+  for (const outcome of outcomes) {
+    const needs = OUTCOME_REQUIRES[outcome];
+    if (needs && !held[needs]) throw errors.businessRule(REFUSAL[needs]);
   }
 
   // A prescription still in DRAFT was never signed, so it does not exist as a
@@ -126,6 +163,12 @@ export async function completeConsultation(
       'A prescription on this consultation is still a draft. Issue it or discard it before completing.',
     );
   }
+
+  /*
+   * Never null: the list holds at least one outcome by the time we are here,
+   * and `primaryOutcome` ranks rather than filters.
+   */
+  const primary = primaryOutcome(outcomes) as ConsultationOutcome;
 
   const startedAt = consultation.startedAt ?? consultation.createdAt;
   const completedAt = clock.now();
@@ -142,7 +185,13 @@ export async function completeConsultation(
     await tx.consultation.update({
       where: { id: consultationId },
       data: {
-        outcome: input.outcome,
+        /*
+          Both: the list is what happened, and the column is what every screen
+          and report written before today reads. The primary is the one a
+          patient would name first, not the first ticked.
+        */
+        outcome: primary,
+        outcomes,
         durationSeconds,
         hasPrescription: consultation.prescriptions.length > 0,
         hasReferral: consultation.referrals.length > 0,
@@ -214,7 +263,8 @@ export async function completeConsultation(
       entityId: consultationId,
       // Outcome and counts. Never a word of what was found or advised.
       metadata: {
-        outcome: input.outcome,
+        outcome: primary,
+        outcomes,
         durationSeconds,
         prescriptions: consultation.prescriptions.length,
         referrals: consultation.referrals.length,
@@ -228,7 +278,8 @@ export async function completeConsultation(
   if (consultation.pharmacyId) {
     emitToPharmacy(consultation.pharmacyId, 'consultation.completed', {
       consultationPublicId: consultation.publicId,
-      outcome: input.outcome,
+      outcome: primary,
+      outcomes,
     });
   }
 
@@ -260,5 +311,7 @@ export async function completeConsultation(
     hasPrescription: consultation.prescriptions.length > 0,
     hasReferral: consultation.referrals.length > 0,
     hasSummary: consultation.summary !== null,
+    outcomes,
+    outcome: primary,
   };
 }

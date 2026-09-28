@@ -320,7 +320,13 @@ const OUTCOME_LABEL: Record<string, string> = {
 };
 
 function Outcomes({ data }: { data: NonNullable<ReturnType<typeof useOutcomeMix>["data"]> }) {
+  /*
+    Bars are drawn against consultations, not against the sum of the counts: a
+    consultation can record a prescription and a referral, so the counts add up
+    to more than the consultations they came from (D56).
+  */
   const total = data.outcomes.reduce((sum, row) => sum + row.count, 0);
+  const consultations = data.consultations || total;
 
   return (
     <section className="card-soft p-6">
@@ -344,12 +350,19 @@ function Outcomes({ data }: { data: NonNullable<ReturnType<typeof useOutcomeMix>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-brand"
-                  style={{ width: `${(row.count / total) * 100}%` }}
+                  style={{ width: `${Math.min(100, (row.count / consultations) * 100)}%` }}
                 />
               </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {total > consultations && (
+        <p className="mt-3 text-xs text-slate-500">
+          {consultations} consultation{consultations === 1 ? "" : "s"} completed. Some recorded more
+          than one outcome, so the counts above add up to more than that.
+        </p>
       )}
 
       {data.unrecorded > 0 && (

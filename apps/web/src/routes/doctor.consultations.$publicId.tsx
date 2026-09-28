@@ -132,7 +132,7 @@ function DoctorConsultation() {
               counter, and offered a Reconnect button that could never work.
             */}
             {isTerminalConsultationState(data.state) ? (
-              <EndedPanel state={data.state} outcome={data.outcome} />
+              <EndedPanel state={data.state} outcome={data.outcome} outcomes={data.outcomes} />
             ) : data.type === "CALL_ME" ? (
               <CallMePanel publicId={publicId} />
             ) : (
@@ -317,7 +317,20 @@ const OUTCOME_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
-function EndedPanel({ state, outcome }: { state: string; outcome: string | null }) {
+function EndedPanel({
+  state,
+  outcome,
+  outcomes,
+}: {
+  state: string;
+  outcome: string | null;
+  outcomes?: string[];
+}) {
+  /*
+    Everything the consultation produced, or the single outcome for a record
+    written before consultations could have several (D56).
+  */
+  const recorded = outcomes?.length ? outcomes : outcome ? [outcome] : [];
   const wasCompleted = state === "COMPLETED";
 
   return (
@@ -343,10 +356,17 @@ function EndedPanel({ state, outcome }: { state: string; outcome: string | null 
         operational — it drives the pharmacy's next step and the revenue split —
         and stays readable after sealing, unlike anything clinical.
       */}
-      {wasCompleted && outcome && (
-        <p className="mt-4 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600">
-          {OUTCOME_LABEL[outcome] ?? outcome.replace(/_/g, " ").toLowerCase()}
-        </p>
+      {wasCompleted && recorded.length > 0 && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {recorded.map((entry) => (
+            <p
+              key={entry}
+              className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600"
+            >
+              {OUTCOME_LABEL[entry] ?? entry.replace(/_/g, " ").toLowerCase()}
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );

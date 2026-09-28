@@ -285,7 +285,16 @@ function RetrievedRecord({ record }: { record: ArchivedConsultation }) {
             <Row label="Doctor" value={record.encounter.doctorName ?? "Not recorded"} />
             <Row label="Type" value={record.encounter.type ?? "Not recorded"} />
             <Row label="Language" value={record.encounter.language ?? "Not recorded"} />
-            <Row label="Outcome" value={record.encounter.outcome ?? "Not recorded"} />
+            <Row
+              label="Outcome"
+              value={
+                record.encounter.outcomes?.length
+                  ? record.encounter.outcomes
+                      .map((entry) => entry.replace(/_/g, " ").toLowerCase())
+                      .join(", ")
+                  : (record.encounter.outcome ?? "Not recorded")
+              }
+            />
           </dl>
 
           {record.patient && (
