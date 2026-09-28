@@ -90,7 +90,7 @@ function DoctorEarnings() {
             ) : null}
 
             <p className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-              Neem calculates this figure and does not transfer it — payment is made separately,
+              Neem calculates this figure and does not transfer it. Payment is made separately,
               monthly, with a reference you can ask for.
             </p>
           </>

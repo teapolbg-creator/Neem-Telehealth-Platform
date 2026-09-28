@@ -11,7 +11,7 @@ function Landing() {
       <nav className="w-full px-6 py-4 flex items-center justify-between max-w-7xl mx-auto">
         <NeemLogo className="text-xl" markClassName="size-10" />
         <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-          Telemedicine for Ghanaian community pharmacies
+          Telemedicine in Ghana, at your pharmacy or from your phone
         </span>
       </nav>
 
@@ -33,8 +33,9 @@ function Landing() {
             <span className="text-brand">just around the corner.</span>
           </h1>
           <p className="mt-6 text-lg text-slate-600 max-w-2xl mx-auto text-pretty">
-            Neem connects patients at community pharmacies with licensed Ghanaian doctors through
-            secure, session-based video and audio consultations. No downloads, no accounts.
+            Neem connects patients with licensed Ghanaian doctors, dietitians and personal trainers
+            through secure video and audio consultations. Book one yourself, or start a consultation
+            at a participating pharmacy. Nothing to download.
           </p>
         </header>
 

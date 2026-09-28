@@ -96,7 +96,7 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
           // Surfaced, never hidden: in mock mode nothing has actually been
           // charged, and the UI says so (spec §93).
           note: result.isMockProvider
-            ? 'Mock payment provider — no money has moved. Settle it from the pharmacy screen to continue.'
+            ? 'Mock payment provider: no money has moved. Settle it from the pharmacy screen to continue.'
             : undefined,
         },
         meta: { requestId: request.correlationId },

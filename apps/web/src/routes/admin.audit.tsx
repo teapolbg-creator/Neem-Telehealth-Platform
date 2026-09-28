@@ -84,7 +84,7 @@ function AdminAudit() {
         <h1 className="text-3xl font-bold tracking-tight">Audit log</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
           Every consequential action, appended and never altered. Entries record that something
-          happened and to what — never the contents of a clinical record.
+          happened and to what, never the contents of a clinical record.
         </p>
       </header>
 

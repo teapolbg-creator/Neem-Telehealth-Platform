@@ -40,7 +40,7 @@ function PharmacyPrescriptions() {
         <h1 className="text-3xl font-bold tracking-tight">Prescriptions</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
           Issued by Neem doctors for patients seen at this pharmacy. You cannot change a
-          prescription — if you need a different product, propose a substitution and the doctor
+          prescription. If you need a different product, propose a substitution and the doctor
           decides.
         </p>
       </header>

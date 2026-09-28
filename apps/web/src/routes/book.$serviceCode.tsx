@@ -655,7 +655,7 @@ function PaymentPanel({
         </div>
         <h2 className="mt-4 text-xl font-bold">Booked</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          {longTime(appointmentAt)}. Come back to Neem a few minutes before — your consultation
+          {longTime(appointmentAt)}. Come back to Neem a few minutes before, and your consultation
           opens by itself.
         </p>
         <p className="mt-4 font-mono text-xs text-slate-400">{reference}</p>

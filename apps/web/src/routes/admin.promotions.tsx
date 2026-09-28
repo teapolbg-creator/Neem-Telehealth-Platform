@@ -33,8 +33,8 @@ function AdminPromotions() {
         <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
         <h1 className="text-3xl font-bold tracking-tight">Promotions</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
-          Discount codes a pharmacy can apply when starting a consultation. Every rule — window,
-          usage limit, minimum amount — is checked server-side at redemption.
+          Discount codes a pharmacy can apply when starting a consultation. Every rule (window,
+          usage limit, minimum amount) is checked server-side at redemption.
         </p>
       </header>
 

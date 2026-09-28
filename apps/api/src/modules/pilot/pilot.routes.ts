@@ -60,7 +60,7 @@ export async function pilotRoutes(app: FastifyInstance): Promise<void> {
         data: {
           reference: result.reference,
           message:
-            'Thank you — we have your details. Someone from the Neem team will be in touch about the pilot.',
+            'Thank you, we have your details. Someone from the Neem team will be in touch about the pilot.',
         },
         meta: { requestId: request.correlationId },
       });

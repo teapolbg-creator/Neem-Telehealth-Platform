@@ -82,14 +82,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Neem — Telemedicine for Ghanaian Pharmacies" },
+      { title: "Neem | Telemedicine in Ghana" },
       {
         name: "description",
         content:
           "Neem connects patients visiting community pharmacies in Ghana with licensed doctors through secure video and audio consultations.",
       },
       { name: "author", content: "Neem Health" },
-      { property: "og:title", content: "Neem — Telemedicine for Ghanaian Pharmacies" },
+      { property: "og:title", content: "Neem | Telemedicine in Ghana" },
       {
         property: "og:description",
         content: "Secure, session-based video consultations for community pharmacies in Ghana.",

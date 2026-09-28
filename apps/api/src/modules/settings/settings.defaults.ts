@@ -110,7 +110,7 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: 300,
     valueType: 'number',
     description:
-      'Default consultation length (5 minutes). The timer NEVER terminates a consultation — only the doctor completes it (spec §15).',
+      'Default consultation length (5 minutes). The timer NEVER terminates a consultation: only the doctor completes it (spec §15).',
     category: 'consultation',
   },
   {
@@ -140,7 +140,7 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     value: true,
     valueType: 'boolean',
     description:
-      'Refuse to start, or take payment for, a consultation when no doctor is on duty — active, licensed, paid up and on a confirmed shift covering now (D50).',
+      'Refuse to start, or take payment for, a consultation when no doctor is on duty: active, licensed, paid up and on a confirmed shift covering now (D50).',
     category: 'consultation',
     requiresConfirm: true,
   },

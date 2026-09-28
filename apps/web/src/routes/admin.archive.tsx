@@ -89,8 +89,8 @@ function AdminArchive() {
           <FileLock2 className="size-4 text-brand" /> Retrieval log
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">
-          Who opened what, why, and when it was closed. Never what it said — a log holding the
-          record would be a second copy of it.
+          Who opened what, why, and when it was closed. Never what it said: a log holding the record
+          would be a second copy of it.
         </p>
 
         {retrievals.isLoading && (
@@ -282,10 +282,10 @@ function RetrievedRecord({ record }: { record: ArchivedConsultation }) {
           <dl className="mt-2 space-y-1.5 text-sm">
             <Row label="Date" value={new Date(record.encounter.date).toLocaleString()} />
             <Row label="Pharmacy" value={record.encounter.pharmacyName} />
-            <Row label="Doctor" value={record.encounter.doctorName ?? "—"} />
-            <Row label="Type" value={record.encounter.type ?? "—"} />
-            <Row label="Language" value={record.encounter.language ?? "—"} />
-            <Row label="Outcome" value={record.encounter.outcome ?? "—"} />
+            <Row label="Doctor" value={record.encounter.doctorName ?? "Not recorded"} />
+            <Row label="Type" value={record.encounter.type ?? "Not recorded"} />
+            <Row label="Language" value={record.encounter.language ?? "Not recorded"} />
+            <Row label="Outcome" value={record.encounter.outcome ?? "Not recorded"} />
           </dl>
 
           {record.patient && (
@@ -297,9 +297,9 @@ function RetrievedRecord({ record }: { record: ArchivedConsultation }) {
                 <Row label="Name" value={record.patient.fullName} />
                 <Row
                   label="Age and sex"
-                  value={`${record.patient.age ?? "—"} · ${record.patient.sex?.toLowerCase() ?? "—"}`}
+                  value={`${record.patient.age ?? "Not recorded"} · ${record.patient.sex?.toLowerCase() ?? "not recorded"}`}
                 />
-                <Row label="Phone" value={record.patient.phone ?? "—"} />
+                <Row label="Phone" value={record.patient.phone ?? "Not recorded"} />
               </dl>
             </>
           )}

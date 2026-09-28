@@ -135,7 +135,9 @@ function AdminOverview() {
               icon={Wallet}
               label="Net revenue"
               value={
-                financial.data ? formatMinor(financial.data.netMinor, financial.data.currency) : "—"
+                financial.data
+                  ? formatMinor(financial.data.netMinor, financial.data.currency)
+                  : "Not yet"
               }
               hint={financial.data ? `${financial.data.paidConsultations} paid consultations` : ""}
             />
@@ -326,7 +328,7 @@ function Outcomes({ data }: { data: NonNullable<ReturnType<typeof useOutcomeMix>
         <Stethoscope className="size-4 text-brand" /> What consultations concluded with
       </h2>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        The kind of document issued — never what was in it.
+        The kind of document issued, never what was in it.
       </p>
 
       {total === 0 ? (
@@ -402,11 +404,11 @@ function Satisfaction({
         <>
           <div className="mt-4 flex gap-6">
             <div>
-              <p className="text-2xl font-bold">{data.meanDoctorRating?.toFixed(1) ?? "—"}</p>
+              <p className="text-2xl font-bold">{data.meanDoctorRating?.toFixed(1) ?? "Not yet"}</p>
               <p className="text-xs text-slate-500">The doctor</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{data.meanNeemRating?.toFixed(1) ?? "—"}</p>
+              <p className="text-2xl font-bold">{data.meanNeemRating?.toFixed(1) ?? "Not yet"}</p>
               <p className="text-xs text-slate-500">Neem</p>
             </div>
           </div>
@@ -415,7 +417,9 @@ function Satisfaction({
             <Row label="Responses" value={String(data.responses)} />
             <Row
               label="Response rate"
-              value={data.responseRate === null ? "—" : `${Math.round(data.responseRate * 100)}%`}
+              value={
+                data.responseRate === null ? "Not yet" : `${Math.round(data.responseRate * 100)}%`
+              }
             />
             <Row label="Compliments" value={String(data.compliments)} />
             <Row label="Suggestions" value={String(data.suggestions)} />

@@ -197,10 +197,10 @@ function PayoutCard({ payout }: { payout: Payout }) {
               This is less than the amount due. The difference is still owed.
             </p>
           )}
-          <Row label="Reference" value={payout.paymentReference ?? "—"} mono />
+          <Row label="Reference" value={payout.paymentReference ?? "Not recorded"} mono />
           <Row
             label="Sent"
-            value={payout.paidAt ? new Date(payout.paidAt).toLocaleDateString() : "—"}
+            value={payout.paidAt ? new Date(payout.paidAt).toLocaleDateString() : "Not sent yet"}
           />
           {payout.note && <Row label="Note" value={payout.note} />}
         </dl>

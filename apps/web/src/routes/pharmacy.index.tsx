@@ -108,7 +108,7 @@ function PharmacyDashboard() {
           value={
             finance.data
               ? formatMinor(finance.data.awaitingPayoutMinor, finance.data.currency)
-              : "—"
+              : "Not yet"
           }
           hint={finance.data ? `${finance.data.consultations30Days} consultations in 30 days` : ""}
           to="/pharmacy/finance"
@@ -132,7 +132,7 @@ function PharmacyDashboard() {
                 >
                   {row.publicId}
                 </Link>{" "}
-                — {formatMoney(row.net)}
+                · {formatMoney(row.net)}
                 {row.secondsRemaining !== null && row.secondsRemaining > 0 && (
                   <span className="text-slate-600">
                     {" "}

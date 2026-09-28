@@ -16,7 +16,7 @@ export interface Money {
 }
 
 export function formatMoney(value: Money | undefined): string {
-  if (!value) return "—";
+  if (!value) return "Not recorded";
   return new Intl.NumberFormat("en-GH", {
     style: "currency",
     currency: value.currency,

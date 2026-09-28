@@ -29,7 +29,7 @@ export function PatientCode({
       <div>
         <h1 className="text-2xl font-bold">Ask the patient to scan this code</h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-          They use their own phone camera. The consultation opens in their browser — nothing to
+          They use their own phone camera. The consultation opens in their browser, with nothing to
           install. They enter their details there, privately.
         </p>
       </div>
@@ -76,8 +76,8 @@ export function PatientCode({
         <div className="mx-auto max-w-md rounded-2xl border border-warning/30 bg-warning-soft p-4 text-left">
           <p className="text-sm font-bold text-warning">Replace this code?</p>
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            The code above will stop working immediately. Only do this if the patient cannot use it
-            — for example if they lost their phone.
+            The code above will stop working immediately. Only do this if the patient cannot use it,
+            for example if they lost their phone.
           </p>
           <div className="mt-3 flex gap-2">
             <button

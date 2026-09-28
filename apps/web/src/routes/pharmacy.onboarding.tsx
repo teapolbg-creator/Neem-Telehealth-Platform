@@ -153,8 +153,8 @@ function PharmacyOnboarding() {
             <h2 className="mb-2 font-bold">Why this is checked</h2>
             <p className="text-xs leading-relaxed text-slate-500">
               An active pharmacy receives prescriptions from Neem doctors and dispenses against
-              them. No pharmacy is activated until an administrator has verified its documents —
-              there is no automatic approval.
+              them. No pharmacy is activated until an administrator has verified its documents.
+              There is no automatic approval.
             </p>
           </section>
         </aside>

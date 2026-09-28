@@ -42,7 +42,7 @@ const STATE_LABEL: Record<string, string> = {
   PAYMENT_PROCESSING: "Payment in progress",
   PAYMENT_FAILED: "Payment failed",
   PAID: "Paid",
-  ACTIVATED: "Ready — awaiting patient",
+  ACTIVATED: "Ready, awaiting patient",
   WAITING_FOR_PATIENT: "Patient scanning",
   PATIENT_JOINED: "Patient joined",
   WAITING_FOR_DOCTOR: "Finding a doctor",
@@ -359,7 +359,7 @@ function Timeline({ consultation }: { consultation: PharmacyConsultation }) {
           <span className="text-xs tabular-nums text-slate-500">
             {stage.at
               ? new Date(stage.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "—"}
+              : "Not yet"}
           </span>
         </li>
       ))}

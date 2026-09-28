@@ -277,7 +277,7 @@ function TestsPanel({
         <Thermometer className="size-4 text-brand" /> Point-of-care tests
       </h2>
       <p className="mt-1 text-xs text-slate-500">
-        Anything you ran at the counter — malaria RDT, blood glucose, a pregnancy test.
+        Anything you ran at the counter: malaria RDT, blood glucose, a pregnancy test.
       </p>
 
       {tests.length > 0 && (

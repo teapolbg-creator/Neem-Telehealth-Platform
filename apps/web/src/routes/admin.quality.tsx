@@ -358,7 +358,7 @@ function QualityRowView({ row }: { row: QualityRow }) {
           )}
         </td>
         <td className="py-2 text-right font-mono font-bold">
-          {row.score === null ? "—" : row.score.toFixed(2)}
+          {row.score === null ? "Not scored" : row.score.toFixed(2)}
         </td>
       </tr>
 

@@ -171,8 +171,8 @@ export function CallStage({
         >
           <AlertCircle className="mt-px size-4 shrink-0" />
           <p>
-            This consultation is being recorded. Neem does not record consultations — stop and
-            report this before continuing.
+            This consultation is being recorded. Neem does not record consultations. Stop and report
+            this before continuing.
           </p>
         </div>
       )}

@@ -146,7 +146,7 @@ function ExpiringLicences() {
       <ul className="space-y-1 text-xs text-slate-700">
         {data.map((entry) => (
           <li key={entry.publicId}>
-            {entry.fullName} ({entry.mdcNumber}) —{" "}
+            {entry.fullName} ({entry.mdcNumber}):{" "}
             {entry.daysRemaining <= 0
               ? "expired"
               : `${entry.daysRemaining} day${entry.daysRemaining === 1 ? "" : "s"} remaining`}
@@ -315,15 +315,22 @@ function DoctorDetail({ publicId }: { publicId: string }) {
 
       <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
         <Detail label="Profession" value={DISCIPLINE_LABEL[doctor.discipline] ?? "Doctor"} />
-        <Detail label="Registration" value={doctor.credential ?? "—"} mono />
+        <Detail label="Registration" value={doctor.credential ?? "Not recorded"} mono />
         {doctor.discipline === "DOCTOR" ? (
           <Detail
             label="Licence expires"
-            value={doctor.mdcExpiresAt ? new Date(doctor.mdcExpiresAt).toLocaleDateString() : "—"}
+            value={
+              doctor.mdcExpiresAt
+                ? new Date(doctor.mdcExpiresAt).toLocaleDateString()
+                : "Not recorded"
+            }
           />
         ) : null}
-        <Detail label="Experience" value={`${doctor.yearsExperience ?? "—"} years`} />
-        <Detail label="Specialty" value={doctor.specialty ?? "—"} />
+        <Detail
+          label="Experience"
+          value={doctor.yearsExperience ? `${doctor.yearsExperience} years` : "Not recorded"}
+        />
+        <Detail label="Specialty" value={doctor.specialty ?? "Not recorded"} />
         <Detail label="Signature" value={doctor.hasSignature ? "Captured" : "Not captured"} />
       </dl>
 
@@ -710,7 +717,10 @@ function PharmacyDetail({ publicId }: { publicId: string }) {
         <Detail label="Council registration" value={pharmacy.councilRegistrationNo} mono />
         <Detail label="Owner" value={pharmacy.ownerName} />
         <Detail label="Responsible pharmacist" value={pharmacy.responsiblePharmacistName} />
-        <Detail label="Pharmacist licence" value={pharmacy.responsiblePharmacistLicenceNo ?? "—"} />
+        <Detail
+          label="Pharmacist licence"
+          value={pharmacy.responsiblePharmacistLicenceNo ?? "Not recorded"}
+        />
         <Detail label="Location" value={`${pharmacy.city}, ${pharmacy.region}`} />
         <Detail label="Phone" value={pharmacy.phone} />
       </dl>

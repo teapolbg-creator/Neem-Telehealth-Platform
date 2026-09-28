@@ -270,7 +270,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
               `Someone asked to reset the password for this Neem account.\n\n` +
               `${link}\n\n` +
               `The link expires shortly and can be used once. If this was not you, ` +
-              `ignore this message — your password has not changed.`,
+              `ignore this message. Your password has not changed.`,
             reference: `pwreset_${issued.token.slice(0, 8)}`,
           })
           .catch((error: unknown) => {

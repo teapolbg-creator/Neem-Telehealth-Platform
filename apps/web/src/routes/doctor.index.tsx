@@ -175,7 +175,7 @@ function DoctorDashboard() {
           label="This month"
           value={
             earnings.data?.monthlyMinor === null || earnings.data === undefined
-              ? "—"
+              ? "Not yet"
               : formatMinor(earnings.data.monthlyMinor, earnings.data.currency)
           }
           hint={

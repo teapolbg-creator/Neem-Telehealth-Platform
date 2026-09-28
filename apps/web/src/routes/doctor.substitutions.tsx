@@ -35,7 +35,7 @@ function DoctorSubstitutions() {
         <h1 className="mt-1 text-3xl font-bold">Substitutions</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
           A pharmacy has asked to dispense something other than what you prescribed. Nothing has
-          changed yet — the prescription is held until you decide, and the patient is waiting.
+          changed yet: the prescription is held until you decide, and the patient is waiting.
         </p>
 
         {isLoading && (
@@ -155,7 +155,7 @@ function ProposalCard({ proposal }: { proposal: PendingSubstitution }) {
           onChange={(event) => setNote(event.target.value)}
           rows={2}
           maxLength={500}
-          placeholder="Approved — same molecule and strength."
+          placeholder="Approved: same molecule and strength."
           className="mt-1.5 w-full rounded-xl border border-border px-3 py-2 text-sm"
         />
       </label>
@@ -203,7 +203,7 @@ function ProposalCard({ proposal }: { proposal: PendingSubstitution }) {
       */}
       <p className="mt-3 text-xs leading-relaxed text-slate-500">
         Either answer releases the prescription. If you keep what you prescribed, the pharmacy
-        dispenses your original — or tells the patient where else to fill it.
+        dispenses your original, or tells the patient where else to fill it.
       </p>
     </article>
   );

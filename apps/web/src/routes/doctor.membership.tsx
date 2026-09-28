@@ -43,7 +43,7 @@ function DoctorMembership() {
         <p className="text-xs font-bold uppercase tracking-wider text-brand">{role.title}</p>
         <h1 className="mt-1 text-3xl font-bold">Membership</h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-slate-500">
-          Your membership keeps your account active on Neem. It is separate from what you earn —
+          Your membership keeps your account active on Neem. It is separate from what you earn, and
           Neem does not deduct it from your pay.
         </p>
 
@@ -104,7 +104,7 @@ function DoctorMembership() {
                 <p className="mt-1 text-sm text-slate-500">
                   {formatMinor(data.amountMinor, data.currency)}
                   {data.status === "ACTIVE" &&
-                    " — renewing early does not lose the time you have left; the new period starts when this one ends."}
+                    ". Renewing early does not lose the time you have left; the new period starts when this one ends."}
                 </p>
 
                 {start.error && (

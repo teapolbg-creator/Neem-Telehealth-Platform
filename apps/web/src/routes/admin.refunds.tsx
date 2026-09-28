@@ -159,7 +159,8 @@ function RefundCard({ refund }: { refund: AdminRefund }) {
 
       {awaitingProvider && (
         <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-          Approved. The payment provider is settling this — it closes on its own when they confirm.
+          Approved. The payment provider is settling this, and it closes on its own when they
+          confirm.
         </p>
       )}
 

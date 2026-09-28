@@ -98,8 +98,8 @@ function MyCare() {
           </div>
         ) : documentGroups.length === 0 ? (
           <p className="card-soft p-5 text-sm leading-relaxed text-slate-500">
-            Anything a professional writes for you — a prescription, a referral, a summary — appears
-            here and stays here.
+            Anything a professional writes for you appears here and stays here: a prescription, a
+            referral, a summary.
           </p>
         ) : (
           <div className="space-y-3">

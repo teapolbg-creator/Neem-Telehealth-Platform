@@ -43,7 +43,7 @@ function AdminQueue() {
           </p>
           <p className="mt-1 text-xs leading-relaxed text-red-700">
             No doctor currently on shift speaks their language. Neem will never assign a doctor who
-            does not — find one who can, or contact the pharmacy.
+            does not, so find one who can, or contact the pharmacy.
           </p>
         </div>
       )}
@@ -144,7 +144,7 @@ function QueueRow({ entry }: { entry: AdminQueueEntry }) {
           (spec §29). An admin can prioritise; they cannot override safety.
         */}
         <span className="text-xs text-slate-500">
-          Runs the normal matching rules — language requirements still apply.
+          Runs the normal matching rules, so language requirements still apply.
         </span>
       </div>
 

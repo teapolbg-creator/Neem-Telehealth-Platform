@@ -417,7 +417,7 @@ function PaystackCheckout({ authorizationUrl }: { authorizationUrl: string | nul
       </a>
       <p className="text-xs leading-relaxed text-slate-500">
         Opens on this device. The patient enters their Mobile Money number there and approves the
-        prompt on their own phone. Come back to this page afterwards — it moves on by itself once
+        prompt on their own phone. Come back to this page afterwards, and it moves on by itself once
         Paystack confirms the payment.
       </p>
     </div>

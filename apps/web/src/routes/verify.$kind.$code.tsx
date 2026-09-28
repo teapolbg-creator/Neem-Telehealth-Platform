@@ -51,8 +51,8 @@ function VerifyDocument() {
         </div>
 
         <p className="mx-auto mt-6 max-w-sm text-pretty text-center text-xs leading-relaxed text-slate-500">
-          This page confirms a document was issued by Neem. It does not show what the document says
-          — that is for the person holding it. Neem makes no claim of regulatory approval.
+          This page confirms a document was issued by Neem. It does not show what the document says:
+          that is for the person holding it. Neem makes no claim of regulatory approval.
         </p>
       </div>
     </div>
@@ -89,7 +89,7 @@ function Result({
         <div className="mx-auto grid size-16 place-items-center rounded-full bg-red-100">
           <Ban className="size-8 text-red-600" />
         </div>
-        <h1 className="mt-5 text-2xl font-bold text-red-700">Revoked — do not dispense</h1>
+        <h1 className="mt-5 text-2xl font-bold text-red-700">Revoked: do not dispense</h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-slate-600">
           This prescription was genuine, but the issuing doctor has withdrawn it.
         </p>

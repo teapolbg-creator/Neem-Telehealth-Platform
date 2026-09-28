@@ -243,7 +243,7 @@ function NotesPanel({
 
       <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">
         These notes are sealed when you complete the consultation. They are retained under a legal
-        record-keeping obligation and are not readable afterwards — by you or anyone else.
+        record-keeping obligation and are not readable afterwards, by you or anyone else.
       </p>
     </div>
   );
@@ -295,7 +295,7 @@ function PrescribePanel({
         <p className="mt-3 font-mono text-xs text-slate-500">{issued}</p>
         <p className="mx-auto mt-4 max-w-sm text-pretty text-xs leading-relaxed text-slate-500">
           You can revoke it from your dashboard until it is dispensed. Once dispensed it cannot be
-          revoked — the medicine is with the patient.
+          revoked: the medicine is with the patient.
         </p>
       </div>
     );
@@ -416,7 +416,7 @@ function PrescribePanel({
 
       <p className="text-xs leading-relaxed text-slate-500">
         Signing binds your digital signature to this prescription. A pharmacy cannot change what you
-        prescribe — it can only propose a substitution for you to decide.
+        prescribe. It can only propose a substitution for you to decide.
       </p>
     </div>
   );
@@ -574,7 +574,7 @@ function SummaryPanel({
     <div className="space-y-4">
       <p className="rounded-xl bg-brand-soft p-3 text-xs leading-relaxed text-brand/90">
         <strong className="font-bold">Required when you give advice without medication.</strong>{" "}
-        This is what the patient takes away — often the only evidence a doctor was involved.
+        This is what the patient takes away, and often the only evidence a doctor was involved.
       </p>
 
       <Field
@@ -705,7 +705,7 @@ function CompletionBar({
       </button>
 
       <p className="mt-2 text-center text-xs text-slate-500">
-        Completing seals the clinical record. Nothing else ends a consultation — not the timer, not
+        Completing seals the clinical record. Nothing else ends a consultation: not the timer, not
         the patient leaving.
       </p>
     </div>

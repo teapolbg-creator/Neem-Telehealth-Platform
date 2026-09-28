@@ -88,7 +88,7 @@ function BackFromCheckout() {
               hour: "2-digit",
               minute: "2-digit",
             })}
-            . Come back to Neem a few minutes before — your consultation opens by itself.
+            . Come back to Neem a few minutes before, and your consultation opens by itself.
           </p>
           <p className="mt-4 font-mono text-xs text-slate-400">{booking}</p>
           <Link
@@ -140,7 +140,7 @@ function BackFromCheckout() {
         <Loader2 className="mx-auto size-7 animate-spin text-brand" />
         <h1 className="mt-4 text-xl font-bold">Confirming your payment</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          We are checking with Paystack. This page moves on by itself — there is no need to pay
+          We are checking with Paystack. This page moves on by itself, so there is no need to pay
           again.
         </p>
       </div>

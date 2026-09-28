@@ -74,7 +74,7 @@ function AdminScheduling() {
         <p className="mb-1 text-sm font-semibold text-brand">Neem Administration</p>
         <h1 className="text-3xl font-bold tracking-tight">Scheduling</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
-          Put a doctor on a shift. No doctor may be scheduled beyond 40 hours in a week — the API
+          Put a doctor on a shift. No doctor may be scheduled beyond 40 hours in a week. The API
           refuses it, and refuses it whatever this screen shows.
         </p>
       </header>
@@ -151,7 +151,7 @@ function AdminScheduling() {
         {search.trim() !== "" && !doctors.isFetching && (doctors.data ?? []).length === 0 && (
           <p className="mt-3 text-sm text-slate-500">
             No active doctor matches <strong className="font-semibold">{search}</strong>. A doctor
-            must be ACTIVE before they can be put on a shift — check{" "}
+            must be ACTIVE before they can be put on a shift. Check{" "}
             <Link to="/admin/verification" className="underline">
               verification
             </Link>{" "}
@@ -222,7 +222,7 @@ function AdminScheduling() {
         {definitions.data && (
           <>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              A doctor can only be put on an active shift. Night cover is seeded off — turning it on
+              A doctor can only be put on an active shift. Night cover is seeded off: turning it on
               is a business decision, so it is a decision someone makes here rather than a value in
               the database.
             </p>

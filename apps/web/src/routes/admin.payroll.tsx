@@ -27,7 +27,7 @@ function AdminPayroll() {
         <h1 className="text-3xl font-bold tracking-tight">Doctor payroll</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
           What each doctor is owed for the current month, from their contracted hours. Neem does not
-          transfer salaries — these figures are for whoever makes the payment.
+          transfer salaries. These figures are for whoever makes the payment.
         </p>
       </header>
 

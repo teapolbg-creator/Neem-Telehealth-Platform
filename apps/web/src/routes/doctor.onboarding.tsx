@@ -250,7 +250,7 @@ function DoctorOnboarding() {
                 <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Experience
                 </dt>
-                <dd className="mt-0.5">{profile.yearsExperience ?? "—"} years</dd>
+                <dd className="mt-0.5">{profile.yearsExperience ?? "Not recorded"} years</dd>
               </div>
             </dl>
             {isDoctor ? (

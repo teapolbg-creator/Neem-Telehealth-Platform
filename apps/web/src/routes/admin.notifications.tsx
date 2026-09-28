@@ -61,7 +61,7 @@ function AdminNotifications() {
         <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-slate-500">
           The wording of every message Neem sends. A notification tells someone that something
-          happened — never what was wrong with them, what was prescribed, or what a test said.
+          happened, never what was wrong with them, what was prescribed, or what a test said.
           Wording that reads as clinical content is refused when you save it, not when it is sent.
         </p>
       </header>
@@ -135,7 +135,7 @@ function TemplateCard({ template }: { template: NotificationTemplate }) {
           {!template.hasProducer && (
             <p className="mt-1.5 max-w-xl text-pretty text-xs leading-relaxed text-amber-700">
               Nothing in Neem sends this message yet. You can word it now and it will be used the
-              moment it is connected — but nobody is receiving it today, and saving this will not
+              moment it is connected, but nobody is receiving it today, and saving this will not
               change that.
             </p>
           )}
@@ -185,7 +185,7 @@ function TemplateCard({ template }: { template: NotificationTemplate }) {
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-slate-500">Available:</span>
         {template.variables.length === 0 ? (
-          <span className="text-xs text-slate-400">none — this message takes no details</span>
+          <span className="text-xs text-slate-400">none: this message takes no details</span>
         ) : (
           template.variables.map((variable) => (
             <button

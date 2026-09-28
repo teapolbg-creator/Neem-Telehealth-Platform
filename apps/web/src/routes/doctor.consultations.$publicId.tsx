@@ -160,8 +160,8 @@ function DoctorConsultation() {
         <p className="mt-6 flex items-start gap-2 rounded-2xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
           <ShieldCheck className="mt-px size-4 shrink-0 text-slate-400" />
           Nothing here is recorded. What you write is sealed when you complete the consultation and
-          retained under a legal record-keeping obligation — not readable afterwards, and destroyed
-          when its retention period ends.
+          retained under a legal record-keeping obligation. It is not readable afterwards, and is
+          destroyed when its retention period ends.
         </p>
       </div>
     </AppShell>
@@ -203,7 +203,7 @@ function VideoPanel({ publicId, patientName }: { publicId: string; patientName: 
         <h2 className="text-lg font-bold">You have left the call</h2>
         <p className="mt-2 max-w-sm text-pretty text-sm text-slate-500">
           The consultation is still open. Rejoin to continue, or complete it from the workspace
-          below — leaving the call does not end the consultation.
+          below. Leaving the call does not end the consultation.
         </p>
         <button
           type="button"
@@ -288,7 +288,7 @@ function CallMePanel({ publicId }: { publicId: string }) {
           {place.data.isMockProvider && (
             <p className="mt-2 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
               <strong className="font-bold">No call was actually placed.</strong> Telephone bridging
-              is simulated in this build — the patient’s phone will not ring.
+              is simulated in this build, and the patient’s phone will not ring.
             </p>
           )}
         </div>
@@ -501,7 +501,7 @@ function CompletedNotice({ destroyAt, onBack }: { destroyAt: string | null; onBa
       </p>
       <p className="mx-auto mt-3 max-w-md text-pretty text-xs leading-relaxed text-slate-400">
         Any prescription, referral or summary you issued stays available to the patient and the
-        pharmacy — those are documents you deliberately issued, not working notes.
+        pharmacy: those are documents you deliberately issued, not working notes.
       </p>
       <button
         type="button"

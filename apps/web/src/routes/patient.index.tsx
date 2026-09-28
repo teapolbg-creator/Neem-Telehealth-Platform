@@ -286,7 +286,7 @@ function IdentityStep() {
         the lawful basis and the retention period, is with counsel (G7d).
       */}
       <p className="mt-5 rounded-2xl bg-brand-soft p-3 text-xs leading-relaxed text-brand/90">
-        Your record is kept private and sealed — no {seeing.noun} or pharmacy can open it after this
+        Your record is kept private and sealed. No {seeing.noun} or pharmacy can open it after this
         consultation.{" "}
         {seeing.prescribes
           ? "Only a prescription, if the doctor issues one, is shared."
@@ -373,7 +373,12 @@ function ModeStep({ availableTypes }: { availableTypes: readonly ConsultationTyp
       title: "Video consultation",
       desc: `See and speak with the ${seeing.noun}.`,
     },
-    { id: "AUDIO", icon: Phone, title: "Audio consultation", desc: "Voice only — uses less data." },
+    {
+      id: "AUDIO",
+      icon: Phone,
+      title: "Audio consultation",
+      desc: "Voice only, and uses less data.",
+    },
     {
       id: "CALL_ME",
       icon: PhoneOutgoing,
@@ -479,14 +484,14 @@ function WaitingStep({ session }: { session: PatientSessionView }) {
           <div className="rounded-2xl border border-border bg-slate-50 p-3">
             <p className="text-[10px] font-bold uppercase text-slate-400">Consultation</p>
             <p className="mt-0.5 text-lg font-bold capitalize">
-              {session.type?.replace("_", " ").toLowerCase() ?? "—"}
+              {session.type?.replace("_", " ").toLowerCase() ?? "Not chosen"}
             </p>
           </div>
         </div>
       </div>
 
       <p className="text-xs leading-relaxed text-slate-500">
-        Please stay on this screen. You can put your phone down — it will update on its own.
+        Please stay on this screen. You can put your phone down, and it will update on its own.
       </p>
     </div>
   );
@@ -708,7 +713,7 @@ function FinishOnThisPhone({
 
       <p className="mt-2 text-xs leading-relaxed text-slate-600">
         This is the last time it is shown. Once you finish, this phone is cleared and the reference
-        cannot be shown again — the pharmacist can still find your consultation with it.
+        cannot be shown again. The pharmacist can still find your consultation with it.
       </p>
 
       {end.error && (
@@ -1058,7 +1063,7 @@ function DocumentsPanel() {
           Your documents could not be loaded
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-          Ask the pharmacist — they have a copy of anything the {seeing.noun} issued.
+          Ask the pharmacist, who has a copy of anything the {seeing.noun} issued.
         </p>
       </div>
     );
