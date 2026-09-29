@@ -216,6 +216,49 @@ describe('who gets which URL', () => {
     expect(new URL(patient.endpoint!).searchParams.get('video')).toBeNull();
   });
 
+  /**
+   * The fault D57 exists to fix, stated as a test.
+   *
+   * Room addresses used to live only in this provider's own `Map`, so an API
+   * restart — a deploy, a crash, a container moving — left a consultation whose
+   * room existed at Whereby and was reachable by nobody. A fresh provider is
+   * exactly what a restart looks like from here, and the stored addresses are
+   * enough on their own.
+   */
+  it('issues a credential from stored addresses after a restart', async () => {
+    const { room } = await createRoom();
+    const restarted = new WherebyVideoProvider();
+
+    const patient = await restarted.issueJoinToken({
+      providerRoomRef: room.providerRoomRef,
+      participant: 'PATIENT',
+      displayName: 'Patient',
+      ttlSeconds: 1800,
+      roomUrl: 'https://neem.whereby.com/neem-abc123',
+      hostRoomUrl: 'https://neem.whereby.com/neem-abc123?roomKey=SECRETKEY',
+      kind: 'VIDEO',
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+    const doctor = await restarted.issueJoinToken({
+      providerRoomRef: room.providerRoomRef,
+      participant: 'DOCTOR',
+      displayName: 'Doctor',
+      ttlSeconds: 1800,
+      roomUrl: 'https://neem.whereby.com/neem-abc123',
+      hostRoomUrl: 'https://neem.whereby.com/neem-abc123?roomKey=SECRETKEY',
+      kind: 'VIDEO',
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+
+    // The same room both parties were in before the restart, and each still
+    // gets their own side of it.
+    expect(patient.endpoint).toContain('/neem-abc123');
+    expect(patient.endpoint).not.toContain('roomKey');
+    expect(doctor.endpoint).toContain('roomKey=SECRETKEY');
+    // Nothing was created at Whereby to achieve it.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to issue a credential for a room it does not know', async () => {
     const provider = new WherebyVideoProvider();
 

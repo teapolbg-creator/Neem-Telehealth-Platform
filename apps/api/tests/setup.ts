@@ -14,6 +14,15 @@ process.env.DIRECT_DATABASE_URL ??= process.env.DATABASE_URL;
 process.env.SESSION_SECRET = 'test-session-secret-value-000000000000000000';
 process.env.CSRF_SECRET = 'test-csrf-secret-value-0000000000000000000000';
 process.env.ENCRYPTION_KEY = 'test-encryption-key-value-000000000000000000';
+/*
+ * A signing secret for the Whereby webhook (D57).
+ *
+ * Without one the endpoint short-circuits to "not configured" and answers 200
+ * to anything, so the suite would be proving nothing about the signature check
+ * that protects it. Obviously a test value, and it reaches no gateway: nothing
+ * outbound uses it.
+ */
+process.env.WHEREBY_WEBHOOK_SECRET = 'test-whereby-webhook-secret-0000000000';
 process.env.LOG_LEVEL = 'silent';
 process.env.SEED_DEMO_DATA = 'false';
 

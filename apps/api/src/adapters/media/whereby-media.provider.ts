@@ -210,11 +210,34 @@ export class WherebyVideoProvider implements VideoProvider {
       kind: input.kind,
     });
 
-    return { providerRoomRef: meeting.meetingId, status: 'CREATED' };
+    return {
+      providerRoomRef: meeting.meetingId,
+      status: 'CREATED',
+      roomUrl: meeting.roomUrl,
+      hostRoomUrl: meeting.hostRoomUrl ?? meeting.roomUrl,
+      expiresAt,
+    };
   }
 
   async issueJoinToken(input: JoinTokenInput): Promise<JoinToken> {
-    const room = this.urls.get(input.providerRoomRef);
+    /*
+     * What the caller stored, or what this process happens to remember (D57).
+     *
+     * The stored copy comes first because it is the one that survives a
+     * restart. The in-process map remains for a caller that has nothing
+     * stored, which is every caller written before the addresses were kept.
+     */
+    const remembered = this.urls.get(input.providerRoomRef);
+    const room =
+      input.roomUrl && input.expiresAt
+        ? {
+            roomUrl: input.roomUrl,
+            hostRoomUrl: input.hostRoomUrl ?? input.roomUrl,
+            expiresAt: input.expiresAt,
+            kind: input.kind ?? remembered?.kind ?? ('VIDEO' as const),
+          }
+        : remembered;
+
     if (!room) {
       throw new MediaProviderError(
         'This room is no longer available on this server. Rejoining will create a fresh one.',

@@ -28,6 +28,8 @@ scan QR ───────────────▶ token exchange → devi
                                                 ASSIGNED → DOCTOR_ACCEPTED
                          ◀────────────── media session established ──▶
                          IN_PROGRESS · 5-min timer, warning only
+                         │  call breaks ──▶ INTERRUPTED · doctor's slot freed,
+                         │◀── either party rejoins ── paid, 24h, no second payment
 vitals/tests entry ────▶ (sealed at end) ◀── doctor reads
                                                       doctor records outcome
                                                       prescription / referral
@@ -58,6 +60,7 @@ mark dispensed                                     patient leaves feedback
 | `ASSIGNED`            | Offered to a specific doctor; 90s window running                                                                                                                         |
 | `DOCTOR_ACCEPTED`     | Doctor accepted; media session being established                                                                                                                         |
 | `IN_PROGRESS`         | Clinical interaction underway; timer running                                                                                                                             |
+| `INTERRUPTED`         | The call broke and the consultation is unfinished (D57). Paid, rejoinable for 24h without a second payment, and it does **not** hold the doctor's slot                   |
 | `COMPLETING`          | Doctor submitted the outcome; the completion transaction is running                                                                                                      |
 | `COMPLETED`           | Terminal. Permanent records written, clinical record sealed and its destruction scheduled (D23)                                                                          |
 
@@ -80,8 +83,9 @@ PATIENT_JOINED       → WAITING_FOR_DOCTOR | CANCELLED | REFUND_REQUESTED
 WAITING_FOR_DOCTOR   → ASSIGNED | CANCELLED | REFUND_REQUESTED | ABANDONED
 ASSIGNED             → DOCTOR_ACCEPTED | REASSIGNING | CANCELLED
 REASSIGNING          → ASSIGNED | WAITING_FOR_DOCTOR | CANCELLED
-DOCTOR_ACCEPTED      → IN_PROGRESS | REASSIGNING | ABANDONED
-IN_PROGRESS          → COMPLETING | ABANDONED
+DOCTOR_ACCEPTED      → IN_PROGRESS | INTERRUPTED | REASSIGNING | ABANDONED
+IN_PROGRESS          → COMPLETING | INTERRUPTED | ABANDONED
+INTERRUPTED          → IN_PROGRESS | COMPLETING | ABANDONED | CANCELLED | REFUND_REQUESTED
 COMPLETING           → COMPLETED
 REFUND_REQUESTED     → REFUNDED | ACTIVATED | WAITING_FOR_PATIENT | PATIENT_JOINED
                        | WAITING_FOR_DOCTOR | COMPLETED
@@ -97,6 +101,8 @@ Transitions are executed by a single guarded function. The service layer never a
 ## 4. Rules the state machine enforces
 
 **Payment.** `PAID` is reachable only from a server-side verification result or a signature-verified webhook. A client POST claiming success cannot produce it (spec §34).
+
+**Interruption (D57).** A call breaking is not an ending. Only a doctor completes a consultation: no timeout, no dropped connection, no closed browser and no provider event marks one completed or abandoned. `INTERRUPTED` is entered by the doctor saying the call broke, releases their concurrent slot so they are not held out of the queue while the patient is away, and is left the moment either party rejoins. Documentation stays writable throughout, because a doctor who saw the patient still has notes, a prescription and a summary to write.
 
 **The 5-minute timer never ends a consultation.** At 60s remaining, the doctor gets a warning and the patient sees a discreet indicator; at zero, the timer turns into an overrun counter. Only the doctor completes (spec §15).
 

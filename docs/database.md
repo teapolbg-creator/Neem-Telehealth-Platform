@@ -128,7 +128,7 @@ Compensation fields are configurable and **nullable** — the part-time formula 
 ### 3.5 Consultations
 
 **`consultations`** — PERMANENT (operational fields only)
-`id`, `publicId`, `pharmacyId` FK, `doctorId` FK NULL, `state`, `type` ENUM(`AUDIO`,`VIDEO`,`CALL_ME`) NULL until chosen, `languageId` FK NULL until chosen, `priceMinor`, `discountMinor`, `netMinor`, `currency`, `promotionId` NULL, `createdAt`, `paymentDeadlineAt`, `activatedAt`, `patientJoinedAt`, `queuedAt`, `assignedAt`, `startedAt`, `completedAt`, `durationSeconds`, `outcome` ENUM(`ADVICE_ONLY`,`PRESCRIPTION`,`REFERRAL`,`EMERGENCY_REFERRAL`,`OTHER`) NULL, `hasPrescription`, `hasReferral`, `cancellationReason`, `isDemo`.
+`id`, `publicId`, `pharmacyId` FK, `doctorId` FK NULL, `state`, `type` ENUM(`AUDIO`,`VIDEO`,`CALL_ME`) NULL until chosen, `languageId` FK NULL until chosen, `priceMinor`, `discountMinor`, `netMinor`, `currency`, `promotionId` NULL, `createdAt`, `paymentDeadlineAt`, `activatedAt`, `patientJoinedAt`, `queuedAt`, `assignedAt`, `startedAt`, `completedAt`, `durationSeconds`, `outcome` ENUM(`ADVICE_ONLY`,`PRESCRIPTION`,`REFERRAL`,`EMERGENCY_REFERRAL`,`OTHER`) NULL, `outcomes` ENUM[] (everything it produced, D56; `outcome` is the primary one so older reports still read), `rejoinableUntil` NULL, `interruptedAt` NULL, `interruptionNote` NULL (D57), `hasPrescription`, `hasReferral`, `cancellationReason`, `isDemo`.
 Indexes: (`pharmacyId`,`createdAt`), (`doctorId`,`createdAt`), (`state`), (`publicId` UNIQUE).
 **No clinical column lives here.** Once the sealed record has been destroyed, this row is a complete, honest operational record and nothing more (spec §12).
 
@@ -152,7 +152,17 @@ Destroyed when the retention period expires, not at completion (D23). It has to 
 `id`, `consultationId`, `testCode`, `resultText`, `recordedByUserId`, `recordedAt`. Free-typed results; no device integration (spec §50).
 
 **`media_sessions`** — OPERATIONAL
-`id`, `consultationId`, `provider`, `kind`, `providerRoomRef`, `providerCallRef`, `startedAt`, `endedAt`, `endReason`, `recordingEnabled` BOOLEAN NOT NULL DEFAULT FALSE with a CHECK constraint pinning it to false. Content is never touched; only connection metadata is stored (spec §32).
+`id`, `consultationId`, `provider`, `kind`, `providerRoomRef`, `providerCallRef`, `startedAt`, `endedAt`, `endReason`, `recordingEnabled` BOOLEAN NOT NULL DEFAULT FALSE with a CHECK constraint pinning it to false, and from D57 `roomUrlEnc`, `hostRoomUrlEnc`, `roomExpiresAt`, `attempt`, `replacedSessionId`.
+Partial unique index `media_sessions_one_open_per_consultation` on (`consultationId`) WHERE `endedAt` IS NULL: one open session per consultation, which is what makes two parties rejoining at the same moment produce one room rather than two.
+The join addresses are **stored encrypted rather than held in memory** (D57). They used to live in a process-local `Map`, so an API restart left a room that existed at the provider and was reachable by nobody. Content is never touched; only connection metadata is stored (spec §32).
+
+**`call_attendance_events`** — OPERATIONAL (D57)
+`id`, `consultationId`, `mediaSessionId` NULL, `participant` ENUM(`PATIENT`,`DOCTOR`), `event` ENUM(`JOINED`,`LEFT`), `source` ENUM(`CLIENT`,`WEBHOOK`,`SYSTEM`), `occurredAt`, `providerSessionRef` NULL. Indexes: (`consultationId`,`occurredAt`).
+Who was in the room and when, from the browser and from the provider. **Attendance, never status**: nothing derived from these rows completes, cancels, pays for or refunds a consultation.
+
+**`media_webhook_events`** — OPERATIONAL (D57)
+`id`, `provider`, `providerEventId`, `eventType`, `signatureValid`, `payloadHash`, `receivedAt`, `processedAt` NULL, `processingResult` NULL, `error` NULL. UNIQUE (`provider`,`providerEventId`), index (`receivedAt`).
+The same ledger the payment webhook keeps, for the same reason: the row is inserted before the event is handled, so a retry collides with the first delivery instead of being applied twice.
 
 ### 3.6 Queue — OPERATIONAL
 

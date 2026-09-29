@@ -212,6 +212,26 @@ export function useMyAppointments(options: { enabled?: boolean } = {}) {
 // Paying
 // ---------------------------------------------------------------------------
 
+/**
+ * Back into a consultation this account already paid for (D57).
+ *
+ * The call session lives in a cookie, which a closed browser, a new phone or a
+ * sign-out takes with it. What was paid for does not live there: it lives in the
+ * consultation, which this account owns, so the server mints a fresh session for
+ * it. There is no amount in this request and no payment behind it.
+ */
+export function useRejoinBooking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reference: string) =>
+      api.post<{ consultationReference: string; state: string }>(
+        `/patient/bookings/${reference}/rejoin`,
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["patient", "session"] }),
+  });
+}
+
 export function useStartBookingPayment() {
   return useMutation({
     mutationFn: (reference: string) =>

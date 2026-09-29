@@ -262,6 +262,15 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
 
   ['GET /api/v1/verify/:kind/:code', 'a document is verified by whoever holds it (spec §44)'],
   ['POST /api/v1/webhooks/payment', 'authenticated by HMAC over the raw body, not a session'],
+  [
+    'POST /api/v1/webhooks/whereby',
+    'the same shape as the payment webhook (D57): HMAC over the timestamp and ' +
+      'the raw body, verified before the body is parsed, replayed events ' +
+      'discarded on a unique index. It carries attendance — who was in a room ' +
+      'and when — and no branch in it can complete, cancel or pay for a ' +
+      'consultation, so a forged one cannot end anything. Signature failures ' +
+      'and unknown rooms are covered in call-recovery.test.ts',
+  ],
 ]);
 
 interface Route {
@@ -712,6 +721,16 @@ describe('§102 (3) cross-patient access and session takeover', () => {
     '/api/v1/patient/account/documents/:kind/:publicId.pdf',
     '/api/v1/patient/appointments/:reference',
     '/api/v1/patient/bookings/:reference/payment',
+    /*
+     * Rejoining a consultation this account already paid for (D57).
+     *
+     * It mints a patient session, which makes the reference the only thing
+     * standing between a caller and somebody else's consultation — so it is
+     * resolved by `ownedBooking`, the same ownership check the payment route
+     * uses, and another account's reference is refused as not found rather than
+     * as forbidden. Asserted directly in call-recovery.test.ts.
+     */
+    '/api/v1/patient/bookings/:reference/rejoin',
     '/api/v1/patient/documents/:kind/:publicId.pdf',
   ];
 

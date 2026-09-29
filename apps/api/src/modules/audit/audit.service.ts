@@ -118,6 +118,12 @@ export const AUDIT_ACTIONS = {
   // Decision D23. Both carry counts and dates only — an audit log that
   // recorded what a clinical record said would become the medical history
   // spec §13 forbids.
+  CALL_INTERRUPTED: 'call.interrupted',
+  PATIENT_SESSION_REISSUED: 'patient.session_reissued',
+  CALL_ROOM_SESSION_ENDED: 'call.room_session_ended',
+  MEDIA_WEBHOOK_REJECTED: 'media.webhook_rejected',
+  CALL_RESUMED: 'call.resumed',
+  CALL_ROOM_REPLACED: 'call.room_replaced',
   CLINICAL_RECORD_SEALED: 'retention.clinical-record.sealed',
   CLINICAL_RECORD_DESTROYED: 'retention.clinical-record.destroyed',
   // Purpose and scope only. The audit log must not become a second copy of

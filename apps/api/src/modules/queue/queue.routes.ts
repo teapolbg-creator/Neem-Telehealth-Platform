@@ -228,6 +228,9 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           clinicalSealed: sealed,
           outcome: consultation.outcome,
           outcomes: consultation.outcomes,
+          // So the doctor can tell the patient how long they have to come back
+          // after a call that broke (D57).
+          rejoinableUntil: consultation.rejoinableUntil?.toISOString() ?? null,
           durationSeconds: await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS),
         },
         meta: { requestId: request.correlationId },

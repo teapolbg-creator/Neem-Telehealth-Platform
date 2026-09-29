@@ -1707,3 +1707,104 @@ September, and no salary was owed.
 
 Covered by `tests/integration/counter-doctor-share.test.ts` and
 `tests/integration/v2-earnings.test.ts`.
+
+### D56 — A consultation can produce more than one thing, and the doctor is reachable from anywhere in their dashboard · 2026-09-28 · **DECIDED**
+
+**Issue.** Four things the operator found while using the doctor's dashboard.
+
+- Completing a consultation took **one** outcome, so a doctor who had
+  prescribed _and_ referred had to choose which of the two to record. The
+  clinical record then said something untrue about care that had actually been
+  given.
+- A shift the administrator had assigned was only visible on the availability
+  page, and a patient request only on the queue page. A doctor writing notes or
+  reading their earnings was told nothing, and a 90-second offer window expired
+  while they were two clicks away.
+- The hero panel and the navigation strip overlapped at some widths, and the
+  navigation disappeared entirely on a narrow screen.
+
+**Decision.**
+
+- **Outcomes are a list.** `Consultation.outcomes` holds everything the
+  consultation produced, with `outcome` kept as the primary one so every report
+  written before this still reads. `ADVICE_ONLY` is exclusive, because advice
+  only is precisely the claim that nothing else was issued, and each outcome
+  carries its own requirement — a prescription outcome needs a prescription.
+  Records written before this have their single outcome backfilled into the
+  list.
+- **Alerts live in the shell**, not on a page: a shift to accept and a patient
+  request to open follow the doctor across every tab, with one chime, so
+  neither depends on where they happen to be standing.
+- The navigation strip is always visible and scrolls horizontally rather than
+  disappearing.
+
+Covered by `tests/integration/prescription.test.ts` and the clinical suite.
+
+### D57 — A call that breaks does not cost the patient their consultation, and nothing but a doctor ends one · 2026-09-29 · **DECIDED**
+
+**Issue.** The video integration had no account of interruption, and a Ghanaian
+mobile connection interrupts. Four faults, each of which ended with a patient
+who had paid and had nothing:
+
+1. **Room URLs lived in process memory.** The Whereby adapter held them in a
+   `Map`, so an API restart — a deploy, a crash, a container moving — left a
+   consultation whose room existed at the provider and was reachable by nobody.
+2. **Nothing released an interrupted consultation.** A call that broke left the
+   consultation `IN_PROGRESS` for ever. With `maxConcurrentConsultations` at 1,
+   that doctor was at capacity permanently, and the queue quietly stopped
+   routing to them. No job cleaned it up, because being in progress is also
+   what a working consultation looks like.
+3. **Rooms outlived their consultations.** `endMediaSession` was called from
+   completion and from nowhere else, so a cancelled or expired consultation left
+   a live room with a working address, and a Call Me left the single voice line
+   occupied indefinitely.
+4. **A lost cookie looked like a lost consultation.** The patient's session
+   lives in a cookie; a closed browser, a flat battery or a new phone took it
+   with them, and there was no route back into a consultation they had already
+   paid for. At a counter, the visible remedy was to pay again.
+
+**Decision.**
+
+- **A new state, `INTERRUPTED`.** Reachable from `IN_PROGRESS`, and leading
+  back to it, or on to `COMPLETING`, `ABANDONED`, `CANCELLED` or
+  `REFUND_REQUESTED`. It is paid, the patient may still act on it, and it does
+  **not** occupy the doctor — so the doctor is free to see other patients while
+  this one is away, and the slot is taken back the moment either party returns.
+  Capacity is now accounted for by one question, `occupiesDoctor`, asked in the
+  single `transition` funnel: release on leaving an occupying state, claim on
+  returning to one.
+- **Rejoining costs nothing, and cannot cost anything.** The patient's screen
+  leads with "You do not need to pay again", and there is no route behind it
+  that could take a payment. A patient with an account rejoins from My care
+  through `POST /patient/bookings/:reference/rejoin`, which mints a fresh
+  session for a consultation their account owns; another account's reference is
+  refused as not found. The window is **24 hours**, held on the consultation as
+  `rejoinableUntil`.
+- **Room URLs are stored, encrypted, on the media session**, with a partial
+  unique index enforcing one open session per consultation. A room the provider
+  has forgotten is replaced under the same consultation rather than becoming a
+  second one.
+- **Whereby's webhook is the second source of who is in a room**, because the
+  browser cannot report a phone that died. Signed with HMAC-SHA256 over
+  `${timestamp}.${rawBody}`, verified before the body is parsed, deduplicated
+  on a unique index, always answered 200 once the signature checks out — the
+  same shape as the payment webhook. It records **attendance only**.
+- **Only a doctor ends a consultation.** No timeout, no missing heartbeat, no
+  closed tab and no `session.ended` event completes, abandons or refunds
+  anything. When the patient is not in the room the doctor is asked, after five
+  minutes they can extend, and the two answers offered are "wait longer" and
+  "mark the call as interrupted". Marking it frees them and completes nothing.
+  Documentation stays open while interrupted, because a doctor who saw the
+  patient before the call broke still has notes, a prescription and a summary to
+  write.
+- **Every terminal transition tears the room down**, not just completion.
+
+**What is deliberately not here.** An automatic refund for an interrupted
+consultation, and an automatic outcome of any kind. Both are judgements about
+care that was or was not given, and the existing refund route already exists for
+a human to make them.
+
+Covered by `tests/integration/call-recovery.test.ts` (13 cases: hang-ups,
+window expiry, simultaneous rejoins, a forgotten room, a forged webhook, a
+signed one, completion from interrupted, teardown on cancellation) and the
+rejoining cases in `tests/integration/v2-booking.test.ts`.

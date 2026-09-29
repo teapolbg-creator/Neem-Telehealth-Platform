@@ -2,11 +2,7 @@ import type { ConsultationOutcome, PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
-import {
-  EXCLUSIVE_OUTCOMES,
-  OUTCOME_REQUIRES,
-  primaryOutcome,
-} from '@neem/contracts';
+import { EXCLUSIVE_OUTCOMES, OUTCOME_REQUIRES, primaryOutcome } from '@neem/contracts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { transition } from '../consultation/consultation.service.ts';
 import {
@@ -97,7 +93,12 @@ export async function completeConsultation(
   // to exist (spec §102).
   if (consultation.doctorId !== doctorId) throw errors.notFound('Consultation not found.');
 
-  if (consultation.state !== 'IN_PROGRESS') {
+  /*
+   * Completable while in progress, and while interrupted (D57): a call that
+   * broke after the doctor had seen the patient is still a consultation to
+   * finish, and finishing it is what releases the documents to the patient.
+   */
+  if (consultation.state !== 'IN_PROGRESS' && consultation.state !== 'INTERRUPTED') {
     throw errors.businessRule(
       `Only a consultation in progress can be completed. This one is ${consultation.state}.`,
     );

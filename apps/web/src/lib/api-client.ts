@@ -146,6 +146,39 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   return envelope.data as T;
 }
 
+/**
+ * Posts something the page will not be around to hear the answer to (D57).
+ *
+ * Used on `pagehide`, where a normal request is cancelled as the document goes
+ * away, so the server would never learn that the patient closed the tab. The
+ * browser keeps a `keepalive` request in flight after the page is gone.
+ *
+ * `navigator.sendBeacon` is the more obvious tool and cannot be used here: it
+ * sets no headers, so it cannot carry the CSRF token this API requires on a
+ * mutation. Errors are swallowed on purpose — there is no one left to tell, and
+ * everything this reports is attendance, which the call's own events and the
+ * provider's webhook also establish.
+ */
+export function apiBeacon(path: string): void {
+  if (typeof fetch === "undefined") return;
+
+  const headers: Record<string, string> = { accept: "application/json" };
+  const csrf = readCookie(CSRF_COOKIE);
+  if (csrf) headers[CSRF_HEADER] = csrf;
+
+  try {
+    void fetch(`${API_BASE_URL}/api/v1${path}`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // A browser that refuses the request is no worse off than one that never
+    // made it: the consultation is unaffected either way.
+  }
+}
+
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) => apiRequest<T>(path, { method: "GET", signal }),
   post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "POST", body }),

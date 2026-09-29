@@ -31,6 +31,18 @@ export interface RoomHandle {
   providerRoomRef: string;
   /** Whether the provider considers the room live. */
   status: 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  /**
+   * Where each party joins (D57).
+   *
+   * Returned so the caller can store them: Whereby will not give a room's
+   * addresses back, and holding them in one server's memory meant a deploy,
+   * a crash or a second instance left a paid-for consultation unjoinable.
+   * Both are bearer credentials, and the host one is never sent to a patient.
+   */
+  roomUrl?: string;
+  hostRoomUrl?: string;
+  /** When the provider stops serving the room. */
+  expiresAt?: Date;
 }
 
 export type MediaParticipant = 'PATIENT' | 'DOCTOR';
@@ -38,6 +50,15 @@ export type MediaParticipant = 'PATIENT' | 'DOCTOR';
 export interface JoinTokenInput {
   providerRoomRef: string;
   participant: MediaParticipant;
+  /**
+   * The room's addresses, as stored when it was created (D57). Given here so
+   * that issuing a join does not depend on the process that made the room
+   * still being the one answering the request.
+   */
+  roomUrl?: string;
+  hostRoomUrl?: string;
+  kind?: MediaKind;
+  expiresAt?: Date;
   /**
    * Display name shown to the other party. For the patient this is a generic
    * label, never their name — the doctor sees identity through the clinical

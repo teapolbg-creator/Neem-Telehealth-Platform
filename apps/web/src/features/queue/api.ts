@@ -222,6 +222,8 @@ export interface DoctorConsultation {
   outcome: string | null;
   /** Everything it produced, for records written since D56. */
   outcomes?: string[];
+  /** How long an interrupted consultation may still be rejoined for (D57). */
+  rejoinableUntil?: string | null;
   durationSeconds: number;
 }
 

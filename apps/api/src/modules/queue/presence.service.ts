@@ -157,6 +157,21 @@ export async function releaseCapacity(doctorId: string, db: Db = getPrisma()): P
 }
 
 /**
+ * Takes a doctor's capacity back when an interrupted consultation resumes (D57).
+ *
+ * The mirror of `releaseCapacity`, and deliberately not a no-op when the
+ * doctor is already at their limit: one who took another patient while this
+ * one was away is genuinely busy with two, and the count has to say so. What
+ * stops the queue handing them a third is that same count.
+ */
+export async function claimDoctorCapacity(doctorId: string, db: Db = getPrisma()): Promise<void> {
+  await db.doctorPresence.updateMany({
+    where: { doctorId },
+    data: { currentLoad: { increment: 1 } },
+  });
+}
+
+/**
  * Clears presence for doctors whose heartbeat has stopped.
  *
  * Housekeeping only — allocation already ignores a stale heartbeat, so this

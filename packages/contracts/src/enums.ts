@@ -63,6 +63,15 @@ export const CONSULTATION_STATES = [
   'REASSIGNING',
   'DOCTOR_ACCEPTED',
   'IN_PROGRESS',
+  /**
+   * The call broke and the consultation is unfinished (D57).
+   *
+   * Not terminal, and not a failure: the patient may rejoin without paying
+   * again, nothing is sealed, and only a doctor completing it ends it. It
+   * exists so that a doctor whose patient vanished is not held out of the
+   * queue for the rest of the day.
+   */
+  'INTERRUPTED',
   'COMPLETING',
   'COMPLETED',
   'EXPIRED',
@@ -112,7 +121,9 @@ export type ConsultationOutcome = (typeof CONSULTATION_OUTCOMES)[number];
  * referral is the ordinary case, not an edge one — so these are checked per
  * outcome rather than as a single choice.
  */
-export const OUTCOME_REQUIRES: Partial<Record<ConsultationOutcome, 'prescription' | 'referral' | 'summary'>> = {
+export const OUTCOME_REQUIRES: Partial<
+  Record<ConsultationOutcome, 'prescription' | 'referral' | 'summary'>
+> = {
   ADVICE_ONLY: 'summary',
   PRESCRIPTION: 'prescription',
   REFERRAL: 'referral',
@@ -140,7 +151,9 @@ const OUTCOME_RANK: ConsultationOutcome[] = [
   'OTHER',
 ];
 
-export function primaryOutcome(outcomes: readonly ConsultationOutcome[]): ConsultationOutcome | null {
+export function primaryOutcome(
+  outcomes: readonly ConsultationOutcome[],
+): ConsultationOutcome | null {
   for (const candidate of OUTCOME_RANK) {
     if (outcomes.includes(candidate)) return candidate;
   }

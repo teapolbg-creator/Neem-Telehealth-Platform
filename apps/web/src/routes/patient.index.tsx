@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   ConsultationDocument,
   ConsultationType,
@@ -14,6 +15,7 @@ import {
   Lock,
   Phone,
   PhoneOutgoing,
+  RotateCcw,
   Star,
   Video,
 } from "lucide-react";
@@ -21,8 +23,14 @@ import { NeemLogo } from "@/components/neem/Logo";
 import { Chip } from "@/components/neem/Chip";
 import { CallStage } from "@/components/neem/CallStage";
 import { ApiError } from "@/lib/api-client";
-import { useJoinPatientMedia, useLeavePatientMedia, usePatientTimer } from "@/features/media/api";
 import {
+  patientLeftBeacon,
+  useJoinPatientMedia,
+  useLeavePatientMedia,
+  usePatientTimer,
+} from "@/features/media/api";
+import {
+  patientSessionKey,
   patientDocumentUrl,
   usePatientDocuments,
   usePatientComplaintCategories,
@@ -119,6 +127,7 @@ function PatientPortal() {
       {session.step === "MODE" && <ModeStep availableTypes={session.availableTypes} />}
       {session.step === "WAITING" && <WaitingStep session={session} />}
       {session.step === "IN_CONSULTATION" && <InConsultationStep session={session} />}
+      {session.step === "INTERRUPTED" && <InterruptedStep session={session} />}
       {session.step === "COMPLETE" && (
         <CompleteStep session={session} onFinished={() => setFinished(true)} />
       )}
@@ -526,6 +535,9 @@ function PatientCallStep({
   const leave = useLeavePatientMedia();
   const { data: timer } = usePatientTimer(true);
   const [left, setLeft] = useState(false);
+  const [alone, setAlone] = useState(false);
+  const [dropped, setDropped] = useState(false);
+  const queryClient = useQueryClient();
 
   // Guarded against React's double-invoke in development and against a
   // re-render mid-request: joining twice would mint a second credential and
@@ -536,6 +548,21 @@ function PatientCallStep({
     requested.current = true;
     join.mutate();
   }, [join]);
+
+  /**
+   * Tell the server when the phone is put away (D57).
+   *
+   * `pagehide` is the event that actually fires on a mobile browser — closing
+   * the tab, switching apps, the screen locking, the browser being killed under
+   * memory pressure. `beforeunload` is unreliable on iOS and `unload` is
+   * ignored outright. This records attendance and nothing else: the
+   * consultation stays exactly as it was, and the patient comes back to it.
+   */
+  useEffect(() => {
+    const onHide = () => patientLeftBeacon();
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
 
   if (left) {
     return (
@@ -548,6 +575,37 @@ function PatientCallStep({
     );
   }
 
+  if (dropped) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+        <div className="grid size-20 place-items-center rounded-full bg-amber-100">
+          <RotateCcw className="size-9 text-amber-700" />
+        </div>
+        <h2 className="mt-6 text-xl font-bold">The call dropped</h2>
+        <p className="mt-2 max-w-xs text-pretty text-sm font-bold text-slate-900">
+          You do not need to pay again.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            /*
+             * Straight back into the same room. The effect above is what joins,
+             * so it is armed again and left to do it — calling `mutate` here as
+             * well would join twice and leave the first credential dangling.
+             */
+            requested.current = false;
+            setDropped(false);
+            setAlone(false);
+            void queryClient.invalidateQueries({ queryKey: patientSessionKey });
+          }}
+          className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-4 text-base font-bold text-white hover:brightness-110"
+        >
+          <RotateCcw className="size-5" /> Rejoin
+        </button>
+      </div>
+    );
+  }
+
   return (
     <CallStage
       session={join.data ?? null}
@@ -555,6 +613,19 @@ function PatientCallStep({
       role="PATIENT"
       remoteName={doctorName}
       joining={join.isPending}
+      onRemotePresence={(present) => setAlone(!present)}
+      onDropped={() => setDropped(true)}
+      notice={
+        alone ? (
+          <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">
+            <AlertCircle className="mt-px size-4 shrink-0" />
+            <p>
+              The {seeing.noun} is not in the call at the moment. Stay on this screen. Your
+              consultation is still open and you do not need to pay again.
+            </p>
+          </div>
+        ) : null
+      }
       error={
         join.isError
           ? join.error instanceof ApiError
@@ -570,6 +641,117 @@ function PatientCallStep({
       }}
     />
   );
+}
+
+/**
+ * The call broke, and the consultation did not (D57).
+ *
+ * The first thing on the screen is the sentence that matters: nothing more is
+ * owed. A patient whose call drops at a counter assumes the money is gone and
+ * that starting again means paying again, so they go to the pharmacist, or they
+ * go home. Both assumptions are wrong, and the screen says so before it says
+ * anything else.
+ *
+ * Rejoining is one button. It does not open a payment, cannot open a payment,
+ * and there is no route behind this screen that could: the consultation is
+ * already paid for and the server treats coming back as continuing it.
+ */
+function InterruptedStep({ session }: { session: PatientSessionView }) {
+  const seeing = useSeeing();
+  const join = useJoinPatientMedia();
+  const queryClient = useQueryClient();
+  const remaining = useCountdownTo(session.rejoinableUntil);
+
+  // The window having passed is the server's judgement, not this screen's: the
+  // countdown reaching zero only stops the offer being made, and the server
+  // refuses a late rejoin on its own terms.
+  const expired = remaining !== null && remaining <= 0;
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+      <div className="grid size-20 place-items-center rounded-full bg-amber-100">
+        <RotateCcw className="size-9 text-amber-700" />
+      </div>
+
+      <h2 className="mt-6 text-2xl font-bold">Your consultation is still open</h2>
+      <p className="mt-3 max-w-xs text-pretty text-base font-bold text-slate-900">
+        You do not need to pay again.
+      </p>
+      <p className="mt-2 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
+        {expired
+          ? `The time for rejoining has passed. Please speak to the pharmacist about seeing the ${seeing.noun}.`
+          : `The call was interrupted. Rejoin when you are ready and the same ${seeing.noun} will be told you are back.`}
+      </p>
+
+      {!expired && (
+        <button
+          type="button"
+          disabled={join.isPending}
+          onClick={() => {
+            join.mutate(undefined, {
+              // The join is what resumes the consultation, so the step the
+              // server reports is stale the moment it succeeds.
+              onSuccess: () => void queryClient.invalidateQueries({ queryKey: patientSessionKey }),
+            });
+          }}
+          className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-4 text-base font-bold text-white shadow-lg shadow-brand/20 hover:brightness-110 disabled:opacity-40"
+        >
+          {join.isPending ? (
+            <Loader2 className="size-5 animate-spin" />
+          ) : (
+            <RotateCcw className="size-5" />
+          )}
+          Rejoin the consultation
+        </button>
+      )}
+
+      {join.isError && (
+        <p className="mt-4 max-w-xs text-sm text-red-600">
+          {join.error instanceof ApiError
+            ? join.error.message
+            : "The consultation could not be rejoined."}
+        </p>
+      )}
+
+      {remaining !== null && !expired && (
+        <p className="mt-6 text-xs leading-relaxed text-slate-400">
+          You can rejoin for the next {formatRemaining(remaining)}.
+        </p>
+      )}
+
+      <p className="mt-2 max-w-xs text-xs leading-relaxed text-slate-400">
+        Keep this page open if you can. If you close it, open Neem again and you will come back
+        here.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Seconds left until an instant, recounted every second, or null if there is no
+ * deadline. Counted in the browser so the number moves without a request a
+ * second; the deadline itself is the server's.
+ */
+function useCountdownTo(deadline: string | null): number | null {
+  const target = deadline ? new Date(deadline).getTime() : null;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (target === null) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [target]);
+
+  if (target === null) return null;
+  return Math.max(0, Math.round((target - now) / 1000));
+}
+
+/** "23 hours", "40 minutes", "90 seconds" — whichever is least alarming to read. */
+function formatRemaining(seconds: number): string {
+  if (seconds >= 7200) return `${Math.floor(seconds / 3600)} hours`;
+  if (seconds >= 3600) return "1 hour";
+  if (seconds >= 120) return `${Math.floor(seconds / 60)} minutes`;
+  return `${seconds} seconds`;
 }
 
 /**

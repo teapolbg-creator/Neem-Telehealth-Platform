@@ -69,6 +69,7 @@ Each is a folder under `apps/api/src/modules/<name>/` containing `*.routes.ts`, 
 | `prescription` | Prescription lifecycle, versions, PDF, verification, dispensing, substitution         |
 | `referral`     | Referral creation and PDF                                                             |
 | `payment`      | Paystack orchestration, webhooks, idempotency, refunds                                |
+| `media`        | Rooms, join credentials, attendance, interruption and recovery, the Whereby webhook   |
 | `finance`      | Revenue allocation, pharmacy payouts, reconciliation, payroll calculation             |
 | `feedback`     | Ratings, categories, complaints                                                       |
 | `quality`      | Doctor performance events, weighted quality score                                     |

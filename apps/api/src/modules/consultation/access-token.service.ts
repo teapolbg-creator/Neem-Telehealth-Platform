@@ -325,3 +325,49 @@ export async function expireStaleTokens(
   });
   return result.count;
 }
+
+/**
+ * A fresh call session for a consultation the caller has already proved they
+ * own (D57).
+ *
+ * The QR exchange is how a counter patient gets in, and it is single-use by
+ * design. A patient who booked for themselves has a different proof — their
+ * account owns the consultation — and needs a way back after a sign-out, a
+ * closed browser or a new phone. Entitlement lives in the consultation, not in
+ * the cookie, so this mints a session and touches nothing else: no payment, no
+ * state change, and no new token the patient has to be handed.
+ *
+ * The caller is responsible for proving ownership before calling this.
+ */
+export async function mintPatientSession(
+  consultationId: string,
+  context: { ip?: string; correlationId?: string } = {},
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<{ sessionToken: string; expiresAt: Date }> {
+  const sessionToken = generateToken();
+  const expiresAt = addMinutes(clock.now(), getEnv().PATIENT_SESSION_TIMEOUT_MINUTES);
+
+  await db.patientSession.update({
+    where: { consultationId },
+    data: {
+      deviceSessionTokenHash: hashToken(sessionToken),
+      deviceBoundAt: clock.now(),
+      expiresAt,
+    },
+  });
+
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.PATIENT_SESSION_REISSUED,
+      actorType: 'PATIENT',
+      entityType: 'consultation',
+      entityId: consultationId,
+      correlationId: context.correlationId,
+      metadata: { ipHash: context.ip ? hashIp(context.ip) : null },
+    },
+    db,
+  );
+
+  return { sessionToken, expiresAt };
+}

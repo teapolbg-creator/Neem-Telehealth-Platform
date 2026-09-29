@@ -3,9 +3,13 @@ import { z } from 'zod';
 import { getEnv } from '../../config/env.ts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
+import { patientSessionIsUsable } from '../../domain/consultation-state.ts';
 import { getBooleanSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
-import { PATIENT_SESSION_COOKIE } from '../consultation/access-token.service.ts';
+import {
+  PATIENT_SESSION_COOKIE,
+  mintPatientSession,
+} from '../consultation/access-token.service.ts';
 import {
   initiatePayment,
   isMockPaymentProvider,
@@ -143,6 +147,54 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
    * saw (spec §34), and admits the patient to the queue the moment the payment
    * is confirmed — there is no counter to do it for them.
    */
+  /**
+   * Back into a consultation this account already paid for (D57).
+   *
+   * The call session lives in a cookie that a sign-out, a new phone or a
+   * closed browser takes with it. The entitlement does not live there: it
+   * lives in the consultation, which this account owns. So a fresh session is
+   * minted for it, and no payment is involved at any point.
+   */
+  app.post('/patient/bookings/:reference/rejoin', async (request, reply) => {
+    const principal = await requireAccount(request);
+    const { reference } = z.object({ reference: z.string().min(1).max(64) }).parse(request.params);
+
+    const consultation = await ownedBooking(principal.accountId, reference);
+
+    /*
+     * Wider than rejoining a call, deliberately.
+     *
+     * A patient whose browser died while they were still in the queue has the
+     * same problem as one whose call dropped: they paid, and the cookie holding
+     * their place went with the tab. So the test is whether a patient session
+     * would still be allowed to act on this consultation at all, which is the
+     * same question the waiting screen and the call each ask for themselves.
+     */
+    if (!patientSessionIsUsable(consultation.state)) {
+      throw errors.businessRule(
+        `This consultation is ${consultation.state.toLowerCase().replace(/_/g, ' ')} and cannot be rejoined.`,
+      );
+    }
+
+    const session = await mintPatientSession(consultation.id, {
+      ip: request.ip,
+      correlationId: request.correlationId,
+    });
+
+    reply.setCookie(PATIENT_SESSION_COOKIE, session.sessionToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      expires: session.expiresAt,
+    });
+
+    return reply.send({
+      data: { consultationReference: consultation.publicId, state: consultation.state },
+      meta: { requestId: request.correlationId },
+    });
+  });
+
   app.get('/patient/bookings/:reference/payment', async (request, reply) => {
     const principal = await requireAccount(request);
     const { reference } = z.object({ reference: z.string().min(1).max(64) }).parse(request.params);

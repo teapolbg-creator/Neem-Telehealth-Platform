@@ -10,7 +10,13 @@ import {
   resolvePatientSession,
   type PatientPrincipal,
 } from '../consultation/access-token.service.ts';
-import { getTimer, joinMediaSession, leaveMediaSession, placeCallMe } from './media.service.ts';
+import {
+  getTimer,
+  interruptConsultation,
+  joinMediaSession,
+  leaveMediaSession,
+  placeCallMe,
+} from './media.service.ts';
 
 /**
  * Media routes (spec §32, §33).
@@ -130,6 +136,35 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       const session = await joinMediaSession(consultationId, 'DOCTOR');
 
       return reply.send({ data: session, meta: { requestId: request.correlationId } });
+    },
+  );
+
+  /**
+   * The doctor records that the call broke and the consultation is unfinished.
+   *
+   * Explicitly theirs to press. Nothing here completes the consultation,
+   * refunds anything or pays anybody: it frees the doctor to take other
+   * patients while leaving this one able to come back without paying again.
+   */
+  app.post(
+    '/doctor/consultations/:publicId/interrupt',
+    { preHandler: doctorOnly },
+    async (request, reply) => {
+      const doctorId = requireDoctorId(request);
+      const { publicId } = publicIdParams.parse(request.params);
+      const consultationId = await requireOwnConsultation(publicId, doctorId);
+
+      const body = z
+        .object({ note: z.string().trim().max(500).optional() })
+        .parse(request.body ?? {});
+
+      const result = await interruptConsultation(consultationId, {
+        type: 'DOCTOR',
+        id: doctorId,
+        note: body.note,
+      });
+
+      return reply.send({ data: result, meta: { requestId: request.correlationId } });
     },
   );
 

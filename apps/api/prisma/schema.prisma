@@ -92,6 +92,8 @@ enum ConsultationState {
   REASSIGNING
   DOCTOR_ACCEPTED
   IN_PROGRESS
+  /// The call broke; unfinished, rejoinable, and not a failure (D57).
+  INTERRUPTED
   COMPLETING
   COMPLETED
   EXPIRED
@@ -895,14 +897,22 @@ model Consultation {
   /// awaits destruction at retention_jobs.scheduledFor.
   clinicalSealedAt  DateTime?
 
+  /// Until when this consultation may be rejoined without paying again (D57).
+  /// Set when a call is interrupted, cleared when it resumes or ends.
+  rejoinableUntil  DateTime?
+  /// When the doctor recorded that the call broke, and what they said about
+  /// arranging to finish it. No clinical content: this is an operational note.
+  interruptedAt    DateTime?
+  interruptionNote String?   @db.VarChar(500)
+
   outcome            ConsultationOutcome?
   /// Everything the consultation produced, not only its headline (D56). The
   /// column above stays as the primary one so records written before this,
   /// and every screen reading it, are unaffected.
   outcomes           ConsultationOutcome[]
-  hasPrescription    Boolean              @default(false)
-  hasReferral        Boolean              @default(false)
-  cancellationReason String?              @db.VarChar(500)
+  hasPrescription    Boolean               @default(false)
+  hasReferral        Boolean               @default(false)
+  cancellationReason String?               @db.VarChar(500)
 
   isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt
@@ -923,6 +933,7 @@ model Consultation {
   queueEntry          ConsultationQueueEntry?
   assignments         ConsultationAssignment[]
   mediaSessions       MediaSession[]
+  callAttendance      CallAttendanceEvent[]
   prescriptions       Prescription[]
   referrals           Referral[]
   summary             ConsultationSummary?
@@ -1093,10 +1104,89 @@ model MediaSession {
   endReason        String?          @db.VarChar(120)
   recordingEnabled Boolean          @default(false)
 
-  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  /// The room's own addresses, encrypted, because each is a bearer credential
+  /// (D57). Held because the provider will not give them back: they were kept
+  /// in one server's memory, so a deploy or a second instance left an existing
+  /// room unjoinable and a patient with no way back into what they had paid
+  /// for. The host address is never sent to a patient.
+  roomUrlEnc        String?   @db.Text
+  hostRoomUrlEnc    String?   @db.Text
+  /// When the provider stops serving this room, so a dead one is replaced
+  /// before a join is attempted rather than after it fails.
+  roomExpiresAt     DateTime?
+  /// Which attempt this is for the consultation, and what it replaced.
+  attempt           Int       @default(1)
+  replacedSessionId String?
+
+  consultation Consultation          @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  attendance   CallAttendanceEvent[]
 
   @@index([consultationId])
   @@map("media_sessions")
+}
+
+/// Who was in the call, and when (D57).
+///
+/// Attendance is not the consultation's clinical status and not its payment
+/// status: somebody leaving is a fact about a connection, never proof that
+/// care finished or that anybody abandoned anything. Kept separately so that
+/// nothing reads a departure as a completion.
+model CallAttendanceEvent {
+  id                 String               @id @default(uuid(7))
+  consultationId     String
+  mediaSessionId     String?
+  participant        MediaParticipantRole
+  event              CallAttendanceKind
+  /// Where we learned it: the browser, the provider's webhook, or Neem itself.
+  source             CallAttendanceSource
+  occurredAt         DateTime             @default(now())
+  /// The provider's own session id, for tying a webhook to a room session.
+  providerSessionRef String?              @db.VarChar(120)
+
+  consultation Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  mediaSession MediaSession? @relation(fields: [mediaSessionId], references: [id], onDelete: SetNull)
+
+  @@index([consultationId, occurredAt])
+  @@map("call_attendance_events")
+}
+
+enum MediaParticipantRole {
+  PATIENT
+  DOCTOR
+}
+
+enum CallAttendanceKind {
+  JOINED
+  LEFT
+  SESSION_ENDED
+}
+
+enum CallAttendanceSource {
+  CLIENT
+  WEBHOOK
+  SERVER
+}
+
+/// Whereby's webhooks, recorded before they are acted on (D57).
+///
+/// The same shape as payment webhooks: the signature is checked before the
+/// body is parsed, the row is inserted before the event is handled, and the
+/// unique key is what makes a duplicate or a replay harmless.
+model MediaWebhookEvent {
+  id               String    @id @default(uuid(7))
+  provider         String    @db.VarChar(40)
+  providerEventId  String    @db.VarChar(200)
+  eventType        String    @db.VarChar(80)
+  signatureValid   Boolean
+  payloadHash      String    @db.VarChar(64)
+  receivedAt       DateTime  @default(now())
+  processedAt      DateTime?
+  processingResult String?   @db.VarChar(80)
+  error            String?   @db.VarChar(500)
+
+  @@unique([provider, providerEventId])
+  @@index([receivedAt])
+  @@map("media_webhook_events")
 }
 
 // =============================================================================

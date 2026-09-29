@@ -1,14 +1,17 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Download, FileText, Loader2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { CalendarClock, Download, FileText, Loader2, RotateCcw } from "lucide-react";
 import { PatientFrame, FrameMessage } from "@/components/neem/PatientFrame";
 import { Chip } from "@/components/neem/Chip";
+import { ApiError } from "@/lib/api-client";
 import {
   accountDocumentUrl,
   useAccountDocuments,
   useMyAppointments,
   usePatientAccount,
+  useRejoinBooking,
   useSignOutAccount,
   type AccountAppointment,
+  type AccountConsultation,
 } from "@/features/patient/api";
 
 export const Route = createFileRoute("/account/")({
@@ -65,6 +68,19 @@ function MyCare() {
   const upcoming = (appointments.data ?? []).filter(
     (appointment) => appointment.state === "RESERVED" || appointment.state === "CONFIRMED",
   );
+
+  /*
+   * A consultation that was under way and is not finished (D57).
+   *
+   * This is the whole point of coming back here on a phone whose browser died
+   * mid-call, so it goes above everything else, including what is booked.
+   */
+  const unfinished = account.data.consultations.filter(
+    (consultation) =>
+      consultation.state === "INTERRUPTED" ||
+      consultation.state === "IN_PROGRESS" ||
+      consultation.state === "DOCTOR_ACCEPTED",
+  );
   const documentGroups = documents.data?.consultations ?? [];
 
   return (
@@ -72,6 +88,19 @@ function MyCare() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">My care</h1>
       </header>
+
+      {unfinished.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">
+            Unfinished
+          </h2>
+          <div className="space-y-2">
+            {unfinished.map((consultation) => (
+              <UnfinishedRow key={consultation.publicId} consultation={consultation} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">Booked</h2>
@@ -164,6 +193,58 @@ function MyCare() {
         Sign out on this device
       </button>
     </PatientFrame>
+  );
+}
+
+/**
+ * One consultation waiting to be picked back up.
+ *
+ * The sentence about paying comes before the button, not after it. A patient
+ * whose call dropped will not press anything they think might charge them
+ * again, and the button is worth nothing if they will not press it.
+ */
+function UnfinishedRow({ consultation }: { consultation: AccountConsultation }) {
+  const rejoin = useRejoinBooking();
+  const navigate = useNavigate();
+
+  return (
+    <div className="card-soft p-4">
+      <div className="flex items-start gap-3">
+        <RotateCcw className="mt-0.5 size-5 shrink-0 text-amber-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{consultation.serviceName ?? "Consultation"}</p>
+          <p className="font-mono text-xs text-slate-400">{consultation.publicId}</p>
+          <p className="mt-2 text-sm font-bold text-slate-900">You do not need to pay again.</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+            This consultation is still open. Rejoin and the same professional will be told you are
+            back.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        disabled={rejoin.isPending}
+        onClick={() =>
+          rejoin.mutate(consultation.publicId, {
+            // The session cookie the server just set is what the portal reads,
+            // so there is nothing to pass along.
+            onSuccess: () => void navigate({ to: "/patient" }),
+          })
+        }
+        className="mt-3 w-full rounded-xl bg-brand py-3 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
+      >
+        {rejoin.isPending ? "Rejoining…" : "Rejoin the consultation"}
+      </button>
+
+      {rejoin.isError && (
+        <p className="mt-2 text-xs text-red-600">
+          {rejoin.error instanceof ApiError
+            ? rejoin.error.message
+            : "That consultation could not be rejoined."}
+        </p>
+      )}
+    </div>
   );
 }
 

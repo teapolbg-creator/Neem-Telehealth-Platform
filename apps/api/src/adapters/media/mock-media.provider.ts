@@ -10,6 +10,7 @@ import type {
   VideoProvider,
   VoiceProvider,
 } from './media.provider.ts';
+import { MediaProviderError } from './media.provider.ts';
 
 /**
  * Development video and voice adapters (decision D18).
@@ -53,14 +54,26 @@ export class MockVideoProvider implements VideoProvider {
       expiresAt: addSeconds(now, input.maxDurationSeconds),
     });
 
-    return { providerRoomRef, status: 'CREATED' };
+    /*
+     * The same shape the real adapter returns (D57), so the recovery paths
+     * that store and replay a room address are exercised by the tests rather
+     * than only in production.
+     */
+    return {
+      providerRoomRef,
+      status: 'CREATED',
+      roomUrl: `https://mock.invalid/${providerRoomRef}`,
+      hostRoomUrl: `https://mock.invalid/${providerRoomRef}?host=1`,
+      expiresAt: addSeconds(now, input.maxDurationSeconds),
+    };
   }
 
   async issueJoinToken(input: JoinTokenInput): Promise<JoinToken> {
     const room = this.rooms.get(input.providerRoomRef);
     if (!room) {
-      // Matching production behaviour matters most in the failure cases.
-      throw new Error(`Unknown room: ${input.providerRoomRef}`);
+      // Matching production behaviour matters most in the failure cases: a
+      // room the provider has forgotten is a room that must be replaced.
+      throw new MediaProviderError(`Unknown room: ${input.providerRoomRef}`, input.providerRoomRef);
     }
 
     room.status = 'IN_PROGRESS';

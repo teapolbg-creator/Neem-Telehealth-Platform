@@ -4,6 +4,8 @@ import { assertDoctorOnDuty } from '../queue/availability.service.ts';
 import { requestRefund } from '../payment/refund.service.ts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { AppError, errors } from '../../lib/errors.ts';
+import { getLogger } from '../../lib/logger.ts';
+import { occupiesDoctor } from '../../domain/consultation-state.ts';
 import { generateConsultationReference } from '../../lib/crypto.ts';
 import { addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
@@ -18,7 +20,7 @@ import {
   isTerminal,
 } from '../../domain/consultation-state.ts';
 import { pharmacyCanInitiateConsultations } from '../../domain/account-state.ts';
-import { releaseCapacity } from '../queue/presence.service.ts';
+import { claimDoctorCapacity, releaseCapacity } from '../queue/presence.service.ts';
 import { sealClinicalRecord } from '../retention/clinical-record.service.ts';
 
 /**
@@ -111,31 +113,68 @@ export async function transition(
     },
   });
 
-  /**
-   * Give the doctor their capacity back once the consultation is over.
-   *
-   * Acceptance increments `currentLoad`; without this, it is never decremented
-   * and every doctor is permanently at capacity after their first
-   * consultation, so the queue quietly stops routing to anyone. Done here
-   * rather than at each terminal call site precisely so no future path can
-   * forget it.
-   *
-   * **Released once, on the first time this consultation ends.** Phase 7 made
-   * `EXPIRED`, `CANCELLED` and `ABANDONED` re-enterable so a paid consultation
-   * that delivered nothing can be refunded, which means a consultation can now
-   * reach a terminal state twice: once when it ended, and again at REFUNDED.
-   * Releasing on both would decrement a count this consultation no longer
-   * holds and hand the doctor a slot they are not free for.
-   *
-   * `clinicalSealedAt` is the marker, set by the seal immediately below on the
-   * same first crossing. `GREATEST(currentLoad - 1, 0)` still guards against a
-   * count going negative; it does not, on its own, make a second release
-   * correct.
-   */
   const endedBefore = consultation.clinicalSealedAt !== null;
 
-  if (consultation.doctorId && !endedBefore && !isTerminal(from) && isTerminal(to)) {
-    await releaseCapacity(consultation.doctorId, db);
+  /**
+   * Keep the doctor's concurrent-slot count honest.
+   *
+   * Acceptance increments `currentLoad`; without a matching decrement it is
+   * never given back, every doctor sits permanently at capacity after their
+   * first consultation, and the queue quietly stops routing to anyone. Done
+   * here rather than at each call site precisely so no future path can forget
+   * it.
+   *
+   * The question asked is not "has this ended" but **"is the doctor still with
+   * this patient"** — `occupiesDoctor`. Everything falls out of that one
+   * predicate:
+   *
+   * - Finishing (COMPLETING to COMPLETED) or giving up (IN_PROGRESS to
+   *   ABANDONED) leaves an occupying state, so the slot goes back.
+   * - Being interrupted (D57) also leaves one. An interrupted consultation is
+   *   unfinished, not under way; holding the slot would keep the doctor out of
+   *   the queue for as long as the patient stays away.
+   * - Coming back from INTERRUPTED into IN_PROGRESS, or into COMPLETING
+   *   because the doctor is writing up what they saw, re-enters one, so the
+   *   slot is taken back. Not a no-op when they are already at their limit: a
+   *   doctor who took another patient while this one was away is genuinely
+   *   busy with two, and the count has to say so.
+   * - A consultation that ends twice (phase 7 made EXPIRED, CANCELLED and
+   *   ABANDONED re-enterable so a paid consultation that delivered nothing can
+   *   be refunded) releases nothing the second time, because a terminal state
+   *   never occupied the doctor to begin with.
+   *
+   * Because release and claim test the same predicate in opposite directions,
+   * they strictly alternate and cannot drift. `GREATEST(currentLoad - 1, 0)`
+   * still guards the floor; it is not what makes this correct.
+   */
+  if (consultation.doctorId) {
+    if (occupiesDoctor(from) && !occupiesDoctor(to)) {
+      await releaseCapacity(consultation.doctorId, db);
+    } else if (from === 'INTERRUPTED' && occupiesDoctor(to)) {
+      await claimDoctorCapacity(consultation.doctorId, db);
+    }
+  }
+
+  /*
+   * A room outlives the consultation unless it is told not to (D57).
+   *
+   * Completion tore its room down and nothing else did, so a cancelled or
+   * expired consultation left a live room with a working address, and a Call
+   * Me left the single line occupied for good. Best effort and after the
+   * state has changed: a provider that cannot be reached must not hold up the
+   * consultation ending.
+   */
+  if (!endedBefore && !isTerminal(from) && isTerminal(to)) {
+    /*
+     * Imported here rather than at the top, because the media service imports
+     * this one for `transition`. A deferred import breaks the cycle without
+     * either module having to pretend it does not need the other.
+     */
+    void import('../media/media.service.ts')
+      .then((media) => media.endMediaSession(consultationId, `consultation_${to.toLowerCase()}`))
+      .catch((error: unknown) =>
+        getLogger().warn({ err: error, consultationId }, 'could not tear down the media session'),
+      );
   }
 
   /**

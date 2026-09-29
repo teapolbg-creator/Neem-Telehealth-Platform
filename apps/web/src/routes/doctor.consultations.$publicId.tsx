@@ -7,6 +7,7 @@ import {
   MapPin,
   Phone,
   PhoneOutgoing,
+  RotateCcw,
   ShieldCheck,
 } from "lucide-react";
 import { isTerminalConsultationState } from "@neem/contracts";
@@ -17,11 +18,14 @@ import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import { channelLabel, consultationOrigin, useDoctorConsultation } from "@/features/queue/api";
 import {
+  doctorLeftBeacon,
   useDoctorTimer,
+  useInterruptConsultation,
   useJoinDoctorMedia,
   useLeaveDoctorMedia,
   usePlaceCall,
 } from "@/features/media/api";
+import { useRealtimeEvent } from "@/features/realtime/socket";
 
 export const Route = createFileRoute("/doctor/consultations/$publicId")({
   component: DoctorConsultation,
@@ -136,7 +140,12 @@ function DoctorConsultation() {
             ) : data.type === "CALL_ME" ? (
               <CallMePanel publicId={publicId} />
             ) : (
-              <VideoPanel publicId={publicId} patientName={data.patient?.fullName ?? "Patient"} />
+              <VideoPanel
+                publicId={publicId}
+                patientName={data.patient?.fullName ?? "Patient"}
+                interrupted={data.state === "INTERRUPTED"}
+                rejoinableUntil={data.rejoinableUntil ?? null}
+              />
             )}
           </div>
 
@@ -182,20 +191,114 @@ function BackToQueue() {
   );
 }
 
-function VideoPanel({ publicId, patientName }: { publicId: string; patientName: string }) {
+/** How long the doctor is left waiting before being asked what to do. */
+const WAIT_SECONDS = 300;
+
+function VideoPanel({
+  publicId,
+  patientName,
+  interrupted,
+  rejoinableUntil,
+}: {
+  publicId: string;
+  patientName: string;
+  interrupted: boolean;
+  rejoinableUntil: string | null;
+}) {
   const join = useJoinDoctorMedia(publicId);
   const leave = useLeaveDoctorMedia(publicId);
+  const interrupt = useInterruptConsultation(publicId);
   const { data: timer } = useDoctorTimer(publicId, true);
   const [left, setLeft] = useState(false);
 
-  // Guarded: joining twice would mint a second credential and orphan the
-  // first. React's development double-invoke makes this a real case.
+  /**
+   * Since when the doctor has been alone in the room, or null if they are not.
+   *
+   * A timestamp rather than a countdown, so a re-render does not restart the
+   * wait and the doctor is not asked the same question twice.
+   */
+  const [aloneSince, setAloneSince] = useState<number | null>(null);
+  const [extended, setExtended] = useState(0);
+
+  /*
+   * Guarded twice.
+   *
+   * Once against joining a second time, which would mint another credential and
+   * orphan the first — React's development double-invoke makes that a real case.
+   *
+   * And once against joining at all while the consultation is interrupted (D57).
+   * Rejoining resumes it and takes the doctor's slot back, so an automatic join
+   * here would undo the marking the moment the doctor opened the page to write
+   * their notes, and put them back at capacity for a patient who is not there.
+   * Coming back is a button.
+   */
   const requested = useRef(false);
   useEffect(() => {
-    if (requested.current) return;
+    if (requested.current || interrupted) return;
     requested.current = true;
     join.mutate();
-  }, [join]);
+  }, [join, interrupted]);
+
+  /*
+   * Two ways of learning the patient is gone, because each misses cases the
+   * other catches: the room reports an empty room, and the server reports a
+   * patient whose browser said it was going away. Whichever arrives first
+   * starts the wait.
+   */
+  useRealtimeEvent<{ consultationPublicId: string }>("consultation.patient_left", (payload) => {
+    if (payload.consultationPublicId === publicId) {
+      setAloneSince((since) => since ?? Date.now());
+    }
+  });
+
+  // The doctor closing their laptop is attendance too, and it is what lets the
+  // patient's screen stop saying the doctor is in the call.
+  useEffect(() => {
+    const onHide = () => doctorLeftBeacon(publicId);
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [publicId]);
+
+  /**
+   * Already marked unfinished.
+   *
+   * No stage, because there is no call to show: joining is what brings it back,
+   * and the workspace below stays usable throughout, because a doctor who saw
+   * the patient before the call broke still has notes to write and may still
+   * complete the consultation from what they saw.
+   */
+  if (interrupted) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <div className="grid size-14 place-items-center rounded-full bg-amber-100">
+          <RotateCcw className="size-7 text-amber-700" />
+        </div>
+        <h2 className="mt-4 text-lg font-bold">Marked as interrupted</h2>
+        <p className="mt-2 max-w-sm text-pretty text-sm text-slate-500">
+          The patient can rejoin without paying again
+          {rejoinableUntil ? ` until ${formatDeadline(rejoinableUntil)}` : ""}. You are free to take
+          other patients. You can still write up and complete this consultation below.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            /*
+             * Joined here rather than by releasing the mount effect's guard.
+             * The join is what resumes the consultation, and the effect will
+             * not fire while it is still interrupted — so the guard is set, not
+             * cleared, and this is the one join rather than the first of two.
+             */
+            requested.current = true;
+            setAloneSince(null);
+            join.mutate();
+          }}
+          className="mt-5 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50"
+        >
+          Rejoin the call
+        </button>
+      </div>
+    );
+  }
 
   if (left) {
     return (
@@ -240,9 +343,142 @@ function VideoPanel({ publicId, patientName }: { publicId: string; patientName: 
           leave.mutate();
           setLeft(true);
         }}
+        onRemotePresence={(present) => {
+          setAloneSince((since) => (present ? null : (since ?? Date.now())));
+          if (present) setExtended(0);
+        }}
+        // The doctor's own connection dying is not the patient's fault and not
+        // the consultation ending: the stage offers Reconnect, and this is what
+        // stops the wait banner accusing the patient of having left.
+        onDropped={() => setAloneSince(null)}
+        notice={
+          aloneSince === null ? null : (
+            <PatientAwayBanner
+              since={aloneSince}
+              extraSeconds={extended}
+              patientName={patientName}
+              onWaitLonger={() => setExtended((value) => value + WAIT_SECONDS)}
+              onInterrupt={() => interrupt.mutate(undefined)}
+              interrupting={interrupt.isPending}
+              error={
+                interrupt.isError
+                  ? interrupt.error instanceof ApiError
+                    ? interrupt.error.message
+                    : "That could not be recorded."
+                  : null
+              }
+            />
+          )
+        }
       />
     </div>
   );
+}
+
+/**
+ * The patient is not in the call (D57).
+ *
+ * The doctor is asked, and never overruled. Nothing in Neem decides on its own
+ * that a consultation is unfinished: no timeout, no missing heartbeat and no
+ * closed browser, because each of those is also what a working consultation
+ * looks like on a Ghanaian mobile connection for thirty seconds at a time.
+ *
+ * So this counts, says what it can see, and offers the two answers a clinician
+ * actually has: keep waiting, or record that the call broke. It does not offer
+ * "complete", because completing from here would be completing a consultation
+ * the patient walked out of, and that decision belongs in the workspace with
+ * the notes in front of them.
+ */
+function PatientAwayBanner({
+  since,
+  extraSeconds,
+  patientName,
+  onWaitLonger,
+  onInterrupt,
+  interrupting,
+  error,
+}: {
+  since: number;
+  extraSeconds: number;
+  patientName: string;
+  onWaitLonger: () => void;
+  onInterrupt: () => void;
+  interrupting: boolean;
+  error: string | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const waited = Math.max(0, Math.round((now - since) / 1000));
+  const remaining = WAIT_SECONDS + extraSeconds - waited;
+  const elapsed = remaining <= 0;
+
+  return (
+    <div className="bg-amber-50 px-5 py-4 text-xs leading-relaxed text-amber-900">
+      <div className="flex items-start gap-2">
+        <AlertCircle className="mt-px size-4 shrink-0" />
+        <div className="flex-1">
+          <p className="font-bold">
+            {patientName} is not in the call
+            {elapsed ? "" : `. Waiting ${formatWait(remaining)} more`}
+          </p>
+          <p className="mt-1">
+            They may be reconnecting. Nothing has ended, and nothing will end on its own — the
+            consultation stays open, and they are not charged again whenever they come back.
+          </p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onWaitLonger}
+              className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+            >
+              Wait longer
+            </button>
+            <button
+              type="button"
+              disabled={interrupting}
+              onClick={onInterrupt}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-40"
+            >
+              {interrupting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="size-3.5" />
+              )}
+              Mark the call as interrupted
+            </button>
+          </div>
+
+          <p className="mt-2 text-amber-800/80">
+            Marking it frees you to see other patients and lets this one rejoin later without paying
+            again. It does not complete the consultation or refund anything.
+          </p>
+
+          {error && <p className="mt-2 font-bold text-red-700">{error}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "4:05" — a wait, in the shape a clock shows it. */
+function formatWait(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/** A deadline in the doctor's own local time, since they are the one watching it. */
+function formatDeadline(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /**

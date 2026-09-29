@@ -313,3 +313,55 @@ describe('paying for it', () => {
     ).toBe(404);
   });
 });
+
+/*
+ * Coming back to a consultation already paid for (D57).
+ *
+ * The session cookie is the only thing a closed browser destroys, and it is
+ * not what the patient bought. These say so twice: the owner gets back in
+ * with no second payment, and somebody else's reference is refused as though
+ * it did not exist.
+ */
+describe('rejoining', () => {
+  it('lets the patient back in without asking for money again', async () => {
+    await doctorOnDuty();
+    const cookies = await signedInPatient(PATIENT);
+    const booked = await book(cookies);
+    const reference = booked.body.data!.consultationReference;
+
+    await request(`/patient/bookings/${reference}/payment`, { method: 'POST', cookies });
+    provider.status = 'SUCCESS';
+    await request(`/patient/bookings/${reference}/payment`, { cookies });
+
+    const paymentsBefore = await getPrisma().payment.count();
+
+    // A different browser: the account cookie, and no patient session.
+    const rejoined = await request<{ consultationReference: string; state: string }>(
+      `/patient/bookings/${reference}/rejoin`,
+      { method: 'POST', cookies },
+    );
+
+    expect(rejoined.status).toBe(200);
+    expect(rejoined.body.data!.consultationReference).toBe(reference);
+    // A usable session came back, which is the whole of what a rejoin is.
+    expect(Object.keys(rejoined.cookies)).toContain('neem_patient');
+    // And no payment was created, initiated or asked for.
+    expect(await getPrisma().payment.count()).toBe(paymentsBefore);
+  });
+
+  it('refuses another account’s consultation as not found', async () => {
+    await doctorOnDuty();
+    const owner = await signedInPatient(PATIENT);
+    const stranger = await signedInPatient(OTHER);
+    const booked = await book(owner);
+    const reference = booked.body.data!.consultationReference;
+
+    const response = await request(`/patient/bookings/${reference}/rejoin`, {
+      method: 'POST',
+      cookies: stranger,
+    });
+
+    // 404, not 403: a stranger must not learn the consultation exists.
+    expect(response.status).toBe(404);
+  });
+});

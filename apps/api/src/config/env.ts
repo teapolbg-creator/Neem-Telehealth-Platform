@@ -246,12 +246,22 @@ const envSchema = z
     /**
      * Whereby Embedded (decision D18).
      *
-     * One credential: a Bearer API key from the Whereby dashboard. There is no
-     * second secret and no webhook signing key, because this adapter receives
-     * no webhooks — Neem's own state machine decides when a consultation is
-     * over, not the video provider.
+     * A Bearer API key from the Whereby dashboard, used to create and delete
+     * rooms. D57 added a second, separate secret below, for the webhooks
+     * Whereby sends back; what it changed is that Neem now listens to the
+     * provider about **who is in a room**, and what it did not change is that
+     * Neem's own state machine, and only it, decides when a consultation is
+     * over.
      */
     WHEREBY_API_KEY: z.string().optional(),
+    /**
+     * Signs the webhooks Whereby sends about who is in a room (D57).
+     *
+     * Optional: without it the endpoint answers 200 and does nothing, so a
+     * deployment that has not set one up is not retried for ever. With it,
+     * every delivery is verified before it is parsed.
+     */
+    WHEREBY_WEBHOOK_SECRET: z.string().optional(),
     WHEREBY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
 
     /**

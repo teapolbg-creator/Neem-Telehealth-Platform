@@ -76,6 +76,23 @@ export interface WherebyStageProps {
    */
   onRecordingDetected: () => void;
   onConnectionUnstable: (unstable: boolean) => void;
+  /**
+   * Whether anybody else is in the room (D57).
+   *
+   * The embed is the only thing that knows. Before this, a doctor whose patient
+   * had walked away saw a still picture and a running timer, indistinguishable
+   * from a patient sitting quietly, and a patient whose doctor had dropped out
+   * saw the same. Reported, never acted on: nothing here ends a consultation.
+   */
+  onRemotePresence: (present: boolean) => void;
+  /**
+   * Raised when this participant's own room session ends by itself — the
+   * connection died, or the tab was suspended long enough for Whereby to give
+   * up. Distinct from pressing Neem's own Leave button, which the parent
+   * already knows about, and it means "offer to rejoin", not "the consultation
+   * is over".
+   */
+  onDropped: () => void;
   handleRef: (handle: WherebyStageHandle | null) => void;
 }
 
@@ -85,6 +102,8 @@ export function WherebyStage({
   onDeviceState,
   onRecordingDetected,
   onConnectionUnstable,
+  onRemotePresence,
+  onDropped,
   handleRef,
 }: WherebyStageProps) {
   const ref = useRef<WherebyEmbedElement | null>(null);
@@ -117,6 +136,19 @@ export function WherebyStage({
       onDeviceState({ camera: (event as CustomEvent<{ enabled: boolean }>).detail?.enabled });
     };
 
+    /*
+     * `participantupdate` counts the other people in the room, so zero means
+     * this participant is alone in it. Whereby fires it on join and on leave,
+     * which is why presence is read from the count rather than from a pair of
+     * join and leave events that can arrive out of order.
+     */
+    const onParticipants = (event: Event) => {
+      const count = (event as CustomEvent<{ count?: number }>).detail?.count;
+      if (typeof count === "number") onRemotePresence(count > 0);
+    };
+
+    const onLeave = () => onDropped();
+
     const onConnection = (event: Event) => {
       const status = (event as CustomEvent<{ status: string }>).detail?.status;
       onConnectionUnstable(status === "unstable");
@@ -137,6 +169,8 @@ export function WherebyStage({
     element.addEventListener("ready", onReady);
     element.addEventListener("microphone_toggle", onMic);
     element.addEventListener("camera_toggle", onCamera);
+    element.addEventListener("participantupdate", onParticipants);
+    element.addEventListener("leave", onLeave);
     element.addEventListener("connection_status_change", onConnection);
     element.addEventListener("recording_status_change", onRecording);
 
@@ -149,11 +183,21 @@ export function WherebyStage({
       element.removeEventListener("ready", onReady);
       element.removeEventListener("microphone_toggle", onMic);
       element.removeEventListener("camera_toggle", onCamera);
+      element.removeEventListener("participantupdate", onParticipants);
+      element.removeEventListener("leave", onLeave);
       element.removeEventListener("connection_status_change", onConnection);
       element.removeEventListener("recording_status_change", onRecording);
       handleRef(null);
     };
-  }, [registered, onDeviceState, onRecordingDetected, onConnectionUnstable, handleRef]);
+  }, [
+    registered,
+    onDeviceState,
+    onRecordingDetected,
+    onConnectionUnstable,
+    onRemotePresence,
+    onDropped,
+    handleRef,
+  ]);
 
   return (
     // The element takes no className of its own, so it is sized from here.

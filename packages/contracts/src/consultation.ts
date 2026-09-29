@@ -175,6 +175,8 @@ export const patientSessionViewSchema = z.object({
     'MODE',
     'WAITING',
     'IN_CONSULTATION',
+    /** The call broke; the patient may rejoin without paying again (D57). */
+    'INTERRUPTED',
     'COMPLETE',
     'CLOSED',
   ]),
@@ -204,6 +206,11 @@ export const patientSessionViewSchema = z.object({
   expiresAt: z.string().nullable(),
   /** Whether the patient has already left feedback on this consultation. */
   feedbackSubmitted: z.boolean(),
+  /**
+   * Until when this consultation may be rejoined without paying again (D57).
+   * Null when it is not interrupted, or when no deadline was recorded.
+   */
+  rejoinableUntil: z.string().nullable(),
 });
 export type PatientSessionView = z.infer<typeof patientSessionViewSchema>;
 

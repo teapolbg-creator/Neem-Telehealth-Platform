@@ -16,6 +16,7 @@ export const SETTING_KEYS = {
   CONSULTATION_DURATION_SECONDS: 'consultation.durationSeconds',
   CONSULTATION_WARNING_SECONDS: 'consultation.warningSeconds',
   PAYMENT_WINDOW_SECONDS: 'consultation.paymentWindowSeconds',
+  CONSULTATION_REJOIN_WINDOW_HOURS: 'consultation.rejoinWindowHours',
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
   REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
@@ -126,6 +127,22 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'number',
     description:
       'How long a pending payment stays valid before the consultation expires (spec §35).',
+    category: 'consultation',
+  },
+  {
+    key: K.CONSULTATION_REJOIN_WINDOW_HOURS,
+    value: 24,
+    valueType: 'number',
+    /*
+     * How long a patient may rejoin an interrupted consultation without paying
+     * again (D57). A dead phone, a power cut or a walk to somewhere with
+     * signal all fit inside a day.
+     *
+     * What happens at the end of it is not "the money is gone": the
+     * consultation stays unfinished and Neem arranges for it to be completed.
+     * Whether a longer policy is needed is an open question for the operator.
+     */
+    description: 'Hours an interrupted consultation stays rejoinable without a new payment (D57).',
     category: 'consultation',
   },
   {

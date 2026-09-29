@@ -96,6 +96,8 @@ POST   /patient/account/logout            ends the account session on the server
 POST   /patient/bookings/immediate        { service, language, type, details, consent } → an unpaid consultation (v2)
 POST   /patient/bookings/:reference/payment   starts the Paystack checkout for it (v2)
 GET    /patient/bookings/:reference/payment   re-verifies, and joins the queue once paid (v2)
+POST   /patient/bookings/:reference/rejoin    a fresh session for a consultation this account
+                                              already paid for; takes no money and cannot (D57)
 GET    /patient/clinics                   the catalogue grouped into clinics, with a from-price (v2)
 GET    /patient/languages                 with either a consultation session or an account one (v2)
 GET    /patient/appointments/slots        free slots for a service, by professional (v2)
@@ -305,6 +307,8 @@ GET    /doctor/consultations/:publicId/workspace     the clinical record while i
 PUT    /doctor/consultations/:publicId/notes         temporary clinical workspace
 POST   /doctor/consultations/:publicId/media/join    → room + join credential (joining starts it)
 POST   /doctor/consultations/:publicId/media/leave
+POST   /doctor/consultations/:publicId/interrupt     the doctor records that the call broke (D57);
+                                                     completes nothing, refunds nothing
 GET    /doctor/consultations/:publicId/timer         advisory; nothing here can end a consultation
 POST   /doctor/consultations/:publicId/call          bridged voice — response carries no phone number
 POST   /doctor/consultations/:publicId/complete      { outcome, … } — seals the record (D23)
@@ -454,12 +458,18 @@ Admin routes for reading these live in §6.
 
 ```
 POST   /webhooks/payment      raw body, signature verified before parsing, idempotent
+POST   /webhooks/whereby      who is in a room, and nothing else (D57). HMAC-SHA256 over
+                              `${t}.${rawBody}` in Whereby-Signature, verified before parsing;
+                              deduplicated on (provider, providerEventId); answers 200 once
+                              the signature checks out. It records attendance: no branch in
+                              it can complete, cancel, pay for or refund a consultation.
+                              Silent and 200 where WHEREBY_WEBHOOK_SECRET is unset.
 
 NOT BUILT
 (none)                        Call Me has no provider, so there is no voice status
-                              callback to receive. Whereby needs no webhook either —
-                              Neem's state machine, not the video provider, decides
-                              when a consultation is over (D35, D36)
+                              callback to receive. Whereby's webhook, added in D57, reports
+                              attendance only — Neem's state machine, not the video
+                              provider, still decides when a consultation is over (D35, D36)
 ```
 
 Exempt from CSRF and session auth; authenticated by provider signature only. Duplicate delivery is absorbed by unique constraints (see `payment-flow.md` §3).

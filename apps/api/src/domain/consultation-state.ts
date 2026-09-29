@@ -35,8 +35,26 @@ const TRANSITIONS: Record<ConsultationState, readonly ConsultationState[]> = {
   WAITING_FOR_DOCTOR: ['ASSIGNED', 'CANCELLED', 'REFUND_REQUESTED', 'ABANDONED'],
   ASSIGNED: ['DOCTOR_ACCEPTED', 'REASSIGNING', 'CANCELLED'],
   REASSIGNING: ['ASSIGNED', 'WAITING_FOR_DOCTOR', 'CANCELLED'],
-  DOCTOR_ACCEPTED: ['IN_PROGRESS', 'REASSIGNING', 'ABANDONED'],
-  IN_PROGRESS: ['COMPLETING', 'ABANDONED'],
+  /*
+   * INTERRUPTED from here too (D57): a doctor who accepted and cannot reach
+   * the patient — whose browser died while they waited — has the same problem
+   * as one whose call dropped mid-consultation, and the patient has the same
+   * claim. ABANDONED is terminal and leaves them with a refund to ask for;
+   * this leaves them with the consultation they paid for.
+   */
+  DOCTOR_ACCEPTED: ['IN_PROGRESS', 'INTERRUPTED', 'REASSIGNING', 'ABANDONED'],
+  IN_PROGRESS: ['COMPLETING', 'INTERRUPTED', 'ABANDONED'],
+  /**
+   * Unfinished, and waiting for whoever dropped out (D57).
+   *
+   * Back to IN_PROGRESS when they return, which is the ordinary ending. A
+   * doctor may also complete straight from here, because a consultation can
+   * be finished in substance before the call broke — the documentation rules
+   * are unchanged, so an outcome still needs its document. ABANDONED remains
+   * an administrator's judgement that nobody is coming back; nothing reaches
+   * it on a timer.
+   */
+  INTERRUPTED: ['IN_PROGRESS', 'COMPLETING', 'ABANDONED', 'CANCELLED', 'REFUND_REQUESTED'],
   COMPLETING: ['COMPLETED'],
   // A refund decision returns the consultation to a settled state; the refund
   // module records which state it came from so a rejection can restore it.
@@ -107,6 +125,7 @@ const PAID_STATES: ReadonlySet<ConsultationState> = new Set([
   'REASSIGNING',
   'DOCTOR_ACCEPTED',
   'IN_PROGRESS',
+  'INTERRUPTED',
   'COMPLETING',
   'COMPLETED',
   'REFUND_REQUESTED',
@@ -130,6 +149,8 @@ const PATIENT_ACTIVE: ReadonlySet<ConsultationState> = new Set([
   'REASSIGNING',
   'DOCTOR_ACCEPTED',
   'IN_PROGRESS',
+  // The patient must be able to rejoin, which is an action (D57).
+  'INTERRUPTED',
 ]);
 
 export function patientSessionIsUsable(state: ConsultationState): boolean {
@@ -166,6 +187,9 @@ export function canPharmacyCancel(state: ConsultationState): boolean {
   return (
     !isTerminal(state) &&
     state !== 'IN_PROGRESS' &&
+    // A consultation that has begun is the doctor's to finish, whether or not
+    // the call is currently up (D57).
+    state !== 'INTERRUPTED' &&
     state !== 'COMPLETING' &&
     state !== 'DOCTOR_ACCEPTED'
   );
@@ -198,4 +222,27 @@ export function assertTransition(from: ConsultationState, to: ConsultationState)
   if (!canTransition(from, to)) {
     throw new InvalidConsultationTransition(from, to);
   }
+}
+
+/**
+ * States in which a doctor is engaged with this patient right now (D57).
+ *
+ * This is what holds one of their concurrent slots. An interrupted
+ * consultation is deliberately absent: it is unfinished, not in progress, and
+ * holding the slot would keep a doctor out of the queue for as long as the
+ * patient stays away.
+ */
+const OCCUPIES_DOCTOR: ReadonlySet<ConsultationState> = new Set<ConsultationState>([
+  'DOCTOR_ACCEPTED',
+  'IN_PROGRESS',
+  'COMPLETING',
+]);
+
+export function occupiesDoctor(state: ConsultationState): boolean {
+  return OCCUPIES_DOCTOR.has(state);
+}
+
+/** Whether the call may still be joined or rejoined (D57). */
+export function acceptsCallJoin(state: ConsultationState): boolean {
+  return state === 'DOCTOR_ACCEPTED' || state === 'IN_PROGRESS' || state === 'INTERRUPTED';
 }

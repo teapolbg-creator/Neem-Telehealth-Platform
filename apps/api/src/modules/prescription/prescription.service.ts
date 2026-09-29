@@ -69,7 +69,7 @@ export async function createDraft(
   if (!consultation) throw errors.notFound('Consultation not found.');
   if (consultation.doctorId !== doctorId) throw errors.notFound('Consultation not found.');
 
-  if (consultation.state !== 'IN_PROGRESS') {
+  if (consultation.state !== 'IN_PROGRESS' && consultation.state !== 'INTERRUPTED') {
     throw errors.businessRule(
       `A prescription can only be written during a consultation. This one is ${consultation.state}.`,
     );

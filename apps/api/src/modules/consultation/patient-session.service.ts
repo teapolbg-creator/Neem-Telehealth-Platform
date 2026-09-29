@@ -211,9 +211,11 @@ export async function buildSessionView(
             ? 'LANGUAGE'
             : !consultation.type
               ? 'MODE'
-              : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
-                ? 'IN_CONSULTATION'
-                : 'WAITING';
+              : consultation.state === 'INTERRUPTED'
+                ? 'INTERRUPTED'
+                : consultation.state === 'IN_PROGRESS' || consultation.state === 'DOCTOR_ACCEPTED'
+                  ? 'IN_CONSULTATION'
+                  : 'WAITING';
 
   const waitingSince = consultation.queueEntry?.enqueuedAt;
 
@@ -247,6 +249,7 @@ export async function buildSessionView(
     // So the completion screen asks once and then thanks them, rather than
     // presenting a form that will be refused.
     feedbackSubmitted: consultation.feedback !== null,
+    rejoinableUntil: consultation.rejoinableUntil?.toISOString() ?? null,
   };
 }
 

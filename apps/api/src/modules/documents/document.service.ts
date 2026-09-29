@@ -120,7 +120,7 @@ export async function issueReferral(
   if (!consultation) throw errors.notFound('Consultation not found.');
   if (consultation.doctorId !== doctorId) throw errors.notFound('Consultation not found.');
 
-  if (consultation.state !== 'IN_PROGRESS') {
+  if (consultation.state !== 'IN_PROGRESS' && consultation.state !== 'INTERRUPTED') {
     throw errors.businessRule(
       `A referral can only be issued during a consultation. This one is ${consultation.state}.`,
     );
@@ -252,7 +252,7 @@ export async function issueSummary(
   if (!consultation) throw errors.notFound('Consultation not found.');
   if (consultation.doctorId !== doctorId) throw errors.notFound('Consultation not found.');
 
-  if (consultation.state !== 'IN_PROGRESS') {
+  if (consultation.state !== 'IN_PROGRESS' && consultation.state !== 'INTERRUPTED') {
     throw errors.businessRule(
       `A summary can only be written during a consultation. This one is ${consultation.state}.`,
     );

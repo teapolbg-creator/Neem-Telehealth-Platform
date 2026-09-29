@@ -208,6 +208,24 @@ export const NOTIFICATION_TEMPLATES: TemplateDefinition[] = [
     description: 'A doctor is ready (spec §31).',
   },
   {
+    code: 'patient.consultation.interrupted',
+    channels: ['SMS', 'EMAIL'],
+    locale: 'en',
+    subject: 'Your Neem consultation is unfinished',
+    /*
+     * The one sentence that matters is the second one. A patient whose call
+     * dropped assumes the money is gone and that starting again means paying
+     * again; both are untrue, and saying so is the difference between them
+     * coming back and them giving up (D57).
+     */
+    body:
+      'Your consultation {{consultationReference}} is still open. You do not need to pay again. ' +
+      'Open Neem to rejoin it.',
+    variables: ['consultationReference'],
+    description:
+      'Sent when a call is interrupted, so the patient knows the consultation is unfinished rather than lost.',
+  },
+  {
     code: 'patient.consultation.complete',
     channels: ['SMS'],
     locale: 'en',

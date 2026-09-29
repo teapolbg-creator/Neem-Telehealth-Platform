@@ -205,10 +205,18 @@ export function usePatientSession(enabled = true) {
     queryKey: patientSessionKey,
     queryFn: ({ signal }) => api.get<PatientSessionView>("/patient/session", signal),
     enabled,
-    // Keeps the waiting room current without the patient refreshing. Replaced
-    // by a socket subscription in Phase 4.
+    /*
+     * Keeps the waiting room current without the patient refreshing. Replaced
+     * by a socket subscription in Phase 4.
+     *
+     * INTERRUPTED polls too (D57): the doctor may rejoin first, and the patient
+     * staring at "your consultation is still open" needs to be pulled back
+     * into the call when they do, without touching anything.
+     */
     refetchInterval: (query) =>
-      query.state.data?.step === "WAITING" || query.state.data?.step === "IN_CONSULTATION"
+      query.state.data?.step === "WAITING" ||
+      query.state.data?.step === "IN_CONSULTATION" ||
+      query.state.data?.step === "INTERRUPTED"
         ? 5000
         : false,
     retry: false,

@@ -47,6 +47,19 @@ export interface CallStageProps {
   /** The patient's control ends their participation; the doctor's completes. */
   onLeave: () => void;
   leaveLabel: string;
+  /**
+   * Whether the other party is in the room, as the provider sees it (D57).
+   *
+   * Called with false when they are not and true when they come back. The
+   * screen decides what to make of that: a patient is reassured, a doctor is
+   * offered a choice. Nothing in the stage acts on it, because a person leaving
+   * a call has never been the same thing as a consultation ending.
+   */
+  onRemotePresence?: (present: boolean) => void;
+  /** This participant's own connection ended without them pressing Leave. */
+  onDropped?: () => void;
+  /** Shown above the controls: the screen's own message about the call. */
+  notice?: React.ReactNode;
   /** Rendered under the controls — the doctor's notes panel, for instance. */
   children?: React.ReactNode;
 }
@@ -61,6 +74,9 @@ export function CallStage({
   onRetryJoin,
   onLeave,
   leaveLabel,
+  onRemotePresence,
+  onDropped,
+  notice,
   children,
 }: CallStageProps) {
   const isVideo = session?.kind === "VIDEO";
@@ -84,6 +100,15 @@ export function CallStage({
   const onRecordingDetected = useCallback(() => setRecordingDetected(true), []);
   const onConnectionUnstable = useCallback((value: boolean) => setUnstable(value), []);
 
+  // Wrapped so the stage below keeps a stable identity for them whether or not
+  // the screen passed one, which is what stops the event listeners being torn
+  // down and rebuilt on every render.
+  const handleRemotePresence = useCallback(
+    (present: boolean) => onRemotePresence?.(present),
+    [onRemotePresence],
+  );
+  const handleDropped = useCallback(() => onDropped?.(), [onDropped]);
+
   // One set of controls, whichever stage is behind them.
   const micEnabled = embedded ? embedMic : local.micEnabled;
   const cameraEnabled = embedded ? embedCamera : local.cameraEnabled;
@@ -101,6 +126,8 @@ export function CallStage({
             onDeviceState={onDeviceState}
             onRecordingDetected={onRecordingDetected}
             onConnectionUnstable={onConnectionUnstable}
+            onRemotePresence={handleRemotePresence}
+            onDropped={handleDropped}
             handleRef={setEmbed}
           />
         ) : (
@@ -176,6 +203,8 @@ export function CallStage({
           </p>
         </div>
       )}
+
+      {notice}
 
       {unstable && (
         <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">

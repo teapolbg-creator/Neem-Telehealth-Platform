@@ -18,6 +18,7 @@ import { adminRoutes } from './modules/admin/admin.routes.ts';
 import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
 import { webhookRoutes } from './modules/payment/webhook.routes.ts';
+import { mediaWebhookRoutes } from './modules/media/media-webhook.routes.ts';
 import { refundRoutes } from './modules/payment/refund.routes.ts';
 import { payoutRoutes } from './modules/payment/payout.routes.ts';
 import { promotionRoutes } from './modules/payment/promotion.routes.ts';
@@ -166,6 +167,15 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(
     async (hooks) => {
       await hooks.register(webhookRoutes);
+    },
+    { prefix: '/api/v1' },
+  );
+
+  // Whereby's, in a scope of its own for the same reason: the signature is
+  // over the bytes as they arrived (D57).
+  await app.register(
+    async (hooks) => {
+      await hooks.register(mediaWebhookRoutes);
     },
     { prefix: '/api/v1' },
   );
