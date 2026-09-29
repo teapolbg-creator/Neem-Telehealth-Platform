@@ -35,9 +35,21 @@ import {
  * own machinery, reached through the patient session this mints.
  */
 
-async function requireAccount(request: FastifyRequest): Promise<AccountPrincipal> {
+/**
+ * The account behind the request.
+ *
+ * `purpose` completes the sentence "Please sign in to …", and is a parameter
+ * rather than one fixed string because of where these words are read. A patient
+ * whose call dropped, signed out on a new phone, was being told to sign in "to
+ * book a consultation" — on the one screen whose job is to say that nothing
+ * more is owed. Wrong, and wrong in the direction that costs them money.
+ */
+async function requireAccount(
+  request: FastifyRequest,
+  purpose = 'book a consultation',
+): Promise<AccountPrincipal> {
   const principal = await resolveAccountSession(request.cookies[PATIENT_ACCOUNT_COOKIE]);
-  if (!principal) throw errors.unauthenticated('Please sign in to book a consultation.');
+  if (!principal) throw errors.unauthenticated(`Please sign in to ${purpose}.`);
   return principal;
 }
 
@@ -156,7 +168,7 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
    * minted for it, and no payment is involved at any point.
    */
   app.post('/patient/bookings/:reference/rejoin', async (request, reply) => {
-    const principal = await requireAccount(request);
+    const principal = await requireAccount(request, 'return to your consultation');
     const { reference } = z.object({ reference: z.string().min(1).max(64) }).parse(request.params);
 
     const consultation = await ownedBooking(principal.accountId, reference);
