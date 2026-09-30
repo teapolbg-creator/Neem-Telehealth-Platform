@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../db/prisma.ts';
 import { getEnv } from '../../config/env.ts';
 import { errors } from '../../lib/errors.ts';
+import { getLogger } from '../../lib/logger.ts';
 import { addMinutes, addSeconds, systemClock, type Clock } from '../../lib/clock.ts';
 import { generateToken } from '../../lib/crypto.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
@@ -138,11 +139,15 @@ export async function ownedBooking(
 }
 
 /**
- * Puts a paid booking into the queue.
+ * Puts a paid booking into the queue, for the patient watching the screen.
  *
  * The counter reaches the queue when the patient scans the code; there is no
- * code here, and the patient is already present — they are watching the screen
- * that called this. Idempotent, because that screen polls.
+ * code here, so paying is what admits them. Idempotent, because that screen
+ * polls.
+ *
+ * This is the convenience path, not the mechanism: the same thing happens at
+ * settlement and again in a sweep, because a patient who paid must reach the
+ * queue whether or not their browser survived the trip back from Paystack.
  */
 export async function admitPaidBooking(
   consultationReference: string,
@@ -150,10 +155,48 @@ export async function admitPaidBooking(
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<boolean> {
-  const consultation = await ownedBooking(accountId, consultationReference, db);
+  // Ownership first, so a reference belonging to somebody else is refused
+  // before anything is read from it.
+  await ownedBooking(accountId, consultationReference, db);
+
+  return admitPaidConsultation(consultationReference, db, clock);
+}
+
+/**
+ * The same admission, asked for by the server rather than by the patient (D58).
+ *
+ * Deliberately takes no account id: the callers are the payment settlement and
+ * a sweep, neither of which is acting for a signed-in patient. Ownership is not
+ * skipped so much as irrelevant here — nothing is disclosed, the consultation
+ * is named by the payment that settled it, and the only effect is to put a
+ * patient who paid into the queue they paid to join.
+ *
+ * Safe to call repeatedly and from several places at once: anything other than
+ * an ACTIVATED direct booking falls straight through.
+ */
+export async function admitPaidConsultation(
+  consultationReference: string,
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<boolean> {
+  const consultation = await db.consultation.findUnique({
+    where: { publicId: consultationReference },
+    include: { patientSession: true, appointment: true },
+  });
+  if (!consultation) return false;
 
   if (consultation.state !== 'ACTIVATED') return false;
   if (!consultation.patientSession) return false;
+
+  /*
+   * The counter's consultations are not admitted by payment.
+   *
+   * A pharmacy consultation is paid for before the patient has said who they
+   * are, chosen a language or scanned anything — it reaches ACTIVATED and then
+   * waits for them to arrive at the counter. Queueing it here would put a
+   * patient in front of a doctor before they were in front of the pharmacist.
+   */
+  if (!consultation.patientAccountId) return false;
 
   /*
    * A booking for a time next week is paid for now and waits (v2). It joins
@@ -186,4 +229,65 @@ export async function admitPaidBooking(
   );
 
   return true;
+}
+
+/**
+ * Admits paid bookings the browser never came back for (D58).
+ *
+ * The fault this exists for: admission used to happen in exactly one place,
+ * the status screen the patient's browser polls after Paystack. A patient whose
+ * redirect failed, whose phone dropped on the way back, or who simply closed
+ * the tab was charged, activated, and never queued — invisible to every doctor,
+ * and to the queue's own alerts, which only look at consultations that made it
+ * into the queue. Nothing expired it either: the payment window ignores it
+ * because it is paid, and the unserved sweep ignores it because it has no
+ * queue entry.
+ *
+ * So the browser is now the fast path and this is the guarantee. It also picks
+ * up anything stranded before this existed, which is the only way those
+ * consultations are ever getting to a doctor.
+ *
+ * Deliberately narrow: direct bookings only, already ACTIVATED, which means a
+ * payment the server itself verified.
+ */
+export async function admitStrandedBookings(
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<number> {
+  const stranded = await db.consultation.findMany({
+    where: {
+      state: 'ACTIVATED',
+      // A booking the patient made themselves; the counter's own consultations
+      // wait for the patient to arrive and scan.
+      patientAccountId: { not: null },
+      // Nothing scheduled: an appointment joins the queue at its hour.
+      appointment: null,
+      queueEntry: null,
+    },
+    select: { id: true, publicId: true },
+    orderBy: { createdAt: 'asc' },
+    take: 50,
+  });
+
+  let admitted = 0;
+
+  for (const consultation of stranded) {
+    try {
+      if (await admitPaidConsultation(consultation.publicId, db, clock)) {
+        admitted += 1;
+        getLogger().warn(
+          { consultationId: consultation.id },
+          'admitted a paid booking whose browser never returned',
+        );
+      }
+    } catch (error) {
+      // One stuck booking must not stop the rest being rescued.
+      getLogger().error(
+        { err: error, consultationId: consultation.id },
+        'could not admit a stranded booking',
+      );
+    }
+  }
+
+  return admitted;
 }

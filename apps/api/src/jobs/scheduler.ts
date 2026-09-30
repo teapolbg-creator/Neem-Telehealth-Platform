@@ -6,6 +6,7 @@ import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
 import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
 import { reapStalePresence } from '../modules/queue/presence.service.ts';
 import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service.ts';
+import { admitStrandedBookings } from '../modules/patient-booking/patient-booking.service.ts';
 import {
   openDueAppointments,
   releaseLapsedReservations,
@@ -74,6 +75,25 @@ const JOBS: JobDefinition[] = [
     intervalMs: 10 * SECOND,
     run: processWaitingQueue,
     describe: (count) => `offered ${count} waiting consultation(s)`,
+  },
+  {
+    /*
+     * Rescues a paid booking whose browser never came back (D58).
+     *
+     * Admission used to happen only on the status screen the patient's browser
+     * polls after Paystack, so a failed redirect or a closed tab left them
+     * charged, activated and outside the queue — where no other job could see
+     * them, because every one of them looks at consultations that made it in.
+     * Settlement now admits them directly and this is the second line.
+     *
+     * Ahead of `cancel-unserved-consultations` in this list on purpose: a
+     * booking should be given its chance at a doctor before anything starts
+     * counting how long it has gone without one.
+     */
+    name: 'admit-stranded-bookings',
+    intervalMs: 30 * SECOND,
+    run: admitStrandedBookings,
+    describe: (count) => `admitted ${count} paid booking(s) that never reached the queue`,
   },
   {
     // Ends a consultation no doctor has taken within `queue.maxWaitSeconds`

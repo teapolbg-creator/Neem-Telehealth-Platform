@@ -1,8 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request } from '../helpers/app.ts';
+import { admitStrandedBookings } from '../../src/modules/patient-booking/patient-booking.service.ts';
+import { verifyAndSettle } from '../../src/modules/payment/payment.service.ts';
 import {
   createTestDoctor,
+  createTestPharmacy,
   resetDatabase,
   setDirectChannelEnabled,
   setDoctorOnDutyRequired,
@@ -322,6 +325,118 @@ describe('paying for it', () => {
  * with no second payment, and somebody else's reference is refused as though
  * it did not exist.
  */
+/**
+ * A patient who paid reaches the queue whichever way the browser goes (D58).
+ *
+ * Admission used to live in exactly one place: the status screen the patient's
+ * browser polls on the way back from Paystack. A redirect that failed, a phone
+ * that dropped, a closed tab — any of them left the patient charged, ACTIVATED
+ * and outside the queue, where no doctor and no alert could see them, because
+ * everything that watches the queue watches consultations that are in it.
+ *
+ * These exercise the paths that do not involve that screen at all.
+ */
+describe('reaching the queue without the browser', () => {
+  it('admits a patient whose browser never came back from the checkout', async () => {
+    await doctorOnDuty();
+    const cookies = await signedInPatient(PATIENT);
+    const booked = await book(cookies);
+    const reference = booked.body.data!.consultationReference;
+
+    await request(`/patient/bookings/${reference}/payment`, { method: 'POST', cookies });
+
+    /*
+     * The money settles and the patient is never seen again: no GET of the
+     * status route, which is what the closed tab means here.
+     */
+    provider.status = 'SUCCESS';
+    const payment = await getPrisma().payment.findFirstOrThrow({
+      where: { consultation: { publicId: reference } },
+    });
+    await verifyAndSettle(payment.providerReference, { actorType: 'SYSTEM' });
+
+    const consultation = await getPrisma().consultation.findUniqueOrThrow({
+      where: { publicId: reference },
+      include: { queueEntry: true },
+    });
+
+    expect(consultation.state).toBe('WAITING_FOR_DOCTOR');
+    expect(consultation.queueEntry).not.toBeNull();
+  });
+
+  it('rescues one that was stranded before any of this existed', async () => {
+    await doctorOnDuty();
+    const cookies = await signedInPatient(PATIENT);
+    const booked = await book(cookies);
+    const reference = booked.body.data!.consultationReference;
+
+    await request(`/patient/bookings/${reference}/payment`, { method: 'POST', cookies });
+    provider.status = 'SUCCESS';
+    const payment = await getPrisma().payment.findFirstOrThrow({
+      where: { consultation: { publicId: reference } },
+    });
+    await verifyAndSettle(payment.providerReference, { actorType: 'SYSTEM' });
+
+    /*
+     * Put it back where the old code left it: paid, activated, no queue entry.
+     * This is the state the consultations stranded in production are in, and
+     * the sweep is the only thing that will ever move them.
+     */
+    const before = await getPrisma().consultation.findUniqueOrThrow({
+      where: { publicId: reference },
+    });
+    await getPrisma().consultationQueueEntry.deleteMany({
+      where: { consultationId: before.id },
+    });
+    await getPrisma().consultation.update({
+      where: { id: before.id },
+      data: { state: 'ACTIVATED' },
+    });
+
+    expect(await admitStrandedBookings()).toBe(1);
+
+    const rescued = await getPrisma().consultation.findUniqueOrThrow({
+      where: { publicId: reference },
+      include: { queueEntry: true },
+    });
+    expect(rescued.state).toBe('WAITING_FOR_DOCTOR');
+    expect(rescued.queueEntry).not.toBeNull();
+
+    // And it does not do it twice.
+    expect(await admitStrandedBookings()).toBe(0);
+  });
+
+  it('leaves the counter’s consultations alone', async () => {
+    /*
+     * A pharmacy consultation is paid for before the patient has said who they
+     * are, chosen a language or scanned anything: it reaches ACTIVATED and
+     * waits at the counter. Queueing it on payment would put a patient in
+     * front of a doctor before they were in front of the pharmacist.
+     */
+    const pharmacy = await createTestPharmacy('Counter Pharmacy', 'ACTIVE');
+    const consultation = await getPrisma().consultation.create({
+      data: {
+        publicId: 'con_counter_test',
+        pharmacyId: pharmacy.id,
+        state: 'ACTIVATED',
+        netMinor: 5000,
+        priceMinor: 5000,
+        currency: 'GHS',
+        paymentDeadlineAt: new Date(Date.now() + 600_000),
+      },
+    });
+
+    expect(await admitStrandedBookings()).toBe(0);
+
+    const untouched = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultation.id },
+      include: { queueEntry: true },
+    });
+    expect(untouched.state).toBe('ACTIVATED');
+    expect(untouched.queueEntry).toBeNull();
+  });
+});
+
 describe('rejoining', () => {
   it('lets the patient back in without asking for money again', async () => {
     await doctorOnDuty();

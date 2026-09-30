@@ -16,6 +16,7 @@ import { transition } from '../consultation/consultation.service.ts';
 import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
 import { clinicRoster } from '../queue/allocation.service.ts';
+import { admitPaidConsultation } from '../patient-booking/patient-booking.service.ts';
 
 /**
  * Payment orchestration (spec §34, §35, §68).
@@ -229,7 +230,16 @@ export async function settlePayment(
     where: { providerReference: verified.providerReference },
     include: {
       consultation: {
-        select: { id: true, state: true, netMinor: true, currency: true, pharmacyId: true },
+        select: {
+          id: true,
+          // Named rather than fetched again at settlement, where the admission
+          // that follows it needs the reference (D58).
+          publicId: true,
+          state: true,
+          netMinor: true,
+          currency: true,
+          pharmacyId: true,
+        },
       },
     },
   });
@@ -483,6 +493,29 @@ export async function settlePayment(
       },
     },
     db,
+  );
+
+  /*
+   * A patient who booked for themselves joins the queue now (D58).
+   *
+   * After the transaction, not inside it, so an allocation is not holding the
+   * payment's locks while it runs — and because the money is settled either
+   * way, a failure here is swallowed rather than allowed to undo it.
+   * `admitStrandedBookings` retries anything this misses.
+   *
+   * Awaited, though. Fire-and-forget left the patient's very next poll racing
+   * this, which is exactly the uncertainty the whole change exists to remove:
+   * by the time settlement answers, either they are in the queue or the sweep
+   * owns the problem.
+   *
+   * The counter's consultations are untouched — they wait at ACTIVATED for the
+   * patient to arrive and scan, which `admitPaidConsultation` checks.
+   */
+  await admitPaidConsultation(consultation.publicId).catch((error: unknown) =>
+    getLogger().error(
+      { err: error, consultationId: consultation.id },
+      'could not admit a paid booking at settlement; the sweep will retry',
+    ),
   );
 
   return { status: 'SUCCESS', consultationState: 'ACTIVATED' };
