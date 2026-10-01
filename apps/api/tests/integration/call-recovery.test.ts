@@ -9,7 +9,11 @@ import {
   setMediaProvidersForTesting,
 } from '../../src/adapters/media/index.ts';
 import { acceptOffer, offerNextDoctor } from '../../src/modules/queue/allocation.service.ts';
-import { goOnline } from '../../src/modules/queue/presence.service.ts';
+import {
+  goOnline,
+  reconcileDoctorLoad,
+  reconcileOnlineDoctorLoads,
+} from '../../src/modules/queue/presence.service.ts';
 import { generatePublicId, hashPassword, encryptField } from '../../src/lib/crypto.ts';
 import {
   interruptConsultation,
@@ -468,6 +472,64 @@ describe('a call that breaks', () => {
     });
     expect(consultation.state).toBe('IN_PROGRESS');
     expect(consultation.clinicalSealedAt).toBeNull();
+  });
+
+  /*
+   * A doctor is never retired from the queue by a number (D59).
+   *
+   * `currentLoad` is incremented on accept and decremented on release, so it can
+   * drift, and upward drift is silent and total: at a limit of one concurrent
+   * consultation, one stray increment means every allocation skips that doctor
+   * as AT_CAPACITY for ever. No screen says so. This is the fault that took a
+   * doctor out of the live queue, found by a report of "the doctor does not see
+   * the consultation".
+   */
+  it('puts a drifted slot count back to what the consultations say', async () => {
+    const fixture = await liveConsultation();
+
+    // The leak, reproduced: a count that says the doctor is busier than they
+    // are. Before D57 a reassignment after acceptance left exactly this.
+    await getPrisma().doctorPresence.updateMany({
+      where: { doctorId: fixture.doctorId },
+      data: { currentLoad: 3 },
+    });
+
+    const result = await reconcileDoctorLoad(fixture.doctorId);
+
+    // One consultation is genuinely in progress, so the honest answer is one.
+    expect(result.currentLoad).toBe(1);
+    expect(result.corrected).toBe(true);
+    expect(await currentLoad(fixture.doctorId)).toBe(1);
+  });
+
+  it('frees a doctor stranded at capacity when they come back online', async () => {
+    const fixture = await liveConsultation();
+
+    // Finish the consultation the honest way, then strand the count.
+    await interruptConsultation(fixture.consultationId, { type: 'DOCTOR', id: fixture.doctorId });
+    await transition(fixture.consultationId, 'ABANDONED', {
+      actorType: 'ADMIN',
+      reason: 'test',
+    });
+    await getPrisma().doctorPresence.updateMany({
+      where: { doctorId: fixture.doctorId },
+      data: { currentLoad: 1 },
+    });
+
+    // The one thing a doctor would try from their own dashboard.
+    await goOnline(fixture.doctorId);
+
+    // Nothing occupies them, so they are free, and the queue can reach them.
+    expect(await currentLoad(fixture.doctorId)).toBe(0);
+  });
+
+  it('leaves an honest count alone, and reports no correction', async () => {
+    const fixture = await liveConsultation();
+
+    // One in progress, count says one: nothing to do.
+    expect(await currentLoad(fixture.doctorId)).toBe(1);
+    expect(await reconcileOnlineDoctorLoads()).toBe(0);
+    expect(await currentLoad(fixture.doctorId)).toBe(1);
   });
 
   it('records an interruption once, without restarting the patient window', async () => {

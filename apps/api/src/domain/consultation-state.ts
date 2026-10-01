@@ -232,11 +232,15 @@ export function assertTransition(from: ConsultationState, to: ConsultationState)
  * holding the slot would keep a doctor out of the queue for as long as the
  * patient stays away.
  */
-const OCCUPIES_DOCTOR: ReadonlySet<ConsultationState> = new Set<ConsultationState>([
+export const OCCUPYING_CONSULTATION_STATES = [
   'DOCTOR_ACCEPTED',
   'IN_PROGRESS',
   'COMPLETING',
-]);
+] as const satisfies readonly ConsultationState[];
+
+const OCCUPIES_DOCTOR: ReadonlySet<ConsultationState> = new Set<ConsultationState>(
+  OCCUPYING_CONSULTATION_STATES,
+);
 
 export function occupiesDoctor(state: ConsultationState): boolean {
   return OCCUPIES_DOCTOR.has(state);

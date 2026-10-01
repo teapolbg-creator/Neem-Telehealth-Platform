@@ -1808,3 +1808,101 @@ Covered by `tests/integration/call-recovery.test.ts` (13 cases: hang-ups,
 window expiry, simultaneous rejoins, a forgotten room, a forged webhook, a
 signed one, completion from interrupted, teardown on cancellation) and the
 rejoining cases in `tests/integration/v2-booking.test.ts`.
+
+### D58 — A paid patient reaches the queue from the server, not from their browser · 2026-10-01 · **DECIDED**
+
+**Issue.** Reported from a live test: a patient booked online, paid, and never
+appeared for the doctor. They had not been lost in the queue — they had never
+reached it.
+
+A paid booking entered the queue in exactly one place: `admitPaidBooking`,
+called only from `GET /patient/bookings/:reference/payment`, the status screen
+the patient's browser polls on the way back from Paystack. Settlement took the
+consultation to `ACTIVATED` and stopped there.
+
+So a failed redirect, a phone that dropped on the way back, or a closed tab left
+the patient **charged, activated, and outside the queue** — where nothing could
+see them. Not the doctor. Not the queue's own alarms, because every one of them
+watches consultations that are _in_ the queue. And nothing would have expired it
+either: `expire-pending-payments` skips it because it is paid, and
+`cancel-unserved-consultations` skips it because it has no queue entry. It would
+have sat there indefinitely with the money taken.
+
+**Decision.**
+
+- **Settlement admits the patient**, immediately after the payment transaction
+  commits. Awaited rather than fired and forgotten: by the time settlement
+  answers, either the patient is in the queue or the sweep owns the problem.
+  Errors are swallowed, because the money is settled either way and no queue
+  failure may undo it.
+- **A 30-second sweep**, `admit-stranded-bookings`, catches anything missed —
+  including the bookings already stranded in production, which is the only way
+  those were ever reaching a doctor.
+- **The browser poll stays**, as the fast path. It is no longer the mechanism.
+- **Deliberately narrow.** Direct bookings only. A counter consultation is paid
+  for before the patient has said who they are, chosen a language or scanned
+  anything, so admitting those on payment would put a patient in front of a
+  doctor before they were in front of the pharmacist. An appointment still joins
+  the queue at its hour, not when the money clears.
+
+**The pattern worth naming.** This is the same fault as [D57](#d57): a paid
+consultation that could only advance if the patient's browser cooperated. D57
+fixed it for the call, this fixes it for the queue. Both were found by a patient
+paying and nothing happening.
+
+Covered by `tests/integration/v2-booking.test.ts` — the closed tab driven
+through settlement with no browser call at all, a booking put back into the exact
+state the stranded ones are in, and the counter flow proved untouched.
+
+### D59 — A doctor's slot count is derived, not trusted · 2026-10-01 · **DECIDED**
+
+**Issue.** After D58 the patient reached the queue and _still_ did not reach the
+doctor. The queue was working; there was nobody eligible to offer them to.
+
+`DoctorPresence.currentLoad` was an independently maintained counter:
+incremented on accept, decremented on release. Three things made a single stray
+increment fatal.
+
+- The default limit is **one** concurrent consultation, so one extra increment
+  means permanently full.
+- Every allocation then skips that doctor with `AT_CAPACITY`, **silently**.
+- Nothing cleared it. Not a redeploy, not an API restart, and not going offline
+  and back online — `goOnline` set `currentLoad` only when _creating_ a presence
+  row, never on update.
+
+And the leak was real. Before [D57](#d57) capacity was released only when a
+consultation crossed into a terminal state, so `DOCTOR_ACCEPTED → REASSIGNING`
+— a reassignment after a doctor had already accepted — incremented and never
+decremented. One of those was enough to retire a doctor from the queue for the
+lifetime of the deployment. D57 stopped the leak; it did nothing for a count
+already stuck, and there was no screen anywhere that would have shown one.
+
+**Decision.**
+
+- **The count is a cache of something derivable.** `reconcileDoctorLoad`
+  recomputes it from the only authority there is: consultations assigned to that
+  doctor in a state that occupies them, which is `occupiesDoctor` from D57 and
+  now exported as `OCCUPYING_CONSULTATION_STATES` for the query.
+- **Going online reconciles**, so the one action a doctor would naturally try
+  from their own dashboard is the one that repairs it.
+- **A five-minute sweep** reconciles everyone online, for a doctor who stays
+  online for days. It **logs every correction**, because the number it reports
+  should be zero: anything else means something is still leaking a slot and the
+  sweep is covering for it.
+- **The dashboard says when a doctor is full.** `blockedBy` had five reasons and
+  not this one, so a doctor at capacity was told they were online, on shift and
+  ready while the queue passed them over. It now names the number — "you are
+  already with 1 of 1 patients" — because that is checkable against what the
+  doctor knows they are doing. If it says they are with a patient and they are
+  not, the bug is visible instead of invisible.
+
+**Why derive rather than fix the leak.** The leak was already fixed. What this
+addresses is that an incrementing counter _will_ drift again — a crash between
+the increment and the transition, a future state added to the machine without
+thought for capacity — and the cost of upward drift is a professional who
+silently stops receiving work. Deriving makes that self-correcting instead of
+permanent.
+
+Covered by `tests/integration/call-recovery.test.ts`: a drifted count put back
+to what the consultations say, a doctor stranded at capacity freed by coming
+online, and an honest count left alone with no correction reported.

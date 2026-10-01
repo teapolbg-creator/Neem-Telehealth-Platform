@@ -4,7 +4,10 @@ import { expirePendingPayments } from '../modules/payment/payment.service.ts';
 import { expireStaleTokens } from '../modules/consultation/access-token.service.ts';
 import { purgeExpiredSessions } from '../modules/auth/session.service.ts';
 import { enforceResponseWindow, processWaitingQueue } from '../modules/queue/allocation.service.ts';
-import { reapStalePresence } from '../modules/queue/presence.service.ts';
+import {
+  reapStalePresence,
+  reconcileOnlineDoctorLoads,
+} from '../modules/queue/presence.service.ts';
 import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service.ts';
 import { admitStrandedBookings } from '../modules/patient-booking/patient-booking.service.ts';
 import {
@@ -75,6 +78,26 @@ const JOBS: JobDefinition[] = [
     intervalMs: 10 * SECOND,
     run: processWaitingQueue,
     describe: (count) => `offered ${count} waiting consultation(s)`,
+  },
+  {
+    /*
+     * Keeps the concurrent-consultation counts honest (D59).
+     *
+     * `currentLoad` is incremented and decremented, so it can drift, and a
+     * count that drifts upwards silently retires a doctor from the queue: at
+     * the default limit of one, a single stray increment means every allocation
+     * skips them as AT_CAPACITY, no screen says why, and neither a restart nor
+     * going offline clears it. Going online now reconciles; this catches a
+     * doctor who stays online for days.
+     *
+     * The count it reports should be zero. Anything else means something is
+     * still leaking a slot and this sweep is covering for it, which is why it
+     * logs each correction rather than repairing them quietly.
+     */
+    name: 'reconcile-doctor-load',
+    intervalMs: 5 * MINUTE,
+    run: reconcileOnlineDoctorLoads,
+    describe: (count) => `corrected ${count} drifted concurrent-consultation count(s)`,
   },
   {
     /*

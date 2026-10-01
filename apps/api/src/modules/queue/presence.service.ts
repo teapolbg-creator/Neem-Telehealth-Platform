@@ -1,10 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
+import { getLogger } from '../../lib/logger.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 import { doctorCanReceiveConsultations } from '../../domain/account-state.ts';
+import { OCCUPYING_CONSULTATION_STATES } from '../../domain/consultation-state.ts';
 
 /**
  * Doctor presence (spec §24, §31).
@@ -53,6 +55,17 @@ export async function goOnline(
     update: { onlineSince: now, lastHeartbeatAt: now, maxLoad },
     create: { doctorId, onlineSince: now, lastHeartbeatAt: now, currentLoad: 0, maxLoad },
   });
+
+  /*
+   * Coming online is the moment to believe the consultations over the counter
+   * (D59).
+   *
+   * A slot count that has drifted upwards makes a doctor permanently invisible
+   * to allocation, and before this, nothing a doctor could do from their own
+   * dashboard fixed it — going offline and back on left the number untouched.
+   * Now the one action they would naturally try is the one that repairs it.
+   */
+  await reconcileDoctorLoad(doctorId, db);
 
   return { onlineSince: presence.onlineSince ?? now, maxLoad };
 }
@@ -135,7 +148,23 @@ export async function getPresence(
           ? 'You have no confirmed shift today.'
           : !online
             ? 'You are offline.'
-            : null;
+            : /*
+               * Being full is the last reason, and it was missing (D59).
+               *
+               * A doctor at capacity is skipped by every allocation, and until
+               * now their dashboard said nothing at all — it reported them
+               * online, on shift and ready while the queue silently passed them
+               * over. That is how a drifted count went unnoticed: there was no
+               * screen anywhere that would have shown it.
+               *
+               * It names the number, because "you are already with 1 of 1
+               * patients" is checkable against what the doctor knows they are
+               * doing. If it says they are with a patient and they are not, that
+               * is the bug, visible at last.
+               */
+              presence && presence.currentLoad >= presence.maxLoad
+              ? `You are already with ${presence.currentLoad} of ${presence.maxLoad} patients, so no new consultation will be offered until one is finished.`
+              : null;
 
   return {
     online,
@@ -169,6 +198,86 @@ export async function claimDoctorCapacity(doctorId: string, db: Db = getPrisma()
     where: { doctorId },
     data: { currentLoad: { increment: 1 } },
   });
+}
+
+/**
+ * Sets a doctor's slot count to what their consultations actually say (D59).
+ *
+ * `currentLoad` is a counter that is incremented and decremented, which means it
+ * can drift — and a count that drifts **upwards** is silently catastrophic. At
+ * the default limit of one concurrent consultation, a single extra increment
+ * puts a doctor permanently at capacity: they are skipped by every allocation
+ * with the reason AT_CAPACITY, no screen says so, going offline and back online
+ * does not clear it, and restarting the API does not either. They simply stop
+ * being offered patients, for ever.
+ *
+ * That is not hypothetical. Before [D57] the count was released only when a
+ * consultation crossed into a terminal state, so `DOCTOR_ACCEPTED` to
+ * `REASSIGNING` — a reassignment after a doctor had accepted — incremented and
+ * never decremented. One of those was enough to retire a doctor from the queue.
+ *
+ * So the count is treated as a cache of something derivable, and this recomputes
+ * it from the only authority there is: the consultations assigned to this doctor
+ * that are in a state which occupies them. Called when a doctor comes online,
+ * because that is the moment they are asserting they are ready, and from a sweep
+ * for anyone who stays online for days.
+ *
+ * Returns the corrected value, and whether it had to be corrected, so a drift
+ * worth investigating can be logged rather than quietly fixed.
+ */
+export async function reconcileDoctorLoad(
+  doctorId: string,
+  db: Db = getPrisma(),
+): Promise<{ currentLoad: number; corrected: boolean }> {
+  const [presence, actual] = await Promise.all([
+    db.doctorPresence.findUnique({ where: { doctorId }, select: { currentLoad: true } }),
+    db.consultation.count({
+      where: { doctorId, state: { in: [...OCCUPYING_CONSULTATION_STATES] } },
+    }),
+  ]);
+
+  if (!presence) return { currentLoad: actual, corrected: false };
+  if (presence.currentLoad === actual) return { currentLoad: actual, corrected: false };
+
+  await db.doctorPresence.update({ where: { doctorId }, data: { currentLoad: actual } });
+
+  return { currentLoad: actual, corrected: true };
+}
+
+/**
+ * The same correction for everybody who is online (D59).
+ *
+ * Returns how many counts were wrong, which is a number that should be zero: a
+ * non-zero one means something is still leaking a slot, and the sweep is hiding
+ * it. That is why it is counted and logged rather than silently repaired.
+ */
+export async function reconcileOnlineDoctorLoads(db: Db = getPrisma()): Promise<number> {
+  const online = await db.doctorPresence.findMany({
+    where: { onlineSince: { not: null } },
+    select: { doctorId: true },
+  });
+
+  let corrected = 0;
+
+  for (const presence of online) {
+    try {
+      const result = await reconcileDoctorLoad(presence.doctorId, db);
+      if (result.corrected) {
+        corrected += 1;
+        getLogger().warn(
+          { doctorId: presence.doctorId, currentLoad: result.currentLoad },
+          'corrected a drifted concurrent-consultation count',
+        );
+      }
+    } catch (error) {
+      getLogger().error(
+        { err: error, doctorId: presence.doctorId },
+        'could not reconcile a doctor load',
+      );
+    }
+  }
+
+  return corrected;
 }
 
 /**
