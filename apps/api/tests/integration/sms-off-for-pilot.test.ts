@@ -48,6 +48,9 @@ async function makeDoctor() {
       userId: user.id,
       fullName: 'Dr. Efua Danso',
       mdcNumber: `MDC-SMS-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -147,6 +150,8 @@ describe('SMS off for the pilot', () => {
       data: {
         consultationId: consultation.id,
         fullNameEnc: encryptField('Adwoa Mensah'),
+        // Required on a prescription by s.103 of Act 857 (D60).
+        addressEnc: encryptField('Dansoman, Accra'),
         age: 30,
         sex: 'FEMALE',
         phoneEnc: encryptField('0245551234'),

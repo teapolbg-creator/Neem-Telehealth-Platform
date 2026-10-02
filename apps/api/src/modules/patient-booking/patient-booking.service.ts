@@ -39,6 +39,10 @@ export interface ImmediateBookingInput {
   sex: 'MALE' | 'FEMALE' | 'OTHER';
   phone: string;
   reason: string;
+  /** Required on a prescription by s.103 of Act 857 (D60). */
+  address: string;
+  /** The privacy notice the patient agreed to (D60). */
+  privacyNoticeVersion: string;
 }
 
 export interface ImmediateBooking {

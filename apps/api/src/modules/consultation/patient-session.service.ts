@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import type { PatientFeedback, PatientIdentity, PatientSessionView } from '@neem/contracts';
+import { CONSENT_PURPOSES } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import {
@@ -55,10 +56,39 @@ export async function captureIdentity(
       age: identity.age,
       sex: identity.sex,
       phoneEnc: encryptField(identity.phone),
+      // Required on a prescription by s.103 of Act 857 (D60), so it is
+      // necessary data for that purpose rather than an extra field.
+      addressEnc: encryptField(identity.address),
       // Recorded only when the bill was settled from a different number, and
       // deleted alongside everything else (spec §36).
       paymentPhoneEnc: encryptNullable(identity.paymentPhone ?? null),
       updatedAt: clock.now(),
+    },
+  });
+
+  /*
+   * The evidence that the patient agreed, and to what (D60).
+   *
+   * Counsel's Q9: the patient must be told the eight matters in s.27 of Act 843
+   * before giving health information, and Neem must keep evidence of their
+   * action. A boolean on the session would record that somebody ticked
+   * something; this records which text they were shown, when, and from where.
+   *
+   * Written after the details rather than before, so a failed update cannot
+   * leave a consent record for a patient whose information was never stored.
+   * Idempotent on purpose: re-submitting the form is a second agreement to the
+   * same notice, and the row carries its own timestamp.
+   */
+  await db.consent.create({
+    data: {
+      consultationId: principal.consultationId,
+      purpose: CONSENT_PURPOSES.DATA_PROCESSING,
+      granted: true,
+      grantedAt: clock.now(),
+      evidence: {
+        channel: 'COUNTER',
+        noticeVersion: identity.privacyNoticeVersion,
+      },
     },
   });
 }

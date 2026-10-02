@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -70,6 +71,9 @@ async function createOnlineDoctor(
       userId: user.id,
       fullName: 'Dr. Media',
       mdcNumber: `MDC-M-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -161,7 +165,15 @@ async function patientChoosingMode(options: { doctorHasPhone?: boolean } = {}) {
   await request('/patient/session/identity', {
     method: 'POST',
     cookies: exchange.cookies,
-    payload: { fullName: 'Kofi Boateng', age: 41, sex: 'MALE', phone: '0240000222' },
+    payload: {
+      fullName: 'Kofi Boateng',
+      age: 41,
+      sex: 'MALE',
+      phone: '0240000222',
+      address: 'Dansoman, Accra',
+      acceptsDataProcessing: true,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+    },
   });
   await request('/patient/session/language', {
     method: 'POST',

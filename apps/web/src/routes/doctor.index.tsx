@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   AlertCircle,
   BadgeCheck,
@@ -17,6 +18,7 @@ import { ApiError } from "@/lib/api-client";
 import {
   useConfirmShift,
   useDoctorProfile,
+  useSavePrescriberDetails,
   useDoctorShifts,
   type DoctorShift,
 } from "@/features/onboarding/api";
@@ -121,6 +123,23 @@ function DoctorDashboard() {
         substitutions={substitutions.data?.length ?? 0}
         unconfirmedShift={todaysShift?.status === "ASSIGNED" ? todaysShift : undefined}
       />
+
+      {/*
+        Asked for here, before a consultation, rather than discovered during one
+        (D60). Without these two a prescription is refused outright — s.103 of
+        Act 857 requires the qualification and address of whoever signs it — and
+        the worst moment to learn that is with a patient waiting.
+
+        Only for a professional who prescribes. A dietitian or a trainer issues
+        advice and a plan, not a prescription, so asking them for a prescriber's
+        details would be asking for something they will never use.
+      */}
+      {role.isDoctor && (!doctor.qualification || !doctor.practiceAddress) && (
+        <PrescriberDetails
+          qualification={doctor.qualification}
+          practiceAddress={doctor.practiceAddress}
+        />
+      )}
 
       <section className="card-soft flex flex-wrap items-center justify-between gap-4 p-6">
         <div className="flex items-center gap-3">
@@ -245,6 +264,89 @@ function minutesOf(hhmm: string): number {
  * today in whatever order the list came back, so a doctor with two could be
  * told about the wrong one.
  */
+/**
+ * The two statutory details a prescriber must supply (D60).
+ *
+ * Shown only while something is missing, and it says plainly what cannot happen
+ * until it is filled in. The alternative — a quiet field on a settings page —
+ * is how a doctor ends up refused mid-consultation by a rule nobody mentioned.
+ */
+function PrescriberDetails({
+  qualification,
+  practiceAddress,
+}: {
+  qualification: string | null;
+  practiceAddress: string | null;
+}) {
+  const save = useSavePrescriberDetails();
+  const [form, setForm] = useState({
+    qualification: qualification ?? "",
+    practiceAddress: practiceAddress ?? "",
+  });
+
+  const ready = form.qualification.trim().length > 1 && form.practiceAddress.trim().length > 2;
+
+  return (
+    <section className="card-soft border-amber-200 bg-amber-50 p-6">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold text-amber-900">Add your prescribing details</h2>
+          <p className="mt-1 text-sm leading-relaxed text-amber-800">
+            Ghanaian law requires every prescription to carry your qualification and your practice
+            address. Until these are here you can consult, but you cannot issue a prescription.
+          </p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                Qualification
+              </span>
+              <input
+                value={form.qualification}
+                onChange={(event) => setForm({ ...form, qualification: event.target.value })}
+                placeholder="MB ChB"
+                className="input mt-1.5"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                Practice address
+              </span>
+              <input
+                value={form.practiceAddress}
+                onChange={(event) => setForm({ ...form, practiceAddress: event.target.value })}
+                placeholder="Ridge Clinic, Accra"
+                className="input mt-1.5"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            disabled={!ready || save.isPending}
+            onClick={() =>
+              save.mutate({
+                qualification: form.qualification.trim(),
+                practiceAddress: form.practiceAddress.trim(),
+              })
+            }
+            className="mt-4 rounded-xl bg-amber-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-800 disabled:opacity-40"
+          >
+            {save.isPending ? "Saving…" : "Save"}
+          </button>
+
+          {save.isError && (
+            <p className="mt-2 text-sm font-bold text-red-700">
+              {save.error instanceof ApiError ? save.error.message : "That could not be saved."}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function pickTodaysShift(
   shifts: DoctorShift[] | undefined,
   now: Date = new Date(),

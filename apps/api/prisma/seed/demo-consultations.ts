@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import type { PrismaClient } from '@prisma/client';
 import { fixedClock } from '../../src/lib/clock.ts';
 import {
@@ -62,15 +63,78 @@ import { issueSummary } from '../../src/modules/documents/document.service.ts';
  */
 
 /** A stable cast, so the demonstration script can name people. */
+const CONSENT = {
+  // Demo data agrees to the notice the same way a patient does (D60), so the
+  // consent rows a seeded consultation carries are the real shape.
+  acceptsDataProcessing: true as const,
+  privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+};
+
 const PATIENTS = [
-  { fullName: 'Adwoa Mensah', age: 34, sex: 'FEMALE' as const, phone: '0245551001' },
-  { fullName: 'Kojo Antwi', age: 51, sex: 'MALE' as const, phone: '0245551002' },
-  { fullName: 'Abena Owusu', age: 27, sex: 'FEMALE' as const, phone: '0245551003' },
-  { fullName: 'Yaw Darko', age: 43, sex: 'MALE' as const, phone: '0245551004' },
-  { fullName: 'Akua Boakye', age: 62, sex: 'FEMALE' as const, phone: '0245551005' },
-  { fullName: 'Kofi Asare', age: 19, sex: 'MALE' as const, phone: '0245551006' },
-  { fullName: 'Ama Serwaa', age: 38, sex: 'FEMALE' as const, phone: '0245551007' },
-  { fullName: 'Kwabena Osei', age: 45, sex: 'MALE' as const, phone: '0245551008' },
+  {
+    fullName: 'Adwoa Mensah',
+    age: 34,
+    sex: 'FEMALE' as const,
+    phone: '0245551001',
+    address: 'Dansoman, Accra',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Kojo Antwi',
+    age: 51,
+    sex: 'MALE' as const,
+    phone: '0245551002',
+    address: 'Asokwa, Kumasi',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Abena Owusu',
+    age: 27,
+    sex: 'FEMALE' as const,
+    phone: '0245551003',
+    address: 'Adenta Housing Down, Accra',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Yaw Darko',
+    age: 43,
+    sex: 'MALE' as const,
+    phone: '0245551004',
+    address: 'Effiakuma, Takoradi',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Akua Boakye',
+    age: 62,
+    sex: 'FEMALE' as const,
+    phone: '0245551005',
+    address: 'Tamale Central, Tamale',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Kofi Asare',
+    age: 19,
+    sex: 'MALE' as const,
+    phone: '0245551006',
+    address: 'GA-183-4291, Madina',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Ama Serwaa',
+    age: 38,
+    sex: 'FEMALE' as const,
+    phone: '0245551007',
+    address: 'Ashaiman, Tema',
+    ...CONSENT,
+  },
+  {
+    fullName: 'Kwabena Osei',
+    age: 45,
+    sex: 'MALE' as const,
+    phone: '0245551008',
+    address: 'Bantama, Kumasi',
+    ...CONSENT,
+  },
 ];
 
 const PRESCRIPTIONS = [

@@ -74,6 +74,9 @@ async function doctor() {
       userId: user.id,
       fullName: 'Dr. Yaw Mensah',
       mdcNumber: `MDC-S-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       status: 'ACTIVE',
       isDemo: true,
       signatures: { create: { signatureDataEnc: encryptField('data:image/png;base64,AAAA') } },

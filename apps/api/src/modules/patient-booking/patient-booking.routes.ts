@@ -81,6 +81,9 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
         age: z.number().int().min(0).max(120),
         sex: z.enum(['MALE', 'FEMALE', 'OTHER']),
         phone: z.string().trim().min(9).max(20),
+        // Required on a prescription by s.103 of Act 857 (D60). Free text,
+        // because a locality or a GhanaPostGPS code is a real address here.
+        address: z.string().trim().min(3).max(300),
         reason: z.string().trim().min(3).max(500),
         /*
          * Both must be true, and the schema is where that is enforced: a
@@ -89,6 +92,14 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
          */
         acceptsRemoteConsultation: z.literal(true),
         readEmergencyGuidance: z.literal(true),
+        /*
+         * And explicit consent to the processing of health information (D60),
+         * which counsel's Q9 recommends as the default basis under s.37 of Act
+         * 843. A literal for the same reason as the other two: a booking that
+         * proceeded without it would be one nobody can show was agreed to.
+         */
+        acceptsDataProcessing: z.literal(true),
+        privacyNoticeVersion: z.string().trim().min(3).max(40),
       })
       .parse(request.body);
 

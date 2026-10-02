@@ -56,6 +56,9 @@ async function createProfessional(
       fullName: `${discipline[0]}${discipline.slice(1).toLowerCase()} Owusu`,
       discipline,
       mdcNumber: discipline === 'DOCTOR' ? `MDC-D-${suffix}` : null,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: discipline === 'DOCTOR' ? expiry : null,
       credentialType: options.credentialType ?? null,
       credentialNumber: options.credentialNumber ?? null,
@@ -97,6 +100,8 @@ async function liveConsultation(professional: Professional, serviceCode?: string
     data: {
       consultationId: consultation.id,
       fullNameEnc: encryptField('Adwoa Mensah'),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField('Dansoman, Accra'),
       age: 34,
       sex: 'FEMALE',
       phoneEnc: encryptField('0245551234'),

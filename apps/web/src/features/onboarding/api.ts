@@ -97,6 +97,15 @@ export interface DoctorProfile {
   credential: string | null;
   mdcExpiresAt: string | null;
   specialty: string | null;
+  /**
+   * The two things a prescription cannot legally be issued without (D60).
+   *
+   * Section 103 of Act 857 requires the qualification and address of whoever
+   * signs one. Reported here so the dashboard can ask for them before the
+   * doctor is refused mid-consultation with a patient in front of them.
+   */
+  qualification: string | null;
+  practiceAddress: string | null;
   bio: string | null;
   yearsExperience: number | null;
   status: string;
@@ -117,6 +126,26 @@ export interface DoctorProfile {
 }
 
 export const doctorProfileKey = ["doctor", "profile"] as const;
+
+/**
+ * Sets the prescriber's own statutory details (D60).
+ *
+ * Theirs to enter rather than an administrator's: an admin typing a doctor's
+ * qualification for them is a worse record than the doctor doing it, and these
+ * go on a document a pharmacy dispenses against.
+ */
+export function useSavePrescriberDetails() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { qualification: string; practiceAddress: string }) =>
+      api.patch<{ qualification: string; practiceAddress: string }>(
+        "/doctor/profile/prescriber-details",
+        input,
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: doctorProfileKey }),
+  });
+}
 
 export function useDoctorProfile() {
   return useQuery({

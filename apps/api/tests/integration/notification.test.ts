@@ -55,6 +55,9 @@ async function setUpDoctor(phone: string | null = '0244000222') {
       userId: user.id,
       fullName: 'Dr. Notify',
       mdcNumber: `MDC-NT-${generatePublicId('x').slice(-8)}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -369,6 +372,8 @@ describe('triggers (spec §58)', () => {
       data: {
         consultationId: consultation.id,
         fullNameEnc: encryptField('Adwoa Mensah'),
+        // Required on a prescription by s.103 of Act 857 (D60).
+        addressEnc: encryptField('Dansoman, Accra'),
         age: 34,
         sex: 'FEMALE',
         phoneEnc: encryptField('0245551234'),

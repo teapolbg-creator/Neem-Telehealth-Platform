@@ -75,6 +75,9 @@ async function liveConsultation(): Promise<Fixture> {
       userId: doctorUser.id,
       fullName: 'Dr. Ama Boateng',
       mdcNumber: `MDC-RX-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -96,6 +99,8 @@ async function liveConsultation(): Promise<Fixture> {
     data: {
       consultationId: consultation.id,
       fullNameEnc: encryptField('Adwoa Mensah'),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField('Dansoman, Accra'),
       age: 34,
       sex: 'FEMALE',
       phoneEnc: encryptField('0245551234'),

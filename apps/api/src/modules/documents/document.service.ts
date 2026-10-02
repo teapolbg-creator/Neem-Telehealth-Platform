@@ -72,8 +72,19 @@ export async function generatePrescriptionPdf(
       name: prescription.patientName,
       age: prescription.patientAge,
       sex: prescription.patientSex,
+      address: prescription.patientAddress,
     },
-    doctor: signatory(prescription.doctor),
+    /*
+     * The statutory details come off the prescription, not the doctor's
+     * profile (D60). They were copied at issue, so a professional who later
+     * moves practice does not rewrite a document already in a patient's hands
+     * — and a reissue after a substitution reproduces the same one.
+     */
+    doctor: {
+      ...signatory(prescription.doctor),
+      qualification: prescription.prescriberQualification,
+      address: prescription.prescriberAddress,
+    },
     pharmacy: prescription.pharmacy,
     signatureDataEnc: prescription.signature?.signatureDataEnc ?? null,
     items: prescription.items,

@@ -68,6 +68,9 @@ async function createDoctor(options: {
       userId: user.id,
       fullName: options.fullName,
       mdcNumber: `MDC-PR-${generatePublicId('x').slice(-8)}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,

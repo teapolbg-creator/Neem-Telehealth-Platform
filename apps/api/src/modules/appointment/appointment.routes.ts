@@ -149,13 +149,18 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         age: z.number().int().min(0).max(120),
         sex: z.enum(['MALE', 'FEMALE', 'OTHER']),
         phone: z.string().trim().min(9).max(20),
+        // Required on a prescription by s.103 of Act 857 (D60).
+        address: z.string().trim().min(3).max(300),
         reason: z.string().trim().min(3).max(500),
         /*
-         * Both must be true, and the schema is where that is enforced: a
+         * All three must be true, and the schema is where that is enforced: a
          * booking that proceeded without them would be a consultation nobody
-         * can show was agreed to.
+         * can show was agreed to. The third is explicit consent to the
+         * processing of health information (D60).
          */
         acceptsRemoteConsultation: z.literal(true),
+        acceptsDataProcessing: z.literal(true),
+        privacyNoticeVersion: z.string().trim().min(3).max(40),
         readEmergencyGuidance: z.literal(true),
       })
       .parse(request.body);

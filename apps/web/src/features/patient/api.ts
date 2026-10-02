@@ -129,9 +129,15 @@ export interface BookingIntake {
   age: number;
   sex: "MALE" | "FEMALE" | "OTHER";
   phone: string;
+  /** Required on a prescription by s.103 of Act 857 (D60). */
+  address: string;
   reason: string;
   acceptsRemoteConsultation: true;
   readEmergencyGuidance: true;
+  /** Explicit consent to the processing of health information (D60). */
+  acceptsDataProcessing: true;
+  /** Which notice they agreed to, so the record names it rather than implying. */
+  privacyNoticeVersion: string;
 }
 
 export interface ImmediateBooking {

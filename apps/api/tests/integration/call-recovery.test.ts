@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
@@ -61,6 +62,9 @@ async function onlineDoctor(): Promise<{ doctorId: string; email: string }> {
       userId: user.id,
       fullName: 'Dr. Recovery',
       mdcNumber: `MDC-R-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -151,7 +155,15 @@ async function liveConsultation(): Promise<Fixture> {
   await request('/patient/session/identity', {
     method: 'POST',
     cookies: exchange.cookies,
-    payload: { fullName: 'Ama Mensah', age: 31, sex: 'FEMALE', phone: '0240000222' },
+    payload: {
+      fullName: 'Ama Mensah',
+      age: 31,
+      sex: 'FEMALE',
+      phone: '0240000222',
+      address: 'Dansoman, Accra',
+      acceptsDataProcessing: true,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+    },
   });
   await request('/patient/session/language', {
     method: 'POST',

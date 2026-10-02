@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { CONSENT_PURPOSES } from '@neem/contracts';
 import {
   encryptField,
   generateConsultationReference,
@@ -20,7 +21,11 @@ export interface DirectIntake {
   age: number;
   sex: 'MALE' | 'FEMALE' | 'OTHER';
   phone: string;
+  /** Required on a prescription by s.103 of Act 857 (D60). */
+  address: string;
   reason: string;
+  /** The privacy notice the patient agreed to, recorded as evidence (D60). */
+  privacyNoticeVersion: string;
 }
 
 /**
@@ -87,6 +92,8 @@ export async function createDirectConsultation(
       age: input.intake.age,
       sex: input.intake.sex,
       phoneEnc: encryptField(input.intake.phone),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField(input.intake.address),
       reasonEnc: encryptField(input.intake.reason),
       deviceSessionTokenHash: hashToken(input.sessionToken),
       deviceBoundAt: input.now,
@@ -99,14 +106,26 @@ export async function createDirectConsultation(
    * because they are two separate claims: that they accepted a remote
    * consultation, and that they were told what to do in an emergency.
    */
-  for (const purpose of ['consultation.remote', 'consultation.emergency-guidance']) {
+  for (const purpose of [
+    CONSENT_PURPOSES.REMOTE_CONSULTATION,
+    CONSENT_PURPOSES.EMERGENCY_GUIDANCE,
+    // Explicit consent to the processing of health information (D60). The
+    // counter records the same purpose from its own screen.
+    CONSENT_PURPOSES.DATA_PROCESSING,
+  ]) {
     await tx.consent.create({
       data: {
         consultationId: created.id,
         purpose,
         granted: true,
         grantedAt: input.now,
-        evidence: { channel: 'DIRECT', ipHash: hashIp(input.ip) },
+        evidence: {
+          channel: 'DIRECT',
+          ipHash: hashIp(input.ip),
+          // Which text they agreed to, so the evidence names it rather than
+          // implying whatever the notice says today.
+          noticeVersion: input.intake.privacyNoticeVersion,
+        },
       },
     });
   }

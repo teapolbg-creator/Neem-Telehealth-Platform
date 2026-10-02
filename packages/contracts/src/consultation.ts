@@ -109,8 +109,29 @@ export const patientIdentitySchema = z.object({
   age: z.number().int().min(0, 'Enter an age').max(120, 'Enter a valid age'),
   sex: z.enum(PATIENT_SEXES),
   phone: ghanaPhoneSchema,
+  /**
+   * Required, because s.103 of Act 857 requires the address of the person
+   * treated to appear on a valid prescription (D60).
+   *
+   * Free text and generously short. A street address is not how most places in
+   * Ghana are found: a locality, a town, or a GhanaPostGPS code are all real
+   * answers, and a format this cannot anticipate is not a reason to refuse a
+   * patient a consultation.
+   */
+  address: z.string().trim().min(3, 'Enter an address').max(300),
   /** Recorded when the bill was paid from a different number (spec §36). */
   paymentPhone: ghanaPhoneSchema.optional(),
+  /**
+   * Explicit consent to the processing of health information (D60).
+   *
+   * A literal rather than a boolean: a request that arrived without it would be
+   * a consultation nobody can show was agreed to, and the schema is where that
+   * is refused rather than somewhere a handler might forget. Counsel's Q9
+   * recommends explicit consent as the default basis under s.37 of Act 843.
+   */
+  acceptsDataProcessing: z.literal(true),
+  /** Which text they agreed to, so the evidence names it (D60). */
+  privacyNoticeVersion: z.string().trim().min(3).max(40),
 });
 export type PatientIdentity = z.infer<typeof patientIdentitySchema>;
 

@@ -78,6 +78,8 @@ async function writeRecord(consultationId: string, userId: string): Promise<void
     data: {
       consultationId,
       fullNameEnc: encryptField('Adwoa Mensah'),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField('Dansoman, Accra'),
       age: 34,
       sex: 'FEMALE',
       phoneEnc: encryptField('0245551234'),

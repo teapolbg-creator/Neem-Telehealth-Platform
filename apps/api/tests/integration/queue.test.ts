@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
@@ -60,6 +61,9 @@ async function createEligibleDoctor(options: {
       userId: user.id,
       fullName: options.name,
       mdcNumber: `MDC-Q-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -147,7 +151,15 @@ async function queuedConsultation(languageCode: string): Promise<{ id: string; p
   await request('/patient/session/identity', {
     method: 'POST',
     cookies: exchange.cookies,
-    payload: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+    payload: {
+      fullName: 'Efua Mensah',
+      age: 34,
+      sex: 'FEMALE',
+      phone: '0240000000',
+      address: 'Dansoman, Accra',
+      acceptsDataProcessing: true,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+    },
   });
   await request('/patient/session/language', {
     method: 'POST',

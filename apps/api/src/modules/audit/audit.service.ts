@@ -39,6 +39,8 @@ export const AUDIT_ACTIONS = {
   DOCTOR_SIGNATURE_CAPTURED: 'doctor.signature.captured',
   DOCTOR_COMPENSATION_CHANGED: 'doctor.compensation.changed',
   DOCTOR_PROFESSION_CHANGED: 'doctor.profession.changed',
+  /// The prescriber's own statutory details, which they set themselves (D60).
+  DOCTOR_PRESCRIBER_DETAILS_UPDATED: 'doctor.prescriber-details.updated',
   EARNING_RECORDED: 'earning.recorded',
   PROFESSIONAL_PAYOUT_CALCULATED: 'professional-payout.calculated',
   PROFESSIONAL_PAYOUT_MARKED_PAID: 'professional-payout.marked-paid',

@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
@@ -448,6 +449,9 @@ describe('the patient journey', () => {
         sex: 'FEMALE',
         phone: '0240000000',
         paymentPhone: '0550000000',
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       },
     });
     expect(identity.body.data?.step).toBe('LANGUAGE');
@@ -480,7 +484,15 @@ describe('the patient journey', () => {
     await request('/patient/session/identity', {
       method: 'POST',
       cookies: patientCookies,
-      payload: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+      payload: {
+        fullName: 'Efua Mensah',
+        age: 34,
+        sex: 'FEMALE',
+        phone: '0240000000',
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+      },
     });
 
     const session = await getPrisma().patientSession.findFirstOrThrow();
@@ -494,7 +506,15 @@ describe('the patient journey', () => {
     await request('/patient/session/identity', {
       method: 'POST',
       cookies: patientCookies,
-      payload: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+      payload: {
+        fullName: 'Efua Mensah',
+        age: 34,
+        sex: 'FEMALE',
+        phone: '0240000000',
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+      },
     });
 
     // Ewe is seeded but inactive (decision D9).
@@ -585,7 +605,15 @@ describe('cross-pharmacy isolation (spec §102)', () => {
     await request('/patient/session/identity', {
       method: 'POST',
       cookies: exchange.cookies,
-      payload: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+      payload: {
+        fullName: 'Efua Mensah',
+        age: 34,
+        sex: 'FEMALE',
+        phone: '0240000000',
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+      },
     });
 
     const view = await request<{ patient: { fullName: string; phone: string } | null }>(

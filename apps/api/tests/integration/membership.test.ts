@@ -37,6 +37,9 @@ async function setUpDoctor(status: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE', statusReas
       userId: user.id,
       fullName: 'Dr. Membership',
       mdcNumber: `MDC-MEM-${generatePublicId('x').slice(-8)}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status,
       statusReason: statusReason ?? null,

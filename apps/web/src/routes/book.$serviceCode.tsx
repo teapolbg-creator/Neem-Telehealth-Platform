@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { AlertCircle, CalendarClock, Check, ExternalLink, Loader2 } from "lucide-react";
 import { PatientFrame, FrameMessage } from "@/components/neem/PatientFrame";
 import { ApiError } from "@/lib/api-client";
+import { PrivacyNotice, PRIVACY_NOTICE_VERSION } from "@/components/neem/PrivacyNotice";
 import { formatMoney } from "@/features/consultation/api";
 import {
   useBookNow,
@@ -374,11 +375,12 @@ function DetailsForm({
     age: "",
     sex: "FEMALE" as BookingIntake["sex"],
     phone: "",
+    address: "",
     reason: "",
     languageCode: "en",
     type: "VIDEO" as BookingIntake["type"],
   });
-  const [consents, setConsents] = useState({ remote: false, emergency: false });
+  const [consents, setConsents] = useState({ remote: false, emergency: false, data: false });
 
   const pending = bookNow.isPending || reserve.isPending;
   const error = bookNow.error ?? reserve.error;
@@ -386,9 +388,11 @@ function DetailsForm({
     form.fullName.trim().length > 1 &&
     Number(form.age) >= 0 &&
     form.phone.trim().length >= 9 &&
+    form.address.trim().length > 2 &&
     form.reason.trim().length > 2 &&
     consents.remote &&
-    consents.emergency;
+    consents.emergency &&
+    consents.data;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -401,9 +405,12 @@ function DetailsForm({
       age: Number(form.age),
       sex: form.sex,
       phone: form.phone.trim(),
+      address: form.address.trim(),
       reason: form.reason.trim(),
       acceptsRemoteConsultation: true,
       readEmergencyGuidance: true,
+      acceptsDataProcessing: true,
+      privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
     };
 
     if (slot) {
@@ -505,6 +512,26 @@ function DetailsForm({
             className="input"
           />
         </Field>
+
+        {/*
+          Required by s.103 of Act 857, and the hint says so (D60). A patient
+          asked for an address with no reason given assumes the worst, and the
+          examples matter as much as the reason: a street address is not how
+          most places in Ghana are found.
+        */}
+        <Field
+          label="Your address"
+          hint="A prescription must carry it by law. An area and town is enough, or a GhanaPostGPS code."
+        >
+          <input
+            required
+            autoComplete="street-address"
+            value={form.address}
+            onChange={(event) => setForm({ ...form, address: event.target.value })}
+            placeholder="Dansoman, Accra"
+            className="input"
+          />
+        </Field>
       </div>
 
       <div className="card-soft space-y-4 p-6">
@@ -554,9 +581,11 @@ function DetailsForm({
       </div>
 
       {/*
-        Two checkboxes, not one. They are two separate statements — that a
-        remote consultation is what you want, and that you know what to do in
-        an emergency — and a single box would record neither of them honestly.
+        Three checkboxes, not one. They are three separate statements — that a
+        remote consultation is what you want, that you know what to do in an
+        emergency, and that you agree to Neem holding your health information
+        (D60) — and a single box would record none of them honestly. Each is
+        stored as its own consent record for the same reason.
       */}
       <div className="card-soft space-y-3 p-6">
         <Consent
@@ -574,6 +603,16 @@ function DetailsForm({
           call 112 instead of booking.
         </Consent>
       </div>
+
+      {/*
+        The privacy notice and the agreement it asks for (D60). The same
+        component and the same words the counter shows, because two notices
+        would be two legal positions.
+      */}
+      <PrivacyNotice
+        accepted={consents.data}
+        onAcceptedChange={(checked) => setConsents({ ...consents, data: checked })}
+      />
 
       <ErrorNote error={error} />
 

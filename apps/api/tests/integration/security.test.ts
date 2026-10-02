@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { closeTestApp, getTestApp, request, signIn } from '../helpers/app.ts';
@@ -90,6 +91,9 @@ async function buildWorld(label: string): Promise<World> {
       userId: doctorUser.id,
       fullName: `Dr. ${label}`,
       mdcNumber: `MDC-SEC-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       status: 'ACTIVE',
       isDemo: true,
@@ -112,6 +116,8 @@ async function buildWorld(label: string): Promise<World> {
     data: {
       consultationId: consultation.id,
       fullNameEnc: encryptField(`${label} Patient`),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField('Dansoman, Accra'),
       age: 30,
       sex: 'FEMALE',
       phoneEnc: encryptField('0245550000'),
@@ -1121,7 +1127,15 @@ describe('XSS (spec §79)', () => {
     const named = await request('/patient/session/identity', {
       method: 'POST',
       cookies: world.patientCookies,
-      payload: { fullName: SCRIPT, age: 30, sex: 'FEMALE', phone: '0245551234' },
+      payload: {
+        fullName: SCRIPT,
+        age: 30,
+        sex: 'FEMALE',
+        phone: '0245551234',
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+      },
     });
 
     // Either the name is rejected by validation or it is stored as text. What

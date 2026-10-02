@@ -6,3 +6,4 @@ export * from './onboarding.ts';
 export * from './pilot.ts';
 export * from './consultation.ts';
 export * from './media.ts';
+export * from './privacy.ts';

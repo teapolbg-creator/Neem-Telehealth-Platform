@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { credentialLine } from '../../domain/professional-credential.ts';
+import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { systemClock } from '../../lib/clock.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -82,6 +83,15 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
         credential: credentialLine(doctor),
         mdcExpiresAt: doctor.mdcExpiresAt?.toISOString() ?? null,
         specialty: doctor.specialty,
+        /*
+         * The two things a prescription cannot be issued without (D60).
+         *
+         * Section 103 of Act 857 requires the qualification and address of
+         * whoever signs one, so these are reported here for the dashboard to
+         * ask for them before a doctor is refused mid-consultation.
+         */
+        qualification: doctor.qualification,
+        practiceAddress: doctor.practiceAddress,
         bio: doctor.bio,
         yearsExperience: doctor.yearsExperience,
         status: doctor.status,
@@ -447,6 +457,54 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
         },
         meta: { requestId: request.correlationId },
       });
+    },
+  );
+
+  /**
+   * The prescriber's own statutory details (D60).
+   *
+   * Section 103 of Act 857 requires a prescription to carry the qualification
+   * and address of whoever signs it, and `issuePrescription` refuses without
+   * them. Theirs to set, because they are claims about the professional rather
+   * than facts the platform knows — and an admin typing a doctor's
+   * qualification for them is a worse record than the doctor doing it.
+   *
+   * Narrow on purpose: nothing else about the profile is editable here. A
+   * registration number or an expiry date is evidence an administrator
+   * verifies, and letting a professional rewrite those would undo the
+   * verification they passed.
+   */
+  app.patch(
+    '/doctor/profile/prescriber-details',
+    { preHandler: guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_READ] }) },
+    async (request, reply) => {
+      const { doctorId } = requireDoctor(request);
+      const body = z
+        .object({
+          qualification: z.string().trim().min(2).max(160),
+          practiceAddress: z.string().trim().min(3).max(300),
+        })
+        .parse(request.body);
+
+      const doctor = await getPrisma().doctor.update({
+        where: { id: doctorId },
+        data: { qualification: body.qualification, practiceAddress: body.practiceAddress },
+        select: { qualification: true, practiceAddress: true },
+      });
+
+      await recordAudit({
+        action: AUDIT_ACTIONS.DOCTOR_PRESCRIBER_DETAILS_UPDATED,
+        actorType: 'DOCTOR',
+        actorId: doctorId,
+        entityType: 'doctor',
+        entityId: doctorId,
+        correlationId: request.correlationId,
+        // The values are on a prescription anybody can read; what matters in
+        // the log is who changed them and when.
+        metadata: { fields: ['qualification', 'practiceAddress'] },
+      });
+
+      return reply.send({ data: doctor, meta: { requestId: request.correlationId } });
     },
   );
 }

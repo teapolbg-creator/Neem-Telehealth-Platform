@@ -84,6 +84,40 @@ export async function createDraft(
 
   const { decryptNullable } = await import('../../lib/crypto.ts');
 
+  /*
+   * Everything s.103 of Act 857 requires, or no prescription (D60).
+   *
+   * A valid prescription must state the name, qualification and address of the
+   * person signing it, and the name and address of the person treated. A
+   * document missing any of those is not a defective prescription, it is not a
+   * prescription — so it is refused here rather than produced and dispensed
+   * against.
+   *
+   * The message names what is missing and who can fix it, because the doctor
+   * reading it is mid-consultation with a patient in front of them and a
+   * refusal they cannot act on is worse than useless.
+   */
+  const prescriber = await db.doctor.findUniqueOrThrow({
+    where: { id: doctorId },
+    select: { qualification: true, practiceAddress: true },
+  });
+
+  const patientAddress = decryptNullable(patient.addressEnc);
+  const missing: string[] = [];
+  if (!patientAddress) missing.push("the patient's address");
+  if (!prescriber.qualification) missing.push('your qualification');
+  if (!prescriber.practiceAddress) missing.push('your practice address');
+
+  if (missing.length > 0) {
+    const yours = missing.filter((item) => item.startsWith('your'));
+    throw errors.businessRule(
+      `A prescription must carry ${missing.join(' and ')} to be valid under Ghanaian law, and ${missing.length === 1 ? 'it is' : 'they are'} missing. ` +
+        (yours.length > 0
+          ? 'Add it on your profile and try again.'
+          : 'Ask the patient for it at the counter.'),
+    );
+  }
+
   const prescription = await db.prescription.create({
     data: {
       publicId: generatePublicId('rx'),
@@ -100,6 +134,11 @@ export async function createDraft(
       patientName: decryptNullable(patient.fullNameEnc) ?? '',
       patientAge: patient.age,
       patientSex: patient.sex,
+      // The rest of what s.103 requires, copied for the same reason (D60):
+      // the document must stay valid after the session it came from is gone.
+      patientAddress,
+      prescriberQualification: prescriber.qualification,
+      prescriberAddress: prescriber.practiceAddress,
       isDemo: consultation.isDemo,
       createdAt: clock.now(),
       items: {

@@ -10,6 +10,16 @@ import { decryptField } from '../../lib/crypto.ts';
 export interface Signatory {
   fullName: string;
   credential: string | null;
+  /**
+   * The two further things s.103 of Act 857 requires of whoever signs a
+   * prescription: their qualification and their address (D60).
+   *
+   * Optional on this interface because referrals and summaries share the
+   * signature block and are not governed by s.103. A prescription without them
+   * is refused before it reaches this renderer.
+   */
+  qualification?: string | null;
+  address?: string | null;
 }
 
 /**
@@ -240,6 +250,29 @@ function drawSignature(
       .font('Helvetica')
       .text(doctor.credential, PAGE_MARGIN, doc.y + 1);
   }
+
+  /*
+   * Qualification and address, where the signatory has them (D60).
+   *
+   * Printed under the registration because that is the order s.103 lists them
+   * in, and because the qualification is what a reader checks the signature
+   * against. Each is omitted rather than filled in when absent: nothing is
+   * invented under a signature.
+   */
+  if (doctor.qualification) {
+    doc
+      .fillColor(MUTED)
+      .fontSize(8)
+      .font('Helvetica')
+      .text(doctor.qualification, PAGE_MARGIN, doc.y + 1);
+  }
+  if (doctor.address) {
+    doc
+      .fillColor(MUTED)
+      .fontSize(8)
+      .font('Helvetica')
+      .text(doctor.address, PAGE_MARGIN, doc.y + 1, { width: 260 });
+  }
 }
 
 function drawFooter(
@@ -324,7 +357,7 @@ export interface PrescriptionPdfInput {
   verificationCode: string;
   consultationReference: string;
   issuedAt: Date;
-  patient: { name: string; age: number; sex: string };
+  patient: { name: string; age: number; sex: string; address: string | null };
   doctor: Signatory;
   pharmacy: { name: string; city: string } | null;
   signatureDataEnc: string | null;
@@ -358,6 +391,15 @@ export function renderPrescriptionPdf(input: PrescriptionPdfInput): Promise<Buff
       ['Age', String(input.patient.age)],
       ['Sex', input.patient.sex],
     ]);
+    /*
+     * The patient's address, on its own row because it is prose rather than a
+     * field (D60). Required by s.103 of Act 857; absent only on prescriptions
+     * issued before it was collected, where printing a blank label would imply
+     * the document carries something it does not.
+     */
+    if (input.patient.address) {
+      labelledRow(doc, [['Address', input.patient.address]]);
+    }
     const referenceRow: Array<[string, string]> = [['Prescription', input.publicId]];
     // A patient-direct consultation has no pharmacy to name (v2).
     if (input.pharmacy) {

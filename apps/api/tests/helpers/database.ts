@@ -187,6 +187,17 @@ export async function createTestDoctor(
       userId: user.id,
       fullName,
       mdcNumber: `MDC-TEST-${suffix}`,
+      /*
+       * The two details s.103 of Act 857 requires on a prescription (D60).
+       *
+       * Set here because a test doctor stands for a real one, and a real one
+       * cannot issue a prescription without them. Leaving them off would make
+       * every prescription test fail on a rule it is not testing — and, worse,
+       * would let a test suite pass while proving the opposite of what the
+       * statute requires.
+       */
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       status,
       isDemo: true,
     },

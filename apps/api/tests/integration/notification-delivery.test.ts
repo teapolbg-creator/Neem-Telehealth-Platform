@@ -106,6 +106,9 @@ async function cast(state: 'IN_PROGRESS' | 'ASSIGNED' = 'IN_PROGRESS'): Promise<
       userId: doctorUser.id,
       fullName: 'Dr. Ama Boateng',
       mdcNumber: `MDC-N-${suffix}`,
+      // What s.103 of Act 857 requires on a prescription (D60).
+      qualification: 'MB ChB',
+      practiceAddress: 'Ridge Clinic, Accra',
       mdcExpiresAt: expiry,
       phoneEnc: encryptField('0244000222'),
       status: 'ACTIVE',
@@ -127,6 +130,8 @@ async function cast(state: 'IN_PROGRESS' | 'ASSIGNED' = 'IN_PROGRESS'): Promise<
     data: {
       consultationId: consultation.id,
       fullNameEnc: encryptField('Adwoa Mensah'),
+      // Required on a prescription by s.103 of Act 857 (D60).
+      addressEnc: encryptField('Dansoman, Accra'),
       age: 34,
       sex: 'FEMALE',
       phoneEnc: encryptField('0245551234'),

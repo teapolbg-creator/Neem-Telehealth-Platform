@@ -22,6 +22,7 @@ import {
 import { NeemLogo } from "@/components/neem/Logo";
 import { Chip } from "@/components/neem/Chip";
 import { CallStage } from "@/components/neem/CallStage";
+import { PrivacyNotice, PRIVACY_NOTICE_VERSION } from "@/components/neem/PrivacyNotice";
 import { ApiError } from "@/lib/api-client";
 import {
   patientLeftBeacon,
@@ -172,22 +173,41 @@ function IdentityStep() {
     age: "",
     sex: "" as "" | "FEMALE" | "MALE" | "OTHER",
     phone: "",
+    address: "",
     paymentPhone: "",
   });
   const [differentPayer, setDifferentPayer] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  /*
+   * Only after a submit attempt, so the notice is not scolding a patient who
+   * has not reached it yet (D60).
+   */
+  const [consentMissing, setConsentMissing] = useState(false);
 
   const fieldErrors = submit.error instanceof ApiError ? submit.error.fieldErrors : {};
-  const complete = form.fullName && form.age && form.sex && form.phone;
+  const complete = form.fullName && form.age && form.sex && form.phone && form.address;
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        /*
+         * Refused here as well as by the server (D60). The server's schema is
+         * what makes it true; this is what makes it explainable, because a 400
+         * on a consent field reads to a patient as a broken form.
+         */
+        if (!accepted) {
+          setConsentMissing(true);
+          return;
+        }
         submit.mutate({
           fullName: form.fullName,
           age: Number(form.age),
           sex: form.sex as "FEMALE" | "MALE" | "OTHER",
           phone: form.phone,
+          address: form.address,
+          acceptsDataProcessing: true,
+          privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
           ...(differentPayer && form.paymentPhone ? { paymentPhone: form.paymentPhone } : {}),
         } as never);
       }}
@@ -261,6 +281,22 @@ function IdentityStep() {
           help="For example 024 000 0000."
         />
 
+        {/*
+          Required by s.103 of Act 857, which is why the help text says so (D60).
+          A patient asked for an address with no reason given assumes the worst,
+          and the honest reason is short. The examples matter as much: a street
+          address is not how most places in Ghana are found, and a patient who
+          thinks they need one they do not have will stop here.
+        */}
+        <Field
+          label="Your address"
+          value={form.address}
+          onChange={(value) => setForm({ ...form, address: value })}
+          error={fieldErrors.address}
+          autoComplete="street-address"
+          help="A prescription must carry it by law. An area and town is enough, for example Dansoman, Accra. A GhanaPostGPS code works too."
+        />
+
         {/* Spec §36 — paying from another number is explicitly allowed. */}
         <label className="flex items-start gap-3 text-sm">
           <input
@@ -285,23 +321,30 @@ function IdentityStep() {
 
       <ErrorNotice error={submit.error} />
 
+      <div className="mt-5">
+        <PrivacyNotice
+          accepted={accepted}
+          onAcceptedChange={(value) => {
+            setAccepted(value);
+            if (value) setConsentMissing(false);
+          }}
+          error={
+            consentMissing
+              ? "Please confirm this before continuing. Without it the consultation cannot be started."
+              : undefined
+          }
+        />
+      </div>
+
       {/*
-        What happens to what the patient just typed, in their own words. This
-        is the one place they are told, before they type it.
+        The short notice that used to sit here is gone (D60).
 
-        Rewritten for decision D23: this promised deletion at the end of the
-        consultation, which Ghanaian record-keeping law does not permit. The
-        wording below claims only what the code does. The full notice, naming
-        the lawful basis and the retention period, is with counsel (G7d).
+        It was a placeholder for counsel's answer to Q9, written to claim only
+        what the code does while the lawful basis was unresolved. Counsel has
+        answered, the full notice is above with the agreement it asks for, and a
+        second shorter one beneath it would be a second legal position — the
+        weaker of the two, read first.
       */}
-      <p className="mt-5 rounded-2xl bg-brand-soft p-3 text-xs leading-relaxed text-brand/90">
-        Your record is kept private and sealed. No {seeing.noun} or pharmacy can open it after this
-        consultation.{" "}
-        {seeing.prescribes
-          ? "Only a prescription, if the doctor issues one, is shared."
-          : `Only what the ${seeing.noun} issues to you is shared.`}
-      </p>
-
       <button
         type="submit"
         disabled={!complete || submit.isPending}

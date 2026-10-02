@@ -608,6 +608,19 @@ model Doctor {
   qualifiedAt       DateTime?
   yearsExperience   Int?
   specialty         String?      @db.VarChar(160)
+  /// The prescriber's qualification, as it must appear on a prescription (D60).
+  ///
+  /// Section 103 of Act 857 requires a valid prescription to state the name,
+  /// **qualification** and address of the person signing it. The MDC number in
+  /// `mdcNumber` is a registration, not a qualification, and `specialty` is a
+  /// field of practice — neither satisfies it. Free text, e.g. "MB ChB", and
+  /// printed verbatim under the signature.
+  qualification     String?      @db.VarChar(160)
+  /// The prescriber's address, also required on a prescription by s.103 (D60).
+  ///
+  /// Their practice address, not a home one: it goes on a document the patient
+  /// and the dispensing pharmacy both read.
+  practiceAddress   String?      @db.VarChar(300)
   bio               String?      @db.Text
   photoStorageKey   String?      @db.VarChar(400)
   /// Contact number the platform dials for a Call Me bridge (spec §33).
@@ -1007,6 +1020,17 @@ model PatientSession {
   age                    Int?
   sex                    PatientSex?
   phoneEnc               String?     @db.Text
+  /// The patient's address, required on a prescription by s.103 of Act 857 (D60).
+  ///
+  /// Collected because the statute requires the name **and address** of the
+  /// person treated to appear on a valid prescription — so it is necessary
+  /// data for that purpose rather than an extra field, which is what keeps it
+  /// consistent with the minimality principle in s.17 of Act 843.
+  ///
+  /// Free text, because a street address is not how most places in Ghana are
+  /// found: a locality, a town, or a GhanaPostGPS code are all normal answers.
+  /// Encrypted and sealed with the rest of this row.
+  addressEnc             String?     @db.Text
   /// Recorded when the patient pays from a different number (spec §36).
   paymentPhoneEnc        String?     @db.Text
   /// What the patient says they need, in their own words (v2).
@@ -1257,6 +1281,23 @@ model Prescription {
   patientName String     @db.VarChar(160)
   patientAge  Int
   patientSex  PatientSex
+  /// Copied by value, like the name, age and sex beside it (D60).
+  ///
+  /// Section 103 of Act 857 requires the address of the person treated to
+  /// appear on a valid prescription, and the patient session this came from is
+  /// destroyed when its retention period ends. A prescription that lost its
+  /// statutory contents at that moment would stop being a valid prescription
+  /// while remaining the permanent record of one.
+  ///
+  /// Nullable only because prescriptions issued before this field existed
+  /// cannot have one. Everything issued from now on does.
+  patientAddress String? @db.VarChar(300)
+  /// The prescriber's qualification and address, also required by s.103 and
+  /// also copied rather than read back from the doctor's profile (D60): a
+  /// professional who later changes practice must not silently rewrite a
+  /// document already in a patient's hands.
+  prescriberQualification String? @db.VarChar(160)
+  prescriberAddress       String? @db.VarChar(300)
 
   issuedAt          DateTime?
   dispensedAt       DateTime?
