@@ -208,8 +208,31 @@ export async function buildSessionView(
       patientSession: { select: { fullNameEnc: true, expiresAt: true } },
       queueEntry: { select: { enqueuedAt: true } },
       feedback: { select: { id: true } },
+      /*
+       * The refund, reported beside the consultation rather than folded into
+       * it (D61). Newest first: a rejected request followed by an approved one
+       * should read as approved.
+       */
+      refunds: { select: { state: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
+
+  /*
+   * Whether a professional is in the room, by the provider's and the browser's
+   * account of who joined and who left (D61).
+   *
+   * The last thing a professional's device did decides it. A JOINED with no
+   * later LEFT means they are there; nothing at all means they never arrived,
+   * which is the case the patient's screen was getting wrong — it showed a
+   * consultation in progress to somebody sitting alone.
+   */
+  const lastProfessionalEvent = await db.callAttendanceEvent.findFirst({
+    where: { consultationId: consultation.id, participant: 'DOCTOR' },
+    orderBy: { occurredAt: 'desc' },
+    select: { event: true },
+  });
+  const professionalPresent =
+    consultation.state === 'IN_PROGRESS' && lastProfessionalEvent?.event === 'JOINED';
 
   const identityCaptured = Boolean(consultation.patientSession?.fullNameEnc);
   const durationSeconds = await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS, db);
@@ -271,6 +294,9 @@ export async function buildSessionView(
       ? { fullName: consultation.doctor.fullName, specialty: consultation.doctor.specialty }
       : null,
     professional: consultation.service?.discipline ?? 'DOCTOR',
+    professionalPresent,
+    deadlineAt: consultation.unservedDeadlineAt?.toISOString() ?? null,
+    refundState: consultation.refunds[0]?.state ?? null,
     waitingSinceSeconds: waitingSince
       ? Math.max(0, Math.floor((clock.now().getTime() - waitingSince.getTime()) / 1000))
       : null,

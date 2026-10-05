@@ -55,7 +55,14 @@ export async function transition(
 ): Promise<ConsultationState> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    select: { id: true, state: true, doctorId: true, clinicalSealedAt: true },
+    select: {
+      id: true,
+      state: true,
+      doctorId: true,
+      clinicalSealedAt: true,
+      // Read so the first start can be told from a resume (D61).
+      firstStartedAt: true,
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -92,7 +99,20 @@ export async function transition(
   if (to === 'PATIENT_JOINED') timestamps.patientJoinedAt = now;
   if (to === 'WAITING_FOR_DOCTOR') timestamps.queuedAt = now;
   if (to === 'ASSIGNED') timestamps.assignedAt = now;
-  if (to === 'IN_PROGRESS') timestamps.startedAt = now;
+  if (to === 'IN_PROGRESS') {
+    timestamps.startedAt = now;
+    /*
+     * When the clinical interaction FIRST began, written once (D61).
+     *
+     * `startedAt` is rewritten on every entry to IN_PROGRESS, so a
+     * consultation that resumed after an interruption reported its elapsed
+     * time from the resume: a call broken at four minutes came back showing
+     * zero, and the five-minute target restarted. The patient's timer counts
+     * from this instead, so resuming continues the consultation rather than
+     * beginning a new one.
+     */
+    if (!consultation.firstStartedAt) timestamps.firstStartedAt = now;
+  }
   if (to === 'COMPLETED') timestamps.completedAt = now;
 
   await db.consultation.update({

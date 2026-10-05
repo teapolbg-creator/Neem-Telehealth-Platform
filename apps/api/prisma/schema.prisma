@@ -910,13 +910,45 @@ model Consultation {
   /// awaits destruction at retention_jobs.scheduledFor.
   clinicalSealedAt  DateTime?
 
-  /// Until when this consultation may be rejoined without paying again (D57).
-  /// Set when a call is interrupted, cleared when it resumes or ends.
+  /// Until when this consultation may be rejoined (D57, bounded by D61).
+  ///
+  /// Anchored to the FIRST interruption and never moved afterwards. It used to
+  /// be cleared whenever the call resumed, which meant a single rejoin removed
+  /// the only bound on the consultation's life and it could then be rejoined
+  /// for ever. Resuming no longer touches it.
   rejoinableUntil  DateTime?
-  /// When the doctor recorded that the call broke, and what they said about
-  /// arranging to finish it. No clinical content: this is an operational note.
+  /// When the call first broke. Never overwritten by a later interruption, for
+  /// the same reason: it is what `rejoinableUntil` is measured from.
   interruptedAt    DateTime?
+  /// What the doctor said about arranging to finish it. No clinical content:
+  /// this is an operational note.
   interruptionNote String?   @db.VarChar(500)
+
+  /// The moment this consultation stops being worth waiting for (D61).
+  ///
+  /// Stored rather than recomputed, which is what makes it immune to a rejoin,
+  /// a refresh, a new session token or a server restart: nothing recalculates
+  /// it, so nothing can push it back. Set once, when a verified payment
+  /// activates the consultation.
+  ///
+  /// For an immediate consultation it is payment plus
+  /// `consultation.unservedDeadlineHours`. For a scheduled appointment it is
+  /// the appointment's own start time plus that allowance, because a booking
+  /// made days ahead is not unserved — it has not happened yet. Null on a
+  /// consultation that was never paid for, which the payment window already
+  /// bounds.
+  ///
+  /// It is a maximum, not a target. A patient waiting anywhere near it has
+  /// already been failed; `queue.maxWaitSeconds` is the number that describes
+  /// an acceptable wait.
+  unservedDeadlineAt DateTime?
+  /// When this consultation's clinical interaction FIRST began (D61).
+  ///
+  /// `startedAt` is rewritten on every entry to IN_PROGRESS, so a consultation
+  /// that resumed after an interruption reported its elapsed time from the
+  /// resume — a call interrupted at four minutes came back showing zero. This
+  /// is written once and is what the patient's timer counts from.
+  firstStartedAt     DateTime?
 
   outcome            ConsultationOutcome?
   /// Everything the consultation produced, not only its headline (D56). The
@@ -965,6 +997,10 @@ model Consultation {
   @@index([doctorId, createdAt])
   @@index([state])
   @@index([completedAt])
+  /// The expiry sweep's own query: everything overdue, in state order (D61).
+  @@index([unservedDeadlineAt])
+  /// The recovery sweep's: interrupted consultations whose window has passed.
+  @@index([rejoinableUntil])
   @@map("consultations")
 }
 

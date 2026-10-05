@@ -17,6 +17,7 @@ import { isAwaitingPayment } from '../../domain/consultation-state.ts';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
 import { clinicRoster } from '../queue/allocation.service.ts';
 import { admitPaidConsultation } from '../patient-booking/patient-booking.service.ts';
+import { recordUnservedDeadline } from '../consultation/unserved.service.ts';
 
 /**
  * Payment orchestration (spec §34, §35, §68).
@@ -511,6 +512,21 @@ export async function settlePayment(
    * The counter's consultations are untouched — they wait at ACTIVATED for the
    * patient to arrive and scan, which `admitPaidConsultation` checks.
    */
+  /*
+   * The clock on this consultation's life starts here (D61).
+   *
+   * Written before admission, because admission can fail and the deadline must
+   * exist either way: a consultation that never reaches the queue is exactly
+   * the one that most needs something to end it. Idempotent, so a replayed
+   * webhook or a re-verification cannot push it back.
+   */
+  await recordUnservedDeadline(consultation.id).catch((error: unknown) =>
+    getLogger().error(
+      { err: error, consultationId: consultation.id },
+      'could not record the unserved deadline',
+    ),
+  );
+
   await admitPaidConsultation(consultation.publicId).catch((error: unknown) =>
     getLogger().error(
       { err: error, consultationId: consultation.id },

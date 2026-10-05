@@ -1906,3 +1906,88 @@ permanent.
 Covered by `tests/integration/call-recovery.test.ts`: a drifted count put back
 to what the consultations say, a doctor stranded at capacity freed by coming
 online, and an honest count left alone with no correction reported.
+
+### D61 — Nothing paid for stays open for ever · 2026-10-05 · **DECIDED**
+
+**Issue.** Reported from production with two screenshots: a patient's "My care"
+offering "Rejoin the consultation" on a consultation from the previous week, and
+a call screen showing a single participant and a timer reading **+9949:55 over**
+— nearly seven days of overtime on a call nobody was in.
+
+The root cause is one sentence. **No scheduled job could terminate a
+consultation once it left the queue.** Exhaustively, `expire-pending-payments`
+covered the three states before payment and `cancel-unserved-consultations`
+covered `WAITING_FOR_DOCTOR` and `REASSIGNING`. Between them they left
+`ACTIVATED`, `WAITING_FOR_PATIENT`, `PATIENT_JOINED`, `ASSIGNED`,
+`DOCTOR_ACCEPTED`, `IN_PROGRESS`, `INTERRUPTED` and `COMPLETING` immortal.
+
+Everything else follows from it. An `IN_PROGRESS` consultation has no queue
+entry, so no doctor could see it and no sweep could reach it; `getTimer` counted
+from `startedAt` with no upper bound; and the patient's screen offered a rejoin
+indefinitely because there was no deadline to test.
+
+Three contributing defects, two of them introduced by [D57](#d57):
+
+1. **A patient's own rejoin counted as the consultation resuming.**
+   `resumeInterrupted` moved `INTERRUPTED → IN_PROGRESS` for _either_ party and
+   cleared `rejoinableUntil`, so the first rejoin removed the only bound that
+   existed. The doctor was neither present nor told.
+2. **Rejoining restarted the clock**, because `transition` rewrites `startedAt`
+   on every entry to `IN_PROGRESS`. A call broken at four minutes resumed at
+   zero.
+3. **A patient alone in a room read as a consultation in progress**, because
+   `acceptsCallJoin` admits `DOCTOR_ACCEPTED` — so the call screen appeared the
+   moment a doctor _accepted_, before any doctor joined.
+
+**Decision.**
+
+- **Every paid consultation gets a deadline**, `unservedDeadlineAt`, written
+  **once** at verified payment and never recomputed. Stored rather than derived
+  is the whole point: a deadline calculated on read moves every time anybody
+  looks at it, and it is a rejoin, a refresh, a new token and a restart that
+  must not move it. A scheduled appointment is measured from its own
+  `startsAt`, because a booking made days ahead is not unserved — it has not
+  happened yet.
+- **`EXPIRED` is reachable from every post-payment state.** It used to be
+  reachable from two, which is a large part of why a stalled consultation could
+  not be ended: there was no edge to end it along.
+- **The recovery window is fifteen minutes**, not twenty-four hours, anchored to
+  the **first** interruption. A rejoin resumes _this_ consultation: the same
+  five-minute appointment, with the same doctor, who is on a shift. After a day
+  there is no call to resume and a rejoin button is telling the patient
+  something untrue. A second break does not extend it and resuming does not
+  clear it, or a patient could hold a consultation open indefinitely by
+  rejoining and dropping out.
+- **Only a professional resumes a consultation.** A patient returning is let
+  back into the room and the doctor is paged; the state does not move and the
+  deadline keeps running.
+- **The clock counts from `firstStartedAt`**, written once, and freezes while
+  the consultation is interrupted. A timer that keeps running on a call nobody
+  is in is not measuring a consultation.
+- **Expiry and refund are separate facts, stored separately.** The consultation
+  is `EXPIRED` or `ABANDONED`; the refund sits `REQUESTED` beside it.
+  `requestRefund` gained `keepConsultationState` because moving an expired
+  consultation to `REFUND_REQUESTED` would un-terminal it and lose the expiry.
+- **No automatic money movement**, by the operator's decision. Both outcomes
+  raise a request an administrator approves. A background job and a live
+  payment provider is not a combination to automate while the pilot is small.
+- **Attendance is decided on several signals**, never one timestamp:
+  attendance events, clinical content, prescriptions, referrals and summaries.
+  `startedAt` is wrong in both directions — a patient's rejoin used to set it,
+  and a doctor can connect by a path that does not. Getting this wrong either
+  refunds care that was given or refuses a refund that is owed.
+
+**What is deliberately not done.** Existing stuck consultations are **not**
+backfilled with deadlines. Doing so would hand the sweep a backlog to close in
+bulk, and those records are exactly the ones that need a person. They are
+handled by `scripts/reconcile-consultations.ts`, which is read-only by default,
+runs against a database older than itself, and whose `--apply` refuses every
+consultation a professional attended.
+
+**A test was defending the bug.** `takes the slot back when the consultation
+resumes` asserted that a patient's rejoin resumes the consultation — the exact
+fault. It is replaced by two cases that assert the opposite. Worth recording:
+the suite did not catch this because the suite had been taught to expect it.
+
+Covered by `tests/integration/consultation-lifetime.test.ts` (17 cases) and the
+revised recovery cases in `tests/integration/call-recovery.test.ts`.

@@ -36,6 +36,14 @@ import { originName } from '../../domain/consultation-origin.ts';
 const OPEN_STATES = ['REQUESTED', 'APPROVED', 'PROCESSING'] as const;
 
 export interface RefundRequestInput {
+  /**
+   * Leave the consultation's own state alone (D61).
+   *
+   * For an automatic request raised after expiry, where the consultation has
+   * already reached its terminal state and that state is the thing the patient
+   * needs to be told.
+   */
+  keepConsultationState?: boolean;
   reason: string;
   /** SYSTEM for a payment confirmed after its consultation had closed (D49). */
   requestedByType: 'PATIENT' | 'PHARMACY' | 'ADMIN' | 'SYSTEM';
@@ -100,9 +108,21 @@ export async function requestRefund(
     },
   });
 
-  // Pausing a live consultation; leaving a finished one alone.
+  /*
+   * Pausing a live consultation; leaving a finished one alone.
+   *
+   * `keepConsultationState` is how the expiry sweep asks for the refund
+   * without disturbing what it just decided (D61). An expired consultation
+   * moved to REFUND_REQUESTED would stop being expired — the state is not
+   * terminal, so the record would say a refund is pending and say nothing
+   * about the consultation having run out of time, and the patient's screen
+   * would lose the only accurate thing it had to tell them.
+   *
+   * The two facts are separate and are now stored separately: the consultation
+   * is EXPIRED or ABANDONED, and the refund is REQUESTED beside it.
+   */
   let consultationState = consultation.state;
-  if (canTransition(consultation.state, 'REFUND_REQUESTED')) {
+  if (!input.keepConsultationState && canTransition(consultation.state, 'REFUND_REQUESTED')) {
     consultationState = await transition(
       consultationId,
       'REFUND_REQUESTED',

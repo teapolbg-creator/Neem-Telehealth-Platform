@@ -484,19 +484,43 @@ export async function getTimer(
 ): Promise<ConsultationTimer | null> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    select: { startedAt: true },
+    select: { startedAt: true, firstStartedAt: true, state: true, interruptedAt: true },
   });
-  if (!consultation?.startedAt) return null;
+
+  /*
+   * From the first start, not the latest one (D61).
+   *
+   * `startedAt` is rewritten whenever a consultation re-enters IN_PROGRESS, so
+   * counting from it meant a call broken at four minutes resumed showing zero
+   * and the five-minute target began again. A resumed consultation is the same
+   * consultation, and its elapsed time says so.
+   *
+   * `firstStartedAt` is null on records written before this existed, which
+   * fall back to `startedAt` — the same number they always reported.
+   */
+  if (!consultation) return null;
+
+  const began = consultation.firstStartedAt ?? consultation.startedAt;
+  if (!began) return null;
+
+  /*
+   * A consultation nobody is in has no running clock.
+   *
+   * An interrupted one used to keep counting, which is how a patient came back
+   * to "+9949:55 over": the timer had been running for a week on a call that
+   * stopped on the first day. The elapsed figure is frozen at the interruption
+   * instead, which is also the honest one — the consultation really did get
+   * that far and no further.
+   */
+  const frozenAt = consultation.state === 'INTERRUPTED' ? consultation.interruptedAt : null;
 
   const [durationSeconds, warningSeconds] = await Promise.all([
     getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS, db),
     getIntSetting(SETTING_KEYS.CONSULTATION_WARNING_SECONDS, db),
   ]);
 
-  const elapsedSeconds = Math.max(
-    0,
-    Math.floor((clock.now().getTime() - consultation.startedAt.getTime()) / 1000),
-  );
+  const until = frozenAt ?? clock.now();
+  const elapsedSeconds = Math.max(0, Math.floor((until.getTime() - began.getTime()) / 1000));
   const remainingSeconds = Math.max(0, durationSeconds - elapsedSeconds);
   const overrunSeconds = Math.max(0, elapsedSeconds - durationSeconds);
 
@@ -558,15 +582,16 @@ export async function emitTimerWarnings(
 // ---------------------------------------------------------------------------
 
 /**
- * How long a broken consultation stays rejoinable without paying again.
+ * How long a broken call stays rejoinable, in minutes (D61).
  *
- * Long enough for a phone that died, a power cut, or a patient who has to find
- * somewhere with signal; short enough that a consultation does not stay open
- * forever with nobody looking at it. The operator can change it, and what
- * happens at the end of it is deliberately not "the money is gone" — Neem
- * arranges for the consultation to be finished.
+ * Fifteen, not the twenty-four hours this was. A rejoin resumes *this*
+ * consultation: the same five-minute appointment, with the same doctor, who is
+ * on a shift. After a day there is no call to resume, and a rejoin button that
+ * says otherwise is telling the patient something untrue.
+ *
+ * The fallback only; the operator's value is `consultation.recoveryWindowMinutes`.
  */
-export const REJOIN_WINDOW_HOURS = 24;
+export const RECOVERY_WINDOW_MINUTES = 15;
 
 interface RejoinWindow {
   rejoinableUntil: Date | null;
@@ -715,7 +740,13 @@ export async function interruptConsultation(
 ): Promise<{ state: 'INTERRUPTED'; rejoinableUntil: string }> {
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
-    select: { id: true, publicId: true, state: true, rejoinableUntil: true },
+    select: {
+      id: true,
+      publicId: true,
+      state: true,
+      rejoinableUntil: true,
+      interruptedAt: true,
+    },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
 
@@ -728,16 +759,31 @@ export async function interruptConsultation(
     };
   }
 
-  const hours = await getIntSetting(SETTING_KEYS.CONSULTATION_REJOIN_WINDOW_HOURS, db).catch(
-    () => REJOIN_WINDOW_HOURS,
+  /*
+   * The deadline is set once, from the FIRST time this call broke (D61).
+   *
+   * A consultation can be interrupted, rejoined and interrupted again. If each
+   * break started a fresh window, a patient could hold a consultation open
+   * indefinitely by rejoining and dropping out — which is the shape of the bug
+   * this replaces, where resuming cleared the deadline altogether and nothing
+   * bounded the consultation's life again.
+   *
+   * So an existing `interruptedAt` wins, and a later break inherits the
+   * deadline the first one set.
+   */
+  const minutes = await getIntSetting(SETTING_KEYS.CONSULTATION_RECOVERY_WINDOW_MINUTES, db).catch(
+    () => RECOVERY_WINDOW_MINUTES,
   );
-  const rejoinableUntil = new Date(clock.now().getTime() + hours * 3_600_000);
+
+  const firstInterruptedAt = consultation.interruptedAt ?? clock.now();
+  const rejoinableUntil =
+    consultation.rejoinableUntil ?? new Date(firstInterruptedAt.getTime() + minutes * 60_000);
 
   await db.consultation.update({
     where: { id: consultationId },
     data: {
       rejoinableUntil,
-      interruptedAt: clock.now(),
+      interruptedAt: firstInterruptedAt,
       interruptionNote: actor.note?.slice(0, 500) ?? null,
     },
   });
@@ -783,7 +829,18 @@ export async function interruptConsultation(
 }
 
 /**
- * Either party came back, so the consultation is live again (D57).
+ * Somebody came back (D57, corrected by D61).
+ *
+ * **Only a professional resumes a consultation.** It used to be either party,
+ * which meant a patient tapping "rejoin" moved the consultation back to
+ * IN_PROGRESS with nobody there to see them: the clock restarted, the doctor
+ * was neither present nor told, and the patient sat alone in a video room
+ * watching a timer run. That is the state the reported incident was found in.
+ *
+ * A patient returning is real and worth acting on — it is just not the
+ * consultation resuming. They are let back into the room and the doctor is
+ * paged; the consultation stays INTERRUPTED, and its deadline keeps running,
+ * until a professional is actually back in the room.
  *
  * The doctor's slot is taken back by the transition out of INTERRUPTED, so a
  * doctor mid-call cannot be handed a second patient.
@@ -802,18 +859,46 @@ async function resumeInterrupted(
   // there is nothing to resume.
   if (!consultation || consultation.state !== 'INTERRUPTED') return;
 
-  await db.consultation.update({
-    where: { id: consultationId },
-    data: { rejoinableUntil: null },
-  });
+  /*
+   * A patient coming back is not the consultation resuming (D61).
+   *
+   * They are in the room, which is what they can do; the doctor is told, which
+   * is what makes it useful. The state does not move, so the recovery deadline
+   * keeps running and an unanswered return still expires rather than becoming
+   * an open-ended session with nobody in it.
+   */
+  if (participant === 'PATIENT') {
+    if (consultation.doctorId) {
+      emitToDoctor(consultation.doctorId, 'consultation.patient_returned', {
+        consultationPublicId: consultation.publicId,
+      });
+    }
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.CALL_RESUMED,
+        actorType: 'PATIENT',
+        entityType: 'consultation',
+        entityId: consultationId,
+        metadata: { by: 'PATIENT', resumed: false, reason: 'awaiting_professional' },
+      },
+      db,
+    );
+    return;
+  }
 
+  /*
+   * `rejoinableUntil` is deliberately NOT cleared.
+   *
+   * Clearing it was how a single rejoin removed the only bound on the
+   * consultation's life: it went back to IN_PROGRESS with no deadline, and no
+   * sweep could see it again. The deadline belongs to the interruption, not to
+   * whether somebody is currently in the room, and a consultation that resumes
+   * and breaks again keeps the window the first break opened.
+   */
   await transition(
     consultationId,
     'IN_PROGRESS',
-    {
-      actorType: participant === 'PATIENT' ? 'PATIENT' : 'DOCTOR',
-      reason: 'call_resumed',
-    },
+    { actorType: 'DOCTOR', reason: 'call_resumed' },
     db,
     clock,
   );
@@ -821,10 +906,12 @@ async function resumeInterrupted(
   await recordAudit(
     {
       action: AUDIT_ACTIONS.CALL_RESUMED,
-      actorType: participant === 'PATIENT' ? 'PATIENT' : 'DOCTOR',
+      // Only a professional reaches here; a patient returning took the early
+      // exit above without resuming anything (D61).
+      actorType: 'DOCTOR',
       entityType: 'consultation',
       entityId: consultationId,
-      metadata: { by: participant },
+      metadata: { by: participant, resumed: true },
     },
     db,
   );

@@ -652,14 +652,31 @@ function PatientCallStep({
   return (
     <CallStage
       session={join.data ?? null}
-      timer={timer ?? null}
+      /*
+       * No timer until a professional is actually in the room (D61).
+       *
+       * The badge used to run from the moment the consultation was marked
+       * started, whoever was present — which is how a patient alone in a room
+       * came back to "+9949:55 over", nearly seven days of overtime on a call
+       * nobody ever joined. A clock that counts while nothing is happening is
+       * not measuring the consultation.
+       */
+      timer={session.professionalPresent ? (timer ?? null) : null}
       role="PATIENT"
       remoteName={doctorName}
       joining={join.isPending}
       onRemotePresence={(present) => setAlone(!present)}
       onDropped={() => setDropped(true)}
       notice={
-        alone ? (
+        !session.professionalPresent ? (
+          <div className="flex items-start gap-2 bg-slate-50 px-5 py-3 text-xs leading-relaxed text-slate-600">
+            <AlertCircle className="mt-px size-4 shrink-0 text-slate-400" />
+            <p>
+              Waiting for the {seeing.noun} to join. You are in the room and they will see you when
+              they arrive. Your consultation has not started yet.
+            </p>
+          </div>
+        ) : alone ? (
           <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">
             <AlertCircle className="mt-px size-4 shrink-0" />
             <p>

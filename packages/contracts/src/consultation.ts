@@ -232,6 +232,30 @@ export const patientSessionViewSchema = z.object({
    * Null when it is not interrupted, or when no deadline was recorded.
    */
   rejoinableUntil: z.string().nullable(),
+  /**
+   * Whether a professional is actually in the room right now (D61).
+   *
+   * The patient's screen used to show a call the moment a doctor *accepted*,
+   * so somebody sat alone in a video room watching a timer run and believing
+   * they were in a consultation. Being in a room is not being seen, and this
+   * is what lets the screen say which one is happening.
+   */
+  professionalPresent: z.boolean().default(false),
+  /**
+   * When this consultation stops being worth waiting for (D61). A maximum, not
+   * a promise — and not a time any patient should ever reach.
+   */
+  deadlineAt: z.string().nullable(),
+  /**
+   * Where the patient's money stands, independently of the consultation (D61).
+   *
+   * Separate because the two really are separate: a consultation can be
+   * expired while its refund is still pending, and a patient who is told only
+   * "closed" has been told the less important half.
+   */
+  refundState: z
+    .enum(['REQUESTED', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED'])
+    .nullable(),
 });
 export type PatientSessionView = z.infer<typeof patientSessionViewSchema>;
 

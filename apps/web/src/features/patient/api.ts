@@ -62,6 +62,10 @@ export interface AccountConsultation {
   state: string;
   serviceName: string | null;
   createdAt: string;
+  /** When this consultation stops being rejoinable at all (D61). */
+  deadlineAt?: string | null;
+  /** Where the money stands, separately from the consultation's own state. */
+  refundState?: string | null;
   completedAt: string | null;
 }
 

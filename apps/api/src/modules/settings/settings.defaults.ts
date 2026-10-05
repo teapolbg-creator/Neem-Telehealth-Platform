@@ -16,7 +16,8 @@ export const SETTING_KEYS = {
   CONSULTATION_DURATION_SECONDS: 'consultation.durationSeconds',
   CONSULTATION_WARNING_SECONDS: 'consultation.warningSeconds',
   PAYMENT_WINDOW_SECONDS: 'consultation.paymentWindowSeconds',
-  CONSULTATION_REJOIN_WINDOW_HOURS: 'consultation.rejoinWindowHours',
+  CONSULTATION_RECOVERY_WINDOW_MINUTES: 'consultation.recoveryWindowMinutes',
+  CONSULTATION_UNSERVED_DEADLINE_HOURS: 'consultation.unservedDeadlineHours',
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
   REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
@@ -130,19 +131,50 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     category: 'consultation',
   },
   {
-    key: K.CONSULTATION_REJOIN_WINDOW_HOURS,
+    key: K.CONSULTATION_RECOVERY_WINDOW_MINUTES,
+    value: 15,
+    valueType: 'number',
+    /*
+     * How long a broken call may be rejoined, measured from the moment it
+     * first broke (D61).
+     *
+     * Fifteen minutes, not the twenty-four hours this used to be. A rejoin
+     * resumes *this* consultation — the same five-minute appointment, with the
+     * same doctor, who is on a shift. After a day there is no call to resume:
+     * the right answer is a fresh consultation or a reschedule, and offering a
+     * "rejoin" button instead tells the patient something that is not true.
+     *
+     * Long enough for the things that actually happen: a dropped connection, a
+     * phone that dies, a walk outside to find signal.
+     *
+     * Anchored to the FIRST interruption. Rejoining does not extend it, and
+     * neither does being interrupted a second time — otherwise a patient could
+     * hold a consultation open indefinitely by rejoining and dropping out.
+     */
+    description:
+      'Minutes an interrupted consultation may be rejoined for, measured from when it first broke (D61).',
+    category: 'consultation',
+  },
+  {
+    key: K.CONSULTATION_UNSERVED_DEADLINE_HOURS,
     value: 24,
     valueType: 'number',
     /*
-     * How long a patient may rejoin an interrupted consultation without paying
-     * again (D57). A dead phone, a power cut or a walk to somewhere with
-     * signal all fit inside a day.
+     * The maximum life of a paid consultation that never reached a doctor (D61).
      *
-     * What happens at the end of it is not "the money is gone": the
-     * consultation stays unfinished and Neem arranges for it to be completed.
-     * Whether a longer policy is needed is an open question for the operator.
+     * A MAXIMUM, not a target. A patient still waiting anywhere near this has
+     * already been failed; `queue.maxWaitSeconds` is the number that describes
+     * a wait anybody should accept. This exists so that nothing paid for can
+     * sit unresolved for ever, which is exactly what used to happen: no job
+     * could terminate a consultation once it left the queue, so one that
+     * stalled stayed open until somebody noticed by hand.
+     *
+     * Measured from the verified payment for an immediate consultation, and
+     * from the appointment's own start time for a scheduled one — a booking
+     * made days ahead is not unserved, it has not happened yet.
      */
-    description: 'Hours an interrupted consultation stays rejoinable without a new payment (D57).',
+    description:
+      'Hours after which a paid consultation that never reached a professional expires and a refund is requested (D61).',
     category: 'consultation',
   },
   {

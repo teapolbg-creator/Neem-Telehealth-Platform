@@ -75,12 +75,28 @@ function MyCare() {
    * This is the whole point of coming back here on a phone whose browser died
    * mid-call, so it goes above everything else, including what is booked.
    */
-  const unfinished = account.data.consultations.filter(
-    (consultation) =>
-      consultation.state === "INTERRUPTED" ||
-      consultation.state === "IN_PROGRESS" ||
-      consultation.state === "DOCTOR_ACCEPTED",
-  );
+  const unfinished = account.data.consultations.filter((consultation) => {
+    if (
+      consultation.state !== "INTERRUPTED" &&
+      consultation.state !== "IN_PROGRESS" &&
+      consultation.state !== "DOCTOR_ACCEPTED"
+    ) {
+      return false;
+    }
+
+    /*
+     * Past its deadline, it is not rejoinable (D61).
+     *
+     * The card used to appear for any unfinished consultation for ever, which
+     * is how a patient was still being offered "Rejoin the consultation" on
+     * one that had been dead for a week. The sweep will close it within the
+     * minute; until it does, the button must not promise something the server
+     * will refuse.
+     */
+    if (consultation.deadlineAt && new Date(consultation.deadlineAt) <= new Date()) return false;
+
+    return true;
+  });
   const documentGroups = documents.data?.consultations ?? [];
 
   return (

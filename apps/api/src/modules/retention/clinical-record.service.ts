@@ -203,6 +203,33 @@ export async function isSealed(consultationId: string, db: Db = getPrisma()): Pr
   return consultation?.clinicalSealedAt !== null && consultation?.clinicalSealedAt !== undefined;
 }
 
+/**
+ * Whether a professional ever wrote anything clinical here (D61).
+ *
+ * A count, never content. The expiry sweep needs to know whether care may have
+ * been delivered before it decides between expiring a consultation nobody
+ * attended and sending one for review — and getting that wrong either refunds
+ * care that was given or refuses a refund that is owed.
+ *
+ * It lives here because these tables live here. The sweep asking them directly
+ * would walk past the seal that makes D23 mean anything, and `retention.test.ts`
+ * fails the build for exactly that. Counting is safe where reading is not: a
+ * sealed record still answers "is there one", which discloses nothing about a
+ * patient, and that is the only question being asked.
+ */
+export async function hasClinicalContent(
+  consultationId: string,
+  db: Db = getPrisma(),
+): Promise<boolean> {
+  const [notes, vitals, tests] = await Promise.all([
+    db.consultationClinicalNotes.count({ where: { consultationId } }),
+    db.consultationVitals.count({ where: { consultationId } }),
+    db.consultationTest.count({ where: { consultationId } }),
+  ]);
+
+  return notes + vitals + tests > 0;
+}
+
 async function assertUnsealed(consultationId: string, db: Db): Promise<void> {
   if (await isSealed(consultationId, db)) {
     throw new ClinicalRecordSealed(consultationId);

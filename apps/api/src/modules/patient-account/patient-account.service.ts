@@ -291,6 +291,16 @@ export interface AccountConsultation {
   serviceName: string | null;
   createdAt: string;
   completedAt: string | null;
+  /**
+   * The point past which this consultation cannot be picked back up (D61).
+   *
+   * Sent so My care can stop offering "Rejoin the consultation" on something
+   * the server will refuse. For an interrupted one it is the recovery window;
+   * otherwise the consultation's own deadline, whichever comes first.
+   */
+  deadlineAt: string | null;
+  /** Where the money stands, independently of the consultation's own state. */
+  refundState: string | null;
 }
 
 /** The consultations this account booked. Operational history, never clinical. */
@@ -307,17 +317,36 @@ export async function listAccountConsultations(
       state: true,
       createdAt: true,
       completedAt: true,
+      rejoinableUntil: true,
+      unservedDeadlineAt: true,
       service: { select: { name: true } },
+      refunds: { select: { state: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
 
-  return rows.map((row) => ({
-    publicId: row.publicId,
-    state: row.state,
-    serviceName: row.service?.name ?? null,
-    createdAt: row.createdAt.toISOString(),
-    completedAt: row.completedAt?.toISOString() ?? null,
-  }));
+  return rows.map((row) => {
+    /*
+     * The earlier of the two deadlines, because either one ending ends the
+     * patient's ability to pick this up (D61). An interrupted consultation has
+     * both: a recovery window of minutes and an overall deadline of hours.
+     */
+    const deadlines = [row.rejoinableUntil, row.unservedDeadlineAt].filter(
+      (value): value is Date => value !== null,
+    );
+    const deadlineAt = deadlines.length
+      ? new Date(Math.min(...deadlines.map((value) => value.getTime())))
+      : null;
+
+    return {
+      publicId: row.publicId,
+      state: row.state,
+      serviceName: row.service?.name ?? null,
+      createdAt: row.createdAt.toISOString(),
+      completedAt: row.completedAt?.toISOString() ?? null,
+      deadlineAt: deadlineAt?.toISOString() ?? null,
+      refundState: row.refunds[0]?.state ?? null,
+    };
+  });
 }
 
 /**

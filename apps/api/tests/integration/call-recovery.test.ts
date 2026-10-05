@@ -264,18 +264,54 @@ describe('a call that breaks', () => {
     expect(consultation.completedAt).toBeNull();
   });
 
-  it('takes the slot back when the consultation resumes', async () => {
+  /*
+   * This asserted the opposite until D61, and the opposite was the bug.
+   *
+   * A patient tapping "rejoin" moved the consultation back to IN_PROGRESS and
+   * cleared its deadline: the clock restarted, the doctor was neither present
+   * nor told, no sweep could see the consultation again, and the patient sat
+   * alone in a video room watching a timer run. That is the state the reported
+   * incident was found in, a week after the call had stopped.
+   */
+  it('does not resume when only the patient comes back', async () => {
     const fixture = await liveConsultation();
     await interruptConsultation(fixture.consultationId, { type: 'DOCTOR', id: fixture.doctorId });
+
+    const before = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: fixture.consultationId },
+    });
 
     await joinMediaSession(fixture.consultationId, 'PATIENT');
 
     const consultation = await getPrisma().consultation.findUniqueOrThrow({
       where: { id: fixture.consultationId },
     });
+
+    // They are in the room, which is all they can be. Being in a room is not
+    // being seen.
+    expect(consultation.state).toBe('INTERRUPTED');
+    // And the deadline keeps running, so an unanswered return still ends.
+    expect(consultation.rejoinableUntil?.getTime()).toBe(before.rejoinableUntil?.getTime());
+    // The doctor is free for other patients until they actually return.
+    expect(await currentLoad(fixture.doctorId)).toBe(0);
+  });
+
+  it('resumes, and takes the slot back, when the professional comes back', async () => {
+    const fixture = await liveConsultation();
+    await interruptConsultation(fixture.consultationId, { type: 'DOCTOR', id: fixture.doctorId });
+
+    await joinMediaSession(fixture.consultationId, 'DOCTOR');
+
+    const consultation = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: fixture.consultationId },
+    });
     expect(consultation.state).toBe('IN_PROGRESS');
-    expect(consultation.rejoinableUntil).toBeNull();
     expect(await currentLoad(fixture.doctorId)).toBe(1);
+    /*
+     * The deadline survives the resume. Clearing it was how a single rejoin
+     * removed the only bound on the consultation's life.
+     */
+    expect(consultation.rejoinableUntil).not.toBeNull();
   });
 
   it('replaces a room the provider has forgotten, under the same consultation', async () => {

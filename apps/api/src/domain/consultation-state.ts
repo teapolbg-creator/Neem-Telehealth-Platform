@@ -31,10 +31,21 @@ const TRANSITIONS: Record<ConsultationState, readonly ConsultationState[]> = {
   // outcome spec §37 forbids.
   ACTIVATED: ['WAITING_FOR_PATIENT', 'CANCELLED', 'EXPIRED', 'REFUND_REQUESTED'],
   WAITING_FOR_PATIENT: ['PATIENT_JOINED', 'EXPIRED', 'CANCELLED', 'REFUND_REQUESTED'],
-  PATIENT_JOINED: ['WAITING_FOR_DOCTOR', 'CANCELLED', 'REFUND_REQUESTED', 'ABANDONED'],
-  WAITING_FOR_DOCTOR: ['ASSIGNED', 'CANCELLED', 'REFUND_REQUESTED', 'ABANDONED'],
-  ASSIGNED: ['DOCTOR_ACCEPTED', 'REASSIGNING', 'CANCELLED'],
-  REASSIGNING: ['ASSIGNED', 'WAITING_FOR_DOCTOR', 'CANCELLED'],
+  /*
+   * EXPIRED from every post-payment state (D61).
+   *
+   * It used to be reachable only from ACTIVATED and WAITING_FOR_PATIENT, which
+   * is a large part of why a paid consultation could not be ended once it got
+   * any further: there was no edge to end it along. A consultation that runs
+   * out of time runs out of time wherever it is standing, and EXPIRED is what
+   * that is called — ABANDONED stays the word for one a professional attended
+   * and nobody finished, which is a different thing an administrator decides
+   * differently.
+   */
+  PATIENT_JOINED: ['WAITING_FOR_DOCTOR', 'CANCELLED', 'REFUND_REQUESTED', 'ABANDONED', 'EXPIRED'],
+  WAITING_FOR_DOCTOR: ['ASSIGNED', 'CANCELLED', 'REFUND_REQUESTED', 'ABANDONED', 'EXPIRED'],
+  ASSIGNED: ['DOCTOR_ACCEPTED', 'REASSIGNING', 'CANCELLED', 'EXPIRED'],
+  REASSIGNING: ['ASSIGNED', 'WAITING_FOR_DOCTOR', 'CANCELLED', 'EXPIRED'],
   /*
    * INTERRUPTED from here too (D57): a doctor who accepted and cannot reach
    * the patient — whose browser died while they waited — has the same problem
@@ -42,19 +53,30 @@ const TRANSITIONS: Record<ConsultationState, readonly ConsultationState[]> = {
    * claim. ABANDONED is terminal and leaves them with a refund to ask for;
    * this leaves them with the consultation they paid for.
    */
-  DOCTOR_ACCEPTED: ['IN_PROGRESS', 'INTERRUPTED', 'REASSIGNING', 'ABANDONED'],
-  IN_PROGRESS: ['COMPLETING', 'INTERRUPTED', 'ABANDONED'],
+  DOCTOR_ACCEPTED: ['IN_PROGRESS', 'INTERRUPTED', 'REASSIGNING', 'ABANDONED', 'EXPIRED'],
+  IN_PROGRESS: ['COMPLETING', 'INTERRUPTED', 'ABANDONED', 'EXPIRED'],
   /**
    * Unfinished, and waiting for whoever dropped out (D57).
    *
    * Back to IN_PROGRESS when they return, which is the ordinary ending. A
    * doctor may also complete straight from here, because a consultation can
    * be finished in substance before the call broke — the documentation rules
-   * are unchanged, so an outcome still needs its document. ABANDONED remains
-   * an administrator's judgement that nobody is coming back; nothing reaches
-   * it on a timer.
+   * are unchanged, so an outcome still needs its document.
+   *
+   * ABANDONED is still an administrator's judgement that nobody is coming
+   * back. Since D61 the recovery sweep also reaches it, for a consultation a
+   * professional attended whose recovery window has run out; one nobody
+   * attended EXPIRES instead. Both raise a refund request rather than deciding
+   * the money.
    */
-  INTERRUPTED: ['IN_PROGRESS', 'COMPLETING', 'ABANDONED', 'CANCELLED', 'REFUND_REQUESTED'],
+  INTERRUPTED: [
+    'IN_PROGRESS',
+    'COMPLETING',
+    'ABANDONED',
+    'CANCELLED',
+    'REFUND_REQUESTED',
+    'EXPIRED',
+  ],
   COMPLETING: ['COMPLETED'],
   // A refund decision returns the consultation to a settled state; the refund
   // module records which state it came from so a rejection can restore it.

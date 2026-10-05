@@ -9,6 +9,10 @@ import {
   reconcileOnlineDoctorLoads,
 } from '../modules/queue/presence.service.ts';
 import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service.ts';
+import {
+  expireRecoveryWindows,
+  expireUnservedConsultations,
+} from '../modules/consultation/unserved.service.ts';
 import { admitStrandedBookings } from '../modules/patient-booking/patient-booking.service.ts';
 import {
   openDueAppointments,
@@ -98,6 +102,44 @@ const JOBS: JobDefinition[] = [
     intervalMs: 5 * MINUTE,
     run: reconcileOnlineDoctorLoads,
     describe: (count) => `corrected ${count} drifted concurrent-consultation count(s)`,
+  },
+  {
+    /*
+     * The backstop behind every other sweep (D61).
+     *
+     * Until this existed, no scheduled job could terminate a consultation once
+     * it left the queue: ACTIVATED, WAITING_FOR_PATIENT, PATIENT_JOINED,
+     * ASSIGNED, DOCTOR_ACCEPTED, IN_PROGRESS and INTERRUPTED were all
+     * immortal, and one that stalled in any of them stayed open until somebody
+     * found it by hand. A patient came back to one a week later, to a rejoin
+     * button and a timer counting days of overtime.
+     *
+     * Every five minutes rather than every thirty seconds: the deadline it
+     * enforces is measured in hours, so it does not need to be caught at the
+     * instant it passes. Catching up after downtime is automatic, because the
+     * query asks what is overdue *now* rather than what became overdue since
+     * the last run — a sweep that missed a day still finds everything.
+     */
+    name: 'expire-unserved-consultations',
+    intervalMs: 5 * MINUTE,
+    run: async () => {
+      const result = await expireUnservedConsultations();
+      return result.expired + result.needingReview;
+    },
+    describe: (count) => `ended ${count} consultation(s) past their deadline`,
+  },
+  {
+    /*
+     * The recovery window, which is minutes rather than hours (D61).
+     *
+     * Runs every minute because fifteen minutes is the whole window: a sweep
+     * every five would leave a patient a third of it past the end still being
+     * offered a rejoin that no longer works.
+     */
+    name: 'expire-recovery-windows',
+    intervalMs: 60 * SECOND,
+    run: expireRecoveryWindows,
+    describe: (count) => `ended ${count} interrupted consultation(s) past recovery`,
   },
   {
     /*

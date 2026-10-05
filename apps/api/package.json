@@ -17,6 +17,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "tsx prisma/seed/index.ts",
+    "reconcile:consultations": "tsx scripts/reconcile-consultations.ts",
     "db:studio": "prisma studio",
     "db:reset-2fa": "tsx scripts/reset-demo-2fa.ts",
     "check:production-config": "tsx scripts/check-production-config.ts",
