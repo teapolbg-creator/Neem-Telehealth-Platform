@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request } from '../helpers/app.ts';
@@ -195,6 +196,11 @@ function book(cookies: Record<string, string>, serviceCode: string) {
         reason: 'Wants to lose weight before a wedding',
         acceptsRemoteConsultation: true,
         readEmergencyGuidance: true,
+        // What D60 added: the address s.103 requires on a prescription, and
+        // explicit consent to the processing of health information.
+        address: 'Dansoman, Accra',
+        acceptsDataProcessing: true,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       },
     },
   );

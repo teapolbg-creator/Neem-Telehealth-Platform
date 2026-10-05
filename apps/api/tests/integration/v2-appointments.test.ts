@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request } from '../helpers/app.ts';
@@ -187,6 +188,11 @@ const INTAKE = {
   reason: 'Wants help with a weight-loss plan',
   acceptsRemoteConsultation: true as const,
   readEmergencyGuidance: true as const,
+  // What D60 added: the address s.103 requires on a prescription, and
+  // explicit consent to the processing of health information.
+  address: 'Dansoman, Accra',
+  acceptsDataProcessing: true as const,
+  privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
 };
 
 function book(cookies: Record<string, string>, slot: Slot) {

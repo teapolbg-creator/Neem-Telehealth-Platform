@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request } from '../helpers/app.ts';
@@ -152,6 +153,11 @@ const BOOKING = {
   reason: 'Persistent cough for four days',
   acceptsRemoteConsultation: true as const,
   readEmergencyGuidance: true as const,
+  // What D60 added: the address s.103 requires on a prescription, and
+  // explicit consent to the processing of health information.
+  address: 'Dansoman, Accra',
+  acceptsDataProcessing: true as const,
+  privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
 };
 
 function book(cookies: Record<string, string>, overrides: Record<string, unknown> = {}) {
@@ -202,8 +208,25 @@ describe('booking a consultation', () => {
     expect(consents.map((row) => row.purpose).sort()).toEqual([
       'consultation.emergency-guidance',
       'consultation.remote',
+      // Explicit consent to the processing of health information (D60), which
+      // s.37 of Act 843 is the reason for.
+      'data.processing',
     ]);
     expect(consents.every((row) => row.granted)).toBe(true);
+
+    /*
+     * And the evidence names the text they agreed to.
+     *
+     * A consent row recording only "they agreed" is worth very little: the
+     * words change, and the question a regulator or a patient asks later is
+     * what the patient was actually shown. So the version is asserted rather
+     * than assumed, on every one of them.
+     */
+    for (const row of consents) {
+      expect((row.evidence as { noticeVersion?: string }).noticeVersion).toBe(
+        PRIVACY_NOTICE_VERSION,
+      );
+    }
   });
 
   it('is refused when no doctor is on duty, before any price is charged', async () => {

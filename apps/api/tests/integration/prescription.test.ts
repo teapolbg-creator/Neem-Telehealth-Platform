@@ -270,6 +270,105 @@ describe('issuing a prescription', () => {
 // Scenarios 9 and 10 — revocation and its limit
 // ---------------------------------------------------------------------------
 
+/**
+ * What s.103 of Act 857 requires of a valid prescription (D60).
+ *
+ * Counsel's answer to Q4: a valid prescription must state the name,
+ * qualification and address of the person signing it, and the name and address
+ * of the person treated. Three of those were absent — the prescriber's
+ * qualification and address, and the patient's address, which was collected
+ * nowhere at all.
+ *
+ * These assert the two halves that matter: the elements are carried on the
+ * document, and a prescription that would lack any of them is never created.
+ * The PDF is checked the way every PDF here is, by being a PDF — PDFKit subsets
+ * its fonts, so the text is not recoverable from the bytes, and asserting the
+ * stored values is the stronger claim anyway because that is what the renderer
+ * is handed.
+ */
+describe('the statutory contents of a prescription', () => {
+  it('carries the prescriber’s and the patient’s details, copied by value', async () => {
+    const fixture = await liveConsultation();
+    const draft = await createDraft(fixture.consultationId, fixture.doctorId, [ITEM]);
+
+    const stored = await getPrisma().prescription.findUniqueOrThrow({ where: { id: draft.id } });
+
+    expect(stored.patientAddress).toBe('Dansoman, Accra');
+    expect(stored.prescriberQualification).toBe('MB ChB');
+    expect(stored.prescriberAddress).toBe('Ridge Clinic, Accra');
+  });
+
+  it('keeps them when the prescriber later moves practice', async () => {
+    const fixture = await liveConsultation();
+    const draft = await createDraft(fixture.consultationId, fixture.doctorId, [ITEM]);
+
+    // The document in a patient's hands must not be rewritten behind them.
+    await getPrisma().doctor.update({
+      where: { id: fixture.doctorId },
+      data: { qualification: 'BDS', practiceAddress: 'Somewhere Else Entirely' },
+    });
+
+    const stored = await getPrisma().prescription.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(stored.prescriberQualification).toBe('MB ChB');
+    expect(stored.prescriberAddress).toBe('Ridge Clinic, Accra');
+  });
+
+  it('refuses one when the patient has no address', async () => {
+    const fixture = await liveConsultation();
+    await getPrisma().patientSession.update({
+      where: { consultationId: fixture.consultationId },
+      data: { addressEnc: null },
+    });
+
+    await expect(createDraft(fixture.consultationId, fixture.doctorId, [ITEM])).rejects.toThrow(
+      /patient's address/i,
+    );
+
+    // Nothing was written: a refused prescription is not a draft.
+    expect(
+      await getPrisma().prescription.count({ where: { consultationId: fixture.consultationId } }),
+    ).toBe(0);
+  });
+
+  it('refuses one when the prescriber has no qualification or address', async () => {
+    const fixture = await liveConsultation();
+    await getPrisma().doctor.update({
+      where: { id: fixture.doctorId },
+      data: { qualification: null, practiceAddress: null },
+    });
+
+    // Named together, and pointed at the place the doctor can fix them.
+    await expect(createDraft(fixture.consultationId, fixture.doctorId, [ITEM])).rejects.toThrow(
+      /your qualification and your practice address/i,
+    );
+    await expect(createDraft(fixture.consultationId, fixture.doctorId, [ITEM])).rejects.toThrow(
+      /your profile/i,
+    );
+  });
+
+  it('lets the doctor supply their own details, and then prescribe', async () => {
+    const fixture = await liveConsultation();
+    await getPrisma().doctor.update({
+      where: { id: fixture.doctorId },
+      data: { qualification: null, practiceAddress: null },
+    });
+
+    const cookies = await signIn(fixture.doctorEmail, DOCTOR_PASSWORD);
+    const saved = await request('/doctor/profile/prescriber-details', {
+      method: 'PATCH',
+      cookies,
+      payload: { qualification: 'MB ChB, MGCPS', practiceAddress: 'Korle Bu, Accra' },
+    });
+    expect(saved.status).toBe(200);
+
+    const draft = await createDraft(fixture.consultationId, fixture.doctorId, [ITEM]);
+    const stored = await getPrisma().prescription.findUniqueOrThrow({ where: { id: draft.id } });
+
+    expect(stored.prescriberQualification).toBe('MB ChB, MGCPS');
+    expect(stored.prescriberAddress).toBe('Korle Bu, Accra');
+  });
+});
+
 describe('revocation', () => {
   it('revokes before dispensing, with a recorded reason (scenario 9)', async () => {
     const fixture = await liveConsultation();
