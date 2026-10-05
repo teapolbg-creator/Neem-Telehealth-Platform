@@ -88,6 +88,20 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     /**
+     * Which commit is actually running (D62).
+     *
+     * Render sets `RENDER_GIT_COMMIT` on every service it builds from a
+     * repository, so this needs nothing at build time and nothing in
+     * `render.yaml`. `GIT_COMMIT` is the generic fallback for anywhere that is
+     * not Render — a container built by hand, a future host.
+     *
+     * Optional everywhere, including production: a deployment that cannot say
+     * which commit it is should still serve patients. It reports "unknown" and
+     * the operator loses a convenience, not a consultation.
+     */
+    RENDER_GIT_COMMIT: z.string().optional(),
+    GIT_COMMIT: z.string().optional(),
+    /**
      * Which deployment this is, as distinct from how it was built (v2 plan §9).
      *
      * Staging runs a production build — NODE_ENV=production, real providers,

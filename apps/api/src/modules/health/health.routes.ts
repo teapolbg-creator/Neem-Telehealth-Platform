@@ -16,10 +16,33 @@ import { getPrisma } from '../../db/prisma.ts';
  * dashboard needs (spec §88, §93) — is at `/admin/system-health` below,
  * because that is configuration and strangers have no business reading it.
  */
+/**
+ * The commit this process is running, shortened (D62).
+ *
+ * **Why it is here at all.** A deploy could not be verified from outside: every
+ * build answers `/health` identically, so "is the new code live?" could only be
+ * inferred from a behaviour change, and when a release added no new route there
+ * was nothing to ask. That produced three wrong calls in one afternoon,
+ * including reporting a deploy as live while it was returning 502.
+ *
+ * **Why only seven characters.** This endpoint is unauthenticated, and an exact
+ * build identifier is a small piece of information about a system an attacker
+ * would otherwise have to guess at. Seven hex characters are enough for an
+ * operator to compare against `git rev-parse --short HEAD` and worth nothing to
+ * anyone without the repository, which is private. The full SHA stays out of
+ * public responses.
+ */
+function runningCommit(): string {
+  const env = getEnv();
+  const commit = env.RENDER_GIT_COMMIT ?? env.GIT_COMMIT;
+
+  return commit ? commit.slice(0, 7) : 'unknown';
+}
+
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async (request, reply) =>
     reply.send({
-      data: { status: 'ok', service: 'neem-api' },
+      data: { status: 'ok', service: 'neem-api', commit: runningCommit() },
       meta: { requestId: request.correlationId },
     }),
   );
@@ -55,7 +78,9 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
      * moved to `GET /admin/system-health`, behind authentication.
      */
     return reply.status(ready ? 200 : 503).send({
-      data: { status: ready ? 'ready' : 'degraded' },
+      // The commit here too, so one request answers both 'is it up' and
+      // 'is it the build I just pushed' (D62).
+      data: { status: ready ? 'ready' : 'degraded', commit: runningCommit() },
       meta: { requestId: request.correlationId },
     });
   });

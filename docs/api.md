@@ -409,6 +409,25 @@ needed to route traffic and all of it names the integrations worth attacking.
 It lives at `/admin/system-health` now, where an administrator can see at a
 glance whether this deployment can actually take money and send messages.
 
+**Both probes name the running build (D62).** `commit` is the first seven
+characters of the deployed commit, from `RENDER_GIT_COMMIT` where Render sets it
+and `GIT_COMMIT` anywhere else, or `unknown` where neither is set — a deployment
+that cannot name itself still serves patients.
+
+It exists because a deploy could not be verified from outside. Every build
+answered these endpoints identically, so "is the new code live?" could only be
+inferred from a behaviour change, and a release that added no new route gave
+nothing to ask. Verifying one is now a single request:
+
+```
+curl -s https://api.neemtelehealth.com/api/v1/health | jq -r .data.commit
+git rev-parse --short HEAD
+```
+
+Seven characters rather than the full hash, deliberately: these endpoints are
+unauthenticated, and an exact build identifier is worth something to an attacker
+and nothing to anyone without the repository, which is private.
+
 ---
 
 ## 7. Public

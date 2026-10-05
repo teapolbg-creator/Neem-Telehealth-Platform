@@ -18,13 +18,13 @@
  * timestamps and counts.
  */
 
-import process from "node:process";
-import { PrismaClient } from "@prisma/client";
+import process from 'node:process';
+import { PrismaClient } from '@prisma/client';
 
 const args = process.argv.slice(2);
-const APPLY = args.includes("--apply");
-const JSON_OUT = args.includes("--json");
-const REFERENCE = args[args.indexOf("--reference") + 1];
+const APPLY = args.includes('--apply');
+const JSON_OUT = args.includes('--json');
+const REFERENCE = args[args.indexOf('--reference') + 1];
 
 const prisma = new PrismaClient();
 
@@ -42,10 +42,10 @@ async function lifetimeColumns() {
   );
   const present = new Set((rows as Array<{ column_name: string }>).map((row) => row.column_name));
   return {
-    unservedDeadlineAt: present.has("unservedDeadlineAt"),
-    firstStartedAt: present.has("firstStartedAt"),
-    rejoinableUntil: present.has("rejoinableUntil"),
-    interruptedAt: present.has("interruptedAt"),
+    unservedDeadlineAt: present.has('unservedDeadlineAt'),
+    firstStartedAt: present.has('firstStartedAt'),
+    rejoinableUntil: present.has('rejoinableUntil'),
+    interruptedAt: present.has('interruptedAt'),
   };
 }
 
@@ -58,16 +58,16 @@ let COLUMNS = {
 
 /** States a consultation can sit in while somebody is still owed something. */
 const OPEN_STATES = [
-  "ACTIVATED",
-  "WAITING_FOR_PATIENT",
-  "PATIENT_JOINED",
-  "WAITING_FOR_DOCTOR",
-  "ASSIGNED",
-  "REASSIGNING",
-  "DOCTOR_ACCEPTED",
-  "IN_PROGRESS",
-  "INTERRUPTED",
-  "COMPLETING",
+  'ACTIVATED',
+  'WAITING_FOR_PATIENT',
+  'PATIENT_JOINED',
+  'WAITING_FOR_DOCTOR',
+  'ASSIGNED',
+  'REASSIGNING',
+  'DOCTOR_ACCEPTED',
+  'IN_PROGRESS',
+  'INTERRUPTED',
+  'COMPLETING',
 ];
 
 /**
@@ -81,7 +81,7 @@ const OPEN_STATES = [
 async function attendanceFor(consultationId: string) {
   const [joined, notes, prescriptions, referrals, summaries] = await Promise.all([
     prisma.callAttendanceEvent.count({
-      where: { consultationId, participant: "DOCTOR", event: "JOINED" },
+      where: { consultationId, participant: 'DOCTOR', event: 'JOINED' },
     }),
     prisma.consultationClinicalNotes.count({ where: { consultationId } }),
     prisma.prescription.count({ where: { consultationId } }),
@@ -97,11 +97,63 @@ async function attendanceFor(consultationId: string) {
     attended: total > 0,
     // "No evidence" is not "no care". It is the absence of a record, which is
     // why these go to a person rather than to a sweep.
-    verdict: total > 0 ? "ATTENDED" : "NO_EVIDENCE_OF_ATTENDANCE",
+    verdict: total > 0 ? 'ATTENDED' : 'NO_EVIDENCE_OF_ATTENDANCE',
   };
 }
 
-async function classify(consultation: any) {
+/**
+ * A consultation row as this script reads it.
+ *
+ * The lifetime fields are optional because the database may predate them: the
+ * select above asks only for the columns that exist, and this type says so
+ * rather than pretending every deployment has them.
+ */
+interface ConsultationRow {
+  id: string;
+  publicId: string;
+  state: string;
+  pharmacyId: string | null;
+  createdAt: Date;
+  activatedAt: Date | null;
+  queuedAt: Date | null;
+  assignedAt: Date | null;
+  startedAt: Date | null;
+  unservedDeadlineAt?: Date | null;
+  firstStartedAt?: Date | null;
+  rejoinableUntil?: Date | null;
+  interruptedAt?: Date | null;
+  appointment: { startsAt: Date; state: string } | null;
+  queueEntry: { state: string; enqueuedAt: Date } | null;
+  payments: Array<{ amountMinor: number; currency: string; createdAt: Date }>;
+  refunds: Array<{ state: string; reason: string }>;
+}
+
+/** One line of the report: what is wrong, and what a repair would do. */
+interface Finding {
+  reference: string;
+  state: string;
+  channel: string;
+  scheduled: boolean;
+  problems: string[];
+  proposal: string;
+  attendance: { verdict: string; attended: boolean; signals: Record<string, number | boolean> };
+  paid: boolean;
+  amountMinor: number | null;
+  queueState: string | null;
+  refundState: string | null;
+  activatedAt: Date | null;
+  queuedAt: Date | null;
+  firstStartedAt: Date | null;
+  interruptedAt: Date | null;
+  rejoinableUntil: Date | null;
+  unservedDeadlineAt: Date | null;
+  appointmentStartsAt: Date | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  assignedAt: Date | null;
+}
+
+async function classify(consultation: ConsultationRow): Promise<Finding> {
   const attendance = await attendanceFor(consultation.id);
   const paid = consultation.payments.length > 0;
   const refund = consultation.refunds[0] ?? null;
@@ -118,30 +170,30 @@ async function classify(consultation: any) {
 
   const problems = [];
 
-  if (paid && !queue && ["ACTIVATED", "WAITING_FOR_PATIENT"].includes(consultation.state)) {
-    problems.push("PAID_BUT_NEVER_QUEUED");
+  if (paid && !queue && ['ACTIVATED', 'WAITING_FOR_PATIENT'].includes(consultation.state)) {
+    problems.push('PAID_BUT_NEVER_QUEUED');
   }
   if (
     queue &&
-    ["WAITING", "OFFERING"].includes(queue.state) &&
+    ['WAITING', 'OFFERING'].includes(queue.state) &&
     !OPEN_STATES.includes(consultation.state)
   ) {
-    problems.push("STALE_QUEUE_ENTRY");
+    problems.push('STALE_QUEUE_ENTRY');
   }
   if (paid && COLUMNS.unservedDeadlineAt && !consultation.unservedDeadlineAt) {
     // Everything paid for before D61 existed. They have no deadline, so no
     // sweep can see them; this is the list that needs a decision.
-    problems.push("NO_DEADLINE_RECORDED");
+    problems.push('NO_DEADLINE_RECORDED');
   }
-  if (deadline && deadline < now) problems.push("PAST_DEADLINE");
-  if (consultation.state === "IN_PROGRESS" && !attendance.attended) {
-    problems.push("IN_PROGRESS_WITHOUT_ATTENDANCE");
+  if (deadline && deadline < now) problems.push('PAST_DEADLINE');
+  if (consultation.state === 'IN_PROGRESS' && !attendance.attended) {
+    problems.push('IN_PROGRESS_WITHOUT_ATTENDANCE');
   }
 
   return {
     reference: consultation.publicId,
     state: consultation.state,
-    channel: consultation.pharmacyId ? "COUNTER" : "DIRECT",
+    channel: consultation.pharmacyId ? 'COUNTER' : 'DIRECT',
     scheduled: Boolean(consultation.appointment),
     appointmentStartsAt: consultation.appointment?.startsAt ?? null,
     createdAt: consultation.createdAt,
@@ -167,14 +219,14 @@ async function classify(consultation: any) {
      */
     proposal:
       problems.length === 0
-        ? "NONE"
+        ? 'NONE'
         : attendance.attended
-          ? "REVIEW_BY_HAND"
-          : problems.includes("PAST_DEADLINE")
-            ? "EXPIRE_AND_REQUEST_REFUND"
-            : problems.includes("PAID_BUT_NEVER_QUEUED")
-              ? "ADMIT_TO_QUEUE"
-              : "REVIEW_BY_HAND",
+          ? 'REVIEW_BY_HAND'
+          : problems.includes('PAST_DEADLINE')
+            ? 'EXPIRE_AND_REQUEST_REFUND'
+            : problems.includes('PAID_BUT_NEVER_QUEUED')
+              ? 'ADMIT_TO_QUEUE'
+              : 'REVIEW_BY_HAND',
   };
 }
 
@@ -188,12 +240,12 @@ async function main() {
   if (missing.length > 0) {
     console.log(
       [
-        "",
-        `This database predates the consultation-lifetime fix: ${missing.join(", ")} absent.`,
-        "Everything below is still accurate. The deadline columns read as empty, which is",
-        "itself the finding: nothing here has a deadline, so nothing can expire on its own.",
-        "",
-      ].join("\n"),
+        '',
+        `This database predates the consultation-lifetime fix: ${missing.join(', ')} absent.`,
+        'Everything below is still accurate. The deadline columns read as empty, which is',
+        'itself the finding: nothing here has a deadline, so nothing can expire on its own.',
+        '',
+      ].join('\n'),
     );
   }
 
@@ -201,7 +253,7 @@ async function main() {
 
   const consultations = await prisma.consultation.findMany({
     where,
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: 'asc' },
     take: 500,
     select: {
       id: true,
@@ -230,12 +282,12 @@ async function main() {
       appointment: { select: { startsAt: true, state: true } },
       queueEntry: { select: { state: true, enqueuedAt: true } },
       payments: {
-        where: { status: "SUCCESS" },
+        where: { status: 'SUCCESS' },
         select: { amountMinor: true, currency: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: 1,
       },
-      refunds: { select: { state: true, reason: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      refunds: { select: { state: true, reason: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
 
@@ -253,7 +305,7 @@ async function main() {
   if (APPLY) await repair(flagged);
 }
 
-function report(rows: any[], flagged: any[]) {
+function report(rows: Finding[], flagged: Finding[]) {
   console.log(`\nScanned ${rows.length} open consultation(s). ${flagged.length} need attention.\n`);
 
   const buckets = new Map();
@@ -266,30 +318,30 @@ function report(rows: any[], flagged: any[]) {
     console.log(`  ${String(count).padStart(4)}  ${problem}`);
   }
 
-  console.log("");
+  console.log('');
   for (const row of flagged) {
     console.log(
-      `${row.reference}  ${row.state}  ${row.channel}${row.scheduled ? "  SCHEDULED" : ""}`,
+      `${row.reference}  ${row.state}  ${row.channel}${row.scheduled ? '  SCHEDULED' : ''}`,
     );
-    console.log(`    problems    ${row.problems.join(", ")}`);
+    console.log(`    problems    ${row.problems.join(', ')}`);
     console.log(`    proposal    ${row.proposal}`);
     console.log(
       `    attendance  ${row.attendance.verdict}  ${JSON.stringify(row.attendance.signals)}`,
     );
     console.log(
-      `    paid        ${row.paid ? `yes (${row.amountMinor} minor)` : "no"}   refund: ${row.refundState ?? "none"}`,
+      `    paid        ${row.paid ? `yes (${row.amountMinor} minor)` : 'no'}   refund: ${row.refundState ?? 'none'}`,
     );
-    console.log(`    queue       ${row.queueState ?? "none"}`);
+    console.log(`    queue       ${row.queueState ?? 'none'}`);
     console.log(
       `    timeline    activated=${iso(row.activatedAt)} queued=${iso(row.queuedAt)} started=${iso(row.firstStartedAt)} interrupted=${iso(row.interruptedAt)}`,
     );
     console.log(
       `    deadlines   unserved=${iso(row.unservedDeadlineAt)} recovery=${iso(row.rejoinableUntil)}`,
     );
-    console.log("");
+    console.log('');
   }
 
-  const byHand = flagged.filter((row) => row.proposal === "REVIEW_BY_HAND");
+  const byHand = flagged.filter((row) => row.proposal === 'REVIEW_BY_HAND');
   if (byHand.length > 0) {
     console.log(
       `${byHand.length} record(s) will NOT be touched by --apply: a professional attended, or the evidence is mixed. Decide these individually.\n`,
@@ -298,7 +350,7 @@ function report(rows: any[], flagged: any[]) {
 }
 
 function iso(value: Date | string | null) {
-  return value ? new Date(value).toISOString() : "-";
+  return value ? new Date(value).toISOString() : '-';
 }
 
 /**
@@ -310,7 +362,7 @@ function iso(value: Date | string | null) {
  * it is safe to run twice because every step re-reads the record and the state
  * machine refuses a second terminal transition.
  */
-async function repair(flagged: any[]) {
+async function repair(flagged: Finding[]) {
   if (!COLUMNS.unservedDeadlineAt) {
     console.log(
       [
@@ -324,11 +376,11 @@ async function repair(flagged: any[]) {
     return;
   }
 
-  const safe = flagged.filter((row) => row.proposal === "EXPIRE_AND_REQUEST_REFUND");
+  const safe = flagged.filter((row) => row.proposal === 'EXPIRE_AND_REQUEST_REFUND');
   console.log(`\n--apply: repairing ${safe.length} unambiguous record(s).\n`);
 
   const { expireUnservedConsultations } =
-    await import("../src/modules/consultation/unserved.service.ts");
+    await import('../src/modules/consultation/unserved.service.ts');
 
   // Give anything past its deadline a deadline the sweep can see, then let the
   // ordinary sweep do the work — the same code path production runs, rather
