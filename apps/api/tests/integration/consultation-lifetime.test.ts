@@ -617,6 +617,35 @@ describe('a consultation nobody is in any more', () => {
     expect(after.state).toBe('IN_PROGRESS');
   });
 
+  it('is not kept alive by the patient rejoining on their own', async () => {
+    const { consultationId } = await live();
+    await quietFor(consultationId, 180);
+
+    /*
+     * The shape the production record was actually in: the doctor long gone,
+     * and the most recent thing in the consultation being the patient tapping
+     * rejoin. Counting that as activity would let a patient hold a dead
+     * consultation open indefinitely by returning every couple of hours — and
+     * would contradict the premise of all this, that somebody alone in a room
+     * is not in a consultation.
+     */
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId,
+        participant: 'PATIENT',
+        event: 'JOINED',
+        source: 'CLIENT',
+        occurredAt: new Date(Date.now() - 60_000),
+      },
+    });
+
+    expect(await interruptStaleConsultations()).toBe(1);
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    expect(after.state).toBe('INTERRUPTED');
+  });
+
   it('is not expired out from under a doctor who is in the room', async () => {
     const { consultationId } = await live();
 
@@ -643,6 +672,39 @@ describe('a consultation nobody is in any more', () => {
       where: { id: consultationId },
     });
     expect(after.state).toBe('IN_PROGRESS');
+  });
+
+  it('closes the media room when the consultation ends, and blocks a rejoin after', async () => {
+    const { consultationId } = await live();
+
+    // A real room, opened the way a real one is.
+    await joinMediaSession(consultationId, 'PATIENT');
+    expect(await getPrisma().mediaSession.count({ where: { consultationId, endedAt: null } })).toBe(
+      1,
+    );
+
+    await quietFor(consultationId, 180);
+    expect(await interruptStaleConsultations()).toBe(1);
+    await overdue(consultationId, 'rejoinableUntil');
+    expect(await expireRecoveryWindows()).toBe(1);
+
+    /*
+     * The room is torn down, not merely hidden.
+     *
+     * A Whereby room URL is a bearer credential: whoever holds the address can
+     * open it. Leaving one standing on a consultation the record says is over
+     * is a way back into it that no screen controls.
+     */
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(await getPrisma().mediaSession.count({ where: { consultationId, endedAt: null } })).toBe(
+      0,
+    );
+
+    // And nobody can open a new one.
+    await expect(joinMediaSession(consultationId, 'PATIENT')).rejects.toThrow(/cannot be joined/i);
+
+    // Exactly one refund request, for a person to decide.
+    expect(await getPrisma().refund.count({ where: { consultationId } })).toBe(1);
   });
 
   it('refuses a rejoin once the consultation is past its deadline', async () => {

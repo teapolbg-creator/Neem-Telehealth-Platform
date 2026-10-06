@@ -181,13 +181,31 @@ async function lastActivityAt(
   startedAt: Date | null,
   db: Db = getPrisma(),
 ): Promise<Date | null> {
+  /*
+   * A professional's activity, not anybody's (D63).
+   *
+   * A consultation needs the professional: a patient alone in a room is not a
+   * consultation happening, which is the whole premise of this work. Counting
+   * their arrival as activity would also hand them a way to keep a dead
+   * consultation alive for ever — rejoining every couple of hours would push
+   * the stale threshold back each time, and the record in production that
+   * prompted this had exactly that shape, its most recent activity being the
+   * patient's own rejoin a week after the doctor had gone.
+   *
+   * `startedAt` is the floor rather than a fallback for the same reason: it is
+   * written when a professional joins, so it is itself a professional's
+   * activity.
+   */
   const latest = await db.callAttendanceEvent.findFirst({
-    where: { consultationId },
+    where: { consultationId, participant: 'DOCTOR' },
     orderBy: { occurredAt: 'desc' },
     select: { occurredAt: true },
   });
 
-  return latest?.occurredAt ?? startedAt;
+  if (!latest) return startedAt;
+  if (!startedAt) return latest.occurredAt;
+
+  return latest.occurredAt > startedAt ? latest.occurredAt : startedAt;
 }
 
 /**
