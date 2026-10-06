@@ -18,6 +18,7 @@ export const SETTING_KEYS = {
   PAYMENT_WINDOW_SECONDS: 'consultation.paymentWindowSeconds',
   CONSULTATION_RECOVERY_WINDOW_MINUTES: 'consultation.recoveryWindowMinutes',
   CONSULTATION_UNSERVED_DEADLINE_HOURS: 'consultation.unservedDeadlineHours',
+  CONSULTATION_STALE_IN_PROGRESS_MINUTES: 'consultation.staleInProgressMinutes',
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
   REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
@@ -128,6 +129,33 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'number',
     description:
       'How long a pending payment stays valid before the consultation expires (spec §35).',
+    category: 'consultation',
+  },
+  {
+    key: K.CONSULTATION_STALE_IN_PROGRESS_MINUTES,
+    value: 120,
+    valueType: 'number',
+    /*
+     * How long a consultation may sit IN_PROGRESS with nothing happening in it
+     * before it is treated as broken rather than running (D63).
+     *
+     * This is the hole the reported incident fell through. A consultation only
+     * left IN_PROGRESS when a doctor completed it, so one where the doctor
+     * closed their tab stayed "in progress" for ever — seven days, in the case
+     * that was reported, with the patient's timer still counting.
+     *
+     * Two hours, for a consultation whose target length is five minutes. It
+     * has to be generous because the signal is coarse: joining and leaving are
+     * recorded, talking is not, so a long quiet consultation looks identical to
+     * an abandoned one. Erring short would end calls that are still happening,
+     * which is far worse than ending an abandoned one late.
+     *
+     * It does not end the consultation. It marks it INTERRUPTED, which starts
+     * the recovery window and gives whoever dropped out a chance to come back.
+     * The timer still ends nothing (spec §15).
+     */
+    description:
+      'Minutes a consultation may sit in progress with no activity before it is marked interrupted (D63).',
     category: 'consultation',
   },
   {

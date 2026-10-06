@@ -91,6 +91,26 @@ export async function joinMediaSession(
         'finished; you will not be charged again.',
     );
   }
+
+  /*
+   * Past its deadline, nobody joins — whatever state it is in (D63).
+   *
+   * The recovery check above only looks at INTERRUPTED consultations, which
+   * left the case the incident actually took: a consultation stuck IN_PROGRESS
+   * accepted a rejoin seven days later, found its Whereby room long swept, and
+   * **minted a fresh one**. A room is a bearer credential, so that is not a
+   * cosmetic bug — it is opening a new way into a consultation that should
+   * have been closed.
+   *
+   * Checked before the room is opened rather than after, because the harm is
+   * the room existing.
+   */
+  if (consultation.unservedDeadlineAt && consultation.unservedDeadlineAt <= clock.now()) {
+    throw errors.businessRule(
+      'This consultation has closed. Neem will be in touch about it, and you will not be ' +
+        'charged again.',
+    );
+  }
   if (!consultation.type) {
     throw errors.businessRule('No consultation type has been chosen.');
   }

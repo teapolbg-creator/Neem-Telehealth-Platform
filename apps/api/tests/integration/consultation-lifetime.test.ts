@@ -26,11 +26,16 @@ import { verifyAndSettle } from '../../src/modules/payment/payment.service.ts';
 import {
   expireRecoveryWindows,
   expireUnservedConsultations,
+  interruptStaleConsultations,
   professionalEverConnected,
   recordUnservedDeadline,
 } from '../../src/modules/consultation/unserved.service.ts';
 import { transition } from '../../src/modules/consultation/consultation.service.ts';
-import { getTimer, interruptConsultation } from '../../src/modules/media/media.service.ts';
+import {
+  getTimer,
+  interruptConsultation,
+  joinMediaSession,
+} from '../../src/modules/media/media.service.ts';
 import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
 
 /**
@@ -335,14 +340,26 @@ describe('expiry at the deadline', () => {
     await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
     await transition(consultation.id, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'test' });
 
-    // The evidence that somebody was actually in the room.
+    /*
+     * Evidence that somebody was in the room, and that it was a long time ago.
+     *
+     * The timestamp matters: a consultation a doctor joined moments ago is
+     * live, and expiry leaves those alone on purpose. This one is the case the
+     * test is about — attended, then abandoned, and never finished.
+     */
+    const longAgo = new Date(Date.now() - 6 * 3_600_000);
     await getPrisma().callAttendanceEvent.create({
       data: {
         consultationId: consultation.id,
         participant: 'DOCTOR',
         event: 'JOINED',
         source: 'CLIENT',
+        occurredAt: longAgo,
       },
+    });
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { startedAt: longAgo, firstStartedAt: longAgo },
     });
 
     await overdue(consultation.id, 'unservedDeadlineAt');
@@ -532,6 +549,122 @@ describe('the consultation clock', () => {
   });
 });
 
+describe('a consultation nobody is in any more', () => {
+  /** A consultation a doctor joined and then stopped attending. */
+  async function live() {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+    await transition(consultation.id, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'test' });
+    return { consultationId: consultation.id, doctorId: doctor.id };
+  }
+
+  /** Moves the consultation's last activity into the past. */
+  async function quietFor(consultationId: string, minutes: number) {
+    const when = new Date(Date.now() - minutes * 60_000);
+    await getPrisma().consultation.update({
+      where: { id: consultationId },
+      data: { startedAt: when, firstStartedAt: when },
+    });
+    await getPrisma().callAttendanceEvent.updateMany({
+      where: { consultationId },
+      data: { occurredAt: when },
+    });
+  }
+
+  it('is marked interrupted, not ended, once it has gone quiet', async () => {
+    const { consultationId } = await live();
+    await quietFor(consultationId, 180);
+
+    expect(await interruptStaleConsultations()).toBe(1);
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    /*
+     * INTERRUPTED rather than terminal: whoever dropped out gets the recovery
+     * window before anything is decided about them or their money.
+     */
+    expect(after.state).toBe('INTERRUPTED');
+    expect(after.rejoinableUntil).not.toBeNull();
+    expect(after.interruptedAt).not.toBeNull();
+  });
+
+  it('leaves a consultation alone while it is still being attended', async () => {
+    const { consultationId } = await live();
+
+    // Started three hours ago, but somebody was in the room a minute ago.
+    await quietFor(consultationId, 180);
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId,
+        participant: 'DOCTOR',
+        event: 'JOINED',
+        source: 'CLIENT',
+        occurredAt: new Date(Date.now() - 60_000),
+      },
+    });
+
+    expect(await interruptStaleConsultations()).toBe(0);
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    expect(after.state).toBe('IN_PROGRESS');
+  });
+
+  it('is not expired out from under a doctor who is in the room', async () => {
+    const { consultationId } = await live();
+
+    // The unserved deadline is measured from payment, so a long-running
+    // consultation can reach it while somebody is still in the call.
+    await getPrisma().consultation.update({
+      where: { id: consultationId },
+      data: { unservedDeadlineAt: new Date(Date.now() - 60_000) },
+    });
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId,
+        participant: 'DOCTOR',
+        event: 'JOINED',
+        source: 'CLIENT',
+        occurredAt: new Date(Date.now() - 30_000),
+      },
+    });
+
+    const result = await expireUnservedConsultations();
+
+    expect(result.expired + result.needingReview).toBe(0);
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    expect(after.state).toBe('IN_PROGRESS');
+  });
+
+  it('refuses a rejoin once the consultation is past its deadline', async () => {
+    const { consultationId } = await live();
+    await getPrisma().consultation.update({
+      where: { id: consultationId },
+      data: { unservedDeadlineAt: new Date(Date.now() - 60_000) },
+    });
+
+    const roomsBefore = await getPrisma().mediaSession.count({ where: { consultationId } });
+
+    /*
+     * The incident exactly: a consultation stuck IN_PROGRESS accepted a rejoin
+     * a week later and minted a fresh Whereby room. A room URL is a bearer
+     * credential, so the harm is the room existing.
+     */
+    await expect(joinMediaSession(consultationId, 'PATIENT')).rejects.toThrow(/has closed/i);
+
+    expect(await getPrisma().mediaSession.count({ where: { consultationId } })).toBe(roomsBefore);
+  });
+});
+
 describe('evidence that care was delivered', () => {
   it('is not inferred from a single timestamp', async () => {
     const { consultation } = await paidConsultation();
@@ -542,6 +675,72 @@ describe('evidence that care was delivered', () => {
       data: { startedAt: new Date(), firstStartedAt: new Date() },
     });
 
+    expect(await professionalEverConnected(consultation.id)).toBe(false);
+  });
+
+  it('recognises a doctor who joined before attendance events existed', async () => {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+    await transition(consultation.id, 'IN_PROGRESS', {
+      actorType: 'DOCTOR',
+      reason: 'media_session_joined',
+    });
+
+    /*
+     * The shape of every consultation that ran before D57: a doctor plainly
+     * joined, and there is no attendance row anywhere because the table did not
+     * exist yet.
+     *
+     * This is the case that made the reported incident report
+     * NO_EVIDENCE_OF_ATTENDANCE for a consultation a doctor had joined four
+     * seconds after accepting it. Reading that silence as "nobody came" would
+     * have refunded it as wholly undelivered.
+     */
+    await getPrisma().callAttendanceEvent.deleteMany({
+      where: { consultationId: consultation.id },
+    });
+    expect(
+      await getPrisma().callAttendanceEvent.count({ where: { consultationId: consultation.id } }),
+    ).toBe(0);
+
+    expect(await professionalEverConnected(consultation.id)).toBe(true);
+  });
+
+  it('recognises a doctor who joined after attendance events existed', async () => {
+    const { consultation } = await paidConsultation();
+
+    // The modern shape: an attendance row and no DOCTOR-led transition.
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId: consultation.id,
+        participant: 'DOCTOR',
+        event: 'JOINED',
+        source: 'WEBHOOK',
+      },
+    });
+
+    expect(await professionalEverConnected(consultation.id)).toBe(true);
+  });
+
+  it('does not count the patient’s own arrival as a professional attending', async () => {
+    const { consultation } = await paidConsultation();
+
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId: consultation.id,
+        participant: 'PATIENT',
+        event: 'JOINED',
+        source: 'CLIENT',
+      },
+    });
+
+    // Being in a room alone is not being seen, and must never read as care.
     expect(await professionalEverConnected(consultation.id)).toBe(false);
   });
 

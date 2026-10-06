@@ -12,6 +12,7 @@ import { cancelUnservedConsultations } from '../modules/queue/wait-limit.service
 import {
   expireRecoveryWindows,
   expireUnservedConsultations,
+  interruptStaleConsultations,
 } from '../modules/consultation/unserved.service.ts';
 import { admitStrandedBookings } from '../modules/patient-booking/patient-booking.service.ts';
 import {
@@ -140,6 +141,26 @@ const JOBS: JobDefinition[] = [
     intervalMs: 60 * SECOND,
     run: expireRecoveryWindows,
     describe: (count) => `ended ${count} interrupted consultation(s) past recovery`,
+  },
+  {
+    /*
+     * Consultations nobody is in any more (D63).
+     *
+     * A consultation only left IN_PROGRESS when a doctor completed it, so one
+     * whose doctor closed their tab stayed there permanently — and with no
+     * queue entry, no other sweep could see it. That is how a patient came
+     * back a week later to a running timer.
+     *
+     * This marks them INTERRUPTED rather than ending them, which starts the
+     * recovery window and gives whoever dropped out their fifteen minutes. It
+     * reaches consultations with no deadline too, because it asks when
+     * something last happened rather than when a deadline was set — those are
+     * exactly the records that have no other way out.
+     */
+    name: 'interrupt-stale-consultations',
+    intervalMs: 5 * MINUTE,
+    run: interruptStaleConsultations,
+    describe: (count) => `marked ${count} inactive consultation(s) interrupted`,
   },
   {
     /*

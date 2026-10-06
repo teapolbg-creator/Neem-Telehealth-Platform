@@ -1991,3 +1991,65 @@ the suite did not catch this because the suite had been taught to expect it.
 
 Covered by `tests/integration/consultation-lifetime.test.ts` (17 cases) and the
 revised recovery cases in `tests/integration/call-recovery.test.ts`.
+
+### D63 — A consultation nobody is in stops being in progress, and the absence of a record is not evidence · 2026-10-06 · **DECIDED**
+
+**Issue.** Tracing the reported incident on production exposed two faults that
+[D61](#d61) had not closed, one of them in the tool built to investigate it.
+
+**The evidence test was wrong about every older consultation.**
+`professionalEverConnected` asked for attendance events, clinical content and
+documents. `CallAttendanceEvent` shipped with [D57](#d57) on 29 September; the
+reported consultation ran on 28 September, so no attendance row could exist and
+the test reported `NO_EVIDENCE_OF_ATTENDANCE` for a consultation whose state
+history shows a doctor joining the room **four seconds after accepting it**.
+
+That is not a reporting nuisance. The expiry sweep uses the same test, so had
+that record been given a deadline it would have been expired and refunded in
+full as "no professional attended" — a false statement about a doctor who was
+there. The absence of a record and a record of absence had been allowed to look
+identical, on the one question that decides money.
+
+**A consultation only left `IN_PROGRESS` when a doctor completed it.** D61 gave
+every paid consultation a deadline measured from payment, which ends one nobody
+ever reached. It does nothing for one a doctor joined and then walked away from:
+that has no queue entry, so no queue sweep sees it, and its deadline is about
+waiting rather than about the call. The reported consultation sat `IN_PROGRESS`
+for seven days and, when the patient tapped rejoin, **minted a fresh Whereby
+room** — because the recovery check only looked at `INTERRUPTED`.
+
+**Decision.**
+
+- **The evidence test also reads the state history.** A transition into
+  `IN_PROGRESS` performed by a `DOCTOR` is written by one path only — a
+  professional joining the room — and exists on every consultation ever
+  recorded. Tested against both shapes: the pre-D57 record with no attendance
+  row, and the modern one with no doctor-led transition.
+- **Joining is reported separately from delivering.** The reconciliation report
+  now answers in three parts: `CARE_DELIVERED` where a professional wrote
+  something, `JOINED_ONLY` where one was in the room and nothing records what
+  the patient got, and `NO_EVIDENCE`. The money question turns on that
+  difference, and two buckets forced it to be guessed.
+- **A consultation with no activity for two hours is marked `INTERRUPTED`**, not
+  ended. That starts the recovery window, so whoever dropped out has their
+  fifteen minutes. The threshold is coarse on purpose: joining and leaving are
+  recorded, talking is not, so a long quiet consultation is indistinguishable
+  from an abandoned one and ending a live call is much worse than ending an
+  abandoned one late. It finds records with **no deadline**, because it asks
+  when something last happened — which is what reaches the backlog.
+- **A rejoin past the deadline is refused before any room is opened**, in any
+  state. A Whereby room URL is a bearer credential, so the harm is the room
+  existing, not the patient seeing a button.
+- **Expiry never ends a consultation somebody is in.** The unserved deadline
+  runs from payment, so a doctor joining twenty-three hours later would have
+  been an hour from having it expire underneath them. A live call outranks a
+  deadline about waiting.
+
+**What the production report found.** Twenty-one consultations, of which exactly
+one was open: `NEEM-9433-3JQA-X23H`, classified `JOINED_ONLY`. The operator
+confirmed it was their own test booking and that no consultation took place — so
+the classification was right in both directions, which is the only useful kind
+of accuracy here. Seven refunds sit at `REQUESTED` with nobody having decided
+them, and one media session is still open.
+
+Covered by `tests/integration/consultation-lifetime.test.ts`, now 24 cases.

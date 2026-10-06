@@ -20,11 +20,95 @@
 
 import process from 'node:process';
 import { PrismaClient } from '@prisma/client';
+import { config as loadDotenv } from 'dotenv';
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
 const JSON_OUT = args.includes('--json');
-const REFERENCE = args[args.indexOf('--reference') + 1];
+/**
+ * The value after a flag, or undefined when the flag is absent.
+ *
+ * Written out because the obvious one-liner is wrong in a way that hides
+ * itself: `args[args.indexOf(flag) + 1]` returns `args[0]` when the flag is
+ * missing, because `indexOf` gives -1. With no arguments at all that is
+ * `undefined` and looks correct, which is exactly how it survived — the first
+ * run that passed any other flag silently scoped the entire report to a
+ * consultation named "--env" and reported nothing wrong.
+ */
+function flagValue(flag: string): string | undefined {
+  const at = args.indexOf(flag);
+  if (at === -1) return undefined;
+
+  const value = args[at + 1];
+  // A flag with nothing after it, or followed by another flag, has no value.
+  if (!value || value.startsWith('--')) return undefined;
+
+  return value;
+}
+
+const REFERENCE = flagValue('--reference');
+const ENV_FILE = flagValue('--env');
+
+/**
+ * Which database, named explicitly or not at all.
+ *
+ * Deliberately NOT falling back to the repository's `.env`. That file points at
+ * the local development database, and a reconciliation tool that quietly picks
+ * up whichever connection happens to be lying around is one mistyped command
+ * away from reporting on the wrong system — or, with `--apply`, repairing it.
+ *
+ * So the production run names its file: `--env .env.production.local`. Nothing
+ * is loaded without that flag, and `DATABASE_URL` already exported in the shell
+ * still works for anyone who prefers it.
+ */
+if (ENV_FILE) {
+  const loaded = loadDotenv({ path: ENV_FILE, override: true });
+  if (loaded.error) {
+    console.error(`Could not read ${ENV_FILE}: ${loaded.error.message}`);
+    process.exit(1);
+  }
+}
+
+if (!process.env.DATABASE_URL) {
+  console.error(
+    [
+      'No DATABASE_URL.',
+      '',
+      'Either export it, or name a file:',
+      '  npm run reconcile:consultations -- --env .env.production.local',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+
+/**
+ * Which database this is about to read, with nothing secret in it.
+ *
+ * Printed before anything else because the one mistake that matters here is
+ * pointing the tool at the wrong system and believing the output. Host and
+ * database name only: the user, the password and any query parameters are
+ * dropped rather than masked, so there is no version of this line that could
+ * leak a credential into a terminal, a screenshot or a pasted report.
+ */
+function describeTarget(): string {
+  try {
+    const url = new URL(process.env.DATABASE_URL!);
+    return `${url.hostname}/${url.pathname.replace(/^\//, '')}`;
+  } catch {
+    return 'an unparseable DATABASE_URL';
+  }
+}
+
+console.log(
+  [
+    '',
+    `Reading   ${describeTarget()}`,
+    APPLY
+      ? 'Mode      APPLY — this will write to the database'
+      : 'Mode      READ-ONLY — no record is modified',
+    '',
+  ].join('\n'),
+);
 
 const prisma = new PrismaClient();
 
@@ -79,7 +163,7 @@ const OPEN_STATES = [
  * to keep the record away from any automatic decision.
  */
 async function attendanceFor(consultationId: string) {
-  const [joined, notes, prescriptions, referrals, summaries] = await Promise.all([
+  const [joined, notes, prescriptions, referrals, summaries, doctorStarted] = await Promise.all([
     prisma.callAttendanceEvent.count({
       where: { consultationId, participant: 'DOCTOR', event: 'JOINED' },
     }),
@@ -87,17 +171,40 @@ async function attendanceFor(consultationId: string) {
     prisma.prescription.count({ where: { consultationId } }),
     prisma.referral.count({ where: { consultationId } }),
     prisma.consultationSummary.count({ where: { consultationId } }),
+    // The state history: a DOCTOR moving a consultation into IN_PROGRESS is
+    // written only by a professional joining the room, and unlike attendance
+    // events it exists on every consultation ever recorded.
+    prisma.consultationStateEvent.count({
+      where: { consultationId, toState: 'IN_PROGRESS', actorType: 'DOCTOR', accepted: true },
+    }),
   ]);
 
-  const signals = { joined, notes, prescriptions, referrals, summaries };
-  const total = joined + notes + prescriptions + referrals + summaries;
+  const signals = { joined, notes, prescriptions, referrals, summaries, doctorStarted };
+
+  /*
+   * Joining is not delivering, and the report must not blur them.
+   *
+   * A professional entering the room is a fact about a connection. Care being
+   * delivered is a fact about what the patient got, and the only durable trace
+   * of it is something a professional wrote: a note, a prescription, a
+   * referral, a summary. A doctor who joined, found the patient gone and
+   * closed the tab leaves the first and not the second.
+   *
+   * The money question turns on exactly that difference, so there are three
+   * answers rather than two, and the middle one is the honest place for a
+   * consultation this system cannot speak for.
+   */
+  const delivered = notes + prescriptions + referrals + summaries;
+  const connected = joined + doctorStarted;
+
+  const verdict = delivered > 0 ? 'CARE_DELIVERED' : connected > 0 ? 'JOINED_ONLY' : 'NO_EVIDENCE';
 
   return {
     signals,
-    attended: total > 0,
-    // "No evidence" is not "no care". It is the absence of a record, which is
-    // why these go to a person rather than to a sweep.
-    verdict: total > 0 ? 'ATTENDED' : 'NO_EVIDENCE_OF_ATTENDANCE',
+    // Anything a person must weigh rather than a sweep decide.
+    attended: connected > 0 || delivered > 0,
+    delivered: delivered > 0,
+    verdict,
   };
 }
 
@@ -136,7 +243,12 @@ interface Finding {
   scheduled: boolean;
   problems: string[];
   proposal: string;
-  attendance: { verdict: string; attended: boolean; signals: Record<string, number | boolean> };
+  attendance: {
+    verdict: string;
+    attended: boolean;
+    delivered: boolean;
+    signals: Record<string, number>;
+  };
   paid: boolean;
   amountMinor: number | null;
   queueState: string | null;
@@ -308,17 +420,40 @@ async function main() {
 function report(rows: Finding[], flagged: Finding[]) {
   console.log(`\nScanned ${rows.length} open consultation(s). ${flagged.length} need attention.\n`);
 
-  const buckets = new Map();
+  const problemCounts = new Map<string, number>();
   for (const row of flagged) {
     for (const problem of row.problems) {
-      buckets.set(problem, (buckets.get(problem) ?? 0) + 1);
+      problemCounts.set(problem, (problemCounts.get(problem) ?? 0) + 1);
     }
   }
-  for (const [problem, count] of [...buckets].sort((a, b) => b[1] - a[1])) {
+  for (const [problem, count] of [...problemCounts].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(count).padStart(4)}  ${problem}`);
   }
 
+  /*
+   * The three buckets, because they are three different decisions: one is a
+   * refund somebody confirms, one is a judgement, and one is a consultation
+   * that may have been worth what was paid for it.
+   */
+  const buckets = {
+    CARE_DELIVERED: flagged.filter((row) => row.attendance.verdict === 'CARE_DELIVERED'),
+    JOINED_ONLY: flagged.filter((row) => row.attendance.verdict === 'JOINED_ONLY'),
+    NO_EVIDENCE: flagged.filter((row) => row.attendance.verdict === 'NO_EVIDENCE'),
+  };
+
   console.log('');
+  console.log('By what the record can show:');
+  console.log(
+    `  ${String(buckets.CARE_DELIVERED.length).padStart(4)}  CARE_DELIVERED   a professional wrote something: notes, a prescription, a referral or a summary`,
+  );
+  console.log(
+    `  ${String(buckets.JOINED_ONLY.length).padStart(4)}  JOINED_ONLY      a professional was in the room; nothing records what the patient got`,
+  );
+  console.log(
+    `  ${String(buckets.NO_EVIDENCE.length).padStart(4)}  NO_EVIDENCE      no sign a professional ever arrived`,
+  );
+  console.log('');
+
   for (const row of flagged) {
     console.log(
       `${row.reference}  ${row.state}  ${row.channel}${row.scheduled ? '  SCHEDULED' : ''}`,

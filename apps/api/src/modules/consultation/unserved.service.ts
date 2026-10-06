@@ -136,17 +136,126 @@ export async function professionalEverConnected(
   consultationId: string,
   db: Db = getPrisma(),
 ): Promise<boolean> {
-  const [attendance, clinical, prescriptions, referrals, summary] = await Promise.all([
-    db.callAttendanceEvent.count({
-      where: { consultationId, participant: 'DOCTOR', event: 'JOINED' },
-    }),
-    hasClinicalContent(consultationId, db),
-    db.prescription.count({ where: { consultationId } }),
-    db.referral.count({ where: { consultationId } }),
-    db.consultationSummary.count({ where: { consultationId } }),
-  ]);
+  const [attendance, clinical, prescriptions, referrals, summary, doctorStarted] =
+    await Promise.all([
+      db.callAttendanceEvent.count({
+        where: { consultationId, participant: 'DOCTOR', event: 'JOINED' },
+      }),
+      hasClinicalContent(consultationId, db),
+      db.prescription.count({ where: { consultationId } }),
+      db.referral.count({ where: { consultationId } }),
+      db.consultationSummary.count({ where: { consultationId } }),
+      /*
+       * The state history, which every consultation has (D61).
+       *
+       * Attendance events only began with D57, so a consultation that ran before
+       * it has none — and asking only the newer tables declares every older
+       * consultation unattended. That is not a gap in the record, it is the
+       * record saying nothing, and the two must not look the same when the
+       * answer decides a refund.
+       *
+       * A transition into IN_PROGRESS performed by a DOCTOR is written by one
+       * path only: a professional joining the room. It is durable, it predates
+       * everything else here, and it is the evidence the reported incident
+       * turned on — that consultation showed no attendance at all and had in
+       * fact been joined by a doctor four seconds after they accepted it.
+       */
+      db.consultationStateEvent.count({
+        where: { consultationId, toState: 'IN_PROGRESS', actorType: 'DOCTOR', accepted: true },
+      }),
+    ]);
 
-  return attendance > 0 || clinical || prescriptions + referrals + summary > 0;
+  return attendance > 0 || clinical || prescriptions + referrals + summary > 0 || doctorStarted > 0;
+}
+
+/**
+ * When something last actually happened in this consultation.
+ *
+ * The most recent attendance event, or the moment it started if there are
+ * none. Used both to find consultations nobody is in and to protect ones
+ * somebody is — a sweep that cannot tell those apart has no business ending
+ * either.
+ */
+async function lastActivityAt(
+  consultationId: string,
+  startedAt: Date | null,
+  db: Db = getPrisma(),
+): Promise<Date | null> {
+  const latest = await db.callAttendanceEvent.findFirst({
+    where: { consultationId },
+    orderBy: { occurredAt: 'desc' },
+    select: { occurredAt: true },
+  });
+
+  return latest?.occurredAt ?? startedAt;
+}
+
+/**
+ * Marks consultations interrupted when nothing has happened in them (D63).
+ *
+ * The gap this closes: a consultation left IN_PROGRESS only when a doctor
+ * completed it. A doctor who closed their tab left it there permanently, and
+ * because it had no queue entry no other sweep could see it either. The
+ * reported incident sat like that for seven days with the patient's timer
+ * running.
+ *
+ * It does **not** end anything. It marks the consultation INTERRUPTED, which is
+ * what it actually is, and that starts the recovery window — so whoever dropped
+ * out has fifteen minutes to come back before it is abandoned. Nothing here
+ * decides money and the timer still ends nothing (spec §15).
+ *
+ * It also reaches consultations that predate `unservedDeadlineAt`, because it
+ * asks about activity rather than about a deadline. That is deliberate: those
+ * are exactly the records with no other way out.
+ */
+export async function interruptStaleConsultations(
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<number> {
+  const minutes = await getIntSetting(
+    SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES,
+    db,
+  ).catch(() => 120);
+  if (minutes <= 0) return 0;
+
+  const cutoff = new Date(clock.now().getTime() - minutes * 60_000);
+
+  const live = await db.consultation.findMany({
+    where: { state: 'IN_PROGRESS', startedAt: { not: null } },
+    select: { id: true, publicId: true, startedAt: true },
+    orderBy: { startedAt: 'asc' },
+    take: 100,
+  });
+
+  let interrupted = 0;
+
+  for (const consultation of live) {
+    try {
+      const activity = await lastActivityAt(consultation.id, consultation.startedAt, db);
+      if (!activity || activity > cutoff) continue;
+
+      const { interruptConsultation } = await import('../media/media.service.ts');
+      await interruptConsultation(
+        consultation.id,
+        { type: 'SYSTEM', note: 'No activity in this consultation; marked interrupted (D63).' },
+        db,
+        clock,
+      );
+      interrupted += 1;
+
+      getLogger().warn(
+        { consultationId: consultation.id, lastActivityAt: activity.toISOString() },
+        'marked a stale consultation interrupted',
+      );
+    } catch (error) {
+      getLogger().error(
+        { err: error, consultationPublicId: consultation.publicId },
+        'could not interrupt a stale consultation',
+      );
+    }
+  }
+
+  return interrupted;
 }
 
 export interface ExpirySweepResult {
@@ -306,6 +415,7 @@ async function endUnserved(
       id: true,
       publicId: true,
       state: true,
+      startedAt: true,
       unservedDeadlineAt: true,
       rejoinableUntil: true,
     },
@@ -327,6 +437,29 @@ async function endUnserved(
     cause === 'recovery_window_elapsed' ? fresh.rejoinableUntil : fresh.unservedDeadlineAt;
   if (!deadline || deadline >= clock.now()) return false;
   if (cause === 'recovery_window_elapsed' && fresh.state !== 'INTERRUPTED') return false;
+
+  /*
+   * Never end a consultation somebody is in the middle of (D63).
+   *
+   * The unserved deadline is measured from payment, so a doctor who joins
+   * twenty-three hours after a patient paid would be an hour from having the
+   * consultation expired underneath them. A live call outranks a deadline
+   * about waiting: the point of the deadline is that nobody came, and somebody
+   * plainly has.
+   *
+   * The stale sweep is what ends these instead, measured from when anything
+   * last happened rather than from the payment.
+   */
+  if (fresh.state === 'IN_PROGRESS') {
+    const staleMinutes = await getIntSetting(
+      SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES,
+      db,
+    ).catch(() => 120);
+    const activity = await lastActivityAt(consultationId, fresh.startedAt, db);
+    const quietSince = new Date(clock.now().getTime() - staleMinutes * 60_000);
+
+    if (activity && activity > quietSince) return false;
+  }
 
   /*
    * A consultation somebody attended is ABANDONED; one nobody attended
