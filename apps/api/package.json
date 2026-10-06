@@ -19,6 +19,7 @@
     "db:seed": "tsx prisma/seed/index.ts",
     "reconcile:consultations": "tsx scripts/reconcile-consultations.ts",
     "sweep:preview": "tsx scripts/sweep-preview.ts",
+    "verify:consultation": "tsx scripts/verify-consultation.ts",
     "db:studio": "prisma studio",
     "db:reset-2fa": "tsx scripts/reset-demo-2fa.ts",
     "check:production-config": "tsx scripts/check-production-config.ts",
