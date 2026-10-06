@@ -180,6 +180,7 @@ async function lastActivityAt(
   consultationId: string,
   startedAt: Date | null,
   db: Db = getPrisma(),
+  assignedAt: Date | null = null,
 ): Promise<Date | null> {
   /*
    * A professional's activity, not anybody's (D63).
@@ -202,10 +203,21 @@ async function lastActivityAt(
     select: { occurredAt: true },
   });
 
-  if (!latest) return startedAt;
-  if (!startedAt) return latest.occurredAt;
+  /*
+   * A consultation that never started still has a clock (D65).
+   *
+   * One sitting in DOCTOR_ACCEPTED has no `startedAt` — the professional
+   * accepted the offer and never joined — so without a fallback it had no
+   * measurable age and the sweep skipped it for ever. `assignedAt` is when the
+   * offer was made, and acceptance follows within ninety seconds, so it is a
+   * fair reading of how long this has been sitting there.
+   */
+  const floor = startedAt ?? assignedAt;
 
-  return latest.occurredAt > startedAt ? latest.occurredAt : startedAt;
+  if (!latest) return floor;
+  if (!floor) return latest.occurredAt;
+
+  return latest.occurredAt > floor ? latest.occurredAt : floor;
 }
 
 /**
@@ -238,10 +250,26 @@ export async function interruptStaleConsultations(
 
   const cutoff = new Date(clock.now().getTime() - minutes * 60_000);
 
+  /*
+   * Every state that holds the professional's slot, not only IN_PROGRESS (D65).
+   *
+   * Three states occupy a doctor, and this looked at one of them. A
+   * consultation stuck in DOCTOR_ACCEPTED — accepted, never joined, because the
+   * tab was closed — held the only slot that doctor has, and nothing could
+   * release it: this sweep could not see it, and the unserved deadline only
+   * exists for consultations paid for after that deadline was introduced. The
+   * doctor was then told "you are already with 1 of 1 patients" and stopped
+   * being offered anybody, permanently.
+   *
+   * COMPLETING is deliberately absent. It is a transactional state that lasts
+   * seconds and cannot be interrupted — its only exit is COMPLETED — so a
+   * consultation stuck there is a different fault needing a different answer,
+   * and quietly interrupting it is not available anyway.
+   */
   const live = await db.consultation.findMany({
-    where: { state: 'IN_PROGRESS', startedAt: { not: null } },
-    select: { id: true, publicId: true, startedAt: true },
-    orderBy: { startedAt: 'asc' },
+    where: { state: { in: ['IN_PROGRESS', 'DOCTOR_ACCEPTED'] } },
+    select: { id: true, publicId: true, state: true, startedAt: true, assignedAt: true },
+    orderBy: { updatedAt: 'asc' },
     take: 100,
   });
 
@@ -249,7 +277,12 @@ export async function interruptStaleConsultations(
 
   for (const consultation of live) {
     try {
-      const activity = await lastActivityAt(consultation.id, consultation.startedAt, db);
+      const activity = await lastActivityAt(
+        consultation.id,
+        consultation.startedAt,
+        db,
+        consultation.assignedAt,
+      );
       if (!activity || activity > cutoff) continue;
 
       const { interruptConsultation } = await import('../media/media.service.ts');
@@ -262,7 +295,11 @@ export async function interruptStaleConsultations(
       interrupted += 1;
 
       getLogger().warn(
-        { consultationId: consultation.id, lastActivityAt: activity.toISOString() },
+        {
+          consultationId: consultation.id,
+          from: consultation.state,
+          lastActivityAt: activity.toISOString(),
+        },
         'marked a stale consultation interrupted',
       );
     } catch (error) {

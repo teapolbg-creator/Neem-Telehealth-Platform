@@ -577,6 +577,67 @@ describe('a consultation nobody is in any more', () => {
     });
   }
 
+  it('releases a doctor stuck on a consultation they accepted and never joined', async () => {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+    // Acceptance is what takes the slot.
+    await getPrisma().doctorPresence.upsert({
+      where: { doctorId: doctor.id },
+      update: { currentLoad: 1, maxLoad: 1 },
+      create: { doctorId: doctor.id, currentLoad: 1, maxLoad: 1, onlineSince: new Date() },
+    });
+
+    /*
+     * Accepted hours ago and never joined, because the tab was closed. It has
+     * no startedAt at all, which is why the sweep could not measure its age
+     * and skipped it — and why the doctor was told "you are already with 1 of 1
+     * patients" and stopped being offered anybody.
+     */
+    const longAgo = new Date(Date.now() - 4 * 3_600_000);
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { assignedAt: longAgo, startedAt: null },
+    });
+
+    expect(await interruptStaleConsultations()).toBe(1);
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultation.id },
+    });
+    expect(after.state).toBe('INTERRUPTED');
+
+    // And the slot is back, which is the point.
+    const presence = await getPrisma().doctorPresence.findUniqueOrThrow({
+      where: { doctorId: doctor.id },
+    });
+    expect(presence.currentLoad).toBe(0);
+  });
+
+  it('leaves an offer a doctor has only just accepted alone', async () => {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+
+    // Accepted seconds ago: they are about to join.
+    expect(await interruptStaleConsultations()).toBe(0);
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultation.id },
+    });
+    expect(after.state).toBe('DOCTOR_ACCEPTED');
+  });
+
   it('is marked interrupted, not ended, once it has gone quiet', async () => {
     const { consultationId } = await live();
     await quietFor(consultationId, 180);
