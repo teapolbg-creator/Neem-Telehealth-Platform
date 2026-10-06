@@ -31,6 +31,7 @@ import {
   recordUnservedDeadline,
 } from '../../src/modules/consultation/unserved.service.ts';
 import { transition } from '../../src/modules/consultation/consultation.service.ts';
+import { getPresence } from '../../src/modules/queue/presence.service.ts';
 import {
   getTimer,
   interruptConsultation,
@@ -383,6 +384,104 @@ describe('expiry at the deadline', () => {
   });
 });
 
+describe('when the professional leaves the room', () => {
+  /** A consultation in progress with the doctor's attendance recorded. */
+  async function withDoctorIn() {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+    await transition(consultation.id, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'test' });
+    return { consultationId: consultation.id, doctorId: doctor.id };
+  }
+
+  /** Records what the professional's device did, at a chosen moment. */
+  async function professional(
+    consultationId: string,
+    event: 'JOINED' | 'LEFT',
+    minutesAgo: number,
+  ) {
+    await getPrisma().callAttendanceEvent.create({
+      data: {
+        consultationId,
+        participant: 'DOCTOR',
+        event,
+        source: 'CLIENT',
+        occurredAt: new Date(Date.now() - minutesAgo * 60_000),
+      },
+    });
+    await getPrisma().consultation.update({
+      where: { id: consultationId },
+      data: {
+        startedAt: new Date(Date.now() - (minutesAgo + 5) * 60_000),
+        firstStartedAt: new Date(Date.now() - (minutesAgo + 5) * 60_000),
+      },
+    });
+  }
+
+  it('holds the slot for fifteen minutes after they leave, then lets it go', async () => {
+    const { consultationId } = await withDoctorIn();
+    await professional(consultationId, 'LEFT', 10);
+
+    // Ten minutes: they may be straight back, and nothing moves.
+    expect(await interruptStaleConsultations()).toBe(0);
+
+    await getPrisma().callAttendanceEvent.deleteMany({ where: { consultationId } });
+    await professional(consultationId, 'LEFT', 20);
+
+    // Twenty: gone long enough to free the doctor for other patients.
+    expect(await interruptStaleConsultations()).toBe(1);
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    expect(after.state).toBe('INTERRUPTED');
+  });
+
+  it('waits two hours when they are silent rather than gone', async () => {
+    const { consultationId } = await withDoctorIn();
+    // Still in the room. Talking is not recorded, so silence proves nothing.
+    await professional(consultationId, 'JOINED', 40);
+
+    expect(await interruptStaleConsultations()).toBe(0);
+
+    await getPrisma().callAttendanceEvent.deleteMany({ where: { consultationId } });
+    await professional(consultationId, 'JOINED', 130);
+    expect(await interruptStaleConsultations()).toBe(1);
+  });
+
+  it('never releases a slot while the professional is actively consulting', async () => {
+    const { consultationId } = await withDoctorIn();
+
+    // A long consultation, with the doctor demonstrably still in it.
+    await professional(consultationId, 'LEFT', 200);
+    await professional(consultationId, 'JOINED', 2);
+
+    expect(await interruptStaleConsultations()).toBe(0);
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+    expect(after.state).toBe('IN_PROGRESS');
+  });
+
+  it('treats a reconnect as presence, however many tabs it came from', async () => {
+    const { consultationId } = await withDoctorIn();
+
+    // A flapping connection: left, back, left, back — all within the grace.
+    await professional(consultationId, 'LEFT', 12);
+    await professional(consultationId, 'JOINED', 11);
+    await professional(consultationId, 'LEFT', 9);
+    await professional(consultationId, 'JOINED', 8);
+
+    // The last thing their device said was that they are here.
+    expect(await interruptStaleConsultations()).toBe(0);
+  });
+});
+
 describe('the recovery window', () => {
   /** An interrupted consultation with a doctor who had joined the room. */
   async function interrupted() {
@@ -419,26 +518,92 @@ describe('the recovery window', () => {
     expect(minutes).toBeCloseTo(15, 1);
   });
 
-  it('is not extended by a second interruption', async () => {
+  it('clears the deadline when the professional resumes, leaving none behind', async () => {
+    const { consultationId } = await interrupted();
+
+    await transition(consultationId, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'resumed' });
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+
+    /*
+     * An obsolete deadline on a live consultation is what hid the patient's
+     * own "Unfinished" card: it takes the earliest deadline it can see, and
+     * this one had already passed.
+     */
+    expect(after.rejoinableUntil).toBeNull();
+    expect(after.interruptedAt).toBeNull();
+    // The budget survives, which is what stops the clearing being a loophole.
+    expect(after.firstInterruptedAt).not.toBeNull();
+  });
+
+  it('gives a later break a real window, measured from that break', async () => {
+    const { consultationId, doctorId } = await interrupted();
+    await transition(consultationId, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'resumed' });
+
+    await interruptConsultation(consultationId, { type: 'DOCTOR', id: doctorId });
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+
+    // Inheriting the first break's deadline would have made this one expire
+    // before the patient ever saw it.
+    expect(after.rejoinableUntil!.getTime()).toBeGreaterThan(Date.now());
+    expect(after.interruptedAt).not.toBeNull();
+  });
+
+  it('caps repeated breaks at one shared budget rather than renewing it', async () => {
+    const { consultationId, doctorId } = await interrupted();
+
+    // The first break was an hour ago, so the budget is spent.
+    const hourAgo = new Date(Date.now() - 61 * 60_000);
+    await getPrisma().consultation.update({
+      where: { id: consultationId },
+      data: { firstInterruptedAt: hourAgo },
+    });
+
+    await transition(consultationId, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'resumed' });
+    await interruptConsultation(consultationId, { type: 'DOCTOR', id: doctorId });
+
+    const after = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: consultationId },
+    });
+
+    /*
+     * Interrupt, resume, interrupt cannot run for ever. The window is clamped
+     * to what is left of the budget, which here is nothing — so it is already
+     * due and the next sweep ends it.
+     */
+    expect(after.rejoinableUntil!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(await expireRecoveryWindows()).toBe(1);
+  });
+
+  it('keeps one budget across every break, however many there are', async () => {
     const { consultationId, doctorId } = await interrupted();
     const first = await getPrisma().consultation.findUniqueOrThrow({
       where: { id: consultationId },
     });
 
-    // Resumed by the professional, then broken again.
     await transition(consultationId, 'IN_PROGRESS', { actorType: 'DOCTOR', reason: 'resumed' });
     await interruptConsultation(consultationId, { type: 'DOCTOR', id: doctorId });
 
     const second = await getPrisma().consultation.findUniqueOrThrow({
       where: { id: consultationId },
     });
-    // The window belongs to the first break. Otherwise a patient could hold a
-    // consultation open indefinitely by rejoining and dropping out.
-    expect(second.rejoinableUntil!.getTime()).toBe(first.rejoinableUntil!.getTime());
-    expect(second.interruptedAt!.getTime()).toBe(first.interruptedAt!.getTime());
+
+    /*
+     * The budget is anchored to the first break and never moves, which is what
+     * stops interrupt-resume-interrupt running for ever. The window itself is
+     * new, because inheriting the old one meant a later break arrived already
+     * expired.
+     */
+    expect(second.firstInterruptedAt!.getTime()).toBe(first.firstInterruptedAt!.getTime());
+    expect(second.rejoinableUntil!.getTime()).toBeGreaterThan(first.rejoinableUntil!.getTime());
   });
 
-  it('survives the professional resuming: the deadline is not cleared', async () => {
+  it('leaves no deadline behind when the professional resumes', async () => {
     const { consultationId } = await interrupted();
     const before = await getPrisma().consultation.findUniqueOrThrow({
       where: { id: consultationId },
@@ -450,11 +615,21 @@ describe('the recovery window', () => {
       where: { id: consultationId },
     });
     /*
-     * Clearing this was how one rejoin removed the only bound on the
-     * consultation's life: it went back to IN_PROGRESS with no deadline and no
-     * sweep could ever see it again.
+     * This asserted the opposite until D67, on the reasoning that clearing the
+     * deadline removed the only bound on the consultation's life. That was true
+     * when nothing else bounded it; it is not true now. What it actually did
+     * was leave an expired deadline on a live consultation, and the patient's
+     * own "Unfinished" card takes the earliest deadline it can see — so the
+     * card hid itself on a consultation that was still running.
+     *
+     * The bound now lives in `firstInterruptedAt`, which survives, and in the
+     * inactivity thresholds and the unserved deadline, which reach this
+     * consultation regardless.
      */
-    expect(after.rejoinableUntil?.getTime()).toBe(before.rejoinableUntil?.getTime());
+    expect(before.rejoinableUntil).not.toBeNull();
+    expect(after.rejoinableUntil).toBeNull();
+    expect(after.interruptedAt).toBeNull();
+    expect(after.firstInterruptedAt).not.toBeNull();
   });
 
   it('ends an interrupted consultation nobody came back to', async () => {
@@ -576,6 +751,58 @@ describe('a consultation nobody is in any more', () => {
       data: { occurredAt: when },
     });
   }
+
+  it('tells a doctor at capacity which consultation is holding them', async () => {
+    const { consultation } = await paidConsultation();
+    const doctor = await getPrisma().doctor.findFirstOrThrow();
+    await getPrisma().consultation.update({
+      where: { id: consultation.id },
+      data: { doctorId: doctor.id },
+    });
+    await transition(consultation.id, 'ASSIGNED', { actorType: 'SYSTEM', reason: 'test' });
+    await transition(consultation.id, 'DOCTOR_ACCEPTED', { actorType: 'DOCTOR', reason: 'test' });
+    await getPrisma().doctorPresence.upsert({
+      where: { doctorId: doctor.id },
+      update: { currentLoad: 1, maxLoad: 1, onlineSince: new Date(), lastHeartbeatAt: new Date() },
+      create: {
+        doctorId: doctor.id,
+        currentLoad: 1,
+        maxLoad: 1,
+        onlineSince: new Date(),
+        lastHeartbeatAt: new Date(),
+      },
+    });
+
+    const presence = await getPresence(doctor.id);
+
+    /*
+     * The message was true and unactionable. A doctor told they were with a
+     * patient had no screen anywhere that named the consultation, so the only
+     * way out ran through somebody with database access.
+     */
+    expect(presence.blockedBy).toMatch(/already with 1 of 1/i);
+    expect(presence.occupying).toHaveLength(1);
+    expect(presence.occupying[0]!.consultationPublicId).toBe(consultation.publicId);
+    expect(presence.occupying[0]!.state).toBe('DOCTOR_ACCEPTED');
+  });
+
+  it('says nothing about occupying consultations when the doctor is free', async () => {
+    const doctor = await doctorOnDuty();
+    await getPrisma().doctorPresence.upsert({
+      where: { doctorId: doctor.id },
+      update: { currentLoad: 0, maxLoad: 1, onlineSince: new Date(), lastHeartbeatAt: new Date() },
+      create: {
+        doctorId: doctor.id,
+        currentLoad: 0,
+        maxLoad: 1,
+        onlineSince: new Date(),
+        lastHeartbeatAt: new Date(),
+      },
+    });
+
+    const presence = await getPresence(doctor.id);
+    expect(presence.occupying).toHaveLength(0);
+  });
 
   it('releases a doctor stuck on a consultation they accepted and never joined', async () => {
     const { consultation } = await paidConsultation();

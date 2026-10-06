@@ -308,10 +308,21 @@ describe('a call that breaks', () => {
     expect(consultation.state).toBe('IN_PROGRESS');
     expect(await currentLoad(fixture.doctorId)).toBe(1);
     /*
-     * The deadline survives the resume. Clearing it was how a single rejoin
-     * removed the only bound on the consultation's life.
+     * The break is over, so its deadline goes with it (D67).
+     *
+     * This asserted the opposite until then, because clearing the deadline was
+     * once how a rejoin removed the only bound on the consultation's life.
+     * That is no longer the only bound: `firstInterruptedAt` carries the
+     * recovery budget across every break, and the inactivity thresholds and
+     * unserved deadline reach the consultation regardless.
+     *
+     * Leaving it set put an expired deadline on a live consultation, and the
+     * patient's own "Unfinished" card takes the earliest deadline it can see —
+     * so the card hid itself on a consultation that was still running.
      */
-    expect(consultation.rejoinableUntil).not.toBeNull();
+    expect(consultation.rejoinableUntil).toBeNull();
+    expect(consultation.interruptedAt).toBeNull();
+    expect(consultation.firstInterruptedAt).not.toBeNull();
   });
 
   it('replaces a room the provider has forgotten, under the same consultation', async () => {

@@ -940,6 +940,19 @@ model Consultation {
   /// a doctor needs to see.
   patientReturnedAt DateTime?
 
+  /// The very first time this consultation was interrupted (D67).
+  ///
+  /// `interruptedAt` describes the *current* break and is cleared when the
+  /// consultation resumes, so the patient's timer freezes at the right moment
+  /// and no obsolete deadline is left lying on a live consultation. That alone
+  /// would let a consultation be interrupted and resumed indefinitely, each
+  /// break buying a fresh recovery window.
+  ///
+  /// This one is written once and never cleared. Every later window is capped
+  /// at `firstInterruptedAt` plus `consultation.maxRecoveryTotalMinutes`, so
+  /// repeated breaks share one budget rather than renewing it.
+  firstInterruptedAt DateTime?
+
   /// The moment this consultation stops being worth waiting for (D61).
   ///
   /// Stored rather than recomputed, which is what makes it immune to a rejoin,

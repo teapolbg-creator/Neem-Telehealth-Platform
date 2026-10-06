@@ -766,6 +766,7 @@ export async function interruptConsultation(
       state: true,
       rejoinableUntil: true,
       interruptedAt: true,
+      firstInterruptedAt: true,
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -780,30 +781,41 @@ export async function interruptConsultation(
   }
 
   /*
-   * The deadline is set once, from the FIRST time this call broke (D61).
+   * A real window for this break, bounded by one budget for all of them (D67).
    *
-   * A consultation can be interrupted, rejoined and interrupted again. If each
-   * break started a fresh window, a patient could hold a consultation open
-   * indefinitely by rejoining and dropping out — which is the shape of the bug
-   * this replaces, where resuming cleared the deadline altogether and nothing
-   * bounded the consultation's life again.
+   * Each interruption gets a window measured from when it happened. Inheriting
+   * the first break's deadline — which is what this did — meant a break at 3pm
+   * carried a deadline set at 1pm and was already expired before the patient
+   * saw it.
    *
-   * So an existing `interruptedAt` wins, and a later break inherits the
-   * deadline the first one set.
+   * What stops that becoming an unlimited extension is the cap. Every window is
+   * also bounded by the FIRST interruption plus
+   * `consultation.maxRecoveryTotalMinutes`, so repeated breaks share one budget
+   * rather than renewing it: interrupt, resume, interrupt cannot run for ever,
+   * and a consultation that has spent an hour in recovery needs a person rather
+   * than another timer.
    */
-  const minutes = await getIntSetting(SETTING_KEYS.CONSULTATION_RECOVERY_WINDOW_MINUTES, db).catch(
-    () => RECOVERY_WINDOW_MINUTES,
-  );
+  const [minutes, capMinutes] = await Promise.all([
+    getIntSetting(SETTING_KEYS.CONSULTATION_RECOVERY_WINDOW_MINUTES, db).catch(
+      () => RECOVERY_WINDOW_MINUTES,
+    ),
+    getIntSetting(SETTING_KEYS.CONSULTATION_MAX_RECOVERY_TOTAL_MINUTES, db).catch(() => 60),
+  ]);
 
-  const firstInterruptedAt = consultation.interruptedAt ?? clock.now();
-  const rejoinableUntil =
-    consultation.rejoinableUntil ?? new Date(firstInterruptedAt.getTime() + minutes * 60_000);
+  const now = clock.now();
+  const firstInterruptedAt = consultation.firstInterruptedAt ?? now;
+  const budgetEndsAt = new Date(firstInterruptedAt.getTime() + capMinutes * 60_000);
+  const wanted = new Date(now.getTime() + minutes * 60_000);
+
+  // Whichever comes first: this break's window, or what is left of the budget.
+  const rejoinableUntil = wanted < budgetEndsAt ? wanted : budgetEndsAt;
 
   await db.consultation.update({
     where: { id: consultationId },
     data: {
       rejoinableUntil,
-      interruptedAt: firstInterruptedAt,
+      interruptedAt: now,
+      firstInterruptedAt,
       interruptionNote: actor.note?.slice(0, 500) ?? null,
     },
   });
@@ -969,26 +981,13 @@ async function resumeInterrupted(
   }
 
   /*
-   * `rejoinableUntil` is deliberately NOT cleared.
+   * The break is over, and `transition` is what ends it (D67).
    *
-   * Clearing it was how a single rejoin removed the only bound on the
-   * consultation's life: it went back to IN_PROGRESS with no deadline, and no
-   * sweep could see it again. The deadline belongs to the interruption, not to
-   * whether somebody is currently in the room, and a consultation that resumes
-   * and breaks again keeps the window the first break opened.
+   * `rejoinableUntil`, `interruptedAt` and the pending-return item are all
+   * cleared there, for any exit from INTERRUPTED rather than only this one.
+   * Clearing them here as well would be the same rule written twice, which is
+   * how the two end up disagreeing.
    */
-  /*
-   * The pending-return item is cleared by the thing that resolves it (D64).
-   *
-   * Leaving it set would keep a "patient waiting" row in the doctor's portal
-   * for a consultation they are now in, which is the kind of notification
-   * people learn to ignore.
-   */
-  await db.consultation.update({
-    where: { id: consultationId },
-    data: { patientReturnedAt: null },
-  });
-
   await transition(
     consultationId,
     'IN_PROGRESS',

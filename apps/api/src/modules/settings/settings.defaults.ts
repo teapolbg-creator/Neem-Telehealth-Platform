@@ -19,6 +19,8 @@ export const SETTING_KEYS = {
   CONSULTATION_RECOVERY_WINDOW_MINUTES: 'consultation.recoveryWindowMinutes',
   CONSULTATION_UNSERVED_DEADLINE_HOURS: 'consultation.unservedDeadlineHours',
   CONSULTATION_STALE_IN_PROGRESS_MINUTES: 'consultation.staleInProgressMinutes',
+  CONSULTATION_LEFT_GRACE_MINUTES: 'consultation.leftGraceMinutes',
+  CONSULTATION_MAX_RECOVERY_TOTAL_MINUTES: 'consultation.maxRecoveryTotalMinutes',
   QR_TOKEN_TTL_SECONDS: 'consultation.qrTokenTtlSeconds',
   REQUIRE_DOCTOR_ON_DUTY: 'consultation.requireDoctorOnDuty',
 
@@ -129,6 +131,56 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     valueType: 'number',
     description:
       'How long a pending payment stays valid before the consultation expires (spec §35).',
+    category: 'consultation',
+  },
+  {
+    key: K.CONSULTATION_LEFT_GRACE_MINUTES,
+    value: 15,
+    valueType: 'number',
+    /*
+     * How long a consultation stays open after the professional explicitly
+     * leaves the room (D67).
+     *
+     * Two hours was being applied to this, and it cost a doctor two hours of
+     * being unable to take any patient after a consultation they had finished
+     * with. The long threshold exists because silence is ambiguous — joining and
+     * leaving are recorded, talking is not, so a quiet consultation looks
+     * exactly like an abandoned one. A LEFT event is not ambiguous. It is the
+     * professional's own device saying they have gone, and it deserves a much
+     * shorter timer than silence does.
+     *
+     * Fifteen minutes, matching the recovery window: long enough for a dropped
+     * connection, a closed laptop lid or a walk to better signal, short enough
+     * that a doctor is not locked out of the queue for an afternoon.
+     *
+     * It does not end the consultation. At the end of it the consultation is
+     * marked INTERRUPTED, which frees the slot and starts the recovery window
+     * — so a professional who comes back within thirty minutes in total can
+     * still finish what they started.
+     */
+    description:
+      'Minutes a consultation stays in progress after the professional leaves the room, before it is marked interrupted (D67).',
+    category: 'consultation',
+  },
+  {
+    key: K.CONSULTATION_MAX_RECOVERY_TOTAL_MINUTES,
+    value: 60,
+    valueType: 'number',
+    /*
+     * The total recovery any one consultation may ever have (D67).
+     *
+     * Resuming clears the current deadline, which is what stops an obsolete
+     * one sitting on a live consultation. On its own that would let a
+     * consultation be interrupted and resumed indefinitely, each break buying
+     * a fresh fifteen minutes and the whole thing never ending.
+     *
+     * So every window is capped at the FIRST interruption plus this. Repeated
+     * breaks share one budget rather than renewing it, and a consultation that
+     * has spent an hour in recovery is one that needs a person rather than
+     * another timer.
+     */
+    description:
+      'Total minutes of recovery a consultation may have across all interruptions, from the first one (D67).',
     category: 'consultation',
   },
   {

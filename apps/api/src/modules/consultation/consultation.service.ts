@@ -130,6 +130,23 @@ export async function transition(
        * paths that do not expect one are exactly where it would be forgotten.
        */
       ...(isTerminal(to) ? { patientReturnedAt: null } : {}),
+      /*
+       * Leaving INTERRUPTED ends the break, so everything describing it goes
+       * with it (D67).
+       *
+       * Here rather than in the resume path, for the reason above: a stale
+       * `rejoinableUntil` on a live consultation hid the patient's own
+       * "Unfinished" card, which takes the earliest deadline it can see. Any
+       * route out of INTERRUPTED should clear it, not only the one that
+       * currently exists.
+       *
+       * `firstInterruptedAt` is deliberately untouched. It is the recovery
+       * budget, and keeping it is what stops this clearing becoming a loophole
+       * for interrupt-resume-interrupt without end.
+       */
+      ...(from === 'INTERRUPTED' && !isTerminal(to)
+        ? { rejoinableUntil: null, interruptedAt: null, patientReturnedAt: null }
+        : {}),
     },
   });
 

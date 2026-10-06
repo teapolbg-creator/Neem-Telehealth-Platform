@@ -176,12 +176,12 @@ export async function professionalEverConnected(
  * somebody is — a sweep that cannot tell those apart has no business ending
  * either.
  */
-async function lastActivityAt(
+async function lastProfessionalSignal(
   consultationId: string,
   startedAt: Date | null,
   db: Db = getPrisma(),
   assignedAt: Date | null = null,
-): Promise<Date | null> {
+): Promise<{ at: Date | null; event: 'JOINED' | 'LEFT' | null }> {
   /*
    * A professional's activity, not anybody's (D63).
    *
@@ -200,7 +200,7 @@ async function lastActivityAt(
   const latest = await db.callAttendanceEvent.findFirst({
     where: { consultationId, participant: 'DOCTOR' },
     orderBy: { occurredAt: 'desc' },
-    select: { occurredAt: true },
+    select: { occurredAt: true, event: true },
   });
 
   /*
@@ -214,10 +214,18 @@ async function lastActivityAt(
    */
   const floor = startedAt ?? assignedAt;
 
-  if (!latest) return floor;
-  if (!floor) return latest.occurredAt;
+  if (!latest) return { at: floor, event: null };
+  if (!floor || latest.occurredAt > floor) {
+    return { at: latest.occurredAt, event: latest.event === 'LEFT' ? 'LEFT' : 'JOINED' };
+  }
 
-  return latest.occurredAt > floor ? latest.occurredAt : floor;
+  /*
+   * The floor is more recent than any attendance event — the consultation
+   * started or resumed after the last thing the room told us. Treated as
+   * presence, not absence: a professional moved this consultation forward more
+   * recently than they left it.
+   */
+  return { at: floor, event: 'JOINED' };
 }
 
 /**
@@ -242,13 +250,11 @@ export async function interruptStaleConsultations(
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<number> {
-  const minutes = await getIntSetting(
-    SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES,
-    db,
-  ).catch(() => 120);
-  if (minutes <= 0) return 0;
-
-  const cutoff = new Date(clock.now().getTime() - minutes * 60_000);
+  const [silenceMinutes, leftMinutes] = await Promise.all([
+    getIntSetting(SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES, db).catch(() => 120),
+    getIntSetting(SETTING_KEYS.CONSULTATION_LEFT_GRACE_MINUTES, db).catch(() => 15),
+  ]);
+  if (silenceMinutes <= 0 && leftMinutes <= 0) return 0;
 
   /*
    * Every state that holds the professional's slot, not only IN_PROGRESS (D65).
@@ -277,18 +283,43 @@ export async function interruptStaleConsultations(
 
   for (const consultation of live) {
     try {
-      const activity = await lastActivityAt(
+      const signal = await lastProfessionalSignal(
         consultation.id,
         consultation.startedAt,
         db,
         consultation.assignedAt,
       );
-      if (!activity || activity > cutoff) continue;
+      if (!signal.at) continue;
+
+      /*
+       * Two thresholds, because the two signals mean different things (D67).
+       *
+       * A LEFT event is the professional's own device saying they have gone:
+       * unambiguous, and holding their slot for two hours on that evidence
+       * locked a doctor out of the queue for an afternoon after a consultation
+       * they had finished with. Silence is ambiguous — talking is not recorded
+       * — so a quiet consultation still gets the long threshold, because
+       * ending a live call is far worse than ending an abandoned one late.
+       *
+       * A professional still in the room is never swept at all: their last
+       * signal is JOINED, and the long threshold is the one that applies.
+       */
+      const minutes = signal.event === 'LEFT' ? leftMinutes : silenceMinutes;
+      if (minutes <= 0) continue;
+
+      const cutoff = new Date(clock.now().getTime() - minutes * 60_000);
+      if (signal.at > cutoff) continue;
 
       const { interruptConsultation } = await import('../media/media.service.ts');
       await interruptConsultation(
         consultation.id,
-        { type: 'SYSTEM', note: 'No activity in this consultation; marked interrupted (D63).' },
+        {
+          type: 'SYSTEM',
+          note:
+            signal.event === 'LEFT'
+              ? 'The professional left and did not return; marked interrupted (D67).'
+              : 'No activity in this consultation; marked interrupted (D63).',
+        },
         db,
         clock,
       );
@@ -298,7 +329,9 @@ export async function interruptStaleConsultations(
         {
           consultationId: consultation.id,
           from: consultation.state,
-          lastActivityAt: activity.toISOString(),
+          lastSignal: signal.event,
+          lastSignalAt: signal.at.toISOString(),
+          thresholdMinutes: minutes,
         },
         'marked a stale consultation interrupted',
       );
@@ -506,14 +539,16 @@ async function endUnserved(
    * last happened rather than from the payment.
    */
   if (fresh.state === 'IN_PROGRESS') {
-    const staleMinutes = await getIntSetting(
-      SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES,
-      db,
-    ).catch(() => 120);
-    const activity = await lastActivityAt(consultationId, fresh.startedAt, db);
-    const quietSince = new Date(clock.now().getTime() - staleMinutes * 60_000);
+    const [silenceMinutes, leftMinutes] = await Promise.all([
+      getIntSetting(SETTING_KEYS.CONSULTATION_STALE_IN_PROGRESS_MINUTES, db).catch(() => 120),
+      getIntSetting(SETTING_KEYS.CONSULTATION_LEFT_GRACE_MINUTES, db).catch(() => 15),
+    ]);
 
-    if (activity && activity > quietSince) return false;
+    const signal = await lastProfessionalSignal(consultationId, fresh.startedAt, db);
+    const minutes = signal.event === 'LEFT' ? leftMinutes : silenceMinutes;
+    const quietSince = new Date(clock.now().getTime() - minutes * 60_000);
+
+    if (signal.at && signal.at > quietSince) return false;
   }
 
   /*

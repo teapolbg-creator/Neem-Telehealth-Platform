@@ -1992,6 +1992,36 @@ the suite did not catch this because the suite had been taught to expect it.
 Covered by `tests/integration/consultation-lifetime.test.ts` (17 cases) and the
 revised recovery cases in `tests/integration/call-recovery.test.ts`.
 
+### D62 — A deploy says which commit it is · 2026-10-06 · **DECIDED**
+
+**Issue.** Whether a deploy had landed could not be established from outside.
+Every build answers `/health` identically, so "is the new code live?" could only
+be inferred from a behaviour change — and a release that adds no new route
+leaves nothing to ask.
+
+That produced three wrong calls in one afternoon. `/health/ready` was used as
+the check and returned the same body on the old build. A `!= 404` check passed
+against a **502**. And a verification run three minutes after a deploy was
+nearly reported as a broken release when every failure meant "not yet".
+
+**Decision.** `/health` and `/health/ready` report the running commit, taken
+from `RENDER_GIT_COMMIT` (set automatically on every Render service) with
+`GIT_COMMIT` as the generic fallback.
+
+**Rationale and limits.**
+
+- **Seven characters, not forty.** The endpoint is unauthenticated. A short SHA
+  is enough to answer "is this the build I pushed" and is not an invitation to
+  fetch the tree.
+- **Optional everywhere, production included.** A deployment that cannot say
+  which commit it is should still serve patients. It reports `unknown` and the
+  operator loses a convenience, not a consultation.
+- **Deploy checks must assert an exact status**, not an absence of one. `!= 404`
+  is satisfied by every way a service can fail.
+
+**Consequences.** A deploy is verified by polling for the commit, and "not yet"
+is distinguishable from "broken" — which is the distinction that was missing.
+
 ### D63 — A consultation nobody is in stops being in progress, and the absence of a record is not evidence · 2026-10-06 · **DECIDED**
 
 **Issue.** Tracing the reported incident on production exposed two faults that
@@ -2112,3 +2142,126 @@ rejoined first only because that moved the state.
 
 Covered by `tests/integration/patient-return.test.ts`, twelve cases across the
 nine scenarios the operator specified.
+
+### D65 — Every state that holds a doctor's slot can be released, not only the one in progress · 2026-10-06 · **DECIDED**
+
+**Issue.** Reported from use: "this is what is happening so i cant receive
+consultations". A doctor was being offered nobody at all, permanently.
+
+Three states occupy a doctor — `DOCTOR_ACCEPTED`, `IN_PROGRESS`, `COMPLETING` —
+and [D63](#d63)'s sweep looked at one of them. A consultation stuck in
+`DOCTOR_ACCEPTED`, accepted and never joined because the tab was closed, held
+the only slot that doctor has and **nothing in the system could release it**:
+the sweep could not see it, and [D61](#d61)'s unserved deadline exists only for
+consultations paid for after that deadline was introduced.
+
+I guessed at the cause three times — `IN_PROGRESS`, then `DOCTOR_ACCEPTED`, then
+`COMPLETING` — before reading the record, and was pushed back on for it. The
+lesson is the cheaper one: the states that hold a slot were never written down
+in one place, so every answer about them was a guess.
+
+**Decision.**
+
+- **`OCCUPYING_CONSULTATION_STATES` is the single definition** of what holds a
+  doctor's capacity. `occupiesDoctor` reads from it, `transition` releases and
+  claims capacity from it, and the sweep selects candidates from it. A fourth
+  reading of the same question cannot drift from the other three.
+- **`DOCTOR_ACCEPTED` is swept**, and `DOCTOR_ACCEPTED → INTERRUPTED` became a
+  legal transition so it can be.
+- **A consultation that never started still has a clock.** One in
+  `DOCTOR_ACCEPTED` has no `startedAt`, so without a fallback it had no
+  measurable age and was skipped for ever. `assignedAt` is the floor: the offer
+  was made then, and acceptance follows within ninety seconds.
+- **`COMPLETING` is deliberately not swept.** It is transactional, lasts
+  seconds, and its only exit is `COMPLETED`. A consultation stuck there is a
+  different fault needing a different answer, and interrupting it is not
+  available anyway.
+
+**Consequences.** `reconcileDoctorLoad` recomputes a stored `currentLoad` from
+the same definition, so a load left wrong by an earlier release is corrected
+rather than carried for ever.
+
+### D66 — A doctor can see which consultation is holding their slot · 2026-10-06 · **DECIDED**
+
+**Issue.** "You are already with 1 of 1 patients, so no new consultation will be
+offered until one is finished." True, and completely unactionable. No screen
+anywhere listed a doctor's occupying consultations, so a doctor told they were
+busy could not find the patient they were supposedly with, could not finish it,
+and could not release themselves. The only route out ran through somebody with
+database access, which is not a route a doctor has.
+
+This is what turned [D65](#d65)'s fault into a support incident. The underlying
+bug was one stuck record; what made it unresolvable was that the message naming
+the problem named nothing specific.
+
+**Decision.** The banner lists what is actually holding the slot — reference,
+state, how long it has been there — each with a link that opens it.
+
+- **Looked up only at capacity.** At any other moment it tells a doctor nothing
+  they cannot already see, and it is a query on every presence poll.
+- **`since` is `startedAt ?? assignedAt`**, which is what makes a stale one
+  obvious at a glance: a consultation held since yesterday morning does not need
+  explaining.
+- **Capped at five and ordered oldest first.** The list is a diagnosis, not a
+  worklist, and the oldest entry is the one that is wrong.
+
+**Consequences.** A doctor in this position can act without an engineer. The
+same data is what any future "release this consultation" control would need.
+
+### D67 — Leaving is not the same as going quiet, and a resumed consultation keeps no deadline · 2026-10-06 · **DECIDED**
+
+**Issue.** A doctor was locked out of the queue for two hours. The banner said
+"you are already with 1 of 1 patients", which was true and unactionable: nothing
+anywhere named the consultation, and the only way to find it ran through
+somebody with database access.
+
+The record, read-only from production: the doctor joined at 13:08, the call was
+interrupted at 13:11, they rejoined, and their device recorded `LEFT` at
+13:18:38. At 15:12 the consultation was still `IN_PROGRESS` — **113 minutes
+quiet, against a 120-minute threshold.** Nothing was broken. The threshold was
+simply wrong for what had happened.
+
+[D63](#d63) chose two hours because silence is ambiguous: joining and leaving are
+recorded, talking is not, so a long quiet consultation is indistinguishable from
+an abandoned one, and ending a live call is far worse than ending an abandoned
+one late. All true — and none of it applies to a `LEFT` event, which is the
+professional's own device saying they have gone.
+
+A second fault surfaced in the same record. `rejoinableUntil` read 13:26 on a
+consultation resumed at 13:18, because [D61](#d61) deliberately did not clear it
+on resume. The patient's "Unfinished" card takes the earliest deadline it can
+see, so the card hid itself on a consultation that was still running.
+
+**Decision.**
+
+- **Two thresholds, chosen by the last professional signal.** `LEFT` gets
+  fifteen minutes; anything else keeps the full two hours. A professional still
+  in the room always has `JOINED` as their last signal, so a live consultation
+  is never swept — and a flapping connection that ends on `JOINED` is presence,
+  however many tabs it came from.
+- **Fifteen minutes to interrupted, then the recovery window: thirty in total.**
+  The slot frees at fifteen. Collapsing it to fifteen overall would mean marking
+  a consultation interrupted and abandoning it in the same instant, which is no
+  recovery window at all. The second fifteen costs the professional nothing and
+  is the patient's chance to be seen.
+- **Leaving INTERRUPTED clears the break.** `rejoinableUntil` and
+  `interruptedAt` are cleared in `transition`, not in the resume path, so any
+  future route out clears them too.
+- **`firstInterruptedAt` is the budget.** Written once, never cleared. Every
+  window is `min(now + recoveryWindow, firstInterruptedAt + maxRecoveryTotal)`,
+  so repeated breaks share one hour rather than renewing it. That is what makes
+  clearing the deadline safe rather than a loophole — and it also fixes the
+  opposite error, where a later break inherited the first one's deadline and
+  arrived already expired.
+- **The queue banner names what is holding the slot**, with its state, how long
+  it has been there, and a link to open it. The message was true and
+  unactionable; a doctor should not need an engineer to find their own
+  consultation.
+
+**What this would have meant.** The doctor left at 13:18 and would have been
+free at 13:33 rather than 15:18.
+
+Covered by `tests/integration/consultation-lifetime.test.ts` (37 cases) and the
+recovery suites. Two earlier tests were reversed: both asserted that the deadline
+survives a resume, which was right when it was the only bound on the
+consultation's life and is wrong now that `firstInterruptedAt` carries it.
