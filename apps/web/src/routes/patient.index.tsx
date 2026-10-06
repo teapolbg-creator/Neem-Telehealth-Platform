@@ -881,7 +881,7 @@ function WaitingForProfessionalStep({
       <div className="mt-8 w-full max-w-xs rounded-2xl border border-border bg-slate-50 p-4">
         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Waiting</p>
         <p className="mt-0.5 text-lg font-bold tabular-nums">
-          {Math.floor(waited / 60)}:{String(waited % 60).padStart(2, '0')}
+          {Math.floor(waited / 60)}:{String(waited % 60).padStart(2, "0")}
         </p>
         {remaining !== null && (
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
