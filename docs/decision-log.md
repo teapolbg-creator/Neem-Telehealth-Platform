@@ -2053,3 +2053,62 @@ of accuracy here. Seven refunds sit at `REQUESTED` with nobody having decided
 them, and one media session is still open.
 
 Covered by `tests/integration/consultation-lifetime.test.ts`, now 24 cases.
+
+### D64 — A patient may register their return without their professional being there · 2026-10-06 · **DECIDED**
+
+**Issue.** Reported from use: a patient whose phone dies can rejoin only if the
+doctor is still in the consultation. If the doctor has gone, Rejoin does
+nothing, and it starts working only once the doctor rejoins first.
+
+**This is a regression from [D61](#d61), and the symptom misdescribes it.** The
+rejoin was not failing. `joinMediaSession` succeeded: the room opened, a
+credential was issued, the patient was authorised. Three things then combined.
+
+1. D61 correctly stopped a patient's return from resuming the consultation —
+   only a professional should — so the state stayed `INTERRUPTED`.
+2. The patient's screen is chosen entirely by that state. Same state, same
+   screen, same Rejoin button re-rendered. Nothing visibly happened.
+3. The doctor was never told. D61 emitted `consultation.patient_returned` to a
+   socket room, and **nothing in the application listened for it**. The event
+   went nowhere.
+
+So the patient could return but could not _register_ the return, and the
+professional had no way to learn of it. It appeared to work when the doctor
+rejoined first only because that moved the state.
+
+**Decision.**
+
+- **A return is a recorded fact**, `patientReturnedAt`, not an event. Events are
+  the part that fails: a professional who is offline, on another page, or
+  reconnecting never sees one. The timestamp survives a reload, a reconnect and
+  a restart, and the portal reads it.
+- **Written once per return**, by a conditional update. A refresh, a double tap
+  and a reconnect are the same return; each must not send another message or
+  reset how long the patient has been waiting. It is also what stops a patient
+  generating notifications at will.
+- **The professional is told on channels they already use**, carrying the
+  consultation reference and nothing else — no name, nothing clinical, because a
+  professional's lock screen is not the place for either. Worded as "waiting"
+  rather than "rejoin now": they may be mid-call with somebody else, and a
+  summons would be telling them to walk out of one consultation to take another.
+- **A pending item in the doctor's portal**, in the shell so it follows them
+  across every tab, polled, with the socket event demoted to a prompt to
+  re-ask. Cleared when the consultation resumes and on every terminal
+  transition, so it never outlives the thing it is about.
+- **The patient's screen says what is true.** "We are notifying your doctor",
+  never "notified" — the only thing the system knows is that the notification
+  service accepted it for delivery. A rejoin that fails now offers a retry and
+  the reference instead of a button that appears broken.
+- **Nothing about a return changes the protections.** The recovery deadline,
+  `interruptedAt` and `firstStartedAt` are all untouched: coming back does not
+  buy more time, and time spent waiting alone is not consultation time. A
+  waiting patient does not keep an expired consultation alive, because activity
+  means a professional's activity ([D63](#d63)).
+- **A professional mid-consultation is not interrupted.** Their call is
+  untouched, their slot is not freed, and no second active consultation is
+  created. They see somebody waiting and resume when they are free. The return
+  is never routed to a different professional and never re-enters the paid
+  queue.
+
+Covered by `tests/integration/patient-return.test.ts`, twelve cases across the
+nine scenarios the operator specified.

@@ -227,6 +227,39 @@ export interface DoctorConsultation {
   durationSeconds: number;
 }
 
+export interface AwaitingReturn {
+  consultationPublicId: string;
+  waitingSeconds: number;
+  rejoinableUntil: string | null;
+  language: string | null;
+}
+
+export const awaitingReturnKey = ["doctor", "awaiting-return"] as const;
+
+/**
+ * Patients who came back and are waiting for this professional (D64).
+ *
+ * Polled rather than left to the socket. The socket event is the fast path and
+ * the part that fails: a professional who was offline, on another page, or
+ * whose connection dropped would never see it, and the patient would wait for
+ * somebody who was never told. This asks the server, which holds the durable
+ * record.
+ *
+ * Thirty seconds, because the recovery window is fifteen minutes — frequent
+ * enough that a doctor is not the reason a patient runs out of time, rare
+ * enough to be unremarkable on a mobile connection.
+ */
+export function useAwaitingReturn(enabled = true) {
+  return useQuery({
+    queryKey: awaitingReturnKey,
+    queryFn: ({ signal }) =>
+      api.get<AwaitingReturn[]>("/doctor/consultations/awaiting-return", signal),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+    retry: false,
+  });
+}
+
 export const doctorConsultationKey = (publicId: string) =>
   ["doctor", "consultation", publicId] as const;
 

@@ -1,9 +1,16 @@
 import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { AlertCircle, CalendarCheck, Loader2, PhoneIncoming } from "lucide-react";
+import { AlertCircle, CalendarCheck, Loader2, PhoneIncoming, RotateCcw } from "lucide-react";
 import { ApiError } from "@/lib/api-client";
 import { useConfirmShift, useDoctorShifts, type DoctorShift } from "@/features/onboarding/api";
-import { usePresence, useQueue, useCountdown } from "@/features/queue/api";
+import {
+  awaitingReturnKey,
+  usePresence,
+  useAwaitingReturn,
+  useQueue,
+  useCountdown,
+} from "@/features/queue/api";
 import { useRealtimeEvent, useRealtimeInvalidation } from "@/features/realtime/socket";
 import { useOfferAlert } from "@/features/realtime/use-offer-alert";
 import { useProfessionalRole } from "@/features/auth/use-role";
@@ -24,6 +31,7 @@ export function DoctorAlerts() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-3 px-4 pt-4 sm:px-6 empty:hidden">
       <ShiftAlert />
+      <PatientReturnedAlert />
       <PatientRequestAlert />
     </div>
   );
@@ -215,3 +223,77 @@ function OfferBanner({ respondByAt, noun }: { respondByAt: string; noun: string 
 }
 
 export type { DoctorShift };
+
+/**
+ * A patient who came back, waiting for this professional to finish with them (D64).
+ *
+ * In the shell rather than on a page, and read from the server rather than from
+ * a socket event, because both of the alternatives fail in the same direction:
+ * a doctor who was on another tab, offline, or reconnecting would never learn
+ * that somebody was waiting, and the patient's recovery window would run out
+ * while nobody was told.
+ *
+ * **It does not interrupt anything.** A professional mid-consultation with
+ * another patient sees that somebody is waiting and finishes what they are
+ * doing; nothing here ends their call, frees their slot, or starts a second
+ * consultation. Resuming is a link they follow when they are ready.
+ */
+function PatientReturnedAlert() {
+  const waiting = useAwaitingReturn();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  /*
+   * The socket event is a prompt to re-ask, not the source of truth. It makes
+   * the list current within a second for a doctor who is looking; the polling
+   * above covers one who is not.
+   */
+  useRealtimeEvent("consultation.patient_returned", () => {
+    void queryClient.invalidateQueries({ queryKey: awaitingReturnKey });
+  });
+
+  const rows = waiting.data ?? [];
+  if (rows.length === 0) return null;
+
+  return (
+    <>
+      {rows.map((row) => (
+        <div
+          key={row.consultationPublicId}
+          role="status"
+          className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3"
+        >
+          <RotateCcw className="size-4 shrink-0 text-amber-700" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-amber-900">
+              A patient has come back and is waiting
+            </p>
+            <p className="text-xs text-amber-800">
+              {formatWaited(row.waitingSeconds)} so far
+              {row.language ? ` · ${row.language}` : ""} ·{" "}
+              <span className="font-mono">{row.consultationPublicId}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              void navigate({
+                to: "/doctor/consultations/$publicId",
+                params: { publicId: row.consultationPublicId },
+              })
+            }
+            className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800"
+          >
+            Resume
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** "4:05" — how long somebody has been waiting, in the shape a clock shows it. */
+function formatWaited(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}

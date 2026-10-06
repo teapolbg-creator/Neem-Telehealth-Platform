@@ -67,6 +67,27 @@ export const NOTIFICATION_TEMPLATES: TemplateDefinition[] = [
     description: 'The 90-second window lapsed without a response.',
   },
   {
+    code: 'doctor.consultation.patient-returned',
+    channels: ['SMS', 'EMAIL'],
+    locale: 'en',
+    subject: 'A patient is waiting to finish their consultation',
+    /*
+     * No clinical content and no name: a professional's phone is not a place
+     * to put either. The reference is enough to open the right consultation,
+     * and it is the same reference the patient already has.
+     *
+     * It says "waiting", not "rejoin now". The professional may be mid-call
+     * with somebody else, and a message that reads as a summons would be
+     * telling them to walk out of one consultation to take another.
+     */
+    body:
+      'Your patient has come back to consultation {{consultationReference}} and is waiting. ' +
+      'Open Neem to finish it when you are free.',
+    variables: ['consultationReference'],
+    description:
+      'Sent when a patient rejoins an interrupted consultation and the professional is not there (D64).',
+  },
+  {
     code: 'doctor.substitution.requested',
     channels: ['IN_APP', 'BROWSER', 'SMS'],
     locale: 'en',

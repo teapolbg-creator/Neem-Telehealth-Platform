@@ -242,6 +242,16 @@ export const patientSessionViewSchema = z.object({
    */
   professionalPresent: z.boolean().default(false),
   /**
+   * The patient has rejoined an interrupted consultation and is waiting (D64).
+   *
+   * Without this the patient's screen had nothing to change: a return cannot
+   * move the consultation's state, which is derived from that state, so tapping
+   * Rejoin re-rendered the identical screen and looked like a dead button.
+   */
+  awaitingProfessionalReturn: z.boolean().default(false),
+  /** How long they have been waiting, for a screen that should not lie. */
+  waitingForProfessionalSeconds: z.number().int().nullable(),
+  /**
    * When this consultation stops being worth waiting for (D61). A maximum, not
    * a promise — and not a time any patient should ever reach.
    */

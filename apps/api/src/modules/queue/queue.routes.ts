@@ -238,6 +238,57 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  /**
+   * Patients who came back and are waiting for this professional (D64).
+   *
+   * A durable list rather than a socket event, because the event is the part
+   * that fails: a doctor who was offline, on another page, or whose connection
+   * dropped would never see it, and the patient would wait for somebody who was
+   * never told. The row behind this survives a reload, a reconnect and a
+   * restart, and disappears when the consultation resumes or ends.
+   *
+   * Only this doctor's own consultations. A patient's return is not routed to
+   * whoever is free — it belongs to the professional who was already treating
+   * them, and nothing here puts it back into the queue for anybody else.
+   */
+  app.get(
+    '/doctor/consultations/awaiting-return',
+    { preHandler: doctorOnly },
+    async (request, reply) => {
+      const { doctorId } = requireDoctor(request);
+
+      const waiting = await getPrisma().consultation.findMany({
+        where: { doctorId, state: 'INTERRUPTED', patientReturnedAt: { not: null } },
+        select: {
+          publicId: true,
+          patientReturnedAt: true,
+          rejoinableUntil: true,
+          language: { select: { label: true } },
+        },
+        orderBy: { patientReturnedAt: 'asc' },
+        take: 20,
+      });
+
+      const now = systemClock.now();
+
+      return reply.send({
+        data: waiting.map((consultation) => ({
+          consultationPublicId: consultation.publicId,
+          // How long they have been waiting, which is the part that should make
+          // a doctor hurry. No name and nothing clinical.
+          waitingSeconds: Math.max(
+            0,
+            Math.floor((now.getTime() - consultation.patientReturnedAt!.getTime()) / 1000),
+          ),
+          // When the chance to finish it runs out.
+          rejoinableUntil: consultation.rejoinableUntil?.toISOString() ?? null,
+          language: consultation.language?.label ?? null,
+        })),
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
+
   // -------------------------------------------------------------------------
   // Admin queue oversight (spec §53)
   // -------------------------------------------------------------------------

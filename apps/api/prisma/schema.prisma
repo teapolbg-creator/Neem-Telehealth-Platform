@@ -924,6 +924,22 @@ model Consultation {
   /// this is an operational note.
   interruptionNote String?   @db.VarChar(500)
 
+  /// When the patient came back to an interrupted consultation and began
+  /// waiting for their professional (D64).
+  ///
+  /// A patient's return cannot resume the consultation — only the professional
+  /// can do that (D61) — so without somewhere to record it, the return was
+  /// invisible: the patient's screen re-rendered the same Rejoin button and the
+  /// doctor was told by a socket event nothing listened for. This is the
+  /// durable record of "the patient is back and waiting", which the doctor's
+  /// portal reads and which survives a reload, a reconnect and a restart.
+  ///
+  /// Set once per return and cleared when the consultation resumes or ends, so
+  /// a pending item never outlives the thing it is about. It is a timestamp
+  /// rather than a flag because how long somebody has been waiting is the part
+  /// a doctor needs to see.
+  patientReturnedAt DateTime?
+
   /// The moment this consultation stops being worth waiting for (D61).
   ///
   /// Stored rather than recomputed, which is what makes it immune to a rejoin,

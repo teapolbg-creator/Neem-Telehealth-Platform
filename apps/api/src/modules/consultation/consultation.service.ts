@@ -117,7 +117,20 @@ export async function transition(
 
   await db.consultation.update({
     where: { id: consultationId },
-    data: { state: to, ...timestamps },
+    data: {
+      state: to,
+      ...timestamps,
+      /*
+       * A pending return never outlives the thing it is about (D64).
+       *
+       * Once the consultation is over, 'the patient is waiting' is false, and
+       * a doctor's portal showing it for a closed consultation is a
+       * notification people learn to ignore. Cleared on every terminal
+       * crossing rather than only on the paths that expect one, because the
+       * paths that do not expect one are exactly where it would be forgotten.
+       */
+      ...(isTerminal(to) ? { patientReturnedAt: null } : {}),
+    },
   });
 
   await db.consultationStateEvent.create({

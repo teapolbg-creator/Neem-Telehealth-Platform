@@ -849,6 +849,82 @@ export async function interruptConsultation(
 }
 
 /**
+ * The patient is back, and waiting (D64).
+ *
+ * A return cannot resume the consultation — only a professional does that — so
+ * this is what makes the return exist at all: a timestamp the doctor's portal
+ * reads, a message on the channels they already use, and a live event for a
+ * doctor who happens to be looking.
+ *
+ * **Idempotent on the timestamp.** A refresh, a double tap and a reconnect are
+ * all the same return, and each must not send another message or reset how long
+ * the patient has been waiting. Only the first one through writes; the rest
+ * find it set and do nothing. That is also what stops a patient generating
+ * notifications at will.
+ *
+ * Returns whether the professional was notified, meaning the notification
+ * service accepted it for delivery — not that anybody has read it. The
+ * patient's screen says the same thing in the same words.
+ */
+async function recordPatientReturn(
+  consultation: { id: string; publicId: string; doctorId: string | null },
+  db: PrismaClient,
+  clock: Clock,
+): Promise<boolean> {
+  const claimed = await db.consultation.updateMany({
+    where: { id: consultation.id, state: 'INTERRUPTED', patientReturnedAt: null },
+    data: { patientReturnedAt: clock.now() },
+  });
+
+  // Already waiting, or no longer interrupted. Either way this return has
+  // already been recorded and nobody needs telling twice.
+  if (claimed.count === 0) return false;
+
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.CALL_RESUMED,
+      actorType: 'PATIENT',
+      entityType: 'consultation',
+      entityId: consultation.id,
+      metadata: { by: 'PATIENT', resumed: false, reason: 'awaiting_professional' },
+    },
+    db,
+  );
+
+  if (!consultation.doctorId) return false;
+
+  /*
+   * The live event for a doctor who is looking, and the message for one who is
+   * not. Neither is relied on alone: the durable record is the timestamp above,
+   * which the portal reads whether or not any of this arrived.
+   */
+  emitToDoctor(consultation.doctorId, 'consultation.patient_returned', {
+    consultationPublicId: consultation.publicId,
+  });
+
+  try {
+    await notify({
+      templateCode: 'doctor.consultation.patient-returned',
+      recipient: { type: 'DOCTOR', doctorId: consultation.doctorId },
+      variables: { consultationReference: consultation.publicId },
+    });
+    return true;
+  } catch (error) {
+    /*
+     * The patient is still back and the portal still shows it; what failed is
+     * one way of telling the doctor. Reported as not notified rather than
+     * swallowed, because the patient's screen must not claim a message was
+     * sent when it was not.
+     */
+    getLogger().warn(
+      { err: error, consultationId: consultation.id },
+      'could not notify the professional that the patient returned',
+    );
+    return false;
+  }
+}
+
+/**
  * Somebody came back (D57, corrected by D61).
  *
  * **Only a professional resumes a consultation.** It used to be either party,
@@ -888,21 +964,7 @@ async function resumeInterrupted(
    * an open-ended session with nobody in it.
    */
   if (participant === 'PATIENT') {
-    if (consultation.doctorId) {
-      emitToDoctor(consultation.doctorId, 'consultation.patient_returned', {
-        consultationPublicId: consultation.publicId,
-      });
-    }
-    await recordAudit(
-      {
-        action: AUDIT_ACTIONS.CALL_RESUMED,
-        actorType: 'PATIENT',
-        entityType: 'consultation',
-        entityId: consultationId,
-        metadata: { by: 'PATIENT', resumed: false, reason: 'awaiting_professional' },
-      },
-      db,
-    );
+    await recordPatientReturn(consultation, db, clock);
     return;
   }
 
@@ -915,6 +977,18 @@ async function resumeInterrupted(
    * whether somebody is currently in the room, and a consultation that resumes
    * and breaks again keeps the window the first break opened.
    */
+  /*
+   * The pending-return item is cleared by the thing that resolves it (D64).
+   *
+   * Leaving it set would keep a "patient waiting" row in the doctor's portal
+   * for a consultation they are now in, which is the kind of notification
+   * people learn to ignore.
+   */
+  await db.consultation.update({
+    where: { id: consultationId },
+    data: { patientReturnedAt: null },
+  });
+
   await transition(
     consultationId,
     'IN_PROGRESS',

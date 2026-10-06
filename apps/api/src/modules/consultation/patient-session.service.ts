@@ -295,6 +295,14 @@ export async function buildSessionView(
       : null,
     professional: consultation.service?.discipline ?? 'DOCTOR',
     professionalPresent,
+    awaitingProfessionalReturn:
+      consultation.state === 'INTERRUPTED' && consultation.patientReturnedAt !== null,
+    waitingForProfessionalSeconds: consultation.patientReturnedAt
+      ? Math.max(
+          0,
+          Math.floor((clock.now().getTime() - consultation.patientReturnedAt.getTime()) / 1000),
+        )
+      : null,
     deadlineAt: consultation.unservedDeadlineAt?.toISOString() ?? null,
     refundState: consultation.refunds[0]?.state ?? null,
     waitingSinceSeconds: waitingSince

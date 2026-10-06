@@ -727,6 +727,26 @@ function InterruptedStep({ session }: { session: PatientSessionView }) {
   // refuses a late rejoin on its own terms.
   const expired = remaining !== null && remaining <= 0;
 
+  /*
+   * Once they are back, this screen stops offering a button and starts
+   * reporting a wait (D64).
+   *
+   * The bug this fixes: a patient's return cannot move the consultation's
+   * state, and this screen is chosen by that state — so tapping Rejoin
+   * re-rendered the identical screen and read as a dead button. The server now
+   * records the return, and the screen shows it.
+   */
+  if (session.awaitingProfessionalReturn) {
+    return (
+      <WaitingForProfessionalStep
+        session={session}
+        noun={seeing.noun}
+        remaining={remaining}
+        expired={expired}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
       <div className="grid size-20 place-items-center rounded-full bg-amber-100">
@@ -766,11 +786,30 @@ function InterruptedStep({ session }: { session: PatientSessionView }) {
       )}
 
       {join.isError && (
-        <p className="mt-4 max-w-xs text-sm text-red-600">
-          {join.error instanceof ApiError
-            ? join.error.message
-            : "The consultation could not be rejoined."}
-        </p>
+        <div className="mt-4 max-w-xs rounded-2xl border border-red-200 bg-red-50 p-3">
+          <p className="text-sm font-bold text-red-700">
+            {join.error instanceof ApiError
+              ? join.error.message
+              : "The consultation could not be rejoined."}
+          </p>
+          {/*
+            An error a patient can act on, rather than a button that appears
+            broken. Retry is the right first move for the common causes — a
+            dropped connection, a server restart — and the counter is the one
+            that works when it is not.
+          */}
+          <button
+            type="button"
+            onClick={() => join.reset()}
+            className="mt-2 text-xs font-bold text-red-700 underline underline-offset-2"
+          >
+            Try again
+          </button>
+          <p className="mt-2 text-xs leading-relaxed text-red-700/80">
+            If it keeps failing, speak to the pharmacist or contact Neem with your reference{" "}
+            <span className="font-mono">{session.consultationPublicId}</span>.
+          </p>
+        </div>
       )}
 
       {remaining !== null && !expired && (
@@ -780,6 +819,79 @@ function InterruptedStep({ session }: { session: PatientSessionView }) {
       )}
 
       <p className="mt-2 max-w-xs text-xs leading-relaxed text-slate-400">
+        Keep this page open if you can. If you close it, open Neem again and you will come back
+        here.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Back, and waiting for the professional to return (D64).
+ *
+ * The wording is careful about two things it would be easy to overclaim. It
+ * says the {noun} is being notified, not that they have seen it — the only
+ * thing the system knows is that the message was accepted for delivery. And it
+ * says nothing about where the professional is or what else they are doing,
+ * because that is another patient's business.
+ */
+function WaitingForProfessionalStep({
+  session,
+  noun,
+  remaining,
+  expired,
+}: {
+  session: PatientSessionView;
+  noun: string;
+  remaining: number | null;
+  expired: boolean;
+}) {
+  const waited = session.waitingForProfessionalSeconds ?? 0;
+
+  if (expired) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+        <div className="grid size-20 place-items-center rounded-full bg-slate-100">
+          <AlertCircle className="size-9 text-slate-400" />
+        </div>
+        <h2 className="mt-6 text-2xl font-bold">This consultation has closed</h2>
+        <p className="mt-3 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
+          Your {noun} could not get back in time. Neem is reviewing it and will be in touch about
+          what you paid. You have not been charged again.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+      <div className="grid size-20 place-items-center rounded-full bg-brand/10">
+        <Loader2 className="size-9 animate-spin text-brand" />
+      </div>
+
+      <h2 className="mt-6 text-2xl font-bold">You have rejoined</h2>
+      <p className="mt-3 max-w-xs text-pretty text-base leading-relaxed text-slate-700">
+        We are notifying your {noun}. Please wait for them to return.
+      </p>
+
+      <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
+        You do not need to pay again, and you do not need to do anything else.
+      </p>
+
+      <div className="mt-8 w-full max-w-xs rounded-2xl border border-border bg-slate-50 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Waiting</p>
+        <p className="mt-0.5 text-lg font-bold tabular-nums">
+          {Math.floor(waited / 60)}:{String(waited % 60).padStart(2, '0')}
+        </p>
+        {remaining !== null && (
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            If they cannot get back within {formatRemaining(remaining)}, Neem will close this
+            consultation and review it. You will not be charged again either way.
+          </p>
+        )}
+      </div>
+
+      <p className="mt-6 max-w-xs text-xs leading-relaxed text-slate-400">
         Keep this page open if you can. If you close it, open Neem again and you will come back
         here.
       </p>
