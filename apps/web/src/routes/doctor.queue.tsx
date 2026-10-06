@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AlertCircle, Loader2, Phone, PhoneOutgoing, Video, Wifi, WifiOff } from "lucide-react";
 import { useProfessionalRole } from "@/features/auth/use-role";
@@ -118,9 +118,50 @@ function DoctorQueue() {
       {presence?.blockedBy && (
         <div className="card-soft flex items-start gap-3 border-warning/30 bg-warning-soft p-4">
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-warning" />
-          <div className="text-sm text-slate-700">
+          <div className="min-w-0 flex-1 text-sm text-slate-700">
             <p className="font-bold text-warning">Not receiving consultations</p>
             <p className="mt-1">{presence.blockedBy}</p>
+
+            {/*
+              Which consultation, and a way into it (D66).
+
+              "You are already with 1 of 1 patients" was true and completely
+              unactionable: no screen anywhere listed a doctor's occupying
+              consultations, so one told they were busy could not find the
+              patient they were supposedly with, let alone finish or release
+              it. The only route out ran through somebody with database access,
+              which is not a route a doctor has.
+            */}
+            {(presence.occupying ?? []).length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {presence.occupying.map((consultation) => (
+                  <li
+                    key={consultation.consultationPublicId}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/30 bg-white px-3 py-2"
+                  >
+                    <span className="font-mono text-xs">{consultation.consultationPublicId}</span>
+                    <span className="text-xs text-slate-500">
+                      {consultation.state.replace(/_/g, " ").toLowerCase()}
+                      {consultation.since
+                        ? ` · since ${new Date(consultation.since).toLocaleString("en-GH", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : ""}
+                    </span>
+                    <Link
+                      to="/doctor/consultations/$publicId"
+                      params={{ publicId: consultation.consultationPublicId }}
+                      className="ml-auto rounded-lg bg-warning px-3 py-1.5 text-xs font-bold text-white hover:brightness-110"
+                    >
+                      Open
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

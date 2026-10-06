@@ -10,6 +10,12 @@ import { api } from "@/lib/api-client";
  * tampered clock changes nothing about whether an offer lapses.
  */
 
+export interface OccupyingConsultation {
+  consultationPublicId: string;
+  state: string;
+  since: string | null;
+}
+
 export interface PresenceView {
   online: boolean;
   onlineSince: string | null;
@@ -17,6 +23,8 @@ export interface PresenceView {
   maxLoad: number;
   /** Why this doctor is not receiving consultations right now. */
   blockedBy: string | null;
+  /** The consultations holding this doctor's slot, when they are at capacity (D66). */
+  occupying: OccupyingConsultation[];
 }
 
 export const presenceKey = ["doctor", "presence"] as const;

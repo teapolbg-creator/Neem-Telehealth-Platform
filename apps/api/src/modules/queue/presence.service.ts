@@ -103,6 +103,19 @@ export interface PresenceView {
   maxLoad: number;
   /** Why the doctor is not eligible right now, for their own screen. */
   blockedBy: string | null;
+  /**
+   * The consultations actually holding this doctor's slot (D66).
+   *
+   * Because "you are already with 1 of 1 patients" was unactionable: there is
+   * no screen anywhere that lists a doctor's occupying consultations, so a
+   * doctor told they were busy had no way to find the patient they were
+   * supposedly with, and no way to release themselves. The only route out ran
+   * through somebody with database access.
+   *
+   * Empty while the count is honest and nothing is wrong. Non-empty, it is
+   * both the diagnosis and the way to act on it.
+   */
+  occupying: Array<{ consultationPublicId: string; state: string; since: string | null }>;
 }
 
 /**
@@ -166,12 +179,34 @@ export async function getPresence(
               ? `You are already with ${presence.currentLoad} of ${presence.maxLoad} patients, so no new consultation will be offered until one is finished.`
               : null;
 
+  /*
+   * Looked up only when the doctor is at capacity, which is the only moment it
+   * tells them anything they cannot already see.
+   */
+  const atCapacity = Boolean(presence && presence.currentLoad >= presence.maxLoad);
+
+  const occupying = atCapacity
+    ? await db.consultation.findMany({
+        where: { doctorId, state: { in: [...OCCUPYING_CONSULTATION_STATES] } },
+        select: { publicId: true, state: true, startedAt: true, assignedAt: true },
+        orderBy: { updatedAt: 'asc' },
+        take: 5,
+      })
+    : [];
+
   return {
     online,
     onlineSince: presence?.onlineSince?.toISOString() ?? null,
     currentLoad: presence?.currentLoad ?? 0,
     maxLoad: presence?.maxLoad ?? 1,
     blockedBy,
+    occupying: occupying.map((consultation) => ({
+      consultationPublicId: consultation.publicId,
+      state: consultation.state,
+      // When this consultation started holding the slot, which is the part
+      // that makes an old one obvious at a glance.
+      since: (consultation.startedAt ?? consultation.assignedAt)?.toISOString() ?? null,
+    })),
   };
 }
 
