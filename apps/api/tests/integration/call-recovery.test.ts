@@ -5,6 +5,7 @@ import { getPrisma, disconnectPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, getTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestPharmacy, createTestUser, resetDatabase } from '../helpers/database.ts';
 import {
+  MediaProviderError,
   MockVideoProvider,
   MockVoiceProvider,
   setMediaProvidersForTesting,
@@ -109,7 +110,7 @@ async function onlineDoctor(): Promise<{ doctorId: string; email: string }> {
  * Driven through the real routes rather than written into the database, so
  * these tests break if the journey they describe stops working.
  */
-async function liveConsultation(): Promise<Fixture> {
+async function liveConsultation(options: { doctorJoins?: boolean } = {}): Promise<Fixture> {
   const prisma = getPrisma();
   const doctor = await onlineDoctor();
 
@@ -180,8 +181,15 @@ async function liveConsultation(): Promise<Fixture> {
   await offerNextDoctor(consultation.id);
   await acceptOffer(publicId, doctor.doctorId);
 
-  // The doctor joining is what starts it.
-  await joinMediaSession(consultation.id, 'DOCTOR');
+  /*
+   * The doctor joining is what starts it — and `doctorJoins: false` is the
+   * state a consultation sits in before that: accepted, with no room open yet.
+   * That is where the patient arrives first, and where a provider refusing to
+   * create a room is actually felt.
+   */
+  if (options.doctorJoins !== false) {
+    await joinMediaSession(consultation.id, 'DOCTOR');
+  }
 
   return {
     consultationId: consultation.id,
@@ -606,5 +614,85 @@ describe('a call that breaks', () => {
     expect(second.rejoinableUntil).toBe(first.rejoinableUntil);
     // And the slot is released once, not twice.
     expect(await currentLoad(fixture.doctorId)).toBe(0);
+  });
+});
+
+describe('when the video provider will not cooperate', () => {
+  /**
+   * A provider that refuses everything, the way Whereby does with a key it no
+   * longer recognises.
+   */
+  function refusingProvider() {
+    const video = new MockVideoProvider();
+    video.createRoom = async () => {
+      throw new MediaProviderError('Whereby returned 401 for /meetings');
+    };
+    return video;
+  }
+
+  it('says the service is unavailable, not that something went wrong on our side', async () => {
+    const fixture = await liveConsultation({ doctorJoins: false });
+    setMediaProvidersForTesting({ video: refusingProvider(), voice: new MockVoiceProvider() });
+
+    const response = await request('/patient/consultation/media/join', {
+      method: 'POST',
+      cookies: fixture.patientCookies,
+    });
+
+    /*
+     * Unmapped, this was a 500 reading "Something went wrong on our side" —
+     * the same sentence a null dereference produces. A patient was told the
+     * fault was ours and that waiting would fix it, and an operator could not
+     * tell an outage from a bug without a stack trace.
+     */
+    expect(response.status).toBe(503);
+    expect(response.body.error?.code).toBe('PROVIDER_UNAVAILABLE');
+    expect(response.body.error?.message).not.toMatch(/went wrong on our side/i);
+  });
+
+  it('tells the patient nothing about the provider', async () => {
+    const fixture = await liveConsultation({ doctorJoins: false });
+    const video = new MockVideoProvider();
+    video.createRoom = async () => {
+      throw new MediaProviderError('Whereby returned 401 for /meetings', 'room-ref-abc');
+    };
+    setMediaProvidersForTesting({ video, voice: new MockVoiceProvider() });
+
+    const response = await request('/patient/consultation/media/join', {
+      method: 'POST',
+      cookies: fixture.patientCookies,
+    });
+
+    // Rule 1 of the error handler: never a provider payload. A room URL is a
+    // bearer credential, and the safe habit is to send none of it.
+    const body = JSON.stringify(response.body);
+    expect(body).not.toMatch(/whereby/i);
+    expect(body).not.toMatch(/room-ref-abc/);
+    expect(body).not.toMatch(/401/);
+  });
+
+  it('opens no room and leaves the consultation where it was', async () => {
+    const fixture = await liveConsultation({ doctorJoins: false });
+    setMediaProvidersForTesting({ video: refusingProvider(), voice: new MockVoiceProvider() });
+
+    await request('/patient/consultation/media/join', {
+      method: 'POST',
+      cookies: fixture.patientCookies,
+    });
+
+    /*
+     * The failure that prompted this left a consultation with no media session
+     * at all, which is how it was finally diagnosed. Worth asserting: a failed
+     * join must not leave a half-made room behind.
+     */
+    const sessions = await getPrisma().mediaSession.count({
+      where: { consultationId: fixture.consultationId },
+    });
+    expect(sessions).toBe(0);
+
+    const consultation = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: fixture.consultationId },
+    });
+    expect(consultation.state).toBe('DOCTOR_ACCEPTED');
   });
 });

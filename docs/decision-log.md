@@ -2265,3 +2265,56 @@ Covered by `tests/integration/consultation-lifetime.test.ts` (37 cases) and the
 recovery suites. Two earlier tests were reversed: both asserted that the deadline
 survives a resume, which was right when it was the only bound on the
 consultation's life and is wrong now that `firstInterruptedAt` carries it.
+
+### D68 — A provider refusing is not an internal error · 2026-10-07 · **DECIDED**
+
+**Issue.** A patient and a doctor sat in a consultation on production looking at
+"Something went wrong on our side. Please try again," with a Reconnect button
+that could not work. Nothing was wrong on our side in any sense the sentence
+implies: Whereby was refusing to create rooms.
+
+The record said so plainly once read — `NEEM-7WEC-TFWG-J4JX`, `DOCTOR_ACCEPTED`,
+**no media session row at all**, so `openRoom` had never succeeded — but reading
+the database is not a diagnosis anyone should need for this.
+
+`MediaProviderError` and `PaymentProviderError` are how the Whereby and Paystack
+adapters report a refusal from the other end. **Neither was mapped anywhere.**
+Both fell through to the final clause of the error handler and were answered
+500 with the generic message. `errors.providerUnavailable` had existed since the
+beginning and was called from nowhere.
+
+**Why that sentence is the wrong one.** It tells a patient the fault is ours and
+that waiting will fix it, when the truth is that a third party is down and
+retrying now will fail identically. It is also the same sentence a null
+dereference produces, so an operator cannot tell an outage from a bug without
+reading a stack trace — which is why this one was diagnosed from the database
+instead of from a log search.
+
+**Decision.** Both provider errors map centrally to **503 `PROVIDER_UNAVAILABLE`**.
+
+- **Centrally, not at each call site.** Every path that touches a provider has
+  this failure mode, and a route that forgot to catch it would answer 500 —
+  the same reasoning as the sealed clinical record in [D23](#d23).
+- **Matched by name, not `instanceof`**, so middleware does not import the
+  adapters. Again as the sealed-record case does.
+- **Payments as well as video**, though only video failed today. The hole is
+  identical and the consequence is worse: the path that takes somebody's money
+  should not report a processor outage as our own malfunction.
+- **The provider's message is logged, never sent.** The adapters already
+  guarantee it quotes a status code and never a room URL, because a room URL is
+  a bearer credential. The response stays generic regardless.
+- **503 rather than 502.** The service is reachable and the consultation is
+  intact; what is unavailable is a dependency, and 503 is what a client should
+  retry on.
+
+**Consequences.** The next outage is one log search (`provider unavailable`) and
+one status code, not a database query. The patient is told something true.
+
+**Not fixed here.** The Reconnect button still invites a retry that will fail
+while the provider is down, and the patient's screen still says "You are in the
+room" when no room exists. Both are real and neither is this change.
+
+Covered by `tests/integration/call-recovery.test.ts`: the mapping test fails
+with 500 against the old handler. The two beside it — that no provider detail
+reaches the patient, and that a failed join leaves no half-made room — hold
+either way and are guards rather than proof.

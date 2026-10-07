@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { ZodError } from 'zod';
 import { ERROR_CODES } from '@neem/contracts';
-import { AppError, isAppError } from '../lib/errors.ts';
+import { AppError, errors, isAppError } from '../lib/errors.ts';
 import { isUniqueConstraintError } from '../db/prisma.ts';
 
 /**
@@ -75,6 +75,53 @@ export const errorHandlerPlugin = fp(async (app: FastifyInstance) => {
 
       return reply.status(403).send({
         error: { code: ERROR_CODES.FORBIDDEN, message: error.message },
+        meta,
+      });
+    }
+
+    /**
+     * A provider we depend on would not cooperate (D68).
+     *
+     * `MediaProviderError` and `PaymentProviderError` are how the Whereby and
+     * Paystack adapters report a refusal from the other end: a revoked key, a
+     * lapsed subscription, a quota, an outage. Neither was mapped anywhere, so
+     * both landed in the final clause and were answered 500 with "Something
+     * went wrong on our side."
+     *
+     * That sentence is wrong in the way that matters. It tells a patient the
+     * fault is ours and that waiting will fix it, and it is the same sentence
+     * a null dereference produces — so an operator cannot tell an outage from
+     * a bug without a stack trace. A patient and a doctor spent a consultation
+     * looking at it while Whereby refused to create rooms, and the only way to
+     * establish that was to query the database.
+     *
+     * 503 and `PROVIDER_UNAVAILABLE` instead: honest about where the fault
+     * lies, the right status for a client to retry on, and greppable.
+     *
+     * Matched by name rather than `instanceof`, as the sealed-record case
+     * above is, so that middleware does not import the adapters.
+     *
+     * The provider's own message is logged and never sent. The adapters
+     * guarantee it quotes a status code and never a room URL, because a room
+     * URL is a bearer credential — but the response is generic regardless,
+     * under rule 1 at the top of this file.
+     */
+    if (error.name === 'MediaProviderError' || error.name === 'PaymentProviderError') {
+      const provider = error.name === 'MediaProviderError' ? 'video' : 'payments';
+      const mapped = errors.providerUnavailable(provider);
+
+      request.log.error(
+        {
+          err: error,
+          provider,
+          route: request.routeOptions.url,
+          principal: request.principal?.userPublicId,
+        },
+        'provider unavailable',
+      );
+
+      return reply.status(mapped.statusCode).send({
+        error: { code: mapped.code, message: mapped.message },
         meta,
       });
     }
