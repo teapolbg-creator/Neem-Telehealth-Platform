@@ -11,6 +11,7 @@
  */
 
 export const SETTING_KEYS = {
+  CONSULTATION_FEE_ENABLED: 'consultation.feeEnabled',
   CONSULTATION_PRICE_MINOR: 'consultation.priceMinor',
   CONSULTATION_CURRENCY: 'consultation.currency',
   CONSULTATION_DURATION_SECONDS: 'consultation.durationSeconds',
@@ -89,6 +90,37 @@ const K = SETTING_KEYS;
 
 export const DEFAULT_SETTINGS: SettingDefinition[] = [
   // --- Consultation -------------------------------------------------------
+  {
+    key: K.CONSULTATION_FEE_ENABLED,
+    value: true,
+    valueType: 'boolean',
+    /*
+     * Whether a consultation costs anything at all (D69).
+     *
+     * Off for month one of the pilot, on again in month two once there is data
+     * to price from. A switch rather than a deletion: every line of fee and
+     * payment logic stays exactly as it is, and turning fees back on is this
+     * one setting rather than a release.
+     *
+     * Read at the moment a consultation is created, never later. The decision
+     * is then written onto the consultation as `feeWaivedReason`, so flipping
+     * this cannot make a consultation somebody is halfway through change its
+     * mind about whether it is free — a consultation created while fees were
+     * off stays free, and one created while they were on stays payable.
+     *
+     * A setting and not an environment variable because `updateSetting` makes
+     * the operator give a reason and writes it to `system_setting_history`.
+     * When the pilot is analysed, *when fees were switched off and why* is a
+     * recorded fact rather than a memory of a deploy.
+     *
+     * Default true, so a new environment charges and every existing test keeps
+     * its behaviour. Switching it off is a deliberate act in the admin console.
+     */
+    description:
+      'Whether consultations are charged for. Off during the pilot: no payment is taken, no provider is called, and each consultation is recorded at zero with a pilot_free marker (D69).',
+    category: 'consultation',
+    requiresConfirm: true,
+  },
   {
     key: K.CONSULTATION_PRICE_MINOR,
     // Seeded, not fixed. The business documents never settle on a figure and

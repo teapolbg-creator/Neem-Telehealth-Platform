@@ -125,6 +125,9 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
         consultationReference: booking.consultationReference,
         price: booking.price,
         paymentDeadlineAt: booking.paymentDeadlineAt,
+        // Nothing to pay during the pilot (D69), so the booking screen goes
+        // straight to the waiting room instead of mounting a payment panel.
+        feeWaived: booking.feeWaived,
       },
       meta: { requestId: request.correlationId },
     });
@@ -250,6 +253,7 @@ export async function patientBookingRoutes(app: FastifyInstance): Promise<void> 
         state: fresh.state,
         paymentStatus: payment?.status ?? 'NONE',
         secondsRemaining: secondsRemaining(fresh.paymentDeadlineAt),
+        feeWaived: fresh.feeWaivedReason !== null,
         isMockProvider: isMockPaymentProvider(),
         joinedQueue: queued || fresh.state === 'WAITING_FOR_DOCTOR',
         // So the page Paystack returns to knows which kind of booking it is.

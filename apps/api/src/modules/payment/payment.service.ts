@@ -90,6 +90,21 @@ export async function initiatePayment(
 
   if (!owned) throw errors.notFound('Consultation not found.');
 
+  /*
+   * Nothing to pay (D69).
+   *
+   * Structurally this is already unreachable: a waived consultation is
+   * ACTIVATED at creation, so the `isAwaitingPayment` check below refuses an
+   * old checkout link, a direct API call or a stale client. The explicit
+   * refusal is here anyway, because "there is nothing to pay" is a better
+   * answer than "this consultation is ACTIVATED and is not awaiting payment",
+   * and because a client still calling this endpoint is a bug worth seeing
+   * rather than one that merely looks like a state error.
+   */
+  if (consultation.feeWaivedReason) {
+    throw errors.businessRule('Consultations are free during the pilot; there is nothing to pay.');
+  }
+
   if (!isAwaitingPayment(consultation.state)) {
     throw errors.businessRule(
       `This consultation is ${consultation.state} and is not awaiting payment.`,
@@ -726,7 +741,7 @@ export async function expirePendingPayments(
       state: true,
       paymentDeadlineAt: true,
       payments: {
-        where: { status: { in: ['PENDING', 'PROCESSING', 'ABANDONED'] } },
+        where: { status: { in: ['PENDING', 'PROCESSING', 'ABANDONED'] }, isWaived: false },
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: { providerReference: true },

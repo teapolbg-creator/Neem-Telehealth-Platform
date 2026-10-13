@@ -6,6 +6,7 @@ import {
   hashIp,
   hashToken,
 } from '../../lib/crypto.ts';
+import { FEE_WAIVER_REASONS } from '../payment/fee-waiver.service.ts';
 
 /**
  * The consultation a patient books for themselves (v2).
@@ -47,6 +48,11 @@ export async function createDirectConsultation(
     languageId: string;
     intake: DirectIntake;
     paymentDeadlineAt: Date;
+    /**
+     * Whether this consultation is free (D69). Decided by the caller, which
+     * read the setting, so the two booking paths cannot disagree about it.
+     */
+    feeWaived?: boolean;
     sessionToken: string;
     sessionExpiresAt: Date;
     now: Date;
@@ -63,11 +69,14 @@ export async function createDirectConsultation(
       type: input.intake.type,
       state: 'PENDING_PAYMENT',
       // The price the patient was shown, kept here so a later change to the
-      // service cannot rewrite what they were charged.
+      // service cannot rewrite what they were charged. Kept even when the fee
+      // is waived: it is what the pilot is measured against.
       priceMinor: input.service.priceMinor,
-      netMinor: input.service.priceMinor,
+      netMinor: input.feeWaived ? 0 : input.service.priceMinor,
       currency: input.service.currency,
-      paymentDeadlineAt: input.paymentDeadlineAt,
+      // Nothing to pay by, so nothing to expire for not paying.
+      paymentDeadlineAt: input.feeWaived ? null : input.paymentDeadlineAt,
+      feeWaivedReason: input.feeWaived ? FEE_WAIVER_REASONS.PILOT_FREE : null,
     },
   });
 

@@ -2318,3 +2318,113 @@ Covered by `tests/integration/call-recovery.test.ts`: the mapping test fails
 with 500 against the old handler. The two beside it — that no provider detail
 reaches the patient, and that a failed join leaves no half-made room — hold
 either way and are guards rather than proof.
+
+### D69 — Dietitians, trainers and the weight-loss clinic are withdrawn; the pilot is free · 2026-10-13 · **DECIDED**
+
+Two product decisions, taken together because they touch the same files.
+
+#### Part one — the withdrawal
+
+**Issue.** The dietitian and personal-trainer offerings, and the weight-loss
+clinic built around them, are discontinued. Only the general consultation
+remains bookable.
+
+**What the data actually held**, read before anything was designed: production
+had **no** dietitian or trainer professionals, **no** consultations against
+their services, **no** open appointments and **no** earnings — one earning row,
+a doctor's. Staging had one demo account of each. So there was nothing to
+archive and **no patient to contact**: the instruction to preserve records was
+satisfied by having none to preserve.
+
+**Decision.** Remove them from the product; leave them in the database.
+
+- **The Postgres enum values stay.** `ProfessionalEarning.discipline` is a
+  historical snapshot, kept so a statement read years from now says what the
+  professional was. Dropping an enum value in Postgres means recreating the
+  type across three tables, and it would rewrite the past to no benefit.
+- **Two lists, not one.** `PROFESSIONAL_DISCIPLINES` is what the data may
+  contain; **`OFFERED_PROFESSIONAL_DISCIPLINES` is what Neem offers.** Input
+  schemas — registration, the admin profession form, the service catalogue —
+  validate against the second, so neither discipline can be created, while
+  everything that reads an existing record keeps working untouched. The same
+  pair exists for `SERVICE_CLINICS`.
+
+  This replaced the original plan of narrowing the single list, which the
+  compiler rejected for a good reason: every reader would have had to either
+  cast or claim a dietitian was a doctor.
+
+- **`DISCIPLINE_WITHHELD` keeps all three entries.** A record that says
+  DIETITIAN must never be answered as though it said DOCTOR — least of all
+  about prescribing — even though none can now be created.
+- **Services are deactivated, not deleted**, by an idempotent script that is
+  read-only without `--apply`. `Appointment` and `Consultation` reference
+  `Service`, and the catalogue keeps its price history.
+- **The admin profession endpoint survives**, narrowed to DOCTOR. It is how a
+  legacy account is corrected, and how the service roster is set.
+- **The `ProfessionPanel` in the admin portal is removed entirely.** With one
+  discipline and no clinic services it would have offered a single choice and
+  an empty list, which is worse than no panel.
+
+#### Part two — free consultations
+
+**Issue.** Month one of the pilot charges nothing; month two turns fees back on
+from what the data shows. A switch, not a deletion.
+
+**Decision.** One admin setting, `consultation.feeEnabled`, default **true**.
+
+- **A setting rather than an environment variable**, because `updateSetting`
+  makes the operator give a reason and writes it to `system_setting_history`.
+  When the pilot is analysed, _when fees were switched off and why_ is a
+  recorded fact rather than a memory of a deploy — and month two is one audited
+  click.
+- **Read when a consultation is created, never later**, and written onto the
+  row as `feeWaivedReason`. A branch inside `initiatePayment` would have left
+  three clients calling an endpoint that no longer pays, and a free
+  consultation sitting in PENDING_PAYMENT with a deadline for the expiry sweep
+  to find. Deciding at creation also makes "no other path can charge for this"
+  **structural**: a waived consultation is ACTIVATED before its creation
+  transaction commits, so the existing `isAwaitingPayment` guard already
+  refuses an old checkout link, a direct API call and a replayed webhook.
+- **It cannot change its mind mid-flight.** Created while free, stays free;
+  created while payable, stays payable.
+- **`priceMinor` keeps the real price**; only `netMinor` is zero. That is what
+  the pilot is measured against afterwards.
+
+**A real Payment row, for nothing.** `RevenueAllocation.paymentId` and
+`ProfessionalEarning.paymentId` are both NOT NULL. Without a payment row there
+can be no allocation and no earning — **a free month would leave no record of
+who did the work.** So the waiver writes `amountMinor: 0`, `isWaived: true`,
+`provider: 'none'`, with a deterministic reference that makes it idempotent
+through the UNIQUE constraints.
+
+**Status `SUCCESS`, not a new `WAIVED` value.** SUCCESS means the fee
+obligation is settled, which is true — and every existing reader of
+`status === 'SUCCESS'` then keeps working, which is how the refund and earnings
+paths needed no special case at all. A new enum value would have created those
+problems instead of avoiding them, and on Postgres an enum value cannot be
+dropped: it would have been the one irreversible part of this work.
+
+**What needed guarding**, all of it against the provider rather than the
+arithmetic — zero is safe everywhere money is split: reconciliation excludes
+waived rows at the query, refunds skip the provider call and complete locally,
+the payment-expiry sweep ignores them, the dev simulate route refuses them, and
+`financialSummary` reports `freeConsultations` separately. That last one
+matters most: without it the report the pilot is judged on would have counted a
+free month as a month of paid consultations worth nothing.
+
+**Accepted knowingly:** cancelling a free consultation raises a GH₵0.00 refund
+request. The alternative changes a return type in the money path, forces edits
+at three call sites, and would make the pharmacy's "a refund request has been
+raised" message false again — the exact regression the comment at
+`consultation.service.ts` exists to prevent.
+
+**Consequences.** Two additive, reversible columns (`Payment.isWaived`,
+`Consultation.feeWaivedReason`); down is `DROP COLUMN` on each. Existing
+suites run at the default and must pass untouched — that they do _is_ the
+evidence month two restores the original behaviour. `v2-disciplines` and
+`v2-weight-loss-clinic` were replaced by `withdrawn-disciplines`, which asserts
+the withdrawal holds rather than leaving it untested.
+
+**Not wired together:** the marketing site has its own `FEES_ENABLED` constant
+in `src/lib/pricing.ts`. It and the admin setting **can disagree** — turning
+fees back on means changing both in the same sitting.

@@ -193,6 +193,7 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         professional: reserved.professional,
         price: reserved.price,
         reservationExpiresAt: reserved.reservationExpiresAt,
+        feeWaived: reserved.feeWaived,
       },
       meta: { requestId: request.correlationId },
     });

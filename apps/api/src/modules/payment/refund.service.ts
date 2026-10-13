@@ -228,7 +228,9 @@ export async function decideRefund(
   const refund = await db.refund.findUnique({
     where: { publicId: refundPublicId },
     include: {
-      payment: { select: { id: true, providerReference: true, amountMinor: true } },
+      payment: {
+        select: { id: true, providerReference: true, amountMinor: true, isWaived: true },
+      },
       consultation: { select: { id: true, publicId: true, state: true, pharmacyId: true } },
     },
   });
@@ -271,12 +273,22 @@ export async function decideRefund(
     return { state: 'REJECTED', consultationState: restored };
   }
 
-  // Approved. The provider is asked before anything local is written.
-  const result = await getPaymentProvider().refund({
-    providerReference: refund.payment.providerReference,
-    amountMinor: refund.amountMinor,
-    reason: decision.note ?? refund.reason,
-  });
+  /*
+   * Approved. The provider is asked before anything local is written — unless
+   * there is nothing to ask it about (D69).
+   *
+   * A waived fee took no money, so there is no transaction at Paystack to
+   * reverse and its reference was minted here. The refund is still recorded
+   * and the allocation still reversed, so the consultation ends up in exactly
+   * the state a refunded one does; only the provider call is skipped.
+   */
+  const result = refund.payment.isWaived
+    ? { status: 'COMPLETED' as const, providerRefundReference: `waived_${refund.publicId}` }
+    : await getPaymentProvider().refund({
+        providerReference: refund.payment.providerReference,
+        amountMinor: refund.amountMinor,
+        reason: decision.note ?? refund.reason,
+      });
 
   const consultationState = await db.$transaction(async (tx) => {
     try {

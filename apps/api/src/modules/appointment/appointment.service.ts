@@ -57,7 +57,10 @@ export interface ReservedAppointment {
   endsAt: string;
   professional: { publicId: string; fullName: string };
   price: { amountMinor: number; currency: string };
-  reservationExpiresAt: string;
+  /** Null when the fee is waived: the slot cannot lapse for non-payment (D69). */
+  reservationExpiresAt: string | null;
+  /** Free during the pilot, so the client skips its payment step. */
+  feeWaived: boolean;
   /** The patient session cookie value. Returned once, never stored raw. */
   sessionToken: string;
   sessionExpiresAt: Date;
@@ -115,6 +118,11 @@ export async function reserveAppointment(
   const endsAt = new Date(input.startsAt.getTime() + minutes * 60_000);
   const sessionExpiresAt = addMinutes(endsAt, getEnv().PATIENT_SESSION_TIMEOUT_MINUTES);
 
+  // Free for the pilot, if that is how Neem is configured right now (D69).
+  const { isConsultationFeeWaived, waiveConsultationFee, afterFeeWaived, FEE_WAIVER_REASONS } =
+    await import('../payment/fee-waiver.service.ts');
+  const feeWaived = await isConsultationFeeWaived(db);
+
   try {
     const { appointment, consultation } = await db.$transaction(async (tx) => {
       const created = await createDirectConsultation(tx, {
@@ -123,11 +131,34 @@ export async function reserveAppointment(
         languageId: language.id,
         intake: input,
         paymentDeadlineAt,
+        feeWaived,
         sessionToken,
         sessionExpiresAt,
         now,
         ip: context.ip,
       });
+
+      /*
+       * Activated here, confirmed below. A free appointment still holds its
+       * slot through the ordinary route: `afterFeeWaived` calls
+       * `admitPaidConsultation`, which sees an appointment and confirms it
+       * rather than admitting it to the queue — the same path a paid one
+       * takes, so a slot booked for Thursday still waits until Thursday.
+       */
+      if (feeWaived) {
+        await waiveConsultationFee(
+          {
+            id: created.id,
+            publicId: created.publicId,
+            currency: created.currency,
+            pharmacyId: created.pharmacyId,
+            isDemo: created.isDemo,
+          },
+          FEE_WAIVER_REASONS.PILOT_FREE,
+          tx,
+          clock,
+        );
+      }
 
       const booked = await tx.appointment.create({
         data: {
@@ -141,7 +172,9 @@ export async function reserveAppointment(
           // Holding the slot IS the reservation; the unique index is the lock.
           slotKey: input.startsAt.toISOString(),
           state: 'RESERVED',
-          reservationExpiresAt: paymentDeadlineAt,
+          // A reservation that cannot lapse for non-payment. Confirmed a
+          // moment later by the admission path, which nulls this.
+          reservationExpiresAt: feeWaived ? null : paymentDeadlineAt,
         },
       });
 
@@ -164,6 +197,19 @@ export async function reserveAppointment(
       db,
     );
 
+    if (feeWaived) {
+      await afterFeeWaived(
+        {
+          id: consultation.id,
+          publicId: consultation.publicId,
+          priceMinor: consultation.priceMinor,
+        },
+        FEE_WAIVER_REASONS.PILOT_FREE,
+        { actorType: 'PATIENT', correlationId: context.correlationId },
+        db,
+      );
+    }
+
     return {
       appointmentReference: appointment.publicId,
       consultationReference: consultation.publicId,
@@ -171,7 +217,8 @@ export async function reserveAppointment(
       endsAt: appointment.endsAt.toISOString(),
       professional: { publicId: professional.publicId, fullName: professional.fullName },
       price: { amountMinor: consultation.netMinor, currency: consultation.currency },
-      reservationExpiresAt: paymentDeadlineAt.toISOString(),
+      reservationExpiresAt: feeWaived ? null : paymentDeadlineAt.toISOString(),
+      feeWaived,
       sessionToken,
       sessionExpiresAt,
     };

@@ -222,6 +222,8 @@ export interface FinancialSummary {
   refundedMinor: number;
   membershipMinor: number;
   paidConsultations: number;
+  /** Consultations given away while the pilot ran with fees off (D69). */
+  freeConsultations: number;
   /** Allocations reversed by a refund, excluded from every figure above. */
   reversedAllocations: number;
 }
@@ -241,9 +243,16 @@ export async function financialSummary(
 ): Promise<FinancialSummary> {
   const window = { gte: period.from, lte: period.to };
 
-  const [allocations, reversed, refunds, membership, earnings] = await Promise.all([
+  const [allocations, reversed, refunds, membership, earnings, free] = await Promise.all([
     db.revenueAllocation.findMany({
-      where: { calculatedAt: window, reversedAt: null },
+      where: {
+        calculatedAt: window,
+        reversedAt: null,
+        // Consultations given away during the pilot allocate a row of zeros
+        // (D69). They are counted separately below; including them here would
+        // report a free month as a month of paid consultations worth nothing.
+        payment: { isWaived: false },
+      },
       select: {
         grossMinor: true,
         discountMinor: true,
@@ -266,6 +275,9 @@ export async function financialSummary(
       where: { calculatedAt: window, reversedAt: null },
       _sum: { professionalShareMinor: true },
     }),
+    db.revenueAllocation.count({
+      where: { calculatedAt: window, reversedAt: null, payment: { isWaived: true } },
+    }),
   ]);
 
   const sum = (field: keyof (typeof allocations)[number]) =>
@@ -285,6 +297,10 @@ export async function financialSummary(
     // reported beside the split rather than inside it.
     membershipMinor: membership._sum.amountMinor ?? 0,
     paidConsultations: allocations.length,
+    // What the pilot gave away. Reported beside the paid count rather than
+    // folded into it, because "nobody paid" and "nobody came" are different
+    // months and the figure is the one month one is judged on (D69).
+    freeConsultations: free,
     reversedAllocations: reversed,
   };
 }

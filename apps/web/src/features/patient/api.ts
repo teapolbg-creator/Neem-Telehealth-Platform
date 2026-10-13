@@ -48,7 +48,10 @@ export function usePatientClinics() {
   return useQuery({
     queryKey: ["patient", "clinics"],
     queryFn: ({ signal }) =>
-      api.get<{ enabled: boolean; clinics: PatientClinic[] }>("/patient/clinics", signal),
+      api.get<{ enabled: boolean; feesEnabled: boolean; clinics: PatientClinic[] }>(
+        "/patient/clinics",
+        signal,
+      ),
     staleTime: 60_000,
   });
 }
@@ -147,7 +150,13 @@ export interface BookingIntake {
 export interface ImmediateBooking {
   consultationReference: string;
   price: Money;
-  paymentDeadlineAt: string;
+  /** Null when the fee is waived: there is nothing to pay by any time (D69). */
+  paymentDeadlineAt: string | null;
+  /**
+   * Free during the pilot. The booking is already activated, so the screen
+   * goes to the waiting room instead of mounting the payment panel.
+   */
+  feeWaived: boolean;
 }
 
 export function useBookNow() {
@@ -185,7 +194,10 @@ export interface ReservedAppointment {
   endsAt: string;
   professional: { publicId: string; fullName: string };
   price: Money;
-  reservationExpiresAt: string;
+  /** Null when the fee is waived: the slot cannot lapse for non-payment (D69). */
+  reservationExpiresAt: string | null;
+  /** Free during the pilot; the appointment is confirmed without paying. */
+  feeWaived: boolean;
 }
 
 export function useReserveAppointment() {
@@ -257,6 +269,8 @@ export interface BookingPaymentStatus {
   consultationReference: string;
   state: string;
   paymentStatus: string;
+  /** Free during the pilot (D69). */
+  feeWaived?: boolean;
   secondsRemaining: number | null;
   isMockProvider: boolean;
   joinedQueue: boolean;

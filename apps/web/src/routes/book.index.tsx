@@ -60,8 +60,10 @@ function WhatWeOffer() {
           See someone about it today.
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed text-slate-600">
-          A licensed Ghanaian professional, by video or audio, from wherever you are. You pay once,
-          before the consultation, and you keep whatever they write for you.
+          A licensed Ghanaian doctor, by video or audio, from wherever you are.{" "}
+          {data.feesEnabled
+            ? "You pay once, before the consultation, and you keep whatever they write for you."
+            : "Free during the pilot, and you keep whatever they write for you."}
         </p>
       </header>
 
@@ -70,7 +72,7 @@ function WhatWeOffer() {
           <section key={clinic.code}>
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-lg font-bold">{clinic.name}</h2>
-              {clinic.fromPrice && clinic.services.length > 1 ? (
+              {data.feesEnabled && clinic.fromPrice && clinic.services.length > 1 ? (
                 <span className="text-sm text-slate-500">from {formatMoney(clinic.fromPrice)}</span>
               ) : null}
             </div>
@@ -78,7 +80,7 @@ function WhatWeOffer() {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {clinic.services.map((service) => (
-                <ServiceCard key={service.code} service={service} />
+                <ServiceCard key={service.code} service={service} feesEnabled={data.feesEnabled} />
               ))}
             </div>
           </section>
@@ -88,7 +90,7 @@ function WhatWeOffer() {
   );
 }
 
-function ServiceCard({ service }: { service: PatientService }) {
+function ServiceCard({ service, feesEnabled }: { service: PatientService; feesEnabled: boolean }) {
   return (
     <div className="card-soft flex flex-col p-5">
       <div className="mb-3 grid size-10 place-items-center rounded-xl bg-brand/10">
@@ -104,7 +106,15 @@ function ServiceCard({ service }: { service: PatientService }) {
         <div className="flex-1" />
       )}
 
-      <p className="mt-4 text-2xl font-bold tabular-nums">{formatMoney(service.price)}</p>
+      {/*
+        What it costs, or that it costs nothing (D69). The catalogue price is
+        left alone while fees are off — this says the price is not being
+        charged rather than claiming the service is worth nothing, so month two
+        needs no catalogue edit to undo.
+      */}
+      <p className="mt-4 text-2xl font-bold tabular-nums">
+        {feesEnabled ? formatMoney(service.price) : "Free"}
+      </p>
 
       <div className="mt-4 grid gap-2">
         <Link

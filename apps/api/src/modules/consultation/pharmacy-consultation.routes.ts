@@ -71,6 +71,12 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
         net: { amountMinor: consultation.netMinor, currency: consultation.currency },
         paymentDeadlineAt: consultation.paymentDeadlineAt?.toISOString() ?? null,
         secondsRemaining: secondsRemaining(consultation.paymentDeadlineAt),
+        // Free during the pilot (D69): the counter skips straight to the QR.
+        // Reported as a fact about this consultation rather than as the
+        // current setting, because the setting can change under a consultation
+        // and this cannot.
+        feeWaived: consultation.feeWaivedReason !== null,
+        feeWaivedReason: consultation.feeWaivedReason,
       },
       meta: { requestId: request.correlationId },
     });
@@ -151,6 +157,7 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
           paymentStatus: fresh.payments[0]?.status ?? 'NONE',
           amount: { amountMinor: fresh.netMinor, currency: fresh.currency },
           secondsRemaining: secondsRemaining(fresh.paymentDeadlineAt),
+          feeWaived: fresh.feeWaivedReason !== null,
           isMockProvider: isMockPaymentProvider(),
           canRetry: fresh.state === 'PAYMENT_FAILED' || fresh.state === 'PENDING_PAYMENT',
         },
@@ -341,6 +348,11 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
 
       const payment = consultation.payments[0];
       if (!payment) throw errors.businessRule('No payment has been started for this consultation.');
+      if (payment.isWaived) {
+        throw errors.businessRule(
+          'This consultation was free; there is no payment to simulate (D69).',
+        );
+      }
 
       const { MockPaymentProvider } = await import('../../adapters/payment/index.ts');
       const { getPaymentProvider } = await import('../../adapters/payment/index.ts');

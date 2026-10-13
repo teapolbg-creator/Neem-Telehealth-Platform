@@ -895,6 +895,20 @@ model Consultation {
   currency      String  @default("GHS") @db.Char(3)
   promotionId   String?
 
+  /// Why no money was asked for, when none was (D69).
+  ///
+  /// Null for an ordinary consultation; "pilot_free" while the pilot runs with
+  /// fees switched off. Written at creation and never changed, so flipping the
+  /// fee setting cannot rewrite what a patient was told, and a month of free
+  /// consultations stays distinguishable from a month of paid ones.
+  ///
+  /// priceMinor still carries what it would have cost; only netMinor is zero.
+  /// That is what makes the comparison possible afterwards.
+  ///
+  /// A string rather than a boolean because a later waiver for a different
+  /// reason — goodwill, staff — must be distinguishable in the same dataset.
+  feeWaivedReason String? @db.VarChar(40)
+
   createdAt         DateTime  @default(now())
   paymentDeadlineAt DateTime?
   activatedAt       DateTime?
@@ -1343,9 +1357,9 @@ model Prescription {
   pharmacyId       String?
   state            PrescriptionState @default(DRAFT)
 
-  patientName String     @db.VarChar(160)
-  patientAge  Int
-  patientSex  PatientSex
+  patientName             String     @db.VarChar(160)
+  patientAge              Int
+  patientSex              PatientSex
   /// Copied by value, like the name, age and sex beside it (D60).
   ///
   /// Section 103 of Act 857 requires the address of the person treated to
@@ -1356,13 +1370,13 @@ model Prescription {
   ///
   /// Nullable only because prescriptions issued before this field existed
   /// cannot have one. Everything issued from now on does.
-  patientAddress String? @db.VarChar(300)
+  patientAddress          String?    @db.VarChar(300)
   /// The prescriber's qualification and address, also required by s.103 and
   /// also copied rather than read back from the doctor's profile (D60): a
   /// professional who later changes practice must not silently rewrite a
   /// document already in a patient's hands.
-  prescriberQualification String? @db.VarChar(160)
-  prescriberAddress       String? @db.VarChar(300)
+  prescriberQualification String?    @db.VarChar(160)
+  prescriberAddress       String?    @db.VarChar(300)
 
   issuedAt          DateTime?
   dispensedAt       DateTime?
@@ -1527,6 +1541,18 @@ model Payment {
   idempotencyKey       String        @unique @db.VarChar(120)
   failureReason        String?       @db.VarChar(300)
   isDemo               Boolean       @default(false)
+  /// This fee was waived, not collected (D69).
+  ///
+  /// A real row, with amountMinor 0 and status SUCCESS, standing for a
+  /// consultation given away during the pilot. It exists because
+  /// RevenueAllocation.paymentId and ProfessionalEarning.paymentId are both
+  /// NOT NULL: without a payment row there can be no allocation and no
+  /// earning, so a free month would leave no ledger at all.
+  ///
+  /// Everything that talks to the provider must skip it — there is no
+  /// transaction at Paystack to verify or refund. The predicate is this flag
+  /// rather than amountMinor == 0, because a 100% promotion also nets zero.
+  isWaived             Boolean       @default(false)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 

@@ -63,13 +63,22 @@ function NewConsultation() {
           <ArrowLeft className="size-4" /> Back to dashboard
         </Link>
 
-        <Steps current={step} />
+        <Steps current={step} free={consultation?.feeWaived ?? false} />
 
         {step === "create" && (
           <CreateStep
             onCreated={(created) => {
               setConsultation(created);
-              setStep("payment");
+              /*
+               * Nothing to collect during the pilot (D69), and the API has
+               * already activated it — so the payment step would poll for a
+               * payment that will never be started and the counter would sit
+               * there for ever. Straight to the patient's code instead.
+               *
+               * PaymentStep is untouched and simply unreachable while fees are
+               * off, which is what makes turning them back on a setting.
+               */
+              setStep(created.feeWaived ? "qr" : "payment");
             }}
           />
         )}
@@ -95,12 +104,20 @@ function NewConsultation() {
   );
 }
 
-function Steps({ current }: { current: Step }) {
-  const steps: Array<{ key: Step; label: string }> = [
-    { key: "create", label: "Start" },
-    { key: "payment", label: "Payment" },
-    { key: "qr", label: "Patient code" },
-  ];
+function Steps({ current, free }: { current: Step; free: boolean }) {
+  // Two steps while consultations are free (D69): showing a payment step the
+  // counter will never reach would make the wizard look broken rather than
+  // generous.
+  const steps: Array<{ key: Step; label: string }> = free
+    ? [
+        { key: "create", label: "Start" },
+        { key: "qr", label: "Patient code" },
+      ]
+    : [
+        { key: "create", label: "Start" },
+        { key: "payment", label: "Payment" },
+        { key: "qr", label: "Patient code" },
+      ];
   const index = steps.findIndex((step) => step.key === current);
 
   return (
@@ -467,7 +484,9 @@ function QrStep({
   return (
     <div className="card-soft space-y-6 p-8 text-center">
       <Chip tone="brand" pulse className="mx-auto">
-        Payment confirmed · consultation active
+        {consultation.feeWaived
+          ? "Free during the pilot · consultation active"
+          : "Payment confirmed · consultation active"}
       </Chip>
 
       <PatientCode publicId={consultation.publicId} qr={qr} onIssued={onIssued} />

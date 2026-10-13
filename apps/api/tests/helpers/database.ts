@@ -286,3 +286,19 @@ export async function setMembershipRequired(required: boolean): Promise<void> {
 
   invalidateSettingsCache(SETTING_KEYS.DOCTOR_MEMBERSHIP_REQUIRED);
 }
+
+/**
+ * Turns consultation fees on or off for one test (D69).
+ *
+ * On by default, so every existing suite exercises the paid flow unchanged —
+ * which is the evidence that month two restores the original behaviour without
+ * a code change.
+ */
+export async function setConsultationFeesEnabled(enabled: boolean): Promise<void> {
+  await getPrisma().systemSetting.update({
+    where: { key: SETTING_KEYS.CONSULTATION_FEE_ENABLED },
+    data: { value: enabled },
+  });
+
+  invalidateSettingsCache(SETTING_KEYS.CONSULTATION_FEE_ENABLED);
+}

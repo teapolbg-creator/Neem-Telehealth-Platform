@@ -64,6 +64,13 @@ export async function reconcilePayments(
 
   const payments = await db.payment.findMany({
     where: {
+      /*
+       * A waived fee has no transaction at the provider to reconcile against
+       * (D69): its reference was minted here. Excluded in the query rather
+       * than skipped in the loop, so it is never fetched and can never be
+       * reported as drift.
+       */
+      isWaived: false,
       createdAt: { gte: since },
       // SUCCESS is included deliberately. A payment we think succeeded that
       // the provider has since reversed is the discrepancy that matters most,

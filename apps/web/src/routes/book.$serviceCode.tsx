@@ -50,6 +50,8 @@ function BookingFlow() {
   const [booked, setBooked] = useState<{
     consultationReference: string;
     appointmentAt: string | null;
+    /** Whether this booking cost anything, as the API reported it (D69). */
+    feeWaived: boolean;
   } | null>(null);
 
   const service = useMemo<PatientService | undefined>(
@@ -87,12 +89,29 @@ function BookingFlow() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{service.name}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {formatMoney(service.price)} · paid before the consultation
+          {clinics.data.feesEnabled
+            ? `${formatMoney(service.price)} · paid before the consultation`
+            : "Free during the pilot"}
         </p>
       </header>
 
       {!signedIn ? (
         <SignInPanel />
+      ) : booked?.feeWaived ? (
+        /*
+         * Nothing to pay (D69). The API activated this booking as it created
+         * it, so there is no payment to start and no status worth polling —
+         * mounting PaymentPanel would fire a POST at an endpoint that now
+         * refuses, and leave the patient looking at a card with no way out.
+         *
+         * PaymentPanel below is untouched and simply unreachable while fees
+         * are off, which is what makes month two a setting rather than a
+         * revert.
+         */
+        <FreeBookingPanel
+          reference={booked.consultationReference}
+          appointmentAt={booked.appointmentAt}
+        />
       ) : booked ? (
         <PaymentPanel
           reference={booked.consultationReference}
@@ -363,7 +382,11 @@ function DetailsForm({
 }: {
   service: PatientService;
   slot: Slot | null;
-  onBooked: (result: { consultationReference: string; appointmentAt: string | null }) => void;
+  onBooked: (result: {
+    consultationReference: string;
+    appointmentAt: string | null;
+    feeWaived: boolean;
+  }) => void;
   onChangeSlot: () => void;
 }) {
   const languages = useBookingLanguages();
@@ -425,6 +448,7 @@ function DetailsForm({
             onBooked({
               consultationReference: result.consultationReference,
               appointmentAt: result.startsAt,
+              feeWaived: result.feeWaived,
             }),
         },
       );
@@ -433,7 +457,11 @@ function DetailsForm({
 
     bookNow.mutate(intake, {
       onSuccess: (result) =>
-        onBooked({ consultationReference: result.consultationReference, appointmentAt: null }),
+        onBooked({
+          consultationReference: result.consultationReference,
+          appointmentAt: null,
+          feeWaived: result.feeWaived,
+        }),
     });
   }
 
@@ -639,6 +667,48 @@ function DetailsForm({
  * re-verifies with the provider on every poll. Nothing the checkout tab says
  * reaches this page, and no button here can mark a consultation paid.
  */
+/**
+ * A booking that cost nothing (D69).
+ *
+ * The consultation is already activated, so there is nothing to start and
+ * nothing to poll: an immediate booking goes to the waiting room, and one for
+ * a later time says when to come back. The wording says free rather than
+ * hiding the price, because a patient who expected to pay should be told why
+ * they were not asked to.
+ */
+function FreeBookingPanel({
+  reference,
+  appointmentAt,
+}: {
+  reference: string;
+  appointmentAt: string | null;
+}) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!appointmentAt) void navigate({ to: "/patient" });
+  }, [appointmentAt, navigate]);
+
+  if (!appointmentAt) {
+    return (
+      <div className="card-soft grid place-items-center gap-3 p-8 text-center">
+        <Loader2 className="size-6 animate-spin text-brand" />
+        <p className="text-sm text-slate-600">Taking you to the waiting room…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-soft space-y-3 p-8 text-center">
+      <h2 className="text-lg font-bold">Your appointment is booked</h2>
+      <p className="text-sm text-slate-600">Free during the pilot — there is nothing to pay.</p>
+      <p className="text-sm text-slate-600">
+        Come back at {new Date(appointmentAt).toLocaleString("en-GH")}.
+      </p>
+      <p className="font-mono text-xs text-slate-500">{reference}</p>
+    </div>
+  );
+}
 function PaymentPanel({
   reference,
   appointmentAt,

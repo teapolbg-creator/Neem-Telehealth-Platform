@@ -36,6 +36,15 @@ export interface CreatedConsultation {
   net: Money;
   paymentDeadlineAt: string | null;
   secondsRemaining: number | null;
+  /**
+   * Free during the pilot (D69), so there is nothing to collect and the
+   * counter goes straight to the patient's code.
+   *
+   * A fact about this consultation rather than the current setting: the
+   * setting can change while a consultation is open, and this cannot.
+   */
+  feeWaived: boolean;
+  feeWaivedReason: string | null;
 }
 
 export function useCreateConsultation() {
@@ -56,6 +65,8 @@ export interface PaymentView {
   secondsRemaining: number | null;
   isMockProvider: boolean;
   canRetry: boolean;
+  /** Free during the pilot (D69). */
+  feeWaived: boolean;
 }
 
 export function useInitiatePayment() {

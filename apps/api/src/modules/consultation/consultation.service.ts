@@ -290,7 +290,19 @@ export async function createConsultation(
     : null;
 
   const discountMinor = promotion ? promotion.discountMinor : 0;
-  const netMinor = applyDiscount(priceMinor, discountMinor);
+
+  /*
+   * Free for the pilot, if that is how Neem is configured right now (D69).
+   *
+   * Read once, here, and then written onto the row as `feeWaivedReason`: a
+   * consultation created while fees are off stays free even if they are
+   * switched on a minute later, and the price it would have cost is kept in
+   * `priceMinor` so the pilot can be measured afterwards.
+   */
+  const { isConsultationFeeWaived, waiveConsultationFee, afterFeeWaived, FEE_WAIVER_REASONS } =
+    await import('../payment/fee-waiver.service.ts');
+  const feeWaived = await isConsultationFeeWaived(db);
+  const netMinor = feeWaived ? 0 : applyDiscount(priceMinor, discountMinor);
 
   const consultation = await db.$transaction(async (tx) => {
     const created = await tx.consultation.create({
@@ -305,7 +317,10 @@ export async function createConsultation(
         netMinor,
         currency,
         promotionId: promotion?.id ?? null,
-        paymentDeadlineAt: addSeconds(clock.now(), windowSeconds),
+        // No deadline to pay by when there is nothing to pay. Leaving one set
+        // would let the payment-expiry sweep end a free consultation.
+        paymentDeadlineAt: feeWaived ? null : addSeconds(clock.now(), windowSeconds),
+        feeWaivedReason: feeWaived ? FEE_WAIVER_REASONS.PILOT_FREE : null,
         isDemo: pharmacy.isDemo,
       },
     });
@@ -331,8 +346,36 @@ export async function createConsultation(
       });
     }
 
+    /*
+     * Straight to ACTIVATED, inside this same transaction, so a free
+     * consultation never exists in PENDING_PAYMENT for a sweep to find.
+     */
+    if (feeWaived) {
+      await waiveConsultationFee(
+        {
+          id: created.id,
+          publicId: created.publicId,
+          currency: created.currency,
+          pharmacyId: created.pharmacyId,
+          isDemo: created.isDemo,
+        },
+        FEE_WAIVER_REASONS.PILOT_FREE,
+        tx,
+        clock,
+      );
+    }
+
     return created;
   });
+
+  if (feeWaived) {
+    await afterFeeWaived(
+      { id: consultation.id, publicId: consultation.publicId, priceMinor },
+      FEE_WAIVER_REASONS.PILOT_FREE,
+      { actorType: 'PHARMACY', actorId: context.actorId, correlationId: context.correlationId },
+      db,
+    );
+  }
 
   await recordAudit(
     {
@@ -342,12 +385,23 @@ export async function createConsultation(
       entityType: 'consultation',
       entityId: consultation.id,
       correlationId: context.correlationId,
-      metadata: { pharmacyId: pharmacy.id, priceMinor, discountMinor, netMinor },
+      metadata: { pharmacyId: pharmacy.id, priceMinor, discountMinor, netMinor, feeWaived },
     },
     db,
   );
 
-  return consultation;
+  /*
+   * Re-read when the fee was waived, because `consultation` was captured
+   * before the waiver moved it (D69).
+   *
+   * The row in hand still says PENDING_PAYMENT: the transitions ran after
+   * `tx.consultation.create` returned it. Handing that back would tell the
+   * counter to collect a payment for a consultation that is already active —
+   * exactly the screen this work exists to skip.
+   */
+  return feeWaived
+    ? db.consultation.findUniqueOrThrow({ where: { id: consultation.id } })
+    : consultation;
 }
 
 /**

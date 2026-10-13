@@ -48,7 +48,14 @@ export interface ImmediateBookingInput {
 export interface ImmediateBooking {
   consultationReference: string;
   price: { amountMinor: number; currency: string };
-  paymentDeadlineAt: string;
+  /** Null when the fee is waived: there is nothing to pay by any time (D69). */
+  paymentDeadlineAt: string | null;
+  /**
+   * Free during the pilot. The client skips its payment step on this rather
+   * than on a zero price, because a zero price is also what a full discount
+   * looks like.
+   */
+  feeWaived: boolean;
   /** The patient session cookie value. Returned once, never stored raw. */
   sessionToken: string;
   sessionExpiresAt: Date;
@@ -88,19 +95,53 @@ export async function createImmediateBooking(
   const sessionExpiresAt = addMinutes(now, getEnv().PATIENT_SESSION_TIMEOUT_MINUTES);
   const paymentDeadlineAt = addSeconds(now, windowSeconds);
 
-  const consultation = await db.$transaction((tx) =>
-    createDirectConsultation(tx, {
+  // Free for the pilot, if that is how Neem is configured right now (D69).
+  const { isConsultationFeeWaived, waiveConsultationFee, afterFeeWaived, FEE_WAIVER_REASONS } =
+    await import('../payment/fee-waiver.service.ts');
+  const feeWaived = await isConsultationFeeWaived(db);
+
+  const consultation = await db.$transaction(async (tx) => {
+    const created = await createDirectConsultation(tx, {
       service,
       accountId,
       languageId: language.id,
       intake: input,
       paymentDeadlineAt,
+      feeWaived,
       sessionToken,
       sessionExpiresAt,
       now,
       ip: context.ip,
-    }),
-  );
+    });
+
+    // Activated before this transaction commits, so there is no moment at
+    // which a free consultation sits in PENDING_PAYMENT.
+    if (feeWaived) {
+      await waiveConsultationFee(
+        {
+          id: created.id,
+          publicId: created.publicId,
+          currency: created.currency,
+          pharmacyId: created.pharmacyId,
+          isDemo: created.isDemo,
+        },
+        FEE_WAIVER_REASONS.PILOT_FREE,
+        tx,
+        clock,
+      );
+    }
+
+    return created;
+  });
+
+  if (feeWaived) {
+    await afterFeeWaived(
+      { id: consultation.id, publicId: consultation.publicId, priceMinor: consultation.priceMinor },
+      FEE_WAIVER_REASONS.PILOT_FREE,
+      { actorType: 'PATIENT', correlationId: context.correlationId },
+      db,
+    );
+  }
 
   await recordAudit(
     {
@@ -117,7 +158,10 @@ export async function createImmediateBooking(
   return {
     consultationReference: consultation.publicId,
     price: { amountMinor: consultation.netMinor, currency: consultation.currency },
-    paymentDeadlineAt: paymentDeadlineAt.toISOString(),
+    // Free consultations have no deadline to pay by; the field stays so the
+    // client's shape does not change between the two states.
+    paymentDeadlineAt: feeWaived ? null : paymentDeadlineAt.toISOString(),
+    feeWaived,
     sessionToken,
     sessionExpiresAt,
   };
