@@ -91,25 +91,20 @@ export async function getBookableService(code: string, db: Db = getPrisma()): Pr
 /**
  * A clinic is a grouping, not a table (v2, plan phase 8).
  *
- * The weight-loss clinic is three separately bookable consultations that
- * happen to belong together — a doctor, a dietitian and a personal trainer,
- * each booked and paid for on its own. What makes it a clinic is that a
- * patient sees them as one offer, so the name and the sentence live here,
+ * A clinic is a set of separately bookable consultations that belong together:
+ * a patient sees them as one offer. The name and the sentence live here,
  * beside the enum, rather than in a table with one row per value and nothing
- * else in it.
+ * else in it. It becomes a table the day a clinic needs something of its own —
+ * an opening time, a picture, a policy. Not before.
  *
- * It becomes a table the day a clinic needs something of its own — an opening
- * time, a picture, a policy. Not before.
+ * The weight-loss clinic was withdrawn (D69). Its entry is gone from here, so
+ * a service row that still carries the code falls back to the code itself
+ * rather than advertising a clinic Neem no longer runs.
  */
 const CLINICS: Record<string, { name: string; description: string }> = {
   GENERAL: {
     name: 'General practice',
     description: 'A licensed Ghanaian doctor, for whatever you need one for.',
-  },
-  WEIGHT_LOSS: {
-    name: 'Weight-loss clinic',
-    description:
-      'A doctor, a dietitian and a personal trainer. Book any of them, in any order, as often as you like.',
   },
 };
 

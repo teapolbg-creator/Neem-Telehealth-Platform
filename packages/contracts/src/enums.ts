@@ -12,12 +12,35 @@ export type UserRole = (typeof USER_ROLES)[number];
 /**
  * What a professional is (v2).
  *
- * Not a role. All three sign in as DOCTOR and use the same consultation
- * workspace; what separates them is what they are allowed to issue at the end
- * of it, which `permissionsForProfessional` decides.
+ * Not a role. A professional signs in as DOCTOR and uses the consultation
+ * workspace; what separates disciplines is what they are allowed to issue at
+ * the end of it, which `permissionsForProfessional` decides.
+ *
+ * **This list is what the data may contain, not what Neem offers.** Dietitians
+ * and personal trainers were withdrawn with the weight-loss clinic (D69), but
+ * they stay here, because the Postgres enum keeps them and
+ * `ProfessionalEarning.discipline` is a historical snapshot. A statement read
+ * years from now must still say what the professional was; narrowing this
+ * would force every reader either to lie or to cast.
+ *
+ * What Neem offers is `OFFERED_PROFESSIONAL_DISCIPLINES` below. That is the
+ * one to widen to bring a discipline back.
  */
 export const PROFESSIONAL_DISCIPLINES = ['DOCTOR', 'DIETITIAN', 'TRAINER'] as const;
 export type ProfessionalDiscipline = (typeof PROFESSIONAL_DISCIPLINES)[number];
+
+/**
+ * What a professional may *become* (D69).
+ *
+ * Registration, the administrator's profession form and the service catalogue
+ * all validate against this, so a dietitian or a trainer cannot be created —
+ * while everything that reads an existing professional keeps working against
+ * the full list above.
+ *
+ * Offering a discipline again is adding it here. Nothing else gates it.
+ */
+export const OFFERED_PROFESSIONAL_DISCIPLINES = ['DOCTOR'] as const;
+export type OfferedProfessionalDiscipline = (typeof OFFERED_PROFESSIONAL_DISCIPLINES)[number];
 
 /** Patients are not users. They hold a consultation-scoped session instead. */
 export const PRINCIPAL_KINDS = ['ADMIN', 'DOCTOR', 'PHARMACY', 'PATIENT'] as const;
@@ -250,3 +273,16 @@ export const PILOT_APPLICATION_STATUSES = [
   'SPAM',
 ] as const;
 export type PilotApplicationStatus = (typeof PILOT_APPLICATION_STATUSES)[number];
+
+/**
+ * How services are grouped for a patient choosing one (v2).
+ *
+ * As with disciplines, this is what the data may contain. `WEIGHT_LOSS` was
+ * withdrawn (D69) and stays here because service rows still carry it.
+ */
+export const SERVICE_CLINICS = ['GENERAL', 'WEIGHT_LOSS'] as const;
+export type ServiceClinic = (typeof SERVICE_CLINICS)[number];
+
+/** The clinics a new service may be created in. Widen to offer one again. */
+export const OFFERED_SERVICE_CLINICS = ['GENERAL'] as const;
+export type OfferedServiceClinic = (typeof OFFERED_SERVICE_CLINICS)[number];

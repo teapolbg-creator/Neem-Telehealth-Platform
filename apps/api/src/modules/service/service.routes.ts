@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import {
+  OFFERED_PROFESSIONAL_DISCIPLINES,
+  OFFERED_SERVICE_CLINICS,
+  PERMISSIONS,
+} from '@neem/contracts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { getBooleanSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
@@ -45,9 +49,19 @@ export async function serviceRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/patient/clinics', async (request, reply) => {
     const enabled = await getBooleanSetting(SETTING_KEYS.CHANNELS_DIRECT_ENABLED);
+    /*
+     * Whether a price shown here will actually be charged (D69).
+     *
+     * The prices themselves are left alone: this says "free during the pilot"
+     * where the figure would go, rather than claiming every service costs
+     * nothing — so month two needs no catalogue edit to undo.
+     */
+    const feesEnabled = await getBooleanSetting(SETTING_KEYS.CONSULTATION_FEE_ENABLED).catch(
+      () => true,
+    );
 
     return reply.send({
-      data: { enabled, clinics: enabled ? await listClinics() : [] },
+      data: { enabled, feesEnabled, clinics: enabled ? await listClinics() : [] },
       meta: { requestId: request.correlationId },
     });
   });
@@ -72,8 +86,10 @@ export async function serviceRoutes(app: FastifyInstance): Promise<void> {
           .regex(/^[A-Z0-9_]+$/, 'Use capitals, digits and underscores.'),
         name: z.string().trim().min(3).max(120),
         description: z.string().trim().max(500).optional(),
-        clinic: z.enum(['GENERAL', 'WEIGHT_LOSS']),
-        discipline: z.enum(['DOCTOR', 'DIETITIAN', 'TRAINER']),
+        // Only what Neem still offers can be created (D69). The Postgres
+        // enums keep their withdrawn values so existing rows stay readable.
+        clinic: z.enum(OFFERED_SERVICE_CLINICS),
+        discipline: z.enum(OFFERED_PROFESSIONAL_DISCIPLINES),
         // Pesewas, as everywhere else money is handled.
         priceMinor: z.number().int().min(1).max(10_000_000),
         currency: z.string().trim().length(3).toUpperCase().optional(),

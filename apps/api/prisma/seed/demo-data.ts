@@ -309,83 +309,10 @@ export async function seedDemoData(
     }
   }
 
-  // --- The weight-loss clinic (v2) ----------------------------------------
-  //
-  // A dietitian and a personal trainer, so the clinic can actually be booked
-  // in development. Without them it renders as three cards a patient cannot
-  // get through: the queue offers a clinic consultation only to somebody who
-  // has joined the clinic, and there is nobody to join it.
-  //
-  // Neither holds an MDC number, because neither is a doctor. Their
-  // registration is recorded the way a real one would be, and no route lets
-  // either of them prescribe.
-  const clinicSpecs = [
-    {
-      email: 'adjoa@dietitian.demo',
-      name: 'Adjoa Nkrumah',
-      discipline: 'DIETITIAN' as const,
-      credentialType: 'Ghana Academy of Nutrition and Dietetics',
-      credentialNumber: 'GAND-DEMO-2213',
-      serviceCode: 'WEIGHT_LOSS_DIETITIAN',
-    },
-    {
-      email: 'yaw@trainer.demo',
-      name: 'Yaw Boadu',
-      discipline: 'TRAINER' as const,
-      credentialType: 'Ghana Fitness Professionals Association',
-      credentialNumber: 'GFPA-DEMO-7781',
-      serviceCode: 'WEIGHT_LOSS_TRAINER',
-    },
-  ];
-
-  for (const spec of clinicSpecs) {
-    // Keyed on the account, not on an MDC number they do not have.
-    if (await prisma.user.findUnique({ where: { email: spec.email } })) continue;
-
-    const service = await prisma.service.findUnique({ where: { code: spec.serviceCode } });
-    if (!service) continue;
-
-    const user = await prisma.user.create({
-      data: {
-        publicId: generatePublicId('usr'),
-        email: spec.email,
-        passwordHash,
-        role: 'DOCTOR',
-        status: 'ACTIVE',
-        isDemo: true,
-      },
-    });
-
-    await prisma.doctor.create({
-      data: {
-        publicId: generatePublicId('doc'),
-        userId: user.id,
-        fullName: spec.name,
-        discipline: spec.discipline,
-        credentialType: spec.credentialType,
-        credentialNumber: spec.credentialNumber,
-        status: 'ACTIVE',
-        approvedAt: new Date(),
-        isDemo: true,
-        languages: { create: [{ languageId: english.id, isPrimary: true }] },
-        presence: { create: { currentLoad: 0, maxLoad: 1 } },
-        signatures: {
-          create: { signatureDataEnc: encryptField(`DEMO-SIGNATURE:${spec.name}`) },
-        },
-        // Joined the clinic: without this row the queue will not offer them
-        // its patients, however free they are.
-        services: { create: { serviceId: service.id } },
-        // Weekday mornings, so the scheduled journey has times to show.
-        availability: {
-          create: [1, 2, 3, 4, 5].map((weekday) => ({
-            weekday,
-            startsAt: '09:00',
-            endsAt: '12:00',
-          })),
-        },
-      },
-    });
-  }
+  // The weight-loss clinic and its demo dietitian and personal trainer were
+  // withdrawn with the offering itself (D69). Nothing seeds a professional of
+  // either discipline any more, so a fresh development database cannot show a
+  // service Neem no longer sells.
 
   /**
    * The history, built through the engines.

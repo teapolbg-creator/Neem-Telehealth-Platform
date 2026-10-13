@@ -44,7 +44,7 @@ import { fixedClock } from '../../src/lib/clock.ts';
 
 const PATIENT = 'yaa@appointments.test';
 const OTHER = 'kojo@appointments.test';
-const SERVICE = 'WEIGHT_LOSS_DIETITIAN';
+const SERVICE = 'GENERAL_CONSULTATION';
 
 const email = new MockNotificationProvider('EMAIL');
 
@@ -124,10 +124,7 @@ async function bookableDietitian(name = 'Akosua the dietitian') {
   await prisma.doctor.update({
     where: { id: doctor.id },
     data: {
-      discipline: 'DIETITIAN',
-      mdcNumber: null,
-      credentialType: 'GAND',
-      credentialNumber: `D-${doctor.publicId.slice(-4)}`,
+      discipline: 'DOCTOR',
       services: { create: { serviceId: service.id } },
       languages: { create: { languageId: language.id, isPrimary: true } },
       availability: {
@@ -235,7 +232,7 @@ describe('reserving a slot', () => {
 
     expect(booked.status).toBe(201);
     // GHS 100, the seeded price of a weight-loss consultation.
-    expect(booked.body.data!.price.amountMinor).toBe(10000);
+    expect(booked.body.data!.price.amountMinor).toBe(5000);
 
     const appointment = await getPrisma().appointment.findUniqueOrThrow({
       where: { publicId: booked.body.data!.appointmentReference },

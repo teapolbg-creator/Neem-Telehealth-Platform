@@ -63,14 +63,13 @@ export const Route = createFileRoute("/patient/")({
 /**
  * Who the patient is seeing, in words (v2).
  *
- * A patient who booked a dietitian or a trainer is not told a doctor is on
- * the way, or asked to rate "the doctor". Every counter consultation is a
- * doctor's, which is also what a session from before this field reads as.
+ * Every consultation is a doctor's again (D69). This held a word for each
+ * discipline so that a patient who booked a dietitian was not told a doctor
+ * was on the way; dietitians and personal trainers were withdrawn with the
+ * weight-loss clinic, and a session that still names one reads as a doctor.
  */
 const SEEING: Record<string, { noun: string; title: string; prescribes: boolean }> = {
   DOCTOR: { noun: "doctor", title: "The doctor", prescribes: true },
-  DIETITIAN: { noun: "dietitian", title: "The dietitian", prescribes: false },
-  TRAINER: { noun: "personal trainer", title: "The personal trainer", prescribes: false },
 };
 
 function useSeeing() {

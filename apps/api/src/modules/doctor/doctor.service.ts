@@ -1,8 +1,8 @@
 import type { DoctorStatus, PrismaClient } from '@prisma/client';
 import { notify } from '../notification/notification.service.ts';
 import {
-  DIETITIAN_REGISTERING_BODY,
   type DoctorRegistration,
+  type OfferedProfessionalDiscipline,
   type ProfessionalDiscipline,
 } from '@neem/contracts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
@@ -48,12 +48,14 @@ export async function registerDoctor(
   }
 
   /*
-   * Only a doctor holds an MDC licence, so only a doctor's is checked. The
-   * contract has already refused a doctor without one, and a dietitian or
-   * trainer with one (v2).
+   * Every applicant holds an MDC licence (D69).
+   *
+   * This branched on discipline, because a dietitian registered with the AHPC
+   * and a trainer with nobody. Only doctors are offered now — the contract
+   * refuses anything else — so there is one rule and the contract has already
+   * refused an applicant without a number and an expiry.
    */
-  const isDoctor = input.discipline === 'DOCTOR';
-  const mdcExpiresAt = isDoctor && input.mdcExpiresAt ? new Date(input.mdcExpiresAt) : null;
+  const mdcExpiresAt = input.mdcExpiresAt ? new Date(input.mdcExpiresAt) : null;
   if (mdcExpiresAt && mdcExpiresAt <= clock.now()) {
     throw errors.businessRule(
       'That MDC licence expiry date is in the past. A valid licence is required to apply.',
@@ -95,14 +97,12 @@ export async function registerDoctor(
           userId: user.id,
           fullName: input.fullName,
           discipline: input.discipline,
-          mdcNumber: isDoctor ? (input.mdcNumber ?? null) : null,
-          mdcIssuedAt: isDoctor && input.mdcIssuedAt ? new Date(input.mdcIssuedAt) : null,
+          mdcNumber: input.mdcNumber ?? null,
+          mdcIssuedAt: input.mdcIssuedAt ? new Date(input.mdcIssuedAt) : null,
           mdcExpiresAt,
-          ...registrationFor(input.discipline, input.credentialNumber),
           qualifiedAt: new Date(input.qualifiedAt),
           yearsExperience: input.yearsExperience,
-          // A trainer is not asked for a specialty, and one sent anyway is dropped.
-          specialty: input.discipline === 'TRAINER' ? null : (input.specialty ?? null),
+          specialty: input.specialty ?? null,
           bio: input.bio ?? null,
           // Needed to bridge a Call Me consultation (spec §33). Encrypted, and
           // never read back to any client — only handed to the voice provider.
@@ -522,7 +522,7 @@ export async function setDoctorCompensation(
 export async function setProfession(
   publicId: string,
   input: {
-    discipline: ProfessionalDiscipline;
+    discipline: OfferedProfessionalDiscipline;
     credentialType?: string | null;
     credentialNumber?: string | null;
     /** The services this professional may be offered. Replaces the roster. */
@@ -543,12 +543,11 @@ export async function setProfession(
   if (!doctor) throw errors.notFound('Doctor not found.');
 
   /*
-   * A doctor is the only discipline the MDC registers. Leaving an MDC number
-   * on somebody who has become a dietitian would leave a number on their
-   * documents that the Council has never heard of, so it is cleared — and the
-   * audit entry below records that it was.
+   * Only DOCTOR can be set now (D69), so this moves a professional towards the
+   * MDC rather than away from it, and never clears a number. The route still
+   * exists because a legacy dietitian or trainer account has to be correctable
+   * to a doctor, and because the roster below is set here.
    */
-  const clearsMdc = input.discipline !== 'DOCTOR' && doctor.mdcNumber !== null;
 
   const services =
     input.serviceCodes === undefined
@@ -574,9 +573,8 @@ export async function setProfession(
       where: { id: doctor.id },
       data: {
         discipline: input.discipline,
-        ...registrationFor(input.discipline, input.credentialNumber),
-        ...(input.discipline === 'TRAINER' ? { specialty: null } : {}),
-        ...(clearsMdc ? { mdcNumber: null } : {}),
+        credentialType: input.credentialType ?? null,
+        credentialNumber: input.credentialNumber ?? null,
       },
     });
 
@@ -606,7 +604,6 @@ export async function setProfession(
       metadata: {
         from: doctor.discipline,
         to: input.discipline,
-        mdcNumberCleared: clearsMdc,
         services: services?.map((service) => service.code) ?? null,
       },
     },
@@ -618,8 +615,9 @@ export async function setProfession(
     discipline: input.discipline,
     credential: credentialLine({
       discipline: input.discipline,
-      mdcNumber: clearsMdc ? null : doctor.mdcNumber,
-      ...registrationFor(input.discipline, input.credentialNumber),
+      mdcNumber: doctor.mdcNumber,
+      credentialType: input.credentialType ?? null,
+      credentialNumber: input.credentialNumber ?? null,
     }),
     services: services?.map((service) => service.code) ?? [],
   };
@@ -632,15 +630,3 @@ export async function setProfession(
  * AHPC licence: the body is always the AHPC, so it is recorded here rather than
  * typed. A trainer has no statutory register, so carries none.
  */
-function registrationFor(
-  discipline: ProfessionalDiscipline,
-  credentialNumber: string | null | undefined,
-): { credentialType: string | null; credentialNumber: string | null } {
-  if (discipline === 'DIETITIAN') {
-    return {
-      credentialType: DIETITIAN_REGISTERING_BODY,
-      credentialNumber: credentialNumber ?? null,
-    };
-  }
-  return { credentialType: null, credentialNumber: null };
-}

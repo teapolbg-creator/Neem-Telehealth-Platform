@@ -41,9 +41,9 @@ const LANGUAGES = [
  * screen, exactly as the settings are. A later seed never overwrites a price
  * an administrator has changed.
  *
- * All three weight-loss disciplines are priced the same for now. Whether a
- * dietitian or trainer session should cost what a doctor's does is a
- * commercial question, flagged in docs/v2-patient-direct-plan.md §7.
+ * The weight-loss clinic and its three services were withdrawn (D69), so a
+ * fresh environment no longer creates them. Existing rows are left alone: this
+ * list stops asserting a service, it does not delete one.
  */
 const SERVICES = [
   {
@@ -54,33 +54,6 @@ const SERVICES = [
     discipline: 'DOCTOR' as const,
     priceMinor: 5000,
     sortOrder: 1,
-  },
-  {
-    code: 'WEIGHT_LOSS_DOCTOR',
-    name: 'Weight-loss clinic with a doctor',
-    description: 'Medical assessment and management of weight, with a doctor.',
-    clinic: 'WEIGHT_LOSS' as const,
-    discipline: 'DOCTOR' as const,
-    priceMinor: 10000,
-    sortOrder: 1,
-  },
-  {
-    code: 'WEIGHT_LOSS_DIETITIAN',
-    name: 'Weight-loss clinic with a dietitian',
-    description: 'Nutrition assessment and an eating plan, with a dietitian.',
-    clinic: 'WEIGHT_LOSS' as const,
-    discipline: 'DIETITIAN' as const,
-    priceMinor: 10000,
-    sortOrder: 2,
-  },
-  {
-    code: 'WEIGHT_LOSS_TRAINER',
-    name: 'Weight-loss clinic with a personal trainer',
-    description: 'An exercise plan and coaching, with a personal trainer.',
-    clinic: 'WEIGHT_LOSS' as const,
-    discipline: 'TRAINER' as const,
-    priceMinor: 10000,
-    sortOrder: 3,
   },
 ];
 

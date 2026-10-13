@@ -16,9 +16,11 @@ export const Route = createFileRoute("/admin/services")({
   component: AdminServices,
 });
 
+// The weight-loss clinic was withdrawn (D69). A service row that still
+// carries its code falls back to the code itself rather than naming a clinic
+// Neem no longer runs.
 const CLINIC_LABEL: Record<string, string> = {
   GENERAL: "General practice",
-  WEIGHT_LOSS: "Weight-loss clinic",
 };
 
 /**

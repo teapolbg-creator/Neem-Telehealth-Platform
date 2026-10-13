@@ -84,21 +84,33 @@ describe('what a patient is shown', () => {
     const byCode = new Map(response.body.data!.services.map((s) => [s.code, s]));
 
     expect(response.body.data?.enabled).toBe(true);
-    // GHS 50 and GHS 100, in pesewas, as agreed for launch.
+    // GHS 50 in pesewas. The weight-loss clinic's three services were
+    // withdrawn (D69), so the general consultation is the catalogue.
     expect(byCode.get('GENERAL_CONSULTATION')?.price).toEqual({
       amountMinor: 5000,
       currency: 'GHS',
     });
-    expect(byCode.get('WEIGHT_LOSS_DOCTOR')?.price.amountMinor).toBe(10000);
-    expect(byCode.get('WEIGHT_LOSS_DIETITIAN')?.price.amountMinor).toBe(10000);
-    expect(byCode.get('WEIGHT_LOSS_TRAINER')?.price.amountMinor).toBe(10000);
+    expect([...byCode.keys()]).toEqual(['GENERAL_CONSULTATION']);
   });
 
   it('never includes a service an administrator has withdrawn', async () => {
     await setDirectChannelEnabled(true);
     const cookies = await adminCookies();
 
-    const withdrawn = await request('/admin/services/WEIGHT_LOSS_TRAINER', {
+    const created = await request('/admin/services', {
+      method: 'POST',
+      cookies,
+      payload: {
+        code: 'SECOND_OPINION',
+        name: 'Second opinion',
+        clinic: 'GENERAL',
+        discipline: 'DOCTOR',
+        priceMinor: 7000,
+      },
+    });
+    expect(created.status).toBe(201);
+
+    const withdrawn = await request('/admin/services/SECOND_OPINION', {
       method: 'PATCH',
       cookies,
       payload: { isActive: false },
@@ -106,12 +118,10 @@ describe('what a patient is shown', () => {
     expect(withdrawn.status).toBe(200);
 
     const listed = await request<PublicCatalogue>('/patient/services');
-    expect(listed.body.data?.services.map((s) => s.code)).not.toContain('WEIGHT_LOSS_TRAINER');
+    expect(listed.body.data?.services.map((s) => s.code)).not.toContain('SECOND_OPINION');
 
     // And it cannot be booked by naming it directly.
-    await expect(getBookableService('WEIGHT_LOSS_TRAINER')).rejects.toThrow(
-      /not currently offered/,
-    );
+    await expect(getBookableService('SECOND_OPINION')).rejects.toThrow(/not currently offered/);
   });
 });
 
@@ -123,23 +133,23 @@ describe('administering the catalogue', () => {
       method: 'POST',
       cookies,
       payload: {
-        code: 'WEIGHT_LOSS_REVIEW',
-        name: 'Weight-loss review',
-        clinic: 'WEIGHT_LOSS',
+        code: 'FOLLOW_UP_REVIEW',
+        name: 'Follow-up review',
+        clinic: 'GENERAL',
         discipline: 'DOCTOR',
         priceMinor: 7500,
       },
     });
     expect(created.status).toBe(201);
-    expect(created.body.data?.code).toBe('WEIGHT_LOSS_REVIEW');
+    expect(created.body.data?.code).toBe('FOLLOW_UP_REVIEW');
 
     const duplicate = await request('/admin/services', {
       method: 'POST',
       cookies,
       payload: {
-        code: 'WEIGHT_LOSS_REVIEW',
+        code: 'FOLLOW_UP_REVIEW',
         name: 'Another one',
-        clinic: 'WEIGHT_LOSS',
+        clinic: 'GENERAL',
         discipline: 'DOCTOR',
         priceMinor: 9000,
       },

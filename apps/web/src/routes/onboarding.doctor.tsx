@@ -22,10 +22,6 @@ function DoctorApplication() {
   const { data: languages } = useLanguages();
   const register = useRegisterDoctor();
 
-  const [discipline, setDiscipline] = useState<"DOCTOR" | "DIETITIAN" | "TRAINER">("DOCTOR");
-  const isDoctor = discipline === "DOCTOR";
-  const isTrainer = discipline === "TRAINER";
-
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -88,18 +84,12 @@ function DoctorApplication() {
             email: form.email,
             password: form.password,
             fullName: form.fullName,
-            discipline,
-            // Each sends its own registration and nothing of another's: the
-            // API refuses an MDC number from a non-doctor. A dietitian gives an
-            // AHPC licence number; a trainer has no register to give.
-            ...(isDoctor
-              ? { mdcNumber: form.mdcNumber, mdcExpiresAt: form.mdcExpiresAt }
-              : discipline === "DIETITIAN"
-                ? { credentialNumber: form.credentialNumber }
-                : {}),
+            discipline: "DOCTOR",
+            mdcNumber: form.mdcNumber,
+            mdcExpiresAt: form.mdcExpiresAt,
             qualifiedAt: form.qualifiedAt,
             yearsExperience: Number(form.yearsExperience),
-            specialty: isTrainer ? undefined : form.specialty || undefined,
+            specialty: form.specialty || undefined,
             phone: form.phone,
             languageCodes: selectedLanguages,
           } as never);
@@ -111,44 +101,16 @@ function DoctorApplication() {
           <h1 className="text-2xl font-bold">Apply to practise on Neem</h1>
           <p className="mt-1 text-sm text-slate-500">
             Neem requires a minimum of {DOCTOR_MIN_YEARS_EXPERIENCE} years of post-qualification
-            experience
-            {isDoctor
-              ? " and a valid MDC licence."
-              : discipline === "DIETITIAN"
-                ? " and a valid AHPC licence."
-                : "."}
+            experience and a valid MDC licence.
           </p>
         </div>
 
         {/*
-          What you are decides what you may issue: only a doctor prescribes or
-          refers. A dietitian or trainer is never asked for an MDC number,
-          because they do not have one; a trainer has no register at all.
+          Every applicant is a doctor (D69). The dietitian and personal-trainer
+          applications were withdrawn with the weight-loss clinic, and with them
+          the choice that used to stand here: what somebody applied as decided
+          what they could issue, and there is one answer now.
         */}
-        <Section title="I am applying as">
-          <div className="grid gap-2 sm:grid-cols-3">
-            {(
-              [
-                ["DOCTOR", "A doctor"],
-                ["DIETITIAN", "A dietitian"],
-                ["TRAINER", "A personal trainer"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setDiscipline(value)}
-                className={
-                  discipline === value
-                    ? "rounded-xl border-2 border-brand bg-brand/5 px-4 py-3 text-sm font-semibold text-brand"
-                    : "rounded-xl border border-border px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Section>
 
         <Section title="About you">
           <Field
@@ -185,35 +147,22 @@ function DoctorApplication() {
           />
         </Section>
 
-        <Section title={isTrainer ? "Experience" : "Credentials"}>
-          {isDoctor ? (
-            <>
-              <Field
-                label="MDC number"
-                value={form.mdcNumber}
-                onChange={set("mdcNumber")}
-                error={fieldErrors.mdcNumber}
-                required
-              />
-              <Field
-                label="Licence expires"
-                type="date"
-                value={form.mdcExpiresAt}
-                onChange={set("mdcExpiresAt")}
-                error={fieldErrors.mdcExpiresAt}
-                required
-              />
-            </>
-          ) : discipline === "DIETITIAN" ? (
-            <Field
-              label="AHPC licence number"
-              value={form.credentialNumber}
-              onChange={set("credentialNumber")}
-              error={fieldErrors.credentialNumber}
-              help="Your Allied Health Professions Council licence."
-              required
-            />
-          ) : null}
+        <Section title="Credentials">
+          <Field
+            label="MDC number"
+            value={form.mdcNumber}
+            onChange={set("mdcNumber")}
+            error={fieldErrors.mdcNumber}
+            required
+          />
+          <Field
+            label="Licence expires"
+            type="date"
+            value={form.mdcExpiresAt}
+            onChange={set("mdcExpiresAt")}
+            error={fieldErrors.mdcExpiresAt}
+            required
+          />
           <Field
             label="Date qualified"
             type="date"
@@ -230,14 +179,12 @@ function DoctorApplication() {
             error={fieldErrors.yearsExperience}
             required
           />
-          {isTrainer ? null : (
-            <Field
-              label="Specialty"
-              value={form.specialty}
-              onChange={set("specialty")}
-              help="Optional."
-            />
-          )}
+          <Field
+            label="Specialty"
+            value={form.specialty}
+            onChange={set("specialty")}
+            help="Optional."
+          />
         </Section>
 
         <div>
@@ -287,12 +234,8 @@ function DoctorApplication() {
         </button>
 
         <p className="text-xs leading-relaxed text-slate-500">
-          Your application is reviewed by a Neem administrator.{" "}
-          {isDoctor
-            ? "Neem does not verify licences automatically with the Medical & Dental Council."
-            : discipline === "DIETITIAN"
-              ? "After you sign in you upload your CV, AHPC licence and a valid government ID."
-              : "After you sign in you upload your CV, a portfolio of your work and a valid government ID."}
+          Your application is reviewed by a Neem administrator. Neem does not verify licences
+          automatically with the Medical &amp; Dental Council.
         </p>
       </form>
     </Shell>

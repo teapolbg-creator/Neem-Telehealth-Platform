@@ -4,7 +4,7 @@ import {
   DOCTOR_STATUSES,
   PHARMACY_STATUSES,
   PERMISSIONS,
-  PROFESSIONAL_DISCIPLINES,
+  OFFERED_PROFESSIONAL_DISCIPLINES,
   accountStatusChangeSchema,
   doctorCompensationSchema,
   documentVerificationSchema,
@@ -144,7 +144,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
       const body = z
         .object({
-          discipline: z.enum(PROFESSIONAL_DISCIPLINES),
+          discipline: z.enum(OFFERED_PROFESSIONAL_DISCIPLINES),
           credentialType: z.string().trim().max(120).nullish(),
           credentialNumber: z.string().trim().max(60).nullish(),
           serviceCodes: z.array(z.string().trim().min(3).max(40)).max(40).optional(),

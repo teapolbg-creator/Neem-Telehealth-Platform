@@ -699,116 +699,17 @@ describe('doctor compensation', () => {
  * registration they actually hold. Declaring it is safe because it can only
  * narrow what the account may do; claiming to be a doctor still needs an MDC
  * number and an administrator.
- */
-describe('registering as a dietitian or trainer', () => {
-  function dietitian(overrides: Record<string, unknown> = {}) {
-    const {
-      mdcNumber: _mdc,
-      mdcExpiresAt: _expiry,
-      ...rest
-    } = validDoctor({
-      email: 'dietitian@test.local',
-      fullName: 'Adjoa Nkrumah',
-    });
-    return {
-      ...rest,
-      discipline: 'DIETITIAN',
-      credentialNumber: 'AHPC-7781',
-      ...overrides,
-    };
-  }
-
-  function trainer(overrides: Record<string, unknown> = {}) {
-    const {
-      mdcNumber: _mdc,
-      mdcExpiresAt: _expiry,
-      ...rest
-    } = validDoctor({
-      email: 'trainer@test.local',
-      fullName: 'Kwame Asante',
-    });
-    return { ...rest, discipline: 'TRAINER', ...overrides };
-  }
-
-  it('accepts a dietitian with an AHPC licence number and no MDC number', async () => {
-    const response = await request('/onboarding/doctor', { method: 'POST', payload: dietitian() });
-
-    expect(response.status).toBe(201);
-
-    const row = await getPrisma().doctor.findFirstOrThrow();
-    expect(row.discipline).toBe('DIETITIAN');
-    expect(row.mdcNumber).toBeNull();
-    expect(row.mdcExpiresAt).toBeNull();
-    // The body is recorded by Neem, not typed: every dietitian is AHPC-registered.
-    expect(row.credentialType).toBe('AHPC');
-    expect(row.credentialNumber).toBe('AHPC-7781');
+ */ describe('registering as a professional', () => {
+  beforeEach(async () => {
+    await resetDatabase();
   });
 
-  it('tells the web app what the signed-in professional is, so it can call them that', async () => {
-    await request('/onboarding/doctor', { method: 'POST', payload: dietitian() });
-
-    const cookies = await signIn('dietitian@test.local', 'DoctorPassword123!');
-    const me = await request<{ discipline: string | null }>('/auth/me', { cookies });
-
-    expect(me.body.data?.discipline).toBe('DIETITIAN');
-  });
-
-  it('records AHPC whatever body a dietitian types', async () => {
-    const response = await request('/onboarding/doctor', {
-      method: 'POST',
-      payload: dietitian({ credentialType: 'Somebody else' }),
-    });
-
-    expect(response.status).toBe(201);
-    expect((await getPrisma().doctor.findFirstOrThrow()).credentialType).toBe('AHPC');
-  });
-
-  it('accepts a trainer with no registration, and drops any specialty', async () => {
-    const response = await request('/onboarding/doctor', {
-      method: 'POST',
-      payload: trainer({ specialty: 'Strength', credentialNumber: 'IGNORED-1' }),
-    });
-
-    expect(response.status).toBe(201);
-
-    const row = await getPrisma().doctor.findFirstOrThrow();
-    expect(row.discipline).toBe('TRAINER');
-    expect(row.mdcNumber).toBeNull();
-    expect(row.credentialType).toBeNull();
-    expect(row.credentialNumber).toBeNull();
-    expect(row.specialty).toBeNull();
-  });
-
-  it('refuses an MDC number from a trainer', async () => {
-    const response = await request('/onboarding/doctor', {
-      method: 'POST',
-      payload: trainer({ mdcNumber: 'MDC-NOT-THEIRS' }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(await getPrisma().doctor.count()).toBe(0);
-  });
-
-  it('refuses an MDC number from somebody who is not a doctor', async () => {
-    const response = await request('/onboarding/doctor', {
-      method: 'POST',
-      payload: dietitian({ mdcNumber: 'MDC-NOT-THEIRS' }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(await getPrisma().doctor.count()).toBe(0);
-  });
-
-  it('refuses a dietitian with no AHPC licence number', async () => {
-    const response = await request('/onboarding/doctor', {
-      method: 'POST',
-      payload: dietitian({ credentialNumber: undefined }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(await getPrisma().doctor.count()).toBe(0);
-  });
-
+  /*
+   * Dietitians and personal trainers were withdrawn (D69), and with them the
+   * branch that let an applicant say which they were. What survives from that
+   * block is the rule the branch existed to protect: a doctor gives an MDC
+   * number, and an application is a doctor's.
+   */
   it('still requires an MDC number of a doctor', async () => {
     const response = await request('/onboarding/doctor', {
       method: 'POST',
@@ -819,7 +720,7 @@ describe('registering as a dietitian or trainer', () => {
     expect(await getPrisma().doctor.count()).toBe(0);
   });
 
-  it('treats an application that names no discipline as a doctor, as every earlier one was', async () => {
+  it('treats an application that names no discipline as a doctor, as every one is', async () => {
     const response = await request('/onboarding/doctor', {
       method: 'POST',
       payload: validDoctor(),
@@ -827,5 +728,18 @@ describe('registering as a dietitian or trainer', () => {
 
     expect(response.status).toBe(201);
     expect((await getPrisma().doctor.findFirstOrThrow()).discipline).toBe('DOCTOR');
+  });
+
+  it('refuses an application to practise as a dietitian or a trainer', async () => {
+    for (const discipline of ['DIETITIAN', 'TRAINER']) {
+      const response = await request('/onboarding/doctor', {
+        method: 'POST',
+        payload: validDoctor({ discipline }),
+      });
+
+      expect(response.status).toBe(400);
+    }
+
+    expect(await getPrisma().doctor.count()).toBe(0);
   });
 });

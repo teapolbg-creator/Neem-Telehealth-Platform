@@ -4,6 +4,7 @@ import {
   DOCTOR_STATUSES,
   PHARMACY_STATUSES,
   EMPLOYMENT_TYPES,
+  OFFERED_PROFESSIONAL_DISCIPLINES,
   PROFESSIONAL_DISCIPLINES,
 } from './enums.ts';
 
@@ -123,25 +124,25 @@ const professionalRegistrationFields = z.object({
 
   fullName: z.string().trim().min(2).max(160),
   /**
-   * What the applicant is (v2). Declared by them, and safe to let them
-   * declare: a dietitian or trainer can do less than a doctor — no
-   * prescribing, no referrals, never a doctor's consultation — so choosing one
-   * can only narrow an account. Claiming to be a doctor still needs an MDC
-   * number and an administrator's verification before anything is allowed.
+   * What the applicant is (v2). One discipline remains (D69), so this field
+   * now accepts only `DOCTOR` — which is what refuses a dietitian or trainer
+   * registration at the API boundary rather than deeper in. It is kept rather
+   * than removed so that offering another discipline again is a change to the
+   * list in `enums.ts` and nothing else.
    */
-  discipline: z.enum(PROFESSIONAL_DISCIPLINES).default('DOCTOR'),
+  discipline: z.enum(OFFERED_PROFESSIONAL_DISCIPLINES).default('DOCTOR'),
   /**
    * Verified manually. Neem performs NO automated MDC lookup (spec §22).
-   * Required of a doctor and of nobody else: an MDC number on a dietitian
-   * would claim a registration the Council never made.
+   * Required: every professional Neem registers is a doctor.
    */
   mdcNumber: z.string().trim().min(3).max(60).optional(),
   mdcIssuedAt: z.string().date().optional(),
   mdcExpiresAt: z.string().date().optional(),
   /**
-   * A dietitian's AHPC licence number. The body is not asked for: every
-   * dietitian on Neem is registered with the AHPC, so the API records it. A
-   * trainer has no statutory register and gives neither.
+   * A further registration, where a professional holds one beyond the MDC.
+   * Not asked for at registration any more — the one discipline that remains
+   * registers with the MDC — but the columns and the signed-document line that
+   * reads them stay, because professionals who gave one still have it.
    */
   credentialType: z.string().trim().min(2).max(120).optional(),
   credentialNumber: z.string().trim().min(2).max(60).optional(),
@@ -157,42 +158,27 @@ const professionalRegistrationFields = z.object({
     .min(1, 'Select at least one language you can consult in'),
 });
 
+/*
+ * An MDC number and an expiry, from everyone (D69).
+ *
+ * This branched by discipline: a doctor gave an MDC number, a dietitian an
+ * AHPC licence, a trainer neither. With one discipline left there is one rule,
+ * and it is the strictest of the three — which is the right direction for a
+ * narrowing change to fall.
+ */
 export const doctorRegistrationSchema = professionalRegistrationFields.superRefine((input, ctx) => {
-  if (input.discipline === 'DOCTOR') {
-    if (!input.mdcNumber) {
-      ctx.addIssue({ code: 'custom', path: ['mdcNumber'], message: 'Your MDC number is required' });
-    }
-    if (!input.mdcExpiresAt) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['mdcExpiresAt'],
-        message: 'Your MDC licence expiry date is required',
-      });
-    }
-    return;
+  if (!input.mdcNumber) {
+    ctx.addIssue({ code: 'custom', path: ['mdcNumber'], message: 'Your MDC number is required' });
   }
-
-  if (input.mdcNumber) {
+  if (!input.mdcExpiresAt) {
     ctx.addIssue({
       code: 'custom',
-      path: ['mdcNumber'],
-      message: 'Only a doctor registers with an MDC number',
-    });
-  }
-  if (input.discipline === 'DIETITIAN' && !input.credentialNumber) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['credentialNumber'],
-      message: 'Your AHPC licence number is required',
+      path: ['mdcExpiresAt'],
+      message: 'Your MDC licence expiry date is required',
     });
   }
 });
 
-/**
- * The body every dietitian on Neem is registered with: the Allied Health
- * Professions Council. Recorded by the API rather than typed by the applicant.
- */
-export const DIETITIAN_REGISTERING_BODY = 'AHPC';
 export type DoctorRegistration = z.infer<typeof doctorRegistrationSchema>;
 
 export const doctorProfileUpdateSchema = professionalRegistrationFields
@@ -278,6 +264,8 @@ export const PROFESSIONAL_DOCUMENTS: Record<
     required: ['MDC_LICENCE', 'GOVERNMENT_ID', 'PRACTICE_EVIDENCE'],
     optional: ['EMPLOYMENT_VERIFICATION', 'OTHER'],
   },
+  // Withdrawn (D69), and still listed: an existing file belonging to one of
+  // these must still render the documents it was asked for.
   DIETITIAN: { required: ['CV', 'AHPC_LICENCE', 'GOVERNMENT_ID'], optional: [] },
   TRAINER: { required: ['CV', 'GOVERNMENT_ID', 'PORTFOLIO'], optional: [] },
 };

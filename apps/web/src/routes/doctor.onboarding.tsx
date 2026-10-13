@@ -73,17 +73,13 @@ function documentTypesFor(discipline: DoctorProfile["discipline"]): DocumentType
   ];
 }
 
-const ROLE_TITLE: Record<DoctorProfile["discipline"], string> = {
-  DOCTOR: "Doctor",
-  DIETITIAN: "Dietitian",
-  TRAINER: "Personal trainer",
-};
-
-const HEADING: Record<DoctorProfile["discipline"], string> = {
-  DOCTOR: "Doctor onboarding",
-  DIETITIAN: "Dietitian onboarding",
-  TRAINER: "Personal trainer onboarding",
-};
+/*
+ * One profession, so one set of words (D69). These were maps from discipline
+ * to a title and a heading; dietitians and personal trainers were withdrawn
+ * with the weight-loss clinic and no account can be one.
+ */
+const ROLE_TITLE = "Doctor";
+const HEADING = "Doctor onboarding";
 
 const STATUS_TONE: Record<string, "brand" | "medical" | "warning" | "muted" | "danger"> = {
   PENDING: "warning",
@@ -121,7 +117,6 @@ function DoctorOnboarding() {
     );
   }
 
-  const isDoctor = profile.discipline === "DOCTOR";
   const DOCUMENT_TYPES = documentTypesFor(profile.discipline);
   const uploaded = new Set(profile.documents.map((document) => document.type));
   const requiredOutstanding = DOCUMENT_TYPES.filter(
@@ -133,9 +128,7 @@ function DoctorOnboarding() {
     <AppShell active="doctor">
       <header>
         <p className="mb-1 text-sm font-semibold text-brand">
-          {profile.status === "ACTIVE"
-            ? `${ROLE_TITLE[profile.discipline]} credentials`
-            : HEADING[profile.discipline]}
+          {profile.status === "ACTIVE" ? `${ROLE_TITLE} credentials` : HEADING}
         </p>
         <h1 className="text-3xl font-bold tracking-tight">{profile.fullName}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -167,10 +160,8 @@ function DoctorOnboarding() {
               </span>
             </div>
             <p className="mb-5 text-xs leading-relaxed text-slate-500">
-              A Neem administrator reviews each document by hand.
-              {isDoctor
-                ? " Neem does not check licences automatically with the Medical & Dental Council."
-                : ""}
+              A Neem administrator reviews each document by hand. Neem does not check licences
+              automatically with the Medical &amp; Dental Council.
             </p>
 
             <div className="space-y-3">
@@ -211,41 +202,24 @@ function DoctorOnboarding() {
           </section>
 
           <section className="card-soft p-6">
-            <h2 className="mb-4 font-bold">
-              {isDoctor
-                ? "Licence"
-                : profile.discipline === "DIETITIAN"
-                  ? "Registration"
-                  : "Experience"}
-            </h2>
+            <h2 className="mb-4 font-bold">Licence</h2>
             <dl className="space-y-3 text-sm">
-              {isDoctor ? (
-                <>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      MDC number
-                    </dt>
-                    <dd className="mt-0.5 font-mono">{profile.mdcNumber}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Expires
-                    </dt>
-                    <dd className="mt-0.5">
-                      {profile.mdcExpiresAt
-                        ? new Date(profile.mdcExpiresAt).toLocaleDateString()
-                        : "Not recorded"}
-                    </dd>
-                  </div>
-                </>
-              ) : profile.discipline === "DIETITIAN" ? (
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    AHPC licence
-                  </dt>
-                  <dd className="mt-0.5 font-mono">{profile.credential ?? "Not recorded"}</dd>
-                </div>
-              ) : null}
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  MDC number
+                </dt>
+                <dd className="mt-0.5 font-mono">{profile.mdcNumber}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Expires
+                </dt>
+                <dd className="mt-0.5">
+                  {profile.mdcExpiresAt
+                    ? new Date(profile.mdcExpiresAt).toLocaleDateString()
+                    : "Not recorded"}
+                </dd>
+              </div>
               <div>
                 <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Experience
@@ -253,16 +227,10 @@ function DoctorOnboarding() {
                 <dd className="mt-0.5">{profile.yearsExperience ?? "Not recorded"} years</dd>
               </div>
             </dl>
-            {isDoctor ? (
-              <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                You must hold a valid MDC licence for as long as your account is active. Neem flags
-                licences approaching expiry.
-              </p>
-            ) : profile.discipline === "DIETITIAN" ? (
-              <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                You must hold a valid AHPC licence for as long as your account is active.
-              </p>
-            ) : null}
+            <p className="mt-4 text-xs leading-relaxed text-slate-500">
+              You must hold a valid MDC licence for as long as your account is active. Neem flags
+              licences approaching expiry.
+            </p>
           </section>
 
           {profile.subscription && (

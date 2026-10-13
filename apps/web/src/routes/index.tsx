@@ -33,9 +33,9 @@ function Landing() {
             <span className="text-brand">just around the corner.</span>
           </h1>
           <p className="mt-6 text-lg text-slate-600 max-w-2xl mx-auto text-pretty">
-            Neem connects patients with licensed Ghanaian doctors, dietitians and personal trainers
-            through secure video and audio consultations. Book one yourself, or start a consultation
-            at a participating pharmacy. Nothing to download.
+            Neem connects patients with licensed Ghanaian doctors through secure video and audio
+            consultations. Book one yourself, or start a consultation at a participating pharmacy.
+            Nothing to download.
           </p>
         </header>
 

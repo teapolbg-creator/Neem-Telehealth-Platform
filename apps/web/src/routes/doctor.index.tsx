@@ -130,9 +130,10 @@ function DoctorDashboard() {
         Act 857 requires the qualification and address of whoever signs it — and
         the worst moment to learn that is with a patient waiting.
 
-        Only for a professional who prescribes. A dietitian or a trainer issues
-        advice and a plan, not a prescription, so asking them for a prescriber's
-        details would be asking for something they will never use.
+        Only for a professional who prescribes. Every professional does now
+        (D69), but the check stays: it is the condition the prompt is actually
+        about, and it would be wrong again the day a non-prescribing discipline
+        is offered.
       */}
       {role.isDoctor && (!doctor.qualification || !doctor.practiceAddress) && (
         <PrescriberDetails

@@ -25,7 +25,8 @@
     "check:production-config": "tsx scripts/check-production-config.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "membership:grant": "tsx scripts/grant-membership-grace.ts",
-    "doctor:check": "tsx scripts/check-doctor.ts"
+    "doctor:check": "tsx scripts/check-doctor.ts",
+    "withdraw:clinic": "tsx scripts/withdraw-weight-loss-clinic.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

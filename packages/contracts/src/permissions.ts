@@ -146,6 +146,14 @@ const NON_PRESCRIBING_WITHHELD: readonly Permission[] = [
   P.REFERRAL_READ,
 ];
 
+/*
+ * Kept complete even though only doctors are offered now (D69).
+ *
+ * Dietitians and trainers were withdrawn, so none can be created. This map
+ * still covers them because it answers "what may this professional do", and a
+ * record that says DIETITIAN must never be answered as though it said DOCTOR
+ * — least of all about prescribing.
+ */
 const DISCIPLINE_WITHHELD: Record<ProfessionalDiscipline, readonly Permission[]> = {
   DOCTOR: [],
   DIETITIAN: NON_PRESCRIBING_WITHHELD,

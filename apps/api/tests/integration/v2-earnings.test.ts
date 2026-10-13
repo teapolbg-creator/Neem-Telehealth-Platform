@@ -83,14 +83,12 @@ async function liveDirectConsultation(priceMinor = 10_000): Promise<Fixture> {
     data: {
       publicId: generatePublicId('doc'),
       userId: user.id,
-      fullName: 'Ama the dietitian',
-      discipline: 'DIETITIAN',
-      mdcNumber: null,
+      fullName: 'Ama the doctor',
+      discipline: 'DOCTOR',
+      mdcNumber: `MDC-${suffix.slice(-5)}`,
       // What s.103 of Act 857 requires on a prescription (D60).
       qualification: 'MB ChB',
       practiceAddress: 'Ridge Clinic, Accra',
-      credentialType: 'GAND',
-      credentialNumber: `D-${suffix.slice(-4)}`,
       status: 'ACTIVE',
       isDemo: true,
       signatures: { create: { signatureDataEnc: encryptField('data:image/png;base64,AAAA') } },
@@ -98,7 +96,7 @@ async function liveDirectConsultation(priceMinor = 10_000): Promise<Fixture> {
   });
 
   const service = await prisma.service.findUniqueOrThrow({
-    where: { code: 'WEIGHT_LOSS_DIETITIAN' },
+    where: { code: 'GENERAL_CONSULTATION' },
   });
   const language = await prisma.language.findFirstOrThrow({ where: { code: 'en' } });
 
@@ -253,7 +251,7 @@ describe('recording what was earned', () => {
     expect(earning.professionalShareMinor + earning.neemShareMinor).toBe(earning.grossMinor);
     // The rate is copied in, so a change next month cannot rewrite this.
     expect(earning.professionalSharePctBp).toBe(SHARE_BP);
-    expect(earning.discipline).toBe('DIETITIAN');
+    expect(earning.discipline).toBe('DOCTOR');
   });
 
   it('takes the provider fee off before splitting what is left', async () => {
@@ -425,7 +423,7 @@ describe('paying a professional', () => {
         professionalShareMinor: 6_000,
         neemShareMinor: 4_000,
         currency: 'GHS',
-        discipline: 'DIETITIAN',
+        discipline: 'DOCTOR',
       },
     });
 
@@ -475,7 +473,7 @@ describe('paying a professional', () => {
         professionalShareMinor: 6_000,
         neemShareMinor: 4_000,
         currency: 'GHS',
-        discipline: 'DIETITIAN',
+        discipline: 'DOCTOR',
       },
     });
 

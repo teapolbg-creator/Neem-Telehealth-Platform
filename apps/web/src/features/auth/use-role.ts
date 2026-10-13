@@ -1,28 +1,25 @@
-import { useSession } from "@/features/auth/use-session";
-
 export type ProfessionalRole = {
-  /** "Doctor", "Dietitian", "Personal trainer" — for eyebrows and headings. */
+  /** "Doctor" — for eyebrows and headings. */
   title: string;
-  /** "doctor", "dietitian", "personal trainer" — for use mid-sentence. */
+  /** "doctor" — for use mid-sentence. */
   noun: string;
   isDoctor: boolean;
 };
 
-const ROLES: Record<"DOCTOR" | "DIETITIAN" | "TRAINER", ProfessionalRole> = {
-  DOCTOR: { title: "Doctor", noun: "doctor", isDoctor: true },
-  DIETITIAN: { title: "Dietitian", noun: "dietitian", isDoctor: false },
-  TRAINER: { title: "Personal trainer", noun: "personal trainer", isDoctor: false },
-};
+const DOCTOR: ProfessionalRole = { title: "Doctor", noun: "doctor", isDoctor: true };
 
 /**
  * What the signed-in professional is, in words (v2).
  *
- * The professional screens were written when every professional was a
- * doctor. A dietitian or trainer uses the same screens, and should be called
- * what they are. A session from before the API reported a discipline reads as
- * a doctor, which is what every such account was.
+ * Every professional is a doctor again (D69): dietitians and personal trainers
+ * were withdrawn with the weight-loss clinic, and this read the discipline off
+ * the session to choose their words.
+ *
+ * It stays a function rather than collapsing into the strings it returns,
+ * because nine screens say "{role.noun}" rather than "doctor" and that is the
+ * right shape — offering another discipline again is an entry here, not a
+ * sweep through the portal.
  */
 export function useProfessionalRole(): ProfessionalRole {
-  const { user } = useSession();
-  return ROLES[user?.discipline ?? "DOCTOR"];
+  return DOCTOR;
 }

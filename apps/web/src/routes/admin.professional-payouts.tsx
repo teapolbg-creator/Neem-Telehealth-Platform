@@ -27,7 +27,7 @@ function lastMonth(): { start: string; end: string } {
 }
 
 /**
- * Paying doctors, dietitians and trainers their share (v2, D53).
+ * Paying professionals their share (v2, D53).
  *
  * Monthly and by hand, as the pharmacies are paid. Neem works out what each
  * professional earned and records that somebody sent it. **Nothing here moves
