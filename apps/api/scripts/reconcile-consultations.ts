@@ -19,7 +19,8 @@
  */
 
 import process from 'node:process';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import type { ConsultationState } from '@neem/contracts';
 import { config as loadDotenv } from 'dotenv';
 
 const args = process.argv.slice(2);
@@ -152,7 +153,9 @@ const OPEN_STATES = [
   'IN_PROGRESS',
   'INTERRUPTED',
   'COMPLETING',
-];
+  // Checked against the enum rather than left as loose strings: a state
+  // renamed in the schema and not here would otherwise silently match nothing.
+] as const satisfies readonly ConsultationState[];
 
 /**
  * Did a professional ever actually attend?
@@ -275,9 +278,9 @@ async function classify(consultation: ConsultationRow): Promise<Finding> {
   const deadlines = [
     consultation.rejoinableUntil ?? null,
     consultation.unservedDeadlineAt ?? null,
-  ].filter(Boolean);
+  ].filter((value): value is Date => value !== null);
   const deadline = deadlines.length
-    ? new Date(Math.min(...deadlines.map((d) => new Date(d).getTime())))
+    ? new Date(Math.min(...deadlines.map((value) => value.getTime())))
     : null;
 
   const problems = [];
@@ -288,7 +291,7 @@ async function classify(consultation: ConsultationRow): Promise<Finding> {
   if (
     queue &&
     ['WAITING', 'OFFERING'].includes(queue.state) &&
-    !OPEN_STATES.includes(consultation.state)
+    !(OPEN_STATES as readonly string[]).includes(consultation.state)
   ) {
     problems.push('STALE_QUEUE_ENTRY');
   }
@@ -361,7 +364,9 @@ async function main() {
     );
   }
 
-  const where = REFERENCE ? { publicId: REFERENCE } : { state: { in: OPEN_STATES } };
+  const where: Prisma.ConsultationWhereInput = REFERENCE
+    ? { publicId: REFERENCE }
+    : { state: { in: [...OPEN_STATES] } };
 
   const consultations = await prisma.consultation.findMany({
     where,

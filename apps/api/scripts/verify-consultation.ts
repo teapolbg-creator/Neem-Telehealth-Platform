@@ -13,11 +13,11 @@
 import process from 'node:process';
 import { PrismaClient } from '@prisma/client';
 import { config as loadDotenv } from 'dotenv';
+import type { ConsultationState } from '@neem/contracts';
 import {
   acceptsCallJoin,
   isTerminal,
   patientSessionIsUsable,
-  type ConsultationState,
 } from '../src/domain/consultation-state.ts';
 
 const args = process.argv.slice(2);
@@ -78,14 +78,28 @@ async function main() {
 
   const state = consultation.state as ConsultationState;
 
-  // ---- 1. it ended, and ended as the right thing --------------------------
+  /*
+   * ---- 1. it ended, and ended as one of the two right things --------------
+   *
+   * ABANDONED and EXPIRED are both correct endings, and which one a
+   * consultation gets says what happened to it: ABANDONED when a professional
+   * attended and it was not finished, EXPIRED when the system found no
+   * evidence anybody ever arrived — including when the room could never be
+   * created, which is how the 7 October incident ended.
+   *
+   * This asserted ABANDONED alone, so a correctly expired consultation was
+   * reported as a FAIL. A verification tool that cries wolf during an incident
+   * is worse than no tool, because the reader starts discounting it.
+   */
   check(
-    state === 'ABANDONED',
-    'consultation is ABANDONED',
+    state === 'ABANDONED' || state === 'EXPIRED',
+    'consultation ended as ABANDONED or EXPIRED',
     `state=${state}` +
       (state === 'EXPIRED'
-        ? ' (EXPIRED means the system found no evidence a professional attended)'
-        : ''),
+        ? ' — EXPIRED: no evidence a professional attended'
+        : state === 'ABANDONED'
+          ? ' — ABANDONED: a professional attended and it was never finished'
+          : ''),
   );
   check(isTerminal(state), 'state is terminal', `isTerminal(${state})=${isTerminal(state)}`);
 

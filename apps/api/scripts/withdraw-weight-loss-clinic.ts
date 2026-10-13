@@ -11,7 +11,7 @@ import { PrismaClient } from '@prisma/client';
  * here. Run the report first: it prints exactly what it would change.
  *
  * **Nothing is deleted.** Three services are deactivated and any dietitian or
- * trainer account is disabled. Both are reversible with a single UPDATE, and
+ * trainer account is suspended. Both are reversible with a single UPDATE, and
  * both leave every consultation, appointment, payment and clinical record
  * exactly where it was — which matters because `Appointment` and `Consultation`
  * reference `Service`, and because a professional's past work is their record
@@ -102,9 +102,9 @@ async function main() {
   console.log('\nProfessionals');
   if (professionals.length === 0) console.log('  (none)');
   for (const professional of professionals) {
-    const already = professional.status === 'DISABLED';
+    const already = professional.status === 'SUSPENDED';
     console.log(
-      `  ${already ? 'already disabled    ' : `${professional.status} → DISABLED`}  ${professional.discipline}  ${professional.publicId}`,
+      `  ${already ? 'already suspended   ' : `${professional.status} → SUSPENDED`}  ${professional.discipline}  ${professional.publicId}`,
     );
   }
 
@@ -127,12 +127,12 @@ async function main() {
   });
 
   const disabled = await prisma.doctor.updateMany({
-    where: { discipline: { in: [...WITHDRAWN_DISCIPLINES] }, status: { not: 'DISABLED' } },
-    data: { status: 'DISABLED' },
+    where: { discipline: { in: [...WITHDRAWN_DISCIPLINES] }, status: { not: 'SUSPENDED' } },
+    data: { status: 'SUSPENDED' },
   });
 
   console.log(
-    `\nDeactivated ${deactivated.count} service(s), disabled ${disabled.count} professional(s).`,
+    `\nDeactivated ${deactivated.count} service(s), suspended ${disabled.count} professional(s).`,
   );
   console.log('Reverse with: isActive = true on those codes, and the previous status.\n');
 
