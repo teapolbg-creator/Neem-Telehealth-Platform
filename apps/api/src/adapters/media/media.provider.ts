@@ -86,6 +86,20 @@ export interface VideoProvider {
   endRoom(providerRoomRef: string): Promise<void>;
   getRoom(providerRoomRef: string): Promise<RoomHandle | null>;
 
+  /**
+   * When this adapter's credential stops working, if it says so (D70).
+   *
+   * Optional, because a credential that does not expire is a perfectly good
+   * credential and a mock has none at all. Returning null means "nothing to
+   * warn about", never "it is fine" — the two are different and only the
+   * adapter knows which it means.
+   *
+   * It must be derivable from the credential itself without calling the
+   * provider: this is read by a scheduled job and by the admin health page,
+   * neither of which should depend on the network to answer.
+   */
+  credentialExpiresAt?(): Date | null;
+
   // Deliberately no startRecording / enableRecording / recordingRules.
   // See the note at the top of this file.
 }

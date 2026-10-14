@@ -2428,3 +2428,75 @@ the withdrawal holds rather than leaving it untested.
 **Not wired together:** the marketing site has its own `FEES_ENABLED` constant
 in `src/lib/pricing.ts`. It and the admin setting **can disagree** — turning
 fees back on means changing both in the same sitting.
+
+### D70 — A credential with a date on it says so before the date · 2026-10-14 · **DECIDED**
+
+**The incident, now with a cause.** On 7 October a patient paid GHS 1, a doctor
+accepted 57 seconds later, and neither could be connected. No Whereby room
+could be created. [D68](#d68) made that failure _legible_ — a 503 and a
+greppable log line instead of "Something went wrong on our side" — but it did
+not say why, and the why stayed open for a week.
+
+**Whereby issues its API key as a JWT with a thirty-day life.** The one in use
+was issued 2026-09-07 16:00:11 UTC and expired 2026-10-07 **16:00:11 UTC**. The
+consultation was created at **16:10:30** and accepted at **16:11:27** — ten
+minutes after the key died. Room creation had last succeeded on 6 October at
+13:08, comfortably inside the window.
+
+Nothing was broken, nothing was misconfigured, and nobody did anything wrong.
+A date passed.
+
+**What makes this worth a decision rather than a fix.** The expiry was sitting
+inside the credential the entire time. It was readable without calling
+anybody, in about fifteen lines, and nothing read it. The outage was not caused
+by a lack of information — it was caused by information nobody had thought to
+look at. And it will recur roughly every thirty days until something does look.
+
+**Decision.** The adapter that holds a credential is the thing that knows when
+it expires, so that is where the knowledge lives.
+
+- **`VideoProvider.credentialExpiresAt?()`** — optional, because a credential
+  that never expires is a perfectly good credential and a mock has none.
+  Returning null means _nothing to warn about_, never _all is well_.
+- **Derived from the credential, never from the provider.** It is read by a
+  scheduled job and by the admin health page, and neither should need the
+  network — least of all when the credential is the thing that has stopped
+  working. Asking Whereby whether its key is valid, at the moment its key is
+  invalid, is not a design.
+- **`warn-expiring-media-credential`**, daily, beside the MDC-licence warning it
+  is modelled on. `error` once expired, `warn` while approaching: a log search
+  during an outage should be able to tell those apart.
+- **Audited daily, not once.** The licence warning deduplicates because it
+  reaches a person who learns to ignore repetition. This reaches a log, where a
+  daily entry answers "how long has this been true" at a glance — the question
+  somebody asks mid-outage.
+- **Seven days' notice**, configurable. Replacing a key means signing in to
+  Whereby, generating one and setting it in two Render services: a
+  working-week task. Much longer and we would be warning for a quarter of every
+  key's life and be ignored for it.
+- **On `/admin/system-health`**, because that is the page somebody opens when
+  consultations stop connecting, and "it expired yesterday" is the answer they
+  came for.
+- **It reports; it never refuses.** A key Neem believes is expiring is not a
+  key the provider has rejected — clocks differ, keys get rotated without Neem
+  being told. Refusing consultations on date arithmetic would be a worse
+  failure than the one it prevents. `npm run whereby:check` tests whether a key
+  actually works; a human decides.
+- **Nothing derived from the key is ever logged, returned or thrown** — not a
+  fragment, not a hash. A date and a count of days.
+
+**What it still cannot tell you.** A key can be revoked, its account suspended,
+or its quota exhausted, and none of those has a date. **Silence means no expiry
+is approaching. It does not mean the provider is fine.** That limit is stated
+in the code, because a monitor people over-read is how the next outage gets
+missed.
+
+**Consequences.** The next expiry is announced seven days out instead of
+discovered by a patient. Covered by `tests/unit/media-credential-expiry.test.ts`,
+whose last case replays 7 October: silent on 20 September, warning from
+30 September, still warning on the morning of the 7th, and expired at 16:11:27
+— the minute the doctor accepted.
+
+**Still outstanding and not solved by this:** the production key must be
+replaced, and both Render services and the local `.env` updated. This work
+warns about the next one; it does not fix the current one.

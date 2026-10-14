@@ -3,6 +3,7 @@ import { PERMISSIONS } from '@neem/contracts';
 import { guard } from '../../middleware/auth.ts';
 import { getEnv, mockedProviders } from '../../config/env.ts';
 import { getPrisma } from '../../db/prisma.ts';
+import { mediaCredentialStatus } from '../media/credential-expiry.service.ts';
 
 /**
  * Health and readiness.
@@ -125,6 +126,15 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
           },
           mockedProviders: mocked,
           demoMode: mocked.length > 0,
+          /*
+           * When the video credential runs out (D70).
+           *
+           * Here because this is the page somebody opens when consultations
+           * have stopped connecting, and "the key expired yesterday" is the
+           * answer they are looking for. `expiresAt: null` means the
+           * credential carries no expiry — not that it works.
+           */
+          videoCredential: mediaCredentialStatus(),
         },
         meta: { requestId: request.correlationId },
       });

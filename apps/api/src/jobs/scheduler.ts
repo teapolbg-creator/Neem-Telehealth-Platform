@@ -27,6 +27,7 @@ import {
 import { reconcilePayments } from '../modules/payment/reconciliation.service.ts';
 import { retryFailedNotifications } from '../modules/notification/notification.service.ts';
 import { emitTimerWarnings } from '../modules/media/media.service.ts';
+import { warnExpiringMediaCredential } from '../modules/media/credential-expiry.service.ts';
 import { purgeExpiredClinicalRecords } from '../modules/retention/clinical-record.service.ts';
 
 /**
@@ -309,6 +310,27 @@ const JOBS: JobDefinition[] = [
     intervalMs: 24 * 60 * MINUTE,
     run: warnExpiringLicences,
     describe: (count) => `warned ${count} doctor(s) about an MDC licence nearing expiry`,
+  },
+  {
+    /**
+     * The video provider's credential has a date on it too (D70).
+     *
+     * Whereby issues its key as a JWT with a thirty-day life. One expired at
+     * 16:00 on 7 October 2026; eleven minutes later a patient paid and no room
+     * could be created for them. The expiry was readable from the key the
+     * whole time, and nothing read it.
+     *
+     * Daily, like the licence warning beside it, and for the same reason: a
+     * date does not change between one hour and the next, and what matters is
+     * that somebody is told before it arrives.
+     */
+    name: 'warn-expiring-media-credential',
+    intervalMs: 24 * 60 * MINUTE,
+    run: warnExpiringMediaCredential,
+    describe: (count) =>
+      count > 0
+        ? 'warned that the video provider credential is expiring or expired'
+        : 'video provider credential is not near expiry',
   },
 ];
 

@@ -80,6 +80,7 @@ export const AUDIT_ACTIONS = {
   CONSULTATION_COMPLETED: 'consultation.completed',
 
   PAYMENT_CONFIRMED: 'payment.confirmed',
+  MEDIA_CREDENTIAL_EXPIRING: 'media.credential_expiring',
   PAYMENT_ANOMALY: 'payment.anomaly',
 
   /** What a patient may book and what it costs is money, so both are audited (v2). */

@@ -283,6 +283,50 @@ export class WherebyVideoProvider implements VideoProvider {
 
     return { providerRoomRef, status: 'IN_PROGRESS' };
   }
+
+  /**
+   * When this key stops working (D70).
+   *
+   * **Whereby issues its API key as a JWT with a 30-day life**, which is the
+   * kind of thing nobody discovers until it matters. On 7 October 2026 at
+   * 16:00:11 UTC one expired, and at 16:11 a patient paid, a doctor accepted,
+   * and neither could be connected because no room could be created. Nothing
+   * in Neem knew why, and nothing had warned that the day was coming.
+   *
+   * Read from the token rather than from the provider: this is called by a
+   * daily job and by the admin health page, and neither should need the
+   * network to answer — least of all when the credential is the thing that
+   * has stopped working.
+   *
+   * Returns null when the key is not a JWT or carries no `exp`. That means
+   * "nothing to warn about", not "all is well": a key can be revoked at any
+   * time, and only `npm run whereby:check` tests whether it actually works.
+   *
+   * Never logs, returns or throws the key, in whole or in part.
+   */
+  credentialExpiresAt(): Date | null {
+    const key = getEnv().WHEREBY_API_KEY;
+    if (!key) return null;
+
+    const segments = key.split('.');
+    if (segments.length !== 3) return null;
+
+    try {
+      const payload: unknown = JSON.parse(
+        Buffer.from(segments[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+      );
+
+      if (typeof payload !== 'object' || payload === null) return null;
+      const exp = (payload as { exp?: unknown }).exp;
+      if (typeof exp !== 'number' || !Number.isFinite(exp)) return null;
+
+      return new Date(exp * 1000);
+    } catch {
+      // A key we cannot read is not a key we can warn about. Silent, because
+      // the alternative is logging something derived from a credential.
+      return null;
+    }
+  }
 }
 
 /**

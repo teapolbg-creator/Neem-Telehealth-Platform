@@ -12,6 +12,7 @@
 
 export const SETTING_KEYS = {
   CONSULTATION_FEE_ENABLED: 'consultation.feeEnabled',
+  MEDIA_CREDENTIAL_WARNING_DAYS: 'media.credentialWarningDays',
   CONSULTATION_PRICE_MINOR: 'consultation.priceMinor',
   CONSULTATION_CURRENCY: 'consultation.currency',
   CONSULTATION_DURATION_SECONDS: 'consultation.durationSeconds',
@@ -90,6 +91,24 @@ const K = SETTING_KEYS;
 
 export const DEFAULT_SETTINGS: SettingDefinition[] = [
   // --- Consultation -------------------------------------------------------
+  {
+    key: K.MEDIA_CREDENTIAL_WARNING_DAYS,
+    value: 7,
+    valueType: 'number',
+    /*
+     * How long before the video provider's credential expires to start saying
+     * so (D70).
+     *
+     * Seven days, because replacing it means somebody logging in to Whereby,
+     * generating a key and setting it in two Render services — a working-week
+     * task, not a five-minute one. Whereby issues keys with a thirty-day life,
+     * so a longer window would mean warning for a quarter of every key's life
+     * and being ignored.
+     */
+    description:
+      'Days before the video provider credential expires to begin warning (D70). Reports only; nothing is refused on it.',
+    category: 'consultation',
+  },
   {
     key: K.CONSULTATION_FEE_ENABLED,
     value: true,
