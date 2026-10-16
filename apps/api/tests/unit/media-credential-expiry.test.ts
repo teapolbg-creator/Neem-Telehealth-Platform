@@ -107,7 +107,9 @@ describe('the video provider credential', () => {
    * The monitor broken by the fix for the thing it monitors.
    */
   it('treats an unrepresentable expiry as no expiry, rather than crashing on it', async () => {
-    setMediaProvidersForTesting({ video: providerExpiring(new Date(Number.MAX_SAFE_INTEGER * 1000)) });
+    setMediaProvidersForTesting({
+      video: providerExpiring(new Date(Number.MAX_SAFE_INTEGER * 1000)),
+    });
 
     const status = mediaCredentialStatus();
     expect(status.expiresAt).toBeNull();
@@ -115,7 +117,9 @@ describe('the video provider credential', () => {
     expect(status.expired).toBe(false);
 
     // And the job neither warns nor throws.
-    await expect(warnExpiringMediaCredential(undefined, clockAt('2026-10-16T10:00:00Z'))).resolves.toBe(0);
+    await expect(
+      warnExpiringMediaCredential(undefined, clockAt('2026-10-16T10:00:00Z')),
+    ).resolves.toBe(0);
   });
 
   it('would have warned a week before the 7 October outage', async () => {
