@@ -98,7 +98,7 @@ export async function createImmediateBooking(
   // Free for the pilot, if that is how Neem is configured right now (D69).
   const { isConsultationFeeWaived, waiveConsultationFee, afterFeeWaived, FEE_WAIVER_REASONS } =
     await import('../payment/fee-waiver.service.ts');
-  const feeWaived = await isConsultationFeeWaived(db);
+  const feeWaived = await isConsultationFeeWaived('DIRECT', db);
 
   const consultation = await db.$transaction(async (tx) => {
     const created = await createDirectConsultation(tx, {

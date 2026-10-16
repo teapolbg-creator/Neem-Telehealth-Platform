@@ -2500,3 +2500,58 @@ whose last case replays 7 October: silent on 20 September, warning from
 **Still outstanding and not solved by this:** the production key must be
 replaced, and both Render services and the local `.env` updated. This work
 warns about the next one; it does not fix the current one.
+
+### D71 — The two fronts are priced separately · 2026-10-14 · **DECIDED**
+
+**Issue.** [D69](#d69) built one switch: consultations are free, or they are
+not, everywhere. The brief it was built from said "free on both the patient
+front and the pharmacy front" for month one.
+
+The operator has since narrowed it. **Consultations at a pharmacy counter are
+free for the first three months; a patient booking on their own phone still
+pays.** One switch cannot express that.
+
+**Decision.** Two settings, one per channel:
+
+- `consultation.feeEnabled.counter` — off for the pilot
+- `consultation.feeEnabled.direct` — on
+
+`isConsultationFeeWaived` takes the channel, and each of the three creators
+names its own: the counter passes COUNTER, the immediate booking and the
+appointment reservation pass DIRECT. Everything downstream is unchanged,
+because the decision is still recorded on the consultation as
+`feeWaivedReason` at the moment it is created.
+
+**Two booleans rather than one setting listing the free channels**, because the
+admin console renders a boolean as a switch and everything else as a text box.
+A text box is a poor place to keep something that decides whether patients are
+charged: a typo in a JSON array is a silently free month, or a silently charged
+one.
+
+**It fails closed.** A setting that cannot be read means charge. A consultation
+wrongly charged is refundable; one wrongly given away is not recoverable.
+
+**The wiring mistake this makes possible**, and the test that catches it: the
+public catalogue at `GET /patient/clinics` must report the **direct** setting.
+Reading the counter's there would advertise "Free during the pilot" to a patient
+who is about to be charged GHS 50. There is a test for exactly that.
+
+**A consequence worth stating rather than discovering.** A pharmacy's share is
+a percentage of what was collected, and a percentage of zero is zero. **For
+three months, participating pharmacies earn nothing per consultation.** That
+follows arithmetically from making the counter free and is a commercial
+decision, not an oversight — recorded here so the next person to read the
+payout figures does not file a bug.
+
+**The end is a switch, not a date.** Three months from now is around 14 January
+2027, and nothing resumes charging by itself. A date that silently starts
+taking money from patients is the same shape as the credential expiry in
+[D70](#d70) — behaviour changing because a timestamp passed and nobody was
+told. The risk accepted instead is that it is forgotten and stays free longer
+than intended, which costs money and harms nobody.
+
+**The marketing site has its own pair** (`FEES_ENABLED`, `COUNTER_FREE` in
+`src/lib/pricing.ts`) and is **not** wired to these. It now says both prices:
+GH₵50 to book yourself, free at a participating pharmacy. The home page's meta
+description said consultations were free, which stopped being true with this
+change and is corrected in both of the places that string lives.

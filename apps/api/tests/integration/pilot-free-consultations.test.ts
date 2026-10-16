@@ -6,6 +6,7 @@ import {
   createTestUser,
   resetDatabase,
   setConsultationFeesEnabled,
+  setDirectChannelEnabled,
 } from '../helpers/database.ts';
 import {
   MockPaymentProvider,
@@ -16,6 +17,7 @@ import { expirePendingPayments } from '../../src/modules/payment/payment.service
 import { reconcilePayments } from '../../src/modules/payment/reconciliation.service.ts';
 import { cancelConsultation } from '../../src/modules/consultation/consultation.service.ts';
 import { financialSummary } from '../../src/modules/analytics/analytics.service.ts';
+import { isConsultationFeeWaived } from '../../src/modules/payment/fee-waiver.service.ts';
 
 /**
  * Month one of the pilot is free (D69).
@@ -71,14 +73,14 @@ async function counter() {
   return { cookies: await signIn(user.email, PHARMACY_PASSWORD) };
 }
 
-describe('consultations are free during the pilot', () => {
+describe('consultations at the pharmacy counter are free during the pilot', () => {
   let provider: CountingPaymentProvider;
 
   beforeEach(async () => {
     await resetDatabase();
     provider = new CountingPaymentProvider();
     setPaymentProviderForTesting(provider);
-    await setConsultationFeesEnabled(false);
+    await setConsultationFeesEnabled('COUNTER', false);
   });
 
   afterAll(async () => {
@@ -255,9 +257,46 @@ describe('consultations are free during the pilot', () => {
     expect(summary.paidConsultations).toBe(0);
   });
 
+  describe('while the patient-direct journey still charges', () => {
+    /*
+     * The point of splitting the switch (D71). The counter is free to get
+     * pharmacies using Neem; a patient booking on their own phone is not the
+     * behaviour that free period is buying, and still pays.
+     */
+    it('waives the counter and nothing else', async () => {
+      expect(await isConsultationFeeWaived('COUNTER')).toBe(true);
+      expect(await isConsultationFeeWaived('DIRECT')).toBe(false);
+    });
+
+    it('still tells a patient booking for themselves that there is a price', async () => {
+      await setDirectChannelEnabled(true);
+
+      const clinics = await request<{ enabled: boolean; feesEnabled: boolean }>('/patient/clinics');
+
+      /*
+       * The public catalogue speaks for the patient-direct journey, which is
+       * the only place it is shown. Reading the counter's setting here would
+       * advertise "Free during the pilot" to a patient who is about to be
+       * charged — the one wiring mistake this split makes possible.
+       */
+      expect(clinics.body.data!.feesEnabled).toBe(true);
+    });
+
+    it('charges a patient-direct booking while the counter is free', async () => {
+      const service = await getPrisma().service.findFirstOrThrow({
+        where: { isActive: true },
+        select: { priceMinor: true },
+      });
+
+      // Nothing about the counter's free period touches the catalogue price.
+      expect(service.priceMinor).toBeGreaterThan(0);
+      expect(await isConsultationFeeWaived('DIRECT')).toBe(false);
+    });
+  });
+
   describe('and when fees are switched back on for month two', () => {
     it('charges again, with no code change', async () => {
-      await setConsultationFeesEnabled(true);
+      await setConsultationFeesEnabled('COUNTER', true);
       const { cookies } = await counter();
 
       const created = await request<{
@@ -291,7 +330,7 @@ describe('consultations are free during the pilot', () => {
         payload: {},
       });
 
-      await setConsultationFeesEnabled(true);
+      await setConsultationFeesEnabled('COUNTER', true);
 
       const consultation = await getPrisma().consultation.findUniqueOrThrow({
         where: { publicId: created.body.data!.publicId },

@@ -288,17 +288,26 @@ export async function setMembershipRequired(required: boolean): Promise<void> {
 }
 
 /**
- * Turns consultation fees on or off for one test (D69).
+ * Turns consultation fees on or off for one channel, for one test (D69, D71).
  *
- * On by default, so every existing suite exercises the paid flow unchanged —
- * which is the evidence that month two restores the original behaviour without
- * a code change.
+ * Per channel, because the two are priced separately: the pharmacy counter is
+ * free during the pilot while patient-direct still charges. A test that means
+ * "free" has to say where.
+ *
+ * Both on by default, so every existing suite exercises the paid flow
+ * unchanged — which is the evidence that turning fees back on restores the
+ * original behaviour without a code change.
  */
-export async function setConsultationFeesEnabled(enabled: boolean): Promise<void> {
-  await getPrisma().systemSetting.update({
-    where: { key: SETTING_KEYS.CONSULTATION_FEE_ENABLED },
-    data: { value: enabled },
-  });
+export async function setConsultationFeesEnabled(
+  channel: 'COUNTER' | 'DIRECT',
+  enabled: boolean,
+): Promise<void> {
+  const key =
+    channel === 'COUNTER'
+      ? SETTING_KEYS.CONSULTATION_FEE_ENABLED_COUNTER
+      : SETTING_KEYS.CONSULTATION_FEE_ENABLED_DIRECT;
 
-  invalidateSettingsCache(SETTING_KEYS.CONSULTATION_FEE_ENABLED);
+  await getPrisma().systemSetting.update({ where: { key }, data: { value: enabled } });
+
+  invalidateSettingsCache(key);
 }

@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { ConsultationChannel, Prisma, PrismaClient } from '@prisma/client';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
@@ -52,13 +52,31 @@ export const FEE_WAIVER_REASONS = {
 export type FeeWaiverReason = (typeof FEE_WAIVER_REASONS)[keyof typeof FEE_WAIVER_REASONS];
 
 /**
- * Whether a consultation created right now would be free.
+ * Whether a consultation created right now, on this channel, would be free.
+ *
+ * **Asked per channel, because the two are priced separately (D71).** The
+ * pharmacy counter is free for the first three months of the pilot while a
+ * patient booking on their own phone still pays: the counter is the half that
+ * needs pharmacies to form a habit, and that is what the free period is
+ * buying.
  *
  * Asked once per creation. Callers must not ask it again later and expect the
  * same answer — that is what `Consultation.feeWaivedReason` is for.
+ *
+ * Defaults to charging if the setting cannot be read. Failing closed on money
+ * is the right direction: a consultation wrongly charged is refundable, and a
+ * consultation wrongly given away is not recoverable.
  */
-export async function isConsultationFeeWaived(db: Db = getPrisma()): Promise<boolean> {
-  return !(await getBooleanSetting(SETTING_KEYS.CONSULTATION_FEE_ENABLED, db).catch(() => true));
+export async function isConsultationFeeWaived(
+  channel: ConsultationChannel,
+  db: Db = getPrisma(),
+): Promise<boolean> {
+  const key =
+    channel === 'COUNTER'
+      ? SETTING_KEYS.CONSULTATION_FEE_ENABLED_COUNTER
+      : SETTING_KEYS.CONSULTATION_FEE_ENABLED_DIRECT;
+
+  return !(await getBooleanSetting(key, db).catch(() => true));
 }
 
 /** A waived payment's reference. Deterministic, so re-running cannot double up. */

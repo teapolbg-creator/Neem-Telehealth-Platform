@@ -301,7 +301,7 @@ export async function createConsultation(
    */
   const { isConsultationFeeWaived, waiveConsultationFee, afterFeeWaived, FEE_WAIVER_REASONS } =
     await import('../payment/fee-waiver.service.ts');
-  const feeWaived = await isConsultationFeeWaived(db);
+  const feeWaived = await isConsultationFeeWaived('COUNTER', db);
   const netMinor = feeWaived ? 0 : applyDiscount(priceMinor, discountMinor);
 
   const consultation = await db.$transaction(async (tx) => {

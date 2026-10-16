@@ -11,7 +11,8 @@
  */
 
 export const SETTING_KEYS = {
-  CONSULTATION_FEE_ENABLED: 'consultation.feeEnabled',
+  CONSULTATION_FEE_ENABLED_COUNTER: 'consultation.feeEnabled.counter',
+  CONSULTATION_FEE_ENABLED_DIRECT: 'consultation.feeEnabled.direct',
   MEDIA_CREDENTIAL_WARNING_DAYS: 'media.credentialWarningDays',
   CONSULTATION_PRICE_MINOR: 'consultation.priceMinor',
   CONSULTATION_CURRENCY: 'consultation.currency',
@@ -110,33 +111,46 @@ export const DEFAULT_SETTINGS: SettingDefinition[] = [
     category: 'consultation',
   },
   {
-    key: K.CONSULTATION_FEE_ENABLED,
+    key: K.CONSULTATION_FEE_ENABLED_COUNTER,
     value: true,
     valueType: 'boolean',
     /*
-     * Whether a consultation costs anything at all (D69).
+     * Whether a consultation started at a pharmacy counter costs anything
+     * (D71).
      *
-     * Off for month one of the pilot, on again in month two once there is data
-     * to price from. A switch rather than a deletion: every line of fee and
-     * payment logic stays exactly as it is, and turning fees back on is this
-     * one setting rather than a release.
+     * Off for the first three months of the pilot. The counter is the half of
+     * the product that needs pharmacies to form a habit, and a fee is the
+     * thing most likely to stop one forming.
      *
-     * Read at the moment a consultation is created, never later. The decision
-     * is then written onto the consultation as `feeWaivedReason`, so flipping
-     * this cannot make a consultation somebody is halfway through change its
-     * mind about whether it is free — a consultation created while fees were
-     * off stays free, and one created while they were on stays payable.
-     *
-     * A setting and not an environment variable because `updateSetting` makes
-     * the operator give a reason and writes it to `system_setting_history`.
-     * When the pilot is analysed, *when fees were switched off and why* is a
-     * recorded fact rather than a memory of a deploy.
-     *
-     * Default true, so a new environment charges and every existing test keeps
-     * its behaviour. Switching it off is a deliberate act in the admin console.
+     * **A free counter consultation pays the pharmacy nothing.** Their share
+     * is a percentage of what was collected, and a percentage of zero is zero.
+     * That is a commercial decision, not an oversight, and it is written here
+     * so the next person to read this does not mistake it for one.
      */
     description:
-      'Whether consultations are charged for. Off during the pilot: no payment is taken, no provider is called, and each consultation is recorded at zero with a pilot_free marker (D69).',
+      'Whether consultations started at a pharmacy counter are charged for. Off during the pilot: no payment is taken, no provider is called, and each consultation is recorded at zero with a pilot_free marker (D69, D71).',
+    category: 'consultation',
+    requiresConfirm: true,
+  },
+  {
+    key: K.CONSULTATION_FEE_ENABLED_DIRECT,
+    value: true,
+    valueType: 'boolean',
+    /*
+     * Whether a consultation a patient books themselves costs anything (D71).
+     *
+     * Separate from the counter, and deliberately left ON while the counter is
+     * free: the two halves of the pilot are being learned about separately,
+     * and a patient booking on their own phone is not the behaviour the
+     * pharmacy pilot is trying to buy.
+     *
+     * Two keys rather than one with a list of channels, because the admin
+     * console renders a boolean as a switch and anything else as a text box —
+     * and a text box is a poor place to keep something that decides whether
+     * patients are charged.
+     */
+    description:
+      'Whether consultations a patient books themselves are charged for. On: the patient-direct journey still takes payment while the counter is free (D71).',
     category: 'consultation',
     requiresConfirm: true,
   },

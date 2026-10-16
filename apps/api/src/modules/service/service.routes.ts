@@ -56,7 +56,7 @@ export async function serviceRoutes(app: FastifyInstance): Promise<void> {
      * where the figure would go, rather than claiming every service costs
      * nothing — so month two needs no catalogue edit to undo.
      */
-    const feesEnabled = await getBooleanSetting(SETTING_KEYS.CONSULTATION_FEE_ENABLED).catch(
+    const feesEnabled = await getBooleanSetting(SETTING_KEYS.CONSULTATION_FEE_ENABLED_DIRECT).catch(
       () => true,
     );
 
