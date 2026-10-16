@@ -97,6 +97,27 @@ describe('the video provider credential', () => {
     expect(await warnExpiringMediaCredential(undefined, clockAt('2026-10-14T10:00:00Z'))).toBe(0);
   });
 
+  /*
+   * The replacement key, issued 16 October, carries exp: 9007199254740991 —
+   * MAX_SAFE_INTEGER. That is how Whereby says "this does not expire", and it
+   * is finite, so a naive check passes it through as an Invalid Date: every
+   * comparison against NaN is false, so the range check lets it reach the
+   * warning, and toISOString() throws there.
+   *
+   * The monitor broken by the fix for the thing it monitors.
+   */
+  it('treats an unrepresentable expiry as no expiry, rather than crashing on it', async () => {
+    setMediaProvidersForTesting({ video: providerExpiring(new Date(Number.MAX_SAFE_INTEGER * 1000)) });
+
+    const status = mediaCredentialStatus();
+    expect(status.expiresAt).toBeNull();
+    expect(status.daysRemaining).toBeNull();
+    expect(status.expired).toBe(false);
+
+    // And the job neither warns nor throws.
+    await expect(warnExpiringMediaCredential(undefined, clockAt('2026-10-16T10:00:00Z'))).resolves.toBe(0);
+  });
+
   it('would have warned a week before the 7 October outage', async () => {
     // The key that actually expired, and the day it took the service down.
     setMediaProvidersForTesting({ video: providerExpiring(new Date('2026-10-07T16:00:11Z')) });

@@ -53,7 +53,19 @@ export function mediaCredentialStatus(clock: Clock = systemClock): MediaCredenti
   const provider = getVideoProvider();
   const expiresAt = provider.credentialExpiresAt?.() ?? null;
 
-  if (!expiresAt) return { expiresAt: null, daysRemaining: null, expired: false };
+  /*
+   * An unusable date is treated as no date at all.
+   *
+   * The contract lets any adapter answer this, and a Date that cannot be read
+   * — NaN, from a sentinel expiry or a malformed claim — poisons everything
+   * downstream silently: every comparison against it is false, so a range
+   * check passes it through, and `toISOString()` then throws inside the
+   * warning. Caught here as well as in the adapter, because this is the
+   * boundary the rest of the system reads.
+   */
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) {
+    return { expiresAt: null, daysRemaining: null, expired: false };
+  }
 
   const millis = expiresAt.getTime() - clock.now().getTime();
 

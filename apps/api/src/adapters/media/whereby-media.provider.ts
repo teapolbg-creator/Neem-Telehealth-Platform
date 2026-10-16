@@ -320,7 +320,25 @@ export class WherebyVideoProvider implements VideoProvider {
       const exp = (payload as { exp?: unknown }).exp;
       if (typeof exp !== 'number' || !Number.isFinite(exp)) return null;
 
-      return new Date(exp * 1000);
+      /*
+       * A key that never expires says so with a sentinel, not by leaving `exp`
+       * out.
+       *
+       * The replacement key issued on 16 October carries
+       * `exp: 9007199254740991` — JavaScript's MAX_SAFE_INTEGER. That is a
+       * finite number, so the check above passes it, and `new Date` of it is
+       * an **Invalid Date**: `getTime()` is NaN, every comparison against it is
+       * false, and `toISOString()` throws. Returned as-is it would have made
+       * the daily warning throw on every run — the monitor broken by the very
+       * fix for the thing it monitors.
+       *
+       * Any unrepresentable date means the same thing in practice: there is no
+       * expiry worth warning about.
+       */
+      const expiresAt = new Date(exp * 1000);
+      if (Number.isNaN(expiresAt.getTime())) return null;
+
+      return expiresAt;
     } catch {
       // A key we cannot read is not a key we can warn about. Silent, because
       // the alternative is logging something derived from a credential.
