@@ -49,6 +49,8 @@ export const PERMISSIONS = {
   // Administration
   DOCTOR_MANAGE: 'doctor:manage',
   PHARMACY_MANAGE: 'pharmacy:manage',
+  /** Register and edit health facilities, and create their staff accounts (D73). */
+  FACILITY_MANAGE: 'facility:manage',
   SHIFT_MANAGE: 'shift:manage',
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
@@ -114,6 +116,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.REFERRAL_READ,
     P.FINANCE_READ_OWN,
   ],
+
+  /**
+   * CHPS facility staff (D73). Empty in slice 1a: they can sign in and see
+   * their own facility, which the facility routes allow by role and
+   * membership alone. Registration, triage and consultation requests arrive
+   * with slices 1b and 1c, each adding exactly the permissions it needs.
+   */
+  FACILITY: [],
 
   ADMIN: Object.values(P),
 };

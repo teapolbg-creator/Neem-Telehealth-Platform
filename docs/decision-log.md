@@ -2621,3 +2621,57 @@ rather than around it.
 there having been a payment. A free consultation that reassures the patient
 about a second charge raises a cost they were never asked for. Said when true,
 and nothing said in its place.
+
+---
+
+### D73 — CHPS compounds are facilities Neem registers, and their staff are a fourth role · 2026-10-31 · **DECIDED**
+
+**Context.** Neem's second model puts the consultation in a CHPS compound
+instead of a pharmacy (docs/v2-chps-plan.md). Slice 1a builds the ground the
+rest stands on: where a facility is, what it is, and who signs in for it.
+
+**Decision.**
+
+- **A new `Facility` model, not a widened `Pharmacy`.** A pharmacy applies,
+  uploads documents, is reviewed and is paid. A CHPS compound joins through an
+  agreement with its district and is none of those things, and twenty modules
+  read `pharmacyId` with exactly the pharmacy's meaning. One `Facility` table
+  holds CHPS compounds and the health centres and hospitals a patient may be
+  referred to, so that a referral (Phase 2) can name a real destination instead
+  of free text.
+- **Registered by an administrator, and switched on separately.** A facility
+  starts `INACTIVE`, `NOT_INSTALLED` and connectivity `UNKNOWN`; the create
+  route does not accept those fields at all. Deactivating an active facility
+  needs a reason.
+- **Equipment and connectivity are reported, not measured.** Nothing on a
+  station reports in yet (slice 1d), so every screen says "as reported", and
+  `connectivityReportedAt` records when somebody last said so.
+- **Geography: region › district › sub-district, with only the regions
+  seeded.** The sixteen regions are inserted by the migration (production runs
+  migrations, not seeds) and by the reference seed (the test database is
+  truncated between suites); a unit test keeps the two lists identical.
+  Districts and sub-districts are added by an administrator from the official
+  list, inline on the facility form. A facility stores its district, not its
+  region, so the two cannot disagree.
+- **`FACILITY` is a fourth `UserRole`, with no permissions yet.** It reaches
+  its own facility (`/facility/profile`, found from the session, never the URL)
+  by role and membership alone. Each later slice adds exactly the permissions
+  it needs, and a unit test fails if one arrives without being asked for. One
+  facility per account, so what an account may see is never the union of two
+  places.
+- **No password passes through anyone but its owner.** A staff account is
+  created with a random password nobody knows and a one-time set-up link, valid
+  for 72 hours, which is an ordinary password-reset token redeemed on the
+  existing reset page. The administrator sees it once, to hand over in person —
+  a CHO may not read email on the day the account is made — and it is emailed
+  only where email is really delivered. Issuing a new link kills the old one.
+  Suspending an account ends its sessions at once (D4). Only a CHPS compound
+  can have staff, and one that has staff cannot be retyped.
+
+**What was not done.** The other administrative roles in the brief (super,
+operations, district, sub-district, reporting) are not added: a role with no
+screen to use is a permission nobody can test. They arrive with the
+dashboards that need them (Phase 3), along with geographic scoping. 2FA is
+optional for facility staff, as it is for pharmacies; whether to require it on
+shared facility devices is open. Accounts still sign in by email, which some
+CHOs may not have; a phone-number sign-in would be its own decision.

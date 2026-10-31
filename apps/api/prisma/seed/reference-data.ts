@@ -97,6 +97,33 @@ const COMPLAINT_CATEGORIES = [
 ];
 
 /**
+ * The sixteen regions of Ghana (CHPS slice 1a, D73).
+ *
+ * Also inserted by migration 20261031120000_chps_facilities, because
+ * production runs migrations and not this seed. A unit test keeps the two
+ * lists identical. Districts and sub-districts are deliberately absent: they
+ * come from an official list the operator supplies, not from here.
+ */
+export const GHANA_REGIONS = [
+  'Ahafo',
+  'Ashanti',
+  'Bono',
+  'Bono East',
+  'Central',
+  'Eastern',
+  'Greater Accra',
+  'North East',
+  'Northern',
+  'Oti',
+  'Savannah',
+  'Upper East',
+  'Upper West',
+  'Volta',
+  'Western',
+  'Western North',
+] as const;
+
+/**
  * Point-of-care capabilities a pharmacy may declare. Drives which tests the
  * pharmacy consultation screen offers (spec §50).
  */
@@ -215,6 +242,10 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
       },
       create: service,
     });
+  }
+
+  for (const name of GHANA_REGIONS) {
+    await prisma.region.upsert({ where: { name }, update: {}, create: { name } });
   }
 
   for (const category of COMPLAINT_CATEGORIES) {

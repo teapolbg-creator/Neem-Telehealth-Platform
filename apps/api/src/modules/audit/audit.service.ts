@@ -57,6 +57,14 @@ export const AUDIT_ACTIONS = {
   PHARMACY_APPROVED: 'pharmacy.approved',
   PHARMACY_SUSPENDED: 'pharmacy.suspended',
 
+  /** CHPS slice 1a (D73). Who registered a facility, and who made whose account. */
+  GEOGRAPHY_CHANGED: 'geography.changed',
+  FACILITY_CREATED: 'facility.created',
+  FACILITY_UPDATED: 'facility.updated',
+  FACILITY_STAFF_CREATED: 'facility.staff.created',
+  FACILITY_STAFF_STATUS_CHANGED: 'facility.staff.status-changed',
+  FACILITY_STAFF_SETUP_ISSUED: 'facility.staff.setup-issued',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

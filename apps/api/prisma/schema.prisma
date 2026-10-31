@@ -52,6 +52,9 @@ enum UserRole {
   ADMIN
   DOCTOR
   PHARMACY
+  /// Staff of a CHPS compound — a Community Health Officer or other authorised
+  /// facility personnel (CHPS slice 1a, docs/v2-chps-plan.md).
+  FACILITY
 }
 
 enum UserStatus {
@@ -304,6 +307,8 @@ enum ActorType {
   /// (v2). Distinct from PATIENT because the reference beside it is an account,
   /// and a notification retry rebuilds the recipient from that pair.
   PATIENT_ACCOUNT
+  /// A member of a CHPS compound's staff (CHPS slice 1a).
+  FACILITY
   SYSTEM
 }
 
@@ -327,6 +332,35 @@ enum MediaSessionKind {
   VIDEO
   AUDIO
   VOICE_BRIDGE
+}
+
+/// CHPS slice 1a. Mirrors contracts/src/facility.ts.
+enum FacilityType {
+  CHPS
+  HEALTH_CENTRE
+  DISTRICT_HOSPITAL
+  REGIONAL_HOSPITAL
+  TEACHING_HOSPITAL
+  OTHER
+}
+
+enum FacilityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum FacilityEquipmentStatus {
+  NOT_INSTALLED
+  OPERATIONAL
+  FAULTY
+}
+
+enum FacilityConnectivityStatus {
+  UNKNOWN
+  GOOD
+  INTERMITTENT
+  POOR
+  NONE
 }
 
 enum PilotApplicantRole {
@@ -368,6 +402,7 @@ model User {
   admin               Admin?
   doctor              Doctor?
   pharmacyMembership  PharmacyUser?
+  facilityMembership  FacilityUser?
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
   recoveryCodes       TwoFactorRecoveryCode[]
@@ -2378,4 +2413,119 @@ model PilotApplication {
   @@index([status, createdAt])
   @@index([role, status])
   @@map("pilot_applications")
+}
+
+// =============================================================================
+// GEOGRAPHY & FACILITIES  — OPERATIONAL  (CHPS slice 1a)
+//
+// Ghana's administrative hierarchy as the health service uses it: region,
+// district, sub-district. The sixteen regions are seeded by the migration
+// that created these tables; districts and sub-districts are entered by an
+// administrator from an official list (docs/v2-chps-plan.md §4.6), never
+// invented here.
+// =============================================================================
+
+model Region {
+  id        String   @id @default(uuid(7))
+  name      String   @unique @db.VarChar(120)
+  createdAt DateTime @default(now())
+
+  districts District[]
+
+  @@map("regions")
+}
+
+model District {
+  id        String   @id @default(uuid(7))
+  regionId  String
+  name      String   @db.VarChar(160)
+  createdAt DateTime @default(now())
+
+  region       Region        @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  subDistricts SubDistrict[]
+  facilities   Facility[]
+
+  @@unique([regionId, name])
+  @@map("districts")
+}
+
+model SubDistrict {
+  id         String   @id @default(uuid(7))
+  districtId String
+  name       String   @db.VarChar(160)
+  createdAt  DateTime @default(now())
+
+  district   District   @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  facilities Facility[]
+
+  @@unique([districtId, name])
+  @@map("sub_districts")
+}
+
+/// A health facility: a CHPS compound that uses Neem, or a facility a patient
+/// may be referred to.
+///
+/// The region is not stored. It is the district's, and storing it twice would
+/// let a facility sit in a district of one region while claiming another.
+model Facility {
+  id            String       @id @default(uuid(7))
+  publicId      String       @unique @db.VarChar(32)
+  /// The operator's code for it — a GHS facility code where one exists.
+  code          String       @unique @db.VarChar(40)
+  name          String       @db.VarChar(200)
+  type          FacilityType
+  districtId    String
+  subDistrictId String?
+  community     String       @db.VarChar(160)
+  addressLine   String?      @db.VarChar(200)
+  ghanaPostGps  String?      @db.VarChar(20)
+  latitude      Decimal?     @db.Decimal(10, 7)
+  longitude     Decimal?     @db.Decimal(10, 7)
+  contactName   String?      @db.VarChar(160)
+  contactPhone  String?      @db.VarChar(24)
+  contactEmail  String?      @db.VarChar(255)
+
+  /// Starts INACTIVE: a facility takes part only once an administrator says so.
+  status       FacilityStatus @default(INACTIVE)
+  statusReason String?        @db.VarChar(500)
+
+  /// As reported by a person. Nothing measures either yet (slice 1d adds
+  /// station heartbeats), so neither may be presented as live.
+  equipmentStatus        FacilityEquipmentStatus    @default(NOT_INSTALLED)
+  connectivityStatus     FacilityConnectivityStatus @default(UNKNOWN)
+  connectivityReportedAt DateTime?
+
+  createdByUserId String
+  isDemo          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  district    District       @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  subDistrict SubDistrict?   @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
+  staff       FacilityUser[]
+
+  @@index([districtId, status])
+  @@index([type, status])
+  @@map("facilities")
+}
+
+/// A member of a facility's staff. One facility per account: a CHO who works
+/// at two compounds holds two accounts, so what one account may see is never
+/// the union of two places.
+model FacilityUser {
+  facilityId      String
+  userId          String   @unique
+  fullName        String   @db.VarChar(160)
+  title           String?  @db.VarChar(120)
+  phone           String?  @db.VarChar(24)
+  /// Reserved for Phase 3, when a facility administrator may manage their own
+  /// facility's staff. Grants nothing yet.
+  isFacilityAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  facility Facility @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([facilityId, userId])
+  @@map("facility_users")
 }

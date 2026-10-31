@@ -663,3 +663,39 @@ for a prescription whether it has been revoked or dispensed. **Never the
 medication, the reason for referral, or the advice**: anyone who needs the
 content is already holding it. The high-entropy code is the sole guard, so the
 endpoint is rate limited against enumeration, and a DRAFT never verifies.
+
+---
+
+## 13. Facilities (CHPS slice 1a, D73)
+
+```
+GET    /admin/geography                       regions › districts › sub-districts, nested
+POST   /admin/geography/districts             { regionId, name }
+POST   /admin/geography/sub-districts         { districtId, name }
+GET    /admin/facilities                      ?status&type&regionId&districtId&search, cursor-paged
+POST   /admin/facilities                      always created INACTIVE, NOT_INSTALLED, UNKNOWN
+GET    /admin/facilities/:publicId            with its staff
+PATCH  /admin/facilities/:publicId            details, status, equipment and connectivity
+POST   /admin/facilities/:publicId/staff      creates a FACILITY account, returns a set-up link
+POST   /admin/facilities/:publicId/staff/:userPublicId/status       { status: ACTIVE | SUSPENDED }
+POST   /admin/facilities/:publicId/staff/:userPublicId/setup-link   a fresh link; older ones die
+GET    /facility/profile                      the signed-in staff member's own facility
+```
+
+All `/admin` routes need `facility:manage`. `/facility/profile` needs the
+`FACILITY` role and finds the facility from the session, never from the URL.
+
+**The sixteen regions are reference data**, inserted by the migration and the
+reference seed. Districts and sub-districts are entered by an administrator
+from an official list; nothing invents them.
+
+**A staff account has no password until its owner chooses one.** Creating it
+returns `setupPath`, a one-time link to the web password-reset page, valid for 72 hours,
+so the administrator can hand it over in person. It is also emailed when email
+is really delivered (`emailed: true`), and only then. Redeeming it is the
+ordinary password reset. Only a `CHPS` facility can have staff; the other types
+are referral destinations.
+
+Deactivating an active facility requires a `statusReason`. Suspending a staff
+member ends their live sessions at once. Equipment and connectivity are what a
+person **reported**; nothing measures them until station heartbeats (slice 1d).

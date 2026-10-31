@@ -9,7 +9,7 @@ import { useHeartbeat } from "@/features/queue/api";
 import { ApiError } from "@/lib/api-client";
 import { PERMISSIONS, type Permission } from "@neem/contracts";
 
-type AppKey = "pharmacy" | "doctor" | "admin";
+type AppKey = "pharmacy" | "doctor" | "admin" | "facility";
 
 /**
  * Application shell for the authenticated portals.
@@ -55,6 +55,8 @@ const NAV: Record<
     // documents and signature are kept, not a process still under way.
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
+  // CHPS facility staff (D73). One page until registration arrives (slice 1b).
+  facility: [{ label: "Facility", to: "/facility" }],
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },
@@ -66,6 +68,7 @@ const NAV: Record<
     { label: "Services", to: "/admin/services" },
     { label: "Promotions", to: "/admin/promotions" },
     { label: "Verification", to: "/admin/verification" },
+    { label: "Facilities", to: "/admin/facilities" },
     { label: "Pilot", to: "/admin/pilot" },
     { label: "Quality", to: "/admin/quality" },
     { label: "Archive", to: "/admin/archive" },
@@ -79,12 +82,13 @@ const NAV: Record<
  * Pages that own a section of the app rather than a page within it. Everything
  * under them belongs to a sibling tab, not to them.
  */
-const SECTION_ROOTS = new Set(["/", "/doctor", "/pharmacy", "/admin"]);
+const SECTION_ROOTS = new Set(["/", "/doctor", "/pharmacy", "/admin", "/facility"]);
 
 const ROLE_TO_APP: Record<string, AppKey> = {
   PHARMACY: "pharmacy",
   DOCTOR: "doctor",
   ADMIN: "admin",
+  FACILITY: "facility",
 };
 
 export function AppShell({

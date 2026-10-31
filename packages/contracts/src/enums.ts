@@ -6,7 +6,8 @@
  * API package asserts they have not drifted apart.
  */
 
-export const USER_ROLES = ['ADMIN', 'DOCTOR', 'PHARMACY'] as const;
+/** FACILITY is the staff of a CHPS compound (CHPS slice 1a, D73). */
+export const USER_ROLES = ['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 /**
@@ -43,7 +44,7 @@ export const OFFERED_PROFESSIONAL_DISCIPLINES = ['DOCTOR'] as const;
 export type OfferedProfessionalDiscipline = (typeof OFFERED_PROFESSIONAL_DISCIPLINES)[number];
 
 /** Patients are not users. They hold a consultation-scoped session instead. */
-export const PRINCIPAL_KINDS = ['ADMIN', 'DOCTOR', 'PHARMACY', 'PATIENT'] as const;
+export const PRINCIPAL_KINDS = ['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY', 'PATIENT'] as const;
 export type PrincipalKind = (typeof PRINCIPAL_KINDS)[number];
 
 export const USER_STATUSES = ['ACTIVE', 'SUSPENDED', 'DISABLED'] as const;

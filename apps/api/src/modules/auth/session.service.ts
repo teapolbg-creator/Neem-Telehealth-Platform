@@ -36,14 +36,14 @@ export interface IssuedSession {
 }
 
 export interface AuthenticatedPrincipal {
-  kind: 'ADMIN' | 'DOCTOR' | 'PHARMACY';
+  kind: 'ADMIN' | 'DOCTOR' | 'PHARMACY' | 'FACILITY';
   sessionId: string;
   userId: string;
   userPublicId: string;
   email: string;
   role: UserRole;
   permissions: Permission[];
-  /** The doctor or pharmacy this account acts for; null for admins. */
+  /** The doctor, pharmacy or facility this account acts for; null for admins. */
   organisationId: string | null;
   /**
    * What kind of professional this is, for anyone who must say so in words
@@ -107,6 +107,7 @@ export async function resolveSession(
         include: {
           doctor: { select: { id: true, status: true, discipline: true } },
           pharmacyMembership: { select: { pharmacyId: true } },
+          facilityMembership: { select: { facilityId: true } },
         },
       },
     },
@@ -129,7 +130,9 @@ export async function resolveSession(
       ? (user.doctor?.id ?? null)
       : user.role === 'PHARMACY'
         ? (user.pharmacyMembership?.pharmacyId ?? null)
-        : null;
+        : user.role === 'FACILITY'
+          ? (user.facilityMembership?.facilityId ?? null)
+          : null;
 
   /*
    * A dietitian and a trainer sign in as DOCTOR and are refused the things

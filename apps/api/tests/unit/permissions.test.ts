@@ -80,6 +80,26 @@ describe('role permissions', () => {
     });
   });
 
+  describe('CHPS facility staff (D73)', () => {
+    it('hold no permission until a slice grants one', () => {
+      // Slice 1a gives them sign-in and their own facility, by role alone.
+      // Each later slice adds exactly what it needs; this fails loudly if a
+      // permission arrives without a test saying why.
+      expect(permissionsForRole('FACILITY')).toEqual([]);
+    });
+
+    it('cannot manage facilities, prescribe or read anything clinical', () => {
+      for (const permission of [
+        PERMISSIONS.FACILITY_MANAGE,
+        PERMISSIONS.PRESCRIPTION_CREATE,
+        PERMISSIONS.CONSULTATION_READ,
+        PERMISSIONS.AUDIT_READ,
+      ]) {
+        expect(roleHasPermission('FACILITY', permission)).toBe(false);
+      }
+    });
+  });
+
   describe('administrators', () => {
     it('hold every defined permission', () => {
       const all = Object.values(PERMISSIONS);
@@ -89,14 +109,14 @@ describe('role permissions', () => {
     });
 
     it('are the only role that can read the audit log', () => {
-      const readers = (['ADMIN', 'DOCTOR', 'PHARMACY'] as const).filter((role) =>
+      const readers = (['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY'] as const).filter((role) =>
         roleHasPermission(role, PERMISSIONS.AUDIT_READ),
       );
       expect(readers).toEqual(['ADMIN']);
     });
 
     it('are the only role that can decide refunds (spec §41)', () => {
-      const deciders = (['ADMIN', 'DOCTOR', 'PHARMACY'] as const).filter((role) =>
+      const deciders = (['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY'] as const).filter((role) =>
         roleHasPermission(role, PERMISSIONS.REFUND_DECIDE),
       );
       expect(deciders).toEqual(['ADMIN']);

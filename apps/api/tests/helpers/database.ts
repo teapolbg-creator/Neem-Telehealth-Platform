@@ -89,7 +89,7 @@ export async function resetDatabase(): Promise<void> {
 export interface TestUserOptions {
   email: string;
   password: string;
-  role: 'ADMIN' | 'DOCTOR' | 'PHARMACY';
+  role: 'ADMIN' | 'DOCTOR' | 'PHARMACY' | 'FACILITY';
   status?: 'ACTIVE' | 'SUSPENDED' | 'DISABLED';
   /** When set, the account already has TOTP enrolled with this secret. */
   twoFactorSecretEnc?: string;

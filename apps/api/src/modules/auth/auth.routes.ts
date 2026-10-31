@@ -210,6 +210,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         pharmacyMembership: {
           select: { pharmacy: { select: { publicId: true, name: true, status: true } } },
         },
+        facilityMembership: {
+          select: {
+            fullName: true,
+            facility: { select: { publicId: true, name: true, status: true } },
+          },
+        },
       },
     });
 
@@ -221,7 +227,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             name: user.pharmacyMembership.pharmacy.name,
             status: user.pharmacyMembership.pharmacy.status,
           }
-        : null;
+        : user.facilityMembership
+          ? {
+              publicId: user.facilityMembership.facility.publicId,
+              name: user.facilityMembership.facility.name,
+              status: user.facilityMembership.facility.status,
+            }
+          : null;
 
     const data: SessionUser = {
       publicId: user.publicId,
@@ -231,6 +243,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         user.admin?.fullName ??
         user.doctor?.fullName ??
         user.pharmacyMembership?.pharmacy.name ??
+        user.facilityMembership?.fullName ??
         user.email,
       twoFactorEnabled: user.twoFactorEnabledAt !== null,
       mustEnrollTwoFactor: user.role === 'ADMIN' && user.twoFactorEnabledAt === null,
