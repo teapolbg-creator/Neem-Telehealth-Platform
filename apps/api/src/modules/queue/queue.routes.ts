@@ -231,6 +231,9 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           // So the doctor can tell the patient how long they have to come back
           // after a call that broke (D57).
           rejoinableUntil: consultation.rejoinableUntil?.toISOString() ?? null,
+          // So no screen promises a patient they will not be charged again for
+          // something nobody charged them for in the first place (D72).
+          feeWaived: consultation.feeWaivedReason !== null,
           durationSeconds: await getIntSetting(SETTING_KEYS.CONSULTATION_DURATION_SECONDS),
         },
         meta: { requestId: request.correlationId },

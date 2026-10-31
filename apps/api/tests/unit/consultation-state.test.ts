@@ -203,16 +203,47 @@ describe('paid states', () => {
 });
 
 describe('patient access', () => {
-  it('accepts a QR exchange only while the consultation awaits the patient', () => {
+  it('accepts a QR exchange for as long as the patient could still act', () => {
     const accepting = CONSULTATION_STATES.filter(acceptsPatientArrival);
-    expect(accepting.sort()).toEqual(['ACTIVATED', 'WAITING_FOR_PATIENT']);
+    expect(accepting.sort()).toEqual(
+      [
+        'ACTIVATED',
+        'ASSIGNED',
+        'DOCTOR_ACCEPTED',
+        'INTERRUPTED',
+        'IN_PROGRESS',
+        'PATIENT_JOINED',
+        'REASSIGNING',
+        'WAITING_FOR_DOCTOR',
+        'WAITING_FOR_PATIENT',
+      ].sort(),
+    );
   });
 
-  it('refuses a QR exchange once the patient has already joined', () => {
-    // This is what stops a second person using a scanned code after the fact.
-    expect(acceptsPatientArrival('PATIENT_JOINED')).toBe(false);
-    expect(acceptsPatientArrival('IN_PROGRESS')).toBe(false);
+  it('lets the counter put a patient back into a call in progress', () => {
+    // The point of D72: a patient who closes the tab mid-consultation has a
+    // doctor still waiting, and the pharmacy is the only thing that can let
+    // them back in. A narrower window locked that door.
+    expect(acceptsPatientArrival('IN_PROGRESS')).toBe(true);
+    expect(acceptsPatientArrival('INTERRUPTED')).toBe(true);
+  });
+
+  it('refuses a QR exchange once there is nothing to return to', () => {
+    // Not merely tidiness: a code that outlives the consultation is a code
+    // that admits a stranger to a finished patient's record.
+    expect(acceptsPatientArrival('PENDING_PAYMENT')).toBe(false);
+    expect(acceptsPatientArrival('COMPLETING')).toBe(false);
     expect(acceptsPatientArrival('COMPLETED')).toBe(false);
+    expect(acceptsPatientArrival('CANCELLED')).toBe(false);
+    expect(acceptsPatientArrival('EXPIRED')).toBe(false);
+  });
+
+  it('accepts arrival in every state where the session may act', () => {
+    // The two must not drift: a code that admits a patient to a state their
+    // session cannot act in would land them on a screen that refuses them.
+    for (const state of CONSULTATION_STATES) {
+      if (patientSessionIsUsable(state)) expect(acceptsPatientArrival(state)).toBe(true);
+    }
   });
 
   it('keeps the patient session usable through the consultation but not after', () => {

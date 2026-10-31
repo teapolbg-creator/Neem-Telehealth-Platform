@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,7 +16,13 @@ import { ClinicalWorkspace } from "@/components/neem/ClinicalWorkspace";
 import { CallStage } from "@/components/neem/CallStage";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
-import { channelLabel, consultationOrigin, useDoctorConsultation } from "@/features/queue/api";
+import {
+  channelLabel,
+  consultationOrigin,
+  useDoctorConsultation,
+  RESUME_CONSULTATION_EVENT,
+  takePendingResume,
+} from "@/features/queue/api";
 import {
   doctorLeftBeacon,
   useDoctorTimer,
@@ -145,6 +151,7 @@ function DoctorConsultation() {
                 patientName={data.patient?.fullName ?? "Patient"}
                 interrupted={data.state === "INTERRUPTED"}
                 rejoinableUntil={data.rejoinableUntil ?? null}
+                feeWaived={data.feeWaived ?? false}
               />
             )}
           </div>
@@ -199,11 +206,14 @@ function VideoPanel({
   patientName,
   interrupted,
   rejoinableUntil,
+  feeWaived,
 }: {
   publicId: string;
   patientName: string;
   interrupted: boolean;
   rejoinableUntil: string | null;
+  /** Nothing was charged, so nothing here promises not to charge twice (D72). */
+  feeWaived: boolean;
 }) {
   const join = useJoinDoctorMedia(publicId);
   const leave = useLeaveDoctorMedia(publicId);
@@ -238,6 +248,47 @@ function VideoPanel({
     requested.current = true;
     join.mutate();
   }, [join, interrupted]);
+
+  /**
+   * Coming back to the call.
+   *
+   * One function, because there are two ways to ask for it and they must do
+   * the same thing: the button on this screen, and the "a patient has come
+   * back" banner in the shell, which is on this page too (D72).
+   *
+   * The mount effect's guard is set rather than cleared — the join is what
+   * resumes the consultation, and the effect will not fire while it is still
+   * interrupted, so this is the one join rather than the first of two.
+   */
+  const rejoin = useCallback(() => {
+    requested.current = true;
+    setAloneSince(null);
+    join.mutate();
+  }, [join]);
+
+  /*
+   * The banner's Resume, from this page and from any other.
+   *
+   * The listener catches a doctor already looking at this consultation —
+   * navigating to the page you are on does nothing, so the button did nothing
+   * precisely where the banner is most likely to be seen. The box catches the
+   * other case, where the button navigated here and fired before this screen
+   * existed; the effect above will not join an interrupted consultation on its
+   * own, so without this the button was silent from every other page too.
+   */
+  useEffect(() => {
+    if (interrupted && takePendingResume(publicId)) rejoin();
+  }, [publicId, interrupted, rejoin]);
+
+  useEffect(() => {
+    const onResume = (event: Event) => {
+      const asked = (event as CustomEvent<string>).detail;
+      if (asked === publicId && interrupted) rejoin();
+    };
+
+    window.addEventListener(RESUME_CONSULTATION_EVENT, onResume);
+    return () => window.removeEventListener(RESUME_CONSULTATION_EVENT, onResume);
+  }, [publicId, interrupted, rejoin]);
 
   /*
    * Two ways of learning the patient is gone, because each misses cases the
@@ -275,23 +326,13 @@ function VideoPanel({
         </div>
         <h2 className="mt-4 text-lg font-bold">Marked as interrupted</h2>
         <p className="mt-2 max-w-sm text-pretty text-sm text-slate-500">
-          The patient can rejoin without paying again
+          {feeWaived ? "The patient can rejoin" : "The patient can rejoin without paying again"}
           {rejoinableUntil ? ` until ${formatDeadline(rejoinableUntil)}` : ""}. You are free to take
           other patients. You can still write up and complete this consultation below.
         </p>
         <button
           type="button"
-          onClick={() => {
-            /*
-             * Joined here rather than by releasing the mount effect's guard.
-             * The join is what resumes the consultation, and the effect will
-             * not fire while it is still interrupted — so the guard is set, not
-             * cleared, and this is the one join rather than the first of two.
-             */
-            requested.current = true;
-            setAloneSince(null);
-            join.mutate();
-          }}
+          onClick={rejoin}
           className="mt-5 rounded-xl border border-border px-5 py-2.5 text-sm font-bold hover:bg-slate-50"
         >
           Rejoin the call
@@ -360,6 +401,7 @@ function VideoPanel({
               onWaitLonger={() => setExtended((value) => value + WAIT_SECONDS)}
               onInterrupt={() => interrupt.mutate(undefined)}
               interrupting={interrupt.isPending}
+              feeWaived={feeWaived}
               error={
                 interrupt.isError
                   ? interrupt.error instanceof ApiError
@@ -397,6 +439,7 @@ function PatientAwayBanner({
   onInterrupt,
   interrupting,
   error,
+  feeWaived,
 }: {
   since: number;
   extraSeconds: number;
@@ -405,6 +448,8 @@ function PatientAwayBanner({
   onInterrupt: () => void;
   interrupting: boolean;
   error: string | null;
+  /** Nothing was charged, so nothing here mentions paying (D72). */
+  feeWaived: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -455,8 +500,9 @@ function PatientAwayBanner({
           </div>
 
           <p className="mt-2 text-amber-800/80">
-            Marking it frees you to see other patients and lets this one rejoin later without paying
-            again. It does not complete the consultation or refund anything.
+            Marking it frees you to see other patients and lets this one rejoin later
+            {feeWaived ? "" : " without paying again"}. It does not complete the consultation
+            {feeWaived ? "" : " or refund anything"}.
           </p>
 
           {error && <p className="mt-2 font-bold text-red-700">{error}</p>}

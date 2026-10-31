@@ -64,7 +64,9 @@ export async function issueAccessToken(
 
   if (!acceptsPatientArrival(consultation.state)) {
     throw errors.businessRule(
-      `A consultation access code can only be issued once payment is confirmed. This consultation is ${consultation.state}.`,
+      // Both ends of the window, because the refusal now has two causes:
+      // too early (not yet activated) and too late (the doctor has finished).
+      `A consultation access code can only be issued between payment and the end of the consultation. This consultation is ${consultation.state}.`,
     );
   }
 

@@ -314,6 +314,9 @@ export async function buildSessionView(
     // presenting a form that will be refused.
     feedbackSubmitted: consultation.feedback !== null,
     rejoinableUntil: consultation.rejoinableUntil?.toISOString() ?? null,
+    // Nothing was charged, so nothing on this patient's screen should reassure
+    // them about not being charged twice (D72).
+    feeWaived: consultation.feeWaivedReason !== null,
   };
 }
 

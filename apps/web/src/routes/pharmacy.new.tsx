@@ -19,6 +19,7 @@ import {
   useInitiatePayment,
   useIssueQr,
   usePaymentStatus,
+  usePharmacyFees,
   useSimulatePayment,
   type ConsultationQr,
   type CreatedConsultation,
@@ -49,6 +50,7 @@ type Step = "create" | "payment" | "qr";
 
 function NewConsultation() {
   const navigate = useNavigate();
+  const feesEnabled = usePharmacyFees();
   const [step, setStep] = useState<Step>("create");
   const [consultation, setConsultation] = useState<CreatedConsultation | null>(null);
   const [qr, setQr] = useState<ConsultationQr | null>(null);
@@ -63,10 +65,15 @@ function NewConsultation() {
           <ArrowLeft className="size-4" /> Back to dashboard
         </Link>
 
-        <Steps current={step} free={consultation?.feeWaived ?? false} />
+        {/*
+          Asked of the settings rather than of the consultation, which does not
+          exist yet on the step where this matters most (D72).
+        */}
+        <Steps current={step} free={!feesEnabled} />
 
         {step === "create" && (
           <CreateStep
+            feesEnabled={feesEnabled}
             onCreated={(created) => {
               setConsultation(created);
               /*
@@ -153,7 +160,14 @@ function Steps({ current, free }: { current: Step; free: boolean }) {
   );
 }
 
-function CreateStep({ onCreated }: { onCreated: (created: CreatedConsultation) => void }) {
+function CreateStep({
+  feesEnabled,
+  onCreated,
+}: {
+  /** Whether anything will be collected, which decides the copy here (D72). */
+  feesEnabled: boolean;
+  onCreated: (created: CreatedConsultation) => void;
+}) {
   const create = useCreateConsultation();
   const [promotionCode, setPromotionCode] = useState("");
 
@@ -180,7 +194,12 @@ function CreateStep({ onCreated }: { onCreated: (created: CreatedConsultation) =
         </p>
       </div>
 
-      <label className="block">
+      {/*
+        A discount on nothing. Hidden rather than disabled while the counter is
+        free: an input the counter can fill in and that cannot affect anything
+        is worse than its absence (D72).
+      */}
+      <label className={feesEnabled ? "block" : "hidden"}>
         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
           Promotional code
         </span>
@@ -204,7 +223,7 @@ function CreateStep({ onCreated }: { onCreated: (created: CreatedConsultation) =
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:brightness-110 disabled:opacity-50"
       >
         {create.isPending && <Loader2 className="size-4 animate-spin" />}
-        Continue to payment
+        {feesEnabled ? "Continue to payment" : "Start the consultation"}
       </button>
     </div>
   );

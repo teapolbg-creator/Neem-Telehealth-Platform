@@ -20,6 +20,26 @@ export const Route = createFileRoute("/pharmacy/consultations/$publicId")({
   component: ConsultationMonitor,
 });
 
+/**
+ * The states in which the API will issue a patient code (`acceptsPatientArrival`).
+ *
+ * Kept as a list here rather than a state range, so that it reads as the same
+ * set the API enforces. It runs to the end of the consultation and not merely
+ * to the patient's first arrival, because the counter is how a patient who
+ * lost their phone mid-call gets back in (D72).
+ */
+const CODE_ISSUABLE_STATES = [
+  "ACTIVATED",
+  "WAITING_FOR_PATIENT",
+  "PATIENT_JOINED",
+  "WAITING_FOR_DOCTOR",
+  "ASSIGNED",
+  "REASSIGNING",
+  "DOCTOR_ACCEPTED",
+  "IN_PROGRESS",
+  "INTERRUPTED",
+];
+
 const STATE_TONE: Record<string, "brand" | "medical" | "warning" | "muted" | "danger"> = {
   PENDING_PAYMENT: "warning",
   PAYMENT_PROCESSING: "warning",
@@ -124,13 +144,14 @@ function ConsultationMonitor() {
             <Timeline consultation={consultation} />
           </section>
 
-          {/*
-            The only states in which the API will issue a code. The section
-            disappears by itself once the patient has scanned, because the
-            consultation is polled.
-          */}
-          {["ACTIVATED", "WAITING_FOR_PATIENT"].includes(consultation.state) && (
-            <PatientCodeSection publicId={consultation.publicId} />
+          {CODE_ISSUABLE_STATES.includes(consultation.state) && (
+            <PatientCodeSection
+              publicId={consultation.publicId}
+              patientAway={
+                consultation.patientJoinedAt !== null && consultation.patientInCall === false
+              }
+              professionalWaiting={["DOCTOR_ACCEPTED", "IN_PROGRESS"].includes(consultation.state)}
+            />
           )}
 
           {/*
@@ -289,20 +310,35 @@ function ConsultationMonitor() {
 }
 
 /**
- * The patient's code, for a paid consultation still waiting for them (D48).
+ * The patient's code, for a consultation the patient can still join (D48).
  *
  * "New consultation" shows it once, at the end. A pharmacist who left that
  * screen, a code that expired, and a patient who lost their phone all need it
  * again, and the API has always issued a replacement — nothing offered one.
  * Nothing is minted until asked, because each code revokes the one before.
+ *
+ * It stays on screen for the whole consultation now, not just until the
+ * patient first scans. A patient who closes the tab mid-call cannot get back
+ * in by themselves — the link they had was single-use — and the counter,
+ * standing next to them, is the only thing that can let them back in (D72).
  */
-function PatientCodeSection({ publicId }: { publicId: string }) {
+function PatientCodeSection({
+  publicId,
+  patientAway,
+  professionalWaiting,
+}: {
+  publicId: string;
+  patientAway: boolean;
+  /** Whether the professional is still in the room, which changes what to say. */
+  professionalWaiting: boolean;
+}) {
   const issue = useIssueQr();
   const [qr, setQr] = useState<ConsultationQr | null>(null);
 
   if (qr) {
     return (
       <section className="card-soft p-6">
+        {patientAway ? <PatientAwayNotice professionalWaiting={professionalWaiting} /> : null}
         <PatientCode publicId={publicId} qr={qr} onIssued={setQr} />
       </section>
     );
@@ -310,6 +346,7 @@ function PatientCodeSection({ publicId }: { publicId: string }) {
 
   return (
     <section className="card-soft p-6">
+      {patientAway ? <PatientAwayNotice professionalWaiting={professionalWaiting} /> : null}
       <h2 className="mb-1 font-bold">Patient code</h2>
       <p className="mb-4 text-xs text-slate-500">
         Show a code for the patient to scan with their own phone. Any code shown earlier stops
@@ -334,6 +371,30 @@ function PatientCodeSection({ publicId }: { publicId: string }) {
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Said plainly, because the rest of this screen cannot say it.
+ *
+ * A consultation does not change state when the patient leaves the room —
+ * leaving is not abandoning, and only a professional or a sweep ends one. So
+ * the heading above still reads "In progress", correctly, while the patient
+ * stands at the counter with a dead phone. This is the one line that tells the
+ * pharmacist what is actually happening, and what to do about it (D72).
+ */
+function PatientAwayNotice({ professionalWaiting }: { professionalWaiting: boolean }) {
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+      <p>
+        <span className="font-semibold">The patient has left the call.</span>{" "}
+        {professionalWaiting
+          ? "The doctor is still waiting."
+          : "The doctor has stepped out too and will come back."}{" "}
+        Show a new code below for the patient to scan and rejoin.
+      </p>
+    </div>
   );
 }
 

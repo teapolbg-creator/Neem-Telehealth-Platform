@@ -2555,3 +2555,69 @@ than intended, which costs money and harms nobody.
 GH₵50 to book yourself, free at a participating pharmacy. The home page's meta
 description said consultations were free, which stopped being true with this
 change and is corrected in both of the places that string lives.
+
+---
+
+### D72 — A shift is not a heartbeat, and a closed tab is not an ending · 2026-10-16 · **DECIDED**
+
+**Context.** Four faults reported together from the pilot, which turned out to
+be three faults and a wording problem, all of them the same mistake in
+different clothes: **the system inferred an intention from a technical signal.**
+
+1. **Doctors went offline by themselves.** `HEARTBEAT_STALE_SECONDS` was 90, and
+   the heartbeat ran only on the queue screen. A doctor who opened a
+   consultation, read a document, or let their phone sleep was reaped from the
+   queue within a minute and a half and told nothing. They had not stopped
+   working; they had stopped being on one particular page.
+2. **The Resume button did nothing.** The patient's return was recorded and
+   reached the doctor's alert list, but pressing Resume there did not reach the
+   consultation screen already open in the same tab.
+3. **A patient who closed the call could not get back.** Their link was
+   single-use and spent, and the counter's "Show patient code" refused with a
+   business-rule error, because `acceptsPatientArrival` ended at
+   `WAITING_FOR_PATIENT`. The doctor waited in a room nobody could re-enter.
+4. **The screens promised not to charge twice** for consultations nobody had
+   been charged for ([D71](#d71)).
+
+**Decision.**
+
+**Presence is declared, not detected.** The stale window goes to 300 seconds
+and the heartbeat moves to `AppShell`, so it beats wherever a doctor is working
+rather than only on the queue. Going offline is now something a doctor _does_ —
+"Take a break" — and the heartbeat restores a reaped doctor automatically but
+**never** overrides a declared break. The distinction is already in the data
+and needed no column: a reaped doctor has `onlineSince: null` with a
+`lastHeartbeatAt`; one who took a break has both null. A background tab cannot
+undo a decision a person made.
+
+**Arrival is welcome for as long as the patient could still act.**
+`acceptsPatientArrival` becomes `ACTIVATED` plus `PATIENT_ACTIVE` — through
+`IN_PROGRESS` and `INTERRUPTED`, stopping at `COMPLETING`, where there is
+nothing to return to. A unit test now asserts the two sets cannot drift apart,
+because a code admitting a patient to a state their session may not act in
+would land them on a screen that refuses them.
+
+This grants no new power. Redemption re-binds the device session and nothing
+else; its one transition is still guarded on `ACTIVATED`; issuing still revokes
+the code before it. The test that the older code dies is kept and extended.
+
+**Three doors, because the patient may be at any of them.** The counter's
+"Show patient code" now stays on screen for the whole consultation and says
+plainly when the patient has left — read from `patientIsInCall`, because the
+consultation's **state deliberately does not move when a patient goes**, so
+"In progress" is simultaneously correct and useless to the pharmacist standing
+next to them. The spent-token page checks for a live session before despairing,
+since the commonest way to arrive there is a patient reopening the only Neem
+link their phone has. And the landing page offers a way back, because a patient
+who has lost the tab will type the one address they know.
+
+**What was not done.** No column was added for presence, no new state for a
+departed patient, and no change to what ends a consultation. A patient leaving
+the room is still not a patient abandoning the consultation — only a
+professional or a sweep ends one — and every fix here works with that rule
+rather than around it.
+
+**The wording.** Every "you do not need to pay again" is now conditional on
+there having been a payment. A free consultation that reassures the patient
+about a second charge raises a cost they were never asked for. Said when true,
+and nothing said in its place.

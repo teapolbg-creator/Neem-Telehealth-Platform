@@ -5,6 +5,8 @@ import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { readDocument, uploadDocument } from '../documents/documents.service.ts';
+import { getBooleanSetting } from '../settings/settings.service.ts';
+import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 
 /**
  * Pharmacy self-service routes (spec §20, §55).
@@ -29,6 +31,38 @@ function requirePharmacy(request: FastifyRequest) {
 
 export async function pharmacyRoutes(app: FastifyInstance): Promise<void> {
   const pharmacyOnly = guard({ roles: ['PHARMACY'] });
+
+  /**
+   * Whether the counter collects a fee (D72).
+   *
+   * The new-consultation wizard needs this before it creates anything. It
+   * learned it from the created consultation's `feeWaived`, which is one step
+   * too late: until then the wizard showed "Start · Payment · Patient code"
+   * and a button reading "Continue to payment", so a pharmacist was told to
+   * expect a payment step that would never come — during a pilot whose whole
+   * point is that there is nothing to collect.
+   *
+   * Its own tiny route rather than a field on `/pharmacy/profile`, which is an
+   * onboarding query with documents and opening hours attached and no business
+   * being loaded to label a button.
+   *
+   * Fails closed to `true`, as every other read of this setting does: a
+   * wizard that offers to collect a fee when none is due wastes a moment,
+   * while one that skips collection when a fee is due gives the consultation
+   * away.
+   */
+  app.get('/pharmacy/fees', { preHandler: pharmacyOnly }, async (request, reply) => {
+    requirePharmacy(request);
+
+    const feesEnabled = await getBooleanSetting(
+      SETTING_KEYS.CONSULTATION_FEE_ENABLED_COUNTER,
+    ).catch(() => true);
+
+    return reply.send({
+      data: { feesEnabled },
+      meta: { requestId: request.correlationId },
+    });
+  });
 
   /**
    * The pharmacy's own profile and onboarding progress.

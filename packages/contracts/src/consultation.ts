@@ -233,6 +233,14 @@ export const patientSessionViewSchema = z.object({
    */
   rejoinableUntil: z.string().nullable(),
   /**
+   * Nothing was charged for this consultation (D69, D71, D72).
+   *
+   * Every reassurance about not having to pay twice becomes a lie when the
+   * first payment never happened — and a worrying one, because it raises a
+   * cost the patient was never asked for and may now expect.
+   */
+  feeWaived: z.boolean().default(false),
+  /**
    * Whether a professional is actually in the room right now (D61).
    *
    * The patient's screen used to show a call the moment a doctor *accepted*,

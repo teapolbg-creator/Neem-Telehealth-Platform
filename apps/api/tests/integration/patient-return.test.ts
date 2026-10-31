@@ -15,7 +15,11 @@ import {
 import { acceptOffer, offerNextDoctor } from '../../src/modules/queue/allocation.service.ts';
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
 import { generatePublicId, encryptField } from '../../src/lib/crypto.ts';
-import { interruptConsultation, joinMediaSession } from '../../src/modules/media/media.service.ts';
+import {
+  interruptConsultation,
+  joinMediaSession,
+  leaveMediaSession,
+} from '../../src/modules/media/media.service.ts';
 import { transition } from '../../src/modules/consultation/consultation.service.ts';
 import { expireRecoveryWindows } from '../../src/modules/consultation/unserved.service.ts';
 import { PRIVACY_NOTICE_VERSION } from '@neem/contracts';
@@ -63,6 +67,8 @@ interface Fixture {
   doctorId: string;
   doctorEmail: string;
   patientCookies: Record<string, string>;
+  /** Carried so a test can do what a counter does: issue another code. */
+  pharmacyCookies: Record<string, string>;
 }
 
 async function onlineDoctor(name = 'Dr. Return') {
@@ -198,6 +204,7 @@ async function liveConsultation(doctor?: { doctorId: string; email: string }): P
     doctorId: professional.doctorId,
     doctorEmail: professional.email,
     patientCookies: exchange.cookies,
+    pharmacyCookies,
   };
 }
 
@@ -475,3 +482,114 @@ async function currentLoad(doctorId: string): Promise<number> {
   const presence = await getPrisma().doctorPresence.findUnique({ where: { doctorId } });
   return presence?.currentLoad ?? 0;
 }
+
+/**
+ * A patient who closed the tab, and the counter that lets them back in (D72).
+ *
+ * Reported from the pilot: a patient shut their phone mid-consultation. The
+ * doctor sat in the room waiting, the pharmacy's screen read "in progress",
+ * and there was no way back — the patient's link was single-use and spent,
+ * and "Show patient code" refused because the consultation was under way.
+ * Every party could see the consultation; none could rejoin it.
+ */
+describe('a patient who closed the call', () => {
+  it('is let back in by the counter, mid-consultation', async () => {
+    const fixture = await liveConsultation();
+    await joinMediaSession(fixture.consultationId, 'PATIENT');
+    await leaveMediaSession(fixture.consultationId, 'PATIENT');
+
+    // The consultation does not change state when a patient leaves — which is
+    // the whole difficulty. It is IN_PROGRESS with nobody in it.
+    const before = await getPrisma().consultation.findUniqueOrThrow({
+      where: { id: fixture.consultationId },
+      select: { state: true },
+    });
+    expect(before.state).toBe('IN_PROGRESS');
+
+    const reissued = await request<{ url: string }>(
+      `/pharmacy/consultations/${fixture.consultationPublicId}/qr`,
+      { method: 'POST', cookies: fixture.pharmacyCookies, payload: {} },
+    );
+    expect(reissued.status).toBe(200);
+
+    // And the new code works: a fresh device, bound to the same consultation.
+    const token = reissued.body.data!.url.split('/s/')[1]!;
+    const exchanged = await request('/s/exchange', { method: 'POST', payload: { token } });
+    expect(exchanged.status).toBe(200);
+
+    const view = await request<{ state: string; step: string }>('/patient/session', {
+      cookies: exchanged.cookies,
+    });
+    expect(view.status).toBe(200);
+    expect(view.body.data!.state).toBe('IN_PROGRESS');
+    expect(view.body.data!.step).toBe('IN_CONSULTATION');
+  });
+
+  it('is visible to the counter as having left', async () => {
+    const fixture = await liveConsultation();
+    await joinMediaSession(fixture.consultationId, 'PATIENT');
+
+    const present = await request<{ patientInCall: boolean }>(
+      `/pharmacy/consultations/${fixture.consultationPublicId}`,
+      { cookies: fixture.pharmacyCookies },
+    );
+    expect(present.body.data!.patientInCall).toBe(true);
+
+    await leaveMediaSession(fixture.consultationId, 'PATIENT');
+
+    const gone = await request<{ patientInCall: boolean; state: string }>(
+      `/pharmacy/consultations/${fixture.consultationPublicId}`,
+      { cookies: fixture.pharmacyCookies },
+    );
+    // The state says nothing; this field is the only thing that does.
+    expect(gone.body.data!.state).toBe('IN_PROGRESS');
+    expect(gone.body.data!.patientInCall).toBe(false);
+  });
+
+  it('keeps the old code dead once a new one is issued', async () => {
+    const fixture = await liveConsultation();
+    await joinMediaSession(fixture.consultationId, 'PATIENT');
+
+    const first = await request<{ url: string }>(
+      `/pharmacy/consultations/${fixture.consultationPublicId}/qr`,
+      { method: 'POST', cookies: fixture.pharmacyCookies, payload: {} },
+    );
+    const second = await request<{ url: string }>(
+      `/pharmacy/consultations/${fixture.consultationPublicId}/qr`,
+      { method: 'POST', cookies: fixture.pharmacyCookies, payload: {} },
+    );
+
+    // Widening the window must not have widened what a code is worth: the
+    // older one is revoked, exactly as before (D6).
+    const stale = await request('/s/exchange', {
+      method: 'POST',
+      payload: { token: first.body.data!.url.split('/s/')[1]! },
+    });
+    expect(stale.status).toBe(404);
+
+    const fresh = await request('/s/exchange', {
+      method: 'POST',
+      payload: { token: second.body.data!.url.split('/s/')[1]! },
+    });
+    expect(fresh.status).toBe(200);
+  });
+
+  it('refuses a code once the consultation is over', async () => {
+    const fixture = await liveConsultation();
+    await joinMediaSession(fixture.consultationId, 'PATIENT');
+    for (const state of ['COMPLETING', 'COMPLETED'] as const) {
+      await transition(fixture.consultationId, state, {
+        actorType: 'DOCTOR',
+        actorId: fixture.doctorId,
+        reason: 'finished',
+      });
+    }
+
+    const refused = await request(`/pharmacy/consultations/${fixture.consultationPublicId}/qr`, {
+      method: 'POST',
+      cookies: fixture.pharmacyCookies,
+      payload: {},
+    });
+    expect(refused.status).toBe(422);
+  });
+});

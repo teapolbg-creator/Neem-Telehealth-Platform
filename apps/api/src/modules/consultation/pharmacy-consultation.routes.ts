@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { patientIsInCall } from '../media/media.service.ts';
 import { z } from 'zod';
 import {
   PERMISSIONS,
@@ -275,6 +276,21 @@ export async function pharmacyConsultationRoutes(app: FastifyInstance): Promise<
           secondsRemaining: secondsRemaining(consultation.paymentDeadlineAt),
           activatedAt: consultation.activatedAt?.toISOString() ?? null,
           patientJoinedAt: consultation.patientJoinedAt?.toISOString() ?? null,
+          /*
+           * Whether the patient is in the room right now (D72).
+           *
+           * The counter is the one place that can put a patient back into a
+           * consultation — it can issue a fresh code — and it had no way to
+           * know they had gone. A patient who closed the tab left the screen
+           * reading "in progress" at the counter, at the doctor's end, and
+           * nowhere saying the obvious thing: they are not there.
+           *
+           * Read from attendance rather than from the consultation's state,
+           * because state deliberately does not change when a patient leaves:
+           * leaving is not abandoning, and only a professional or a sweep ends
+           * a consultation.
+           */
+          patientInCall: await patientIsInCall(consultation.id),
           startedAt: consultation.startedAt?.toISOString() ?? null,
           completedAt: consultation.completedAt?.toISOString() ?? null,
           durationSeconds: consultation.durationSeconds,

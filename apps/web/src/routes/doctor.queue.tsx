@@ -12,7 +12,6 @@ import {
   useCountdown,
   useGoOffline,
   useGoOnline,
-  useHeartbeat,
   usePresence,
   useQueue,
   type QueueOffer,
@@ -48,7 +47,6 @@ function DoctorQueue() {
   const goOffline = useGoOffline();
 
   const online = presence?.online ?? false;
-  useHeartbeat(online);
 
   const { data: queue } = useQueue(online);
   const shouldPrompt = useShouldPromptForNotifications();
@@ -77,11 +75,15 @@ function DoctorQueue() {
     <AppShell active="doctor">
       {shouldPrompt && <NotificationPrompt />}
 
+      {/*
+        A professional is available for as long as their browser is open on
+        Neem — the heartbeat runs in the shell, not on this page (D72).
+      */}
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mb-1 text-sm font-semibold text-brand">Consultation queue</p>
           <h1 className="text-3xl font-bold tracking-tight">
-            {online ? "You are available" : "You are offline"}
+            {online ? "You are available" : "You are on a break"}
           </h1>
         </div>
 
@@ -97,7 +99,7 @@ function DoctorQueue() {
           )}
         >
           {online ? <WifiOff className="size-4" /> : <Wifi className="size-4" />}
-          {online ? "Go offline" : "Go online"}
+          {online ? "Take a break" : "I'm available"}
         </button>
       </header>
 
@@ -315,9 +317,17 @@ function IdleCard({ online, currentLoad }: { online: boolean; currentLoad: numbe
       ) : (
         <>
           <WifiOff className="size-10 text-slate-300" />
-          <h2 className="mt-4 text-xl font-bold">You are offline</h2>
+          <h2 className="mt-4 text-xl font-bold">You are on a break</h2>
+          {/*
+            Said as a break rather than as a state the system put them in
+            (D72). Nothing takes a professional offline but their own choice
+            and a browser that has genuinely stopped answering — walking into a
+            consultation used to do it, which is why this screen kept appearing
+            uninvited.
+          */}
           <p className="mt-2 max-w-sm text-sm text-slate-500">
-            Go online to start receiving consultations during your shift.
+            No consultations will be offered to you until you say you are available again. You stay
+            available while you are seeing a patient, and across every page of Neem.
           </p>
         </>
       )}

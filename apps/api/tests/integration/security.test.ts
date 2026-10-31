@@ -135,10 +135,10 @@ async function buildWorld(label: string): Promise<World> {
   // A real patient session, obtained the way a patient obtains one: print a
   // QR code, exchange the token. Nothing here writes the cookie by hand.
   //
-  // This happens at ACTIVATED rather than later because that is the only
-  // point a code can be issued — `acceptsPatientArrival` refuses once the
-  // consultation is under way, which is correct and is why the fixture has
-  // to follow the real order rather than a convenient one.
+  // At ACTIVATED because that is where a patient's journey really starts.
+  // A code can now be issued later too — the counter has to be able to put
+  // back a patient who closed the call (D72) — but the fixture follows the
+  // real order rather than a convenient one.
   const qr = await request<{ url: string }>(`/pharmacy/consultations/${consultationPublicId}/qr`, {
     method: 'POST',
     cookies: pharmacyCookies,
@@ -857,20 +857,24 @@ describe('§102 (3) cross-patient access and session takeover', () => {
     const alpha = await buildWorld('Alpha');
     const prisma = getPrisma();
 
-    // Issue a fresh code, then age it past its TTL.
+    // Issue a fresh code, then age it past its TTL. IN_PROGRESS accepts a
+    // returning patient since D72, so the issue itself succeeds; what must
+    // stop the code is its age.
     const qr = await request<{ url: string }>(
       `/pharmacy/consultations/${alpha.consultationPublicId}/qr`,
       { method: 'POST', cookies: alpha.pharmacyCookies, payload: {} },
     );
-    // IN_PROGRESS no longer accepts arrival, so the reissue itself is refused
-    // — which is the stronger property and worth asserting directly.
-    expect(qr.status).toBe(422);
+    expect(qr.status).toBe(200);
+    const token = qr.body.data!.url.split('/s/')[1]!;
 
-    const stale = await prisma.consultationAccessToken.findFirst({
-      where: { consultationId: alpha.consultationId },
+    await prisma.consultationAccessToken.updateMany({
+      where: { consultationId: alpha.consultationId, consumedAt: null, revokedAt: null },
+      data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    expect(stale).not.toBeNull();
-    expect(stale!.consumedAt).not.toBeNull();
+
+    const exchanged = await request('/s/exchange', { method: 'POST', payload: { token } });
+    expect(exchanged.status).toBe(404);
+    expect(exchanged.cookies.neem_patient).toBeUndefined();
   });
 });
 

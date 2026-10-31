@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { NeemLogo } from "@/components/neem/Logo";
 import { DoctorAlerts } from "@/components/neem/DoctorAlerts";
 import { useLogout, useSession } from "@/features/auth/use-session";
+import { useHeartbeat } from "@/features/queue/api";
 import { ApiError } from "@/lib/api-client";
 import { PERMISSIONS, type Permission } from "@neem/contracts";
 
@@ -97,6 +98,13 @@ export function AppShell({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, isLoading, can } = useSession();
+
+  /*
+   * The heartbeat belongs to the session, not to one screen (D72). A
+   * professional is present for as long as their browser is open on Neem,
+   * wherever in it they happen to be.
+   */
+  useHeartbeat(user?.role === "DOCTOR");
   const logout = useLogout();
   const navigate = useNavigate();
 

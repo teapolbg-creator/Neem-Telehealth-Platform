@@ -157,11 +157,6 @@ export function isPaid(state: ConsultationState): boolean {
   return PAID_STATES.has(state);
 }
 
-/** The patient's QR token may be exchanged only while the consultation waits for them. */
-export function acceptsPatientArrival(state: ConsultationState): boolean {
-  return state === 'ACTIVATED' || state === 'WAITING_FOR_PATIENT';
-}
-
 /** States in which a patient session should still be able to act. */
 const PATIENT_ACTIVE: ReadonlySet<ConsultationState> = new Set([
   'WAITING_FOR_PATIENT',
@@ -177,6 +172,35 @@ const PATIENT_ACTIVE: ReadonlySet<ConsultationState> = new Set([
 
 export function patientSessionIsUsable(state: ConsultationState): boolean {
   return PATIENT_ACTIVE.has(state);
+}
+
+/**
+ * May a patient code be issued for this consultation, and redeemed?
+ *
+ * Once it meant "while the consultation waits for them" — `ACTIVATED` or
+ * `WAITING_FOR_PATIENT` — which read as the obvious thing: a code lets a
+ * patient in, and after they are in, they do not need one.
+ *
+ * They do. A patient who closes the tab, or whose phone dies, leaves a
+ * consultation that is still `IN_PROGRESS` with a doctor still in the room,
+ * and the narrow reading locked the only door back: the counter's "Show
+ * patient code" button returned a business-rule error, and any code already in
+ * the patient's hand was refused on redemption. The pharmacy standing next to
+ * the patient, the one place that can identify them in person and let them
+ * back in, was the one place that could not (D72).
+ *
+ * So: arrival is welcome wherever the patient could still act. That is
+ * `PATIENT_ACTIVE` — through `IN_PROGRESS` and `INTERRUPTED`, stopping at
+ * `COMPLETING`, where the doctor has finished and there is nothing to return
+ * to — plus `ACTIVATED`, which precedes a first arrival.
+ *
+ * Widening this grants no new power. Redemption re-binds the device session
+ * and nothing else; its one transition is still guarded on `ACTIVATED`.
+ * Issuing still revokes the code before it, so a re-issue is the same
+ * single-use credential it always was.
+ */
+export function acceptsPatientArrival(state: ConsultationState): boolean {
+  return state === 'ACTIVATED' || PATIENT_ACTIVE.has(state);
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   useAwaitingReturn,
   useQueue,
   useCountdown,
+  requestConsultationResume,
 } from "@/features/queue/api";
 import { useRealtimeEvent, useRealtimeInvalidation } from "@/features/realtime/socket";
 import { useOfferAlert } from "@/features/realtime/use-offer-alert";
@@ -276,12 +277,19 @@ function PatientReturnedAlert() {
           </div>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              /*
+               * Navigate for when the doctor is elsewhere, and ask the screen
+               * to rejoin for when they are already on it (D72). Navigating to
+               * the page you are on does nothing, which is why this button
+               * appeared broken precisely when it mattered.
+               */
               void navigate({
                 to: "/doctor/consultations/$publicId",
                 params: { publicId: row.consultationPublicId },
-              })
-            }
+              });
+              requestConsultationResume(row.consultationPublicId);
+            }}
             className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800"
           >
             Resume

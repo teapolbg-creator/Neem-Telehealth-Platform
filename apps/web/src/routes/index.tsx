@@ -1,9 +1,48 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
+import { usePatientSession } from "@/features/consultation/api";
 
 export const Route = createFileRoute("/")({
   component: Landing,
 });
+
+/**
+ * A way back in, for a patient who closed the call (D72).
+ *
+ * The patient's session lives in a cookie that outlasts the tab, but every
+ * route to it was one-way: the QR code is single-use, and the link in their
+ * history is spent. A patient who shut the tab by accident had a live
+ * consultation, a doctor waiting in it, and no door — so they would type the
+ * one address they know, land here, and read marketing copy.
+ *
+ * Shown only when there is something to return to. `/patient/session` answers
+ * 401 without a cookie, which is the quiet nothing this should be the rest of
+ * the time.
+ */
+function ResumeConsultation() {
+  const { data } = usePatientSession();
+  if (!data || ["COMPLETE", "CLOSED"].includes(data.step)) return null;
+
+  return (
+    <section className="mx-auto w-full max-w-4xl px-6 pb-8">
+      <Link
+        to="/patient"
+        className="card-soft flex flex-wrap items-center justify-between gap-4 border-brand/30 bg-brand/5 p-6 transition hover:border-brand/60"
+      >
+        <div>
+          <h2 className="font-bold">Your consultation is still open</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            At {data.pharmacyName}. Pick up where you left off.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">
+          Rejoin <ArrowRight className="size-4" />
+        </span>
+      </Link>
+    </section>
+  );
+}
 
 function Landing() {
   return (
@@ -22,6 +61,8 @@ function Landing() {
         one-time code a pharmacy gives them — none needs a card here.
       */}
       <main className="flex flex-1 flex-col justify-center pb-16 sm:pb-24">
+        <ResumeConsultation />
+
         <header className="w-full max-w-4xl mx-auto px-6 pt-12 sm:pt-20 pb-10 text-center">
           <span className="chip bg-brand/10 text-brand mb-6">
             <span className="size-1.5 rounded-full bg-brand animate-pulse" />

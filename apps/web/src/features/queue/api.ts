@@ -57,11 +57,27 @@ export function useGoOffline() {
 }
 
 /**
- * Keeps the doctor's presence alive while the tab is open.
+ * Keeps the professional's presence alive while the tab is open.
  *
- * A heartbeat rather than a flag: closing the laptop stops the beat and the
- * doctor drops out of allocation, instead of consultations being offered to an
- * empty chair.
+ * A heartbeat rather than a flag: closing the laptop stops the beat and they
+ * drop out of allocation, instead of consultations being offered to an empty
+ * chair.
+ *
+ * **Mounted in the app shell, not on the queue page (D72).** It used to run
+ * only on `/doctor/queue`, so walking into a consultation stopped the beat —
+ * and the consultation screen is where a professional spends almost all of a
+ * shift. Ninety seconds later the server reaped them, and because
+ * `present` in allocation reads the same field, they stopped being offered
+ * patients while they were seeing one.
+ *
+ * It was also self-extinguishing: the hook was gated on the `online` flag the
+ * beat itself sustains, so once it lapsed nothing started it again.
+ *
+ * So `enabled` now means "this is a signed-in professional", not "the server
+ * currently thinks they are online". A professional who declared a break is
+ * stopped server-side — see `heartbeat` in presence.service.ts — rather than
+ * by the client going quiet, because a client that goes quiet is exactly what
+ * a break must not look like.
  */
 export function useHeartbeat(enabled: boolean, intervalMs = 30_000): void {
   useEffect(() => {
@@ -75,6 +91,55 @@ export function useHeartbeat(enabled: boolean, intervalMs = 30_000): void {
     const timer = setInterval(send, intervalMs);
     return () => clearInterval(timer);
   }, [enabled, intervalMs]);
+}
+
+/**
+ * Asks the open consultation screen to rejoin its call (D72).
+ *
+ * The "a patient has come back" banner lives in the app shell, so it is on
+ * every page — including the consultation it points at. Its button only
+ * navigated, so a doctor already on that page clicked Resume and watched
+ * nothing happen, which is exactly where they are when the banner appears.
+ *
+ * An event rather than a search parameter because the route declares no
+ * `validateSearch`, and rather than lifting the join into the banner because
+ * the room credential belongs to the screen that renders the call: a join
+ * fired from the banner would resume the consultation and leave the page with
+ * no room to show.
+ *
+ * An event alone is not enough, though, and this is the half of the fault that
+ * is easy to miss. From any other page the button navigates, and the event
+ * fires before the consultation screen exists to hear it — while that screen's
+ * mount deliberately refuses to join an interrupted consultation by itself
+ * (D57), because an automatic join would take the doctor's slot back whenever
+ * they opened the page to write notes. So Resume was silent from precisely the
+ * pages the banner exists to serve. The request is therefore also left in a
+ * box the screen reads once on mount.
+ */
+export const RESUME_CONSULTATION_EVENT = "neem:resume-consultation";
+
+/**
+ * The request, for a screen that has not mounted yet.
+ *
+ * Timestamped and short-lived: a request this old is a doctor who navigated
+ * away and wandered back, and resuming a call they are no longer asking for
+ * would put them at capacity for a patient they are not with.
+ */
+let pendingResume: { publicId: string; at: number } | null = null;
+
+const RESUME_REQUEST_TTL_MS = 30_000;
+
+export function requestConsultationResume(publicId: string): void {
+  pendingResume = { publicId, at: Date.now() };
+  window.dispatchEvent(new CustomEvent(RESUME_CONSULTATION_EVENT, { detail: publicId }));
+}
+
+/** Reads the request and clears it, so a resume happens once. */
+export function takePendingResume(publicId: string): boolean {
+  if (pendingResume?.publicId !== publicId) return false;
+  const fresh = Date.now() - pendingResume.at < RESUME_REQUEST_TTL_MS;
+  pendingResume = null;
+  return fresh;
 }
 
 export interface QueueOffer {
@@ -232,6 +297,14 @@ export interface DoctorConsultation {
   outcomes?: string[];
   /** How long an interrupted consultation may still be rejoined for (D57). */
   rejoinableUntil?: string | null;
+  /**
+   * Nothing was charged for this consultation (D69, D71, D72).
+   *
+   * Every reassurance about not paying twice becomes a lie when the first
+   * payment never happened — and a confusing one, because it raises a cost the
+   * patient was never asked for.
+   */
+  feeWaived?: boolean;
   durationSeconds: number;
 }
 

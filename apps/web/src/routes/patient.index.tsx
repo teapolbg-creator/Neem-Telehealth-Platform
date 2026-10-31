@@ -72,6 +72,18 @@ const SEEING: Record<string, { noun: string; title: string; prescribes: boolean 
   DOCTOR: { noun: "doctor", title: "The doctor", prescribes: true },
 };
 
+/**
+ * The reassurance about not paying twice — when there was a first payment.
+ *
+ * A consultation given away during the pilot never had one, so promising the
+ * patient they will not be charged again raises a cost they were never asked
+ * for. Said only when it is true, and nothing said in its place: a patient who
+ * paid nothing does not need telling (D72).
+ */
+function secondChargeNotice(session: PatientSessionView): string {
+  return session.feeWaived ? "" : " You do not need to pay again.";
+}
+
 function useSeeing() {
   const { data } = usePatientSession();
   return SEEING[data?.professional ?? "DOCTOR"] ?? SEEING.DOCTOR;
@@ -573,6 +585,7 @@ function PatientCallStep({
   doctorName: string;
 }) {
   const seeing = useSeeing();
+  const noSecondCharge = secondChargeNotice(session);
   const join = useJoinPatientMedia();
   const leave = useLeavePatientMedia();
   const { data: timer } = usePatientTimer(true);
@@ -624,9 +637,11 @@ function PatientCallStep({
           <RotateCcw className="size-9 text-amber-700" />
         </div>
         <h2 className="mt-6 text-xl font-bold">The call dropped</h2>
-        <p className="mt-2 max-w-xs text-pretty text-sm font-bold text-slate-900">
-          You do not need to pay again.
-        </p>
+        {noSecondCharge ? (
+          <p className="mt-2 max-w-xs text-pretty text-sm font-bold text-slate-900">
+            {noSecondCharge.trim()}
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={() => {
@@ -680,7 +695,7 @@ function PatientCallStep({
             <AlertCircle className="mt-px size-4 shrink-0" />
             <p>
               The {seeing.noun} is not in the call at the moment. Stay on this screen. Your
-              consultation is still open and you do not need to pay again.
+              consultation is still open.{noSecondCharge}
             </p>
           </div>
         ) : null
@@ -717,6 +732,7 @@ function PatientCallStep({
  */
 function InterruptedStep({ session }: { session: PatientSessionView }) {
   const seeing = useSeeing();
+  const noSecondCharge = secondChargeNotice(session);
   const join = useJoinPatientMedia();
   const queryClient = useQueryClient();
   const remaining = useCountdownTo(session.rejoinableUntil);
@@ -753,9 +769,11 @@ function InterruptedStep({ session }: { session: PatientSessionView }) {
       </div>
 
       <h2 className="mt-6 text-2xl font-bold">Your consultation is still open</h2>
-      <p className="mt-3 max-w-xs text-pretty text-base font-bold text-slate-900">
-        You do not need to pay again.
-      </p>
+      {noSecondCharge ? (
+        <p className="mt-3 max-w-xs text-pretty text-base font-bold text-slate-900">
+          {noSecondCharge.trim()}
+        </p>
+      ) : null}
       <p className="mt-2 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
         {expired
           ? `The time for rejoining has passed. Please speak to the pharmacist about seeing the ${seeing.noun}.`
@@ -846,6 +864,7 @@ function WaitingForProfessionalStep({
   expired: boolean;
 }) {
   const waited = session.waitingForProfessionalSeconds ?? 0;
+  const noSecondCharge = secondChargeNotice(session);
 
   if (expired) {
     return (
@@ -855,8 +874,8 @@ function WaitingForProfessionalStep({
         </div>
         <h2 className="mt-6 text-2xl font-bold">This consultation has closed</h2>
         <p className="mt-3 max-w-xs text-pretty text-sm leading-relaxed text-slate-500">
-          Your {noun} could not get back in time. Neem is reviewing it and will be in touch about
-          what you paid. You have not been charged again.
+          Your {noun} could not get back in time. Neem is reviewing it
+          {noSecondCharge ? " and will be in touch about what you paid" : ""}.{noSecondCharge}
         </p>
       </div>
     );
@@ -874,7 +893,8 @@ function WaitingForProfessionalStep({
       </p>
 
       <p className="mt-2 max-w-xs text-pretty text-sm text-slate-500">
-        You do not need to pay again, and you do not need to do anything else.
+        {noSecondCharge ? "You do not need to pay again, and you" : "You"} do not need to do
+        anything else.
       </p>
 
       <div className="mt-8 w-full max-w-xs rounded-2xl border border-border bg-slate-50 p-4">
@@ -885,7 +905,7 @@ function WaitingForProfessionalStep({
         {remaining !== null && (
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
             If they cannot get back within {formatRemaining(remaining)}, Neem will close this
-            consultation and review it. You will not be charged again either way.
+            consultation and review it.{noSecondCharge}
           </p>
         )}
       </div>
@@ -1359,8 +1379,12 @@ function ClosedStep({
         This is where a refund actually matters: the patient paid and no
         consultation happened. Offering it here rather than only at the counter
         means they can ask before they have walked away.
+
+        Unless nothing was paid, in which case there is nothing to ask for and
+        the offer would be the only thing on the screen raising the subject of
+        money (D72).
       */}
-      <RefundPanel state={session.state} />
+      {session.feeWaived ? null : <RefundPanel state={session.state} />}
 
       {/*
         Offered here too. A consultation that was cancelled or expired still
@@ -1503,10 +1527,11 @@ function DocumentCard({ document }: { document: ConsultationDocument }) {
 /**
  * Asking for the fee back (spec §41).
  *
- * Shown only where money was taken and nothing was delivered. It is a request,
- * and the copy is careful not to imply otherwise — an administrator reviews it,
- * and telling the patient a refund is on its way would be a promise Neem has
- * not made.
+ * Shown only where money was taken and nothing was delivered — which during
+ * the free pilot is nowhere on the counter side, so the caller checks
+ * `feeWaived` before mounting it. It is a request, and the copy is careful
+ * not to imply otherwise: an administrator reviews it, and telling the patient
+ * a refund is on its way would be a promise Neem has not made.
  */
 function RefundPanel({ state }: { state: string }) {
   const seeing = useSeeing();

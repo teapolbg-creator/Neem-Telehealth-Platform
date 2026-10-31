@@ -254,6 +254,7 @@ admin-only and a doctor principal is refused rather than filtered (spec §24,
 
 ```
 GET    /pharmacy/profile                   status, documents, and what is still outstanding
+GET    /pharmacy/fees                      whether the counter collects a fee (D72)
 POST   /pharmacy/documents                 multipart upload; magic-byte checked
 GET    /pharmacy/documents/:id             streams the pharmacy own document
 ```
@@ -281,6 +282,7 @@ POST   /pharmacy/prescriptions/:publicId/dispense
 GET    /documents/prescriptions/:publicId.pdf        the signed prescription
 GET    /pharmacy/finance                             pharmacy share only — never gross Neem revenue
 GET    /pharmacy/capabilities                        point-of-care capabilities, for the vitals form
+GET    /pharmacy/fees                                read before the wizard offers a payment step
 GET    /pharmacy/profile
 POST   /pharmacy/documents | GET /pharmacy/documents/:id
 POST   /onboarding/pharmacy                          the public application form

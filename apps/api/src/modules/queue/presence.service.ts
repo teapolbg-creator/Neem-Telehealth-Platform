@@ -23,7 +23,20 @@ import { OCCUPYING_CONSULTATION_STATES } from '../../domain/consultation-state.t
  */
 
 /** A heartbeat older than this means the doctor is gone. */
-export const HEARTBEAT_STALE_SECONDS = 90;
+/**
+ * How long silence lasts before a professional is treated as gone (D72).
+ *
+ * Was 90 seconds, against a client that beats every 30. Three missed beats is
+ * a fair definition of "their laptop is shut" — and a hopeless one for "they
+ * are in a consultation", which is where a professional spends most of a
+ * shift and where the beat used to stop altogether.
+ *
+ * Five minutes now that the beat runs on every page: long enough to survive a
+ * sleeping lid, a tunnel, a Wi-Fi handover and a browser throttling timers in
+ * a background tab; short enough that somebody who has truly gone stops being
+ * offered patients within one wait-limit window.
+ */
+export const HEARTBEAT_STALE_SECONDS = 300;
 
 export async function goOnline(
   doctorId: string,
@@ -77,18 +90,60 @@ export async function goOnline(
  * subscription lapses should finish that consultation, not be cut off. The
  * allocation engine re-checks eligibility for every offer, which is where it
  * matters.
+ *
+ * **A beat brings back somebody the reaper dropped — but never somebody who
+ * left on purpose (D72).**
+ *
+ * This used to touch `lastHeartbeatAt` alone, so a professional reaped while
+ * seeing a patient stayed `onlineSince: null` for the rest of their shift
+ * however faithfully their browser reported in. The one action that should
+ * have restored them did nothing.
+ *
+ * The two kinds of offline are told apart without another column, because the
+ * existing two already say it:
+ *
+ *   reaped          onlineSince null, lastHeartbeatAt set (their last beat)
+ *   on a break      onlineSince null, lastHeartbeatAt null (goOffline clears it)
+ *
+ * So a beat restores the first and is ignored for the second — otherwise a tab
+ * left open on a counter would quietly cancel a break the professional
+ * declared, which is the opposite of what declaring one is for.
  */
 export async function heartbeat(
   doctorId: string,
   db: Db = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<void> {
-  await db.doctorPresence.updateMany({
+  const presence = await db.doctorPresence.findUnique({
     where: { doctorId },
-    data: { lastHeartbeatAt: clock.now() },
+    select: { onlineSince: true, lastHeartbeatAt: true },
+  });
+  if (!presence) return;
+
+  // Deliberately offline. Nothing a background tab does should change that.
+  if (presence.onlineSince === null && presence.lastHeartbeatAt === null) return;
+
+  const now = clock.now();
+
+  await db.doctorPresence.update({
+    where: { doctorId },
+    data: {
+      lastHeartbeatAt: now,
+      // Restored to when they were heard from, not to when the shift began:
+      // the gap was real and the record should not pretend otherwise.
+      ...(presence.onlineSince === null ? { onlineSince: now } : {}),
+    },
   });
 }
 
+/**
+ * Deliberately offline: the end of a shift, or a declared break (D72).
+ *
+ * Clears the heartbeat as well as the online marker, and that pairing is load
+ * bearing — it is what tells `heartbeat` above that this was a choice rather
+ * than a lapse, so a tab left open cannot undo it. Coming back is an explicit
+ * act, the same way going was.
+ */
 export async function goOffline(doctorId: string, db: Db = getPrisma()): Promise<void> {
   await db.doctorPresence.updateMany({
     where: { doctorId },

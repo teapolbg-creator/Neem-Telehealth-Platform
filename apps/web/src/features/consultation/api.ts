@@ -47,6 +47,28 @@ export interface CreatedConsultation {
   feeWaivedReason: string | null;
 }
 
+/**
+ * Does the counter collect a fee? (D72)
+ *
+ * Asked before anything is created, because the wizard labels a step and a
+ * button with the answer. It used to read `feeWaived` off the consultation it
+ * had just made, by which time it had already promised a payment step that
+ * would never arrive.
+ *
+ * Defaults to charging while the answer is in flight, matching the server's
+ * own fail-closed read: the wrong guess then costs a moment of a pharmacist's
+ * attention rather than a consultation given away.
+ */
+export function usePharmacyFees() {
+  const query = useQuery({
+    queryKey: ["pharmacy", "fees"],
+    queryFn: ({ signal }) => api.get<{ feesEnabled: boolean }>("/pharmacy/fees", signal),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return query.data?.feesEnabled ?? true;
+}
+
 export function useCreateConsultation() {
   const queryClient = useQueryClient();
 
@@ -145,6 +167,13 @@ export interface PharmacyConsultation {
   activatedAt: string | null;
   patientJoinedAt: string | null;
   startedAt: string | null;
+  /**
+   * Whether the patient is in the room right now (D72).
+   *
+   * Not derivable from state: a consultation stays IN_PROGRESS when a patient
+   * leaves, because leaving is not abandoning.
+   */
+  patientInCall?: boolean;
   completedAt: string | null;
   durationSeconds: number | null;
   outcome: string | null;

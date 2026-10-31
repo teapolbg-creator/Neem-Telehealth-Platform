@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
 import { ApiError } from "@/lib/api-client";
-import { useExchangeToken } from "@/features/consultation/api";
+import { useExchangeToken, usePatientSession } from "@/features/consultation/api";
 
 export const Route = createFileRoute("/s/$token")({
   component: ConsultationLanding,
@@ -23,12 +23,28 @@ export const Route = createFileRoute("/s/$token")({
  *    clients before the patient ever arrived, burning a single-use code.
  *  - It runs exactly once. React strict mode double-invokes effects in
  *    development, and a second exchange would fail against its own first.
+ *
+ * A spent token is not the dead end it looks like (D72). The session this
+ * page creates lives in a cookie that outlasts the tab, so the commonest way
+ * to arrive here with a used token is a patient reopening the only Neem link
+ * their phone ever had, mid-consultation, after closing it. They do not need
+ * a new code; they are still signed in. Before despairing, this page asks
+ * whether a live consultation is already waiting behind that cookie.
  */
 function ConsultationLanding() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
   const exchange = useExchangeToken();
   const attempted = useRef(false);
+
+  /*
+   * Only asked once the token has failed. Asking up front would race the
+   * exchange, and a patient arriving with a good code should never be routed
+   * by a stale cookie from an earlier visit.
+   */
+  const existing = usePatientSession(exchange.isError);
+  const resumable =
+    existing.data !== undefined && !["COMPLETE", "CLOSED"].includes(existing.data.step);
 
   useEffect(() => {
     if (attempted.current) return;
@@ -41,12 +57,22 @@ function ConsultationLanding() {
     });
   }, [token, exchange, navigate]);
 
+  useEffect(() => {
+    // Replace rather than push: the spent token must not come back on Back.
+    if (resumable) void navigate({ to: "/patient", replace: true });
+  }, [resumable, navigate]);
+
   return (
     <div className="grid min-h-dvh place-items-center bg-surface px-6">
       <div className="w-full max-w-sm text-center">
         <NeemLogo className="mx-auto text-xl" markClassName="size-10" />
 
-        {exchange.isError ? (
+        {exchange.isError && (existing.isPending || resumable) ? (
+          <div className="mt-10">
+            <Loader2 className="mx-auto size-7 animate-spin text-brand" />
+            <p className="mt-4 text-sm text-slate-500">Opening your consultation…</p>
+          </div>
+        ) : exchange.isError ? (
           <div className="card-soft mt-8 border-red-200 bg-red-50 p-6 text-left">
             <div className="flex items-start gap-3">
               <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-500" />

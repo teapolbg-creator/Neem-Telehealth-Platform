@@ -953,6 +953,38 @@ async function recordPatientReturn(
  * The doctor's slot is taken back by the transition out of INTERRUPTED, so a
  * doctor mid-call cannot be handed a second patient.
  */
+/**
+ * Is the patient in the room right now? (D72)
+ *
+ * Read from attendance, because the consultation's state deliberately does not
+ * move when a patient leaves — leaving is not abandoning, and only a
+ * professional or a sweep ends a consultation. So a patient who shuts their
+ * phone leaves a consultation reading IN_PROGRESS everywhere, with nothing
+ * anywhere saying the obvious thing: they are not there.
+ *
+ * The counter needs this more than anyone. It is the one place that can put a
+ * patient back in — it can issue a fresh code — and it was the one place with
+ * no way to know.
+ *
+ * The newest event wins, whatever its source. A CLIENT `JOINED` means a page
+ * asked for a credential and a WEBHOOK one means the room saw them arrive;
+ * either is better evidence of presence than the silence that follows a
+ * `LEFT`. Absence of any event reads as not present, which is correct before
+ * anyone has joined and honest afterwards.
+ */
+export async function patientIsInCall(
+  consultationId: string,
+  db: Db = getPrisma(),
+): Promise<boolean> {
+  const latest = await db.callAttendanceEvent.findFirst({
+    where: { consultationId, participant: 'PATIENT' },
+    orderBy: { occurredAt: 'desc' },
+    select: { event: true },
+  });
+
+  return latest?.event === 'JOINED';
+}
+
 async function resumeInterrupted(
   consultationId: string,
   participant: 'PATIENT' | 'DOCTOR',
