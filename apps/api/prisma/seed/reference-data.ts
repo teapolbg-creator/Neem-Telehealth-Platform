@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { PrismaClient } from '@prisma/client';
 import { NOTIFICATION_TEMPLATES } from '../../src/modules/notification/templates.ts';
 import {
@@ -124,6 +125,18 @@ export const GHANA_REGIONS = [
 ] as const;
 
 /**
+ * The 261 district assemblies, by region (D74), from the file that names
+ * their source. Also inserted by migration 20261031130000_ghana_districts;
+ * a unit test keeps the two in agreement.
+ */
+export function readGhanaDistricts(): Record<string, string[]> {
+  const file = JSON.parse(
+    readFileSync(new URL('./data/ghana-districts.json', import.meta.url), 'utf8'),
+  ) as { regions: Record<string, string[]> };
+  return file.regions;
+}
+
+/**
  * Point-of-care capabilities a pharmacy may declare. Drives which tests the
  * pharmacy consultation screen offers (spec §50).
  */
@@ -247,6 +260,17 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
   for (const name of GHANA_REGIONS) {
     await prisma.region.upsert({ where: { name }, update: {}, create: { name } });
   }
+
+  // One insert for all 261, because this runs before every integration test.
+  const regionIds = new Map(
+    (await prisma.region.findMany({ select: { id: true, name: true } })).map((r) => [r.name, r.id]),
+  );
+  await prisma.district.createMany({
+    data: Object.entries(readGhanaDistricts()).flatMap(([region, names]) =>
+      names.map((name) => ({ regionId: regionIds.get(region)!, name })),
+    ),
+    skipDuplicates: true,
+  });
 
   for (const category of COMPLAINT_CATEGORIES) {
     await prisma.complaintCategory.upsert({

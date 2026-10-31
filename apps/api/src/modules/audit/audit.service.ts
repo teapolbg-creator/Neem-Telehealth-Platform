@@ -65,6 +65,14 @@ export const AUDIT_ACTIONS = {
   FACILITY_STAFF_STATUS_CHANGED: 'facility.staff.status-changed',
   FACILITY_STAFF_SETUP_ISSUED: 'facility.staff.setup-issued',
 
+  /** CHPS slice 1b (D75). Metadata never carries clinical content. */
+  PATIENT_REGISTERED: 'patient.registered',
+  PATIENT_UPDATED: 'patient.updated',
+  VISIT_OPENED: 'visit.opened',
+  TRIAGE_RECORDED: 'visit.triage-recorded',
+  VISIT_ESCALATED: 'visit.escalated',
+  VISIT_CLOSED: 'visit.closed',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

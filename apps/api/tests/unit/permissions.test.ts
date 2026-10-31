@@ -81,11 +81,14 @@ describe('role permissions', () => {
   });
 
   describe('CHPS facility staff (D73)', () => {
-    it('hold no permission until a slice grants one', () => {
-      // Slice 1a gives them sign-in and their own facility, by role alone.
-      // Each later slice adds exactly what it needs; this fails loudly if a
-      // permission arrives without a test saying why.
-      expect(permissionsForRole('FACILITY')).toEqual([]);
+    it('hold exactly what the slices so far have granted', () => {
+      // Each slice adds exactly what it needs; this fails loudly if a
+      // permission arrives without a test saying why. 1b: D75.
+      expect(permissionsForRole('FACILITY')).toEqual([
+        PERMISSIONS.PATIENT_REGISTER,
+        PERMISSIONS.PATIENT_RECORD_READ,
+        PERMISSIONS.TRIAGE_WRITE,
+      ]);
     });
 
     it('cannot manage facilities, prescribe or read anything clinical', () => {

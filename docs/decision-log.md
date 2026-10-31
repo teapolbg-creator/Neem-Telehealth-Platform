@@ -2675,3 +2675,83 @@ dashboards that need them (Phase 3), along with geographic scoping. 2FA is
 optional for facility staff, as it is for pharmacies; whether to require it on
 shared facility devices is open. Accounts still sign in by email, which some
 CHOs may not have; a phone-number sign-in would be its own decision.
+
+---
+
+### D74 — Four CHPS questions answered by the operator · 2026-10-31 · **DECIDED**
+
+The operator answered the four open questions in docs/v2-chps-plan.md §4.
+
+1. **Clinicians may read past records.** For CHPS patients, the record is
+   longitudinal and readable by the clinicians caring for the patient: staff
+   of the facility that holds the record, and the doctor assigned to a
+   consultation for that patient. This reverses D23 **for the CHPS channel
+   only**. Pharmacy and patient-direct records keep their D23 rule, because
+   those patients were told their record would be sealed, and reading them now
+   would break that promise. Every opening of a CHPS patient record is written
+   to its own append-only log, `PatientRecordAccess` (D75), not to
+   `ClinicalRecordAccessLog`, which is the two-person archive-unsealing log. The lawful basis under the Data Protection
+   Act, 2012 (Act 843) still has to be confirmed before clinical deployment;
+   the consent captured at registration says plainly that the record is kept
+   and read by the patient's clinicians.
+2. **CHPS consultations are free, and the government pays doctors a salary.**
+   A CHPS consultation is created with its fee waived and takes no payment
+   step. It produces no `ProfessionalEarning`: Neem does not pay for it.
+3. **Triage uses the red, orange, yellow and green categories** (as in the
+   South African Triage Scale used in Ghana). In slice 1b the CHO assigns the
+   category from their own clinical judgement, and Neem records it with who
+   assigned it and when. Neem does **not** calculate a category from vital
+   signs: a score built into the software is a clinical protocol, and one has
+   not been approved for this. A configurable calculator can be added later
+   from an approved source. **Red means emergency:** a red patient goes to the
+   emergency escalation path and never waits in the consultation queue.
+4. **The district list comes from the official list online.** The 261
+   Metropolitan, Municipal and District Assemblies are imported from a file
+   committed to the repository, with its source named in the file.
+   Sub-districts are not published as one official list, so administrators
+   still add those by hand.
+
+---
+
+### D75 — A CHPS patient is registered once, and every visit and assessment is kept · 2026-10-31 · **DECIDED**
+
+**Context.** Slice 1b: a patient walks in, the CHO registers and triages them.
+
+**Decision.**
+
+- **A `Patient` belongs to the facility that registered them.** Search and
+  reading are scoped to that facility, and another facility's patient is
+  "not found". Sharing a record between facilities, for a patient who moves,
+  is a later decision about consent and is not built.
+- **Registration cannot be a barrier.** Required: name, sex, a date of birth
+  or an estimated age, a community, the complaint, and consent. Everyone gets
+  a card number in Crockford base32 (`NM-XXXX-XXXX`, no I, L, O or U), which
+  is the identifier for a patient with no phone and no ID.
+- **Encrypted, and searched by keyed hashes.** The name, phone, NHIS number,
+  contacts and all clinical text are encrypted at rest. A name is searchable
+  by its words: each normalised word is stored as a keyed hash, so "serwaa"
+  finds "Ama Serwaa Boateng" without the name existing in the clear. Partial
+  words do not match, which is the price of not storing names in plaintext.
+  Date of birth, sex and community stay plaintext: they tell two people of one
+  name apart, and on their own identify nobody.
+- **Consent is part of registration, versioned.** No patient row exists
+  without it. The wording is read aloud by the CHO and its version is stored,
+  so a later change never rewrites what was agreed. A guardian's consent
+  requires the guardian's name and relationship.
+- **Every opening of a record is logged** in `PatientRecordAccess`, separate
+  from the two-person archive log, because reading a CHPS record is routine
+  care, not an exceptional unsealing.
+- **One open visit per patient.** A second walk-in while one is open is
+  refused with a pointer to the open one, which is also what stops a doubled
+  click making two. Registrations and visits also take a `clientRequestId`.
+- **Triage is appended, never edited.** Each assessment is a row with who and
+  when. Red moves the visit to `ESCALATED` immediately; a milder re-triage
+  afterwards does not move it back, because coming off the emergency path is
+  a decision for a person, not a side effect.
+- **A visit can end at the facility.** `CLOSED` (cared for here) or
+  `CANCELLED`, each with a note. Care never depends on the remote service
+  being available (brief §11.10).
+
+**What was not done.** Requesting a doctor from a visit is slice 1c. The
+emergency path records what the CHO did; an emergency referral record with a
+destination and transport is Phase 2.

@@ -51,6 +51,11 @@ export const PERMISSIONS = {
   PHARMACY_MANAGE: 'pharmacy:manage',
   /** Register and edit health facilities, and create their staff accounts (D73). */
   FACILITY_MANAGE: 'facility:manage',
+
+  // CHPS patients (D75)
+  PATIENT_REGISTER: 'patient:register',
+  PATIENT_RECORD_READ: 'patient-record:read',
+  TRIAGE_WRITE: 'triage:write',
   SHIFT_MANAGE: 'shift:manage',
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
@@ -118,12 +123,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   ],
 
   /**
-   * CHPS facility staff (D73). Empty in slice 1a: they can sign in and see
-   * their own facility, which the facility routes allow by role and
-   * membership alone. Registration, triage and consultation requests arrive
-   * with slices 1b and 1c, each adding exactly the permissions it needs.
+   * CHPS facility staff (D73). Each slice adds exactly what it needs:
+   * registration, the patient record and triage arrived with 1b (D75).
+   * Always within their own facility, which the service checks.
    */
-  FACILITY: [],
+  FACILITY: [P.PATIENT_REGISTER, P.PATIENT_RECORD_READ, P.TRIAGE_WRITE],
 
   ADMIN: Object.values(P),
 };

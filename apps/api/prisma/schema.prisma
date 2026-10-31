@@ -363,6 +363,38 @@ enum FacilityConnectivityStatus {
   NONE
 }
 
+/// CHPS slice 1b. Mirrors contracts/src/patient.ts.
+enum NhisStatus {
+  ACTIVE
+  EXPIRED
+  NOT_MEMBER
+  UNKNOWN
+}
+
+enum ConsentGivenBy {
+  PATIENT
+  GUARDIAN
+}
+
+/// Where a walk-in visit has got to. Slice 1c adds the consultation states.
+enum VisitStatus {
+  AWAITING_TRIAGE
+  TRIAGED
+  /// Sent down the emergency path. Never queued for a remote doctor (D74).
+  ESCALATED
+  /// Finished at the facility, with or without a remote doctor.
+  CLOSED
+  CANCELLED
+}
+
+/// Red, orange, yellow, green, assigned by the CHO (D74).
+enum TriageCategory {
+  RED
+  ORANGE
+  YELLOW
+  GREEN
+}
+
 enum PilotApplicantRole {
   DOCTOR
   PHARMACY
@@ -2503,6 +2535,8 @@ model Facility {
   district    District       @relation(fields: [districtId], references: [id], onDelete: Restrict)
   subDistrict SubDistrict?   @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
   staff       FacilityUser[]
+  patients    Patient[]
+  visits      PatientVisit[]
 
   @@index([districtId, status])
   @@index([type, status])
@@ -2528,4 +2562,152 @@ model FacilityUser {
 
   @@id([facilityId, userId])
   @@map("facility_users")
+}
+
+// =============================================================================
+// CHPS PATIENTS  — CLINICAL, RETAINED AND READABLE BY CLINICIANS  (slice 1b)
+//
+// Unlike a counter patient, who exists only inside one consultation and is
+// sealed when it ends (D23), a CHPS patient has a longitudinal record that the
+// clinicians caring for them may read (D74). Identity and clinical text are
+// encrypted at rest. What must be searchable is held as keyed hashes, never as
+// plaintext: a name is found by its words, a phone or NHIS number exactly.
+// =============================================================================
+
+model Patient {
+  id            String @id @default(uuid(7))
+  publicId      String @unique @db.VarChar(32)
+  /// The number written on the patient's card, for patients with no phone and
+  /// no ID (e.g. NM-4K7Q-9X2M). Always present, so nobody is turned away for
+  /// lacking a document.
+  patientNumber String @unique @db.VarChar(16)
+  /// The facility that registered the patient and holds the record.
+  facilityId    String
+
+  fullNameEnc    String     @db.Text
+  /// Keyed hash of each word of the normalised name, so "Akosua" finds
+  /// "Akosua Mensah" without the name being stored in the clear.
+  nameTokens     String[]   @db.VarChar(64)
+  sex            PatientSex
+  /// Plaintext: needed for age, and for telling two people of one name apart.
+  dateOfBirth    DateTime   @db.Date
+  /// True when the CHO entered an age rather than a date.
+  dobIsEstimated Boolean    @default(false)
+
+  phoneEnc  String? @db.Text
+  phoneHash String? @db.VarChar(64)
+  community String  @db.VarChar(160)
+
+  nhisStatus     NhisStatus @default(UNKNOWN)
+  nhisNumberEnc  String?    @db.Text
+  nhisNumberHash String?    @db.VarChar(64)
+
+  /// { name, phone, relationship }, encrypted.
+  emergencyContactEnc String? @db.Text
+  /// A guardian or other authorised representative, { name, relationship },
+  /// encrypted. Required when consent is given by a guardian.
+  representativeEnc   String? @db.Text
+
+  allergiesEnc      String? @db.Text
+  medicationsEnc    String? @db.Text
+  medicalHistoryEnc String? @db.Text
+
+  /// Consent to keep this record, share it with the patient's clinicians and
+  /// consult remotely. Recorded before the record exists; there is no patient
+  /// without it.
+  consentGivenBy          ConsentGivenBy
+  consentVersion          String         @db.VarChar(20)
+  consentAt               DateTime
+  consentRecordedByUserId String
+
+  registeredByUserId String
+  /// Idempotency for a registration resubmitted over a bad connection.
+  clientRequestId    String?  @unique @db.VarChar(64)
+  isDemo             Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  facility Facility              @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  visits   PatientVisit[]
+  accesses PatientRecordAccess[]
+
+  @@index([facilityId, createdAt])
+  @@index([facilityId, phoneHash])
+  @@index([facilityId, nhisNumberHash])
+  @@index([nameTokens], type: Gin)
+  @@map("patients")
+}
+
+/// One walk-in: a patient arriving at a facility and being seen.
+model PatientVisit {
+  id         String      @id @default(uuid(7))
+  publicId   String      @unique @db.VarChar(32)
+  patientId  String
+  facilityId String
+  status     VisitStatus @default(AWAITING_TRIAGE)
+
+  presentingComplaintEnc String @db.Text
+
+  arrivedAt         DateTime  @default(now())
+  escalatedAt       DateTime?
+  /// What the CHO did: who was called, where the patient was sent. Encrypted.
+  escalationNoteEnc String?   @db.Text
+  closedAt          DateTime?
+  /// How the visit ended at the facility, or why it was cancelled. Encrypted.
+  closingNoteEnc    String?   @db.Text
+
+  createdByUserId String
+  closedByUserId  String?
+  clientRequestId String?  @unique @db.VarChar(64)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  patient  Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  facility Facility       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  triages  TriageRecord[]
+
+  @@index([facilityId, arrivedAt])
+  @@index([facilityId, status])
+  @@index([patientId, arrivedAt])
+  @@map("patient_visits")
+}
+
+/// A triage assessment. Never edited: a re-triage is a new row, so who
+/// assessed what, and when, is kept whole. The latest row is the current one.
+model TriageRecord {
+  id              String         @id @default(uuid(7))
+  visitId         String
+  category        TriageCategory
+  /// { bpSystolic, bpDiastolic, temperatureC, pulseBpm, respiratoryRate,
+  /// spo2Percent, weightKg, heightCm, glucoseMmolL }, encrypted. Every reading
+  /// is optional: a CHPS compound may not have the instrument.
+  vitalsEnc       String         @db.Text
+  symptomsEnc     String?        @db.Text
+  observationsEnc String?        @db.Text
+
+  recordedByUserId String
+  recordedAt       DateTime @default(now())
+
+  visit PatientVisit @relation(fields: [visitId], references: [id], onDelete: Restrict)
+
+  @@index([visitId, recordedAt])
+  @@map("triage_records")
+}
+
+/// Every time somebody opened a CHPS patient's record (D74). Append-only.
+model PatientRecordAccess {
+  id          String   @id @default(uuid(7))
+  patientId   String
+  actorUserId String
+  /// The role at the time, since an account's role can change afterwards.
+  actorRole   String   @db.VarChar(40)
+  facilityId  String?
+  purpose     String   @db.VarChar(60)
+  accessedAt  DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, accessedAt])
+  @@index([actorUserId, accessedAt])
+  @@map("patient_record_access")
 }

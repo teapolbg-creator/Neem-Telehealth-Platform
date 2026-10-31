@@ -1,6 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, Loader2, MapPin, Users, Wifi } from "lucide-react";
-import { FACILITY_TYPE_LABELS } from "@neem/contracts";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  MapPin,
+  Search,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { FACILITY_TYPE_LABELS, VISIT_STATUS_LABELS } from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -11,26 +21,35 @@ import {
   STATUS_LABEL,
   useOwnFacility,
 } from "@/features/facility/api";
+import {
+  SEX_LABEL,
+  VISIT_STATUS_TONE,
+  ageLabel,
+  useFacilityDay,
+} from "@/features/facility/patients";
+import { TriageBadge } from "@/features/facility/TriageBadge";
 
 export const Route = createFileRoute("/facility/")({
   component: FacilityHome,
 });
 
 /**
- * The CHPS facility's own page (CHPS slice 1a, D73).
+ * The CHPS facility's day (slices 1a and 1b, D73, D75).
  *
- * What a CHO signs in to. For now it shows the facility as Neem has it on
- * record, so mistakes in it can be reported before patients depend on it.
- * Walk-in registration, triage and consultation requests arrive in slices 1b
- * and 1c; this page says so rather than offering buttons that do nothing.
+ * Who has come in, who is waiting, who went down the emergency path. The
+ * board shows open visits from any day plus everything that arrived today,
+ * so a patient still waiting from yesterday is never dropped off it.
  */
 function FacilityHome() {
   const { user } = useSession();
-  const facility = useOwnFacility(user?.role === "FACILITY");
+  const isStaff = user?.role === "FACILITY";
+  const facility = useOwnFacility(isStaff);
+  const day = useFacilityDay(isStaff);
+  const active = facility.data?.status === "ACTIVE";
 
   return (
     <AppShell active="facility">
-      <div className="mx-auto w-full max-w-4xl">
+      <div className="mx-auto w-full max-w-6xl">
         {facility.isLoading ? (
           <div className="card-soft grid place-items-center p-16">
             <Loader2 className="size-6 animate-spin text-brand" />
@@ -50,81 +69,172 @@ function FacilityHome() {
 
         {facility.data ? (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand">
                   {FACILITY_TYPE_LABELS[facility.data.type]}
                 </p>
                 <h1 className="mt-1 text-3xl font-bold">{facility.data.name}</h1>
-                <p className="mt-1 font-mono text-sm text-slate-500">{facility.data.code}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {new Date().toLocaleDateString(undefined, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </p>
               </div>
-              <Chip tone={facility.data.status === "ACTIVE" ? "brand" : "muted"}>
-                {STATUS_LABEL[facility.data.status]}
-              </Chip>
+              {active ? (
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    to="/facility/register"
+                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Search className="size-4" /> Find a patient
+                  </Link>
+                  <Link
+                    to="/facility/register"
+                    search={{ new: true }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white hover:brightness-110"
+                  >
+                    <UserPlus className="size-4" /> Register walk-in
+                  </Link>
+                </div>
+              ) : (
+                <Chip tone="muted">{STATUS_LABEL[facility.data.status]}</Chip>
+              )}
             </div>
 
-            {facility.data.status !== "ACTIVE" ? (
+            {!active ? (
               <div className="card-soft mt-6 border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                Neem has not switched this facility on yet. Your district or Neem will tell you when
-                it is ready.
+                Neem has not switched this facility on yet, so new patients cannot be registered
+                here. Care for patients through your usual CHPS and referral arrangements. Your
+                district or Neem will tell you when it is ready.
               </div>
             ) : null}
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <div className="card-soft p-5">
-                <MapPin className="size-5 text-brand" />
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Location
-                </p>
-                <p className="mt-1 font-semibold">{facility.data.location.community}</p>
-                <p className="text-sm text-slate-500">
-                  {facility.data.location.subDistrict
-                    ? `${facility.data.location.subDistrict.name}, `
-                    : ""}
-                  {facility.data.location.district.name}, {facility.data.location.region.name}
-                </p>
+            {day.data ? (
+              <div className="mt-6 grid gap-3 sm:grid-cols-4">
+                <Stat icon={Users} label="Seen today" value={day.data.seenToday} />
+                <Stat icon={Clock} label="Waiting now" value={day.data.waiting} />
+                <Stat
+                  icon={AlertTriangle}
+                  label="Emergencies today"
+                  value={day.data.escalatedToday}
+                  danger={day.data.escalatedToday > 0}
+                />
+                <Stat icon={CheckCircle2} label="Completed today" value={day.data.closedToday} />
               </div>
-              <div className="card-soft p-5">
-                <Wifi className="size-5 text-brand" />
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Consultation station
-                </p>
-                <p className="mt-1 font-semibold">
-                  {EQUIPMENT_LABEL[facility.data.equipmentStatus]}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Internet: {CONNECTIVITY_LABEL[facility.data.connectivityStatus]} (as reported)
-                </p>
+            ) : null}
+
+            <div className="card-soft mt-4 overflow-x-auto">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <p className="font-bold">Patients</p>
+                {day.isFetching ? <Loader2 className="size-4 animate-spin text-slate-400" /> : null}
               </div>
-              <div className="card-soft p-5">
-                <Users className="size-5 text-brand" />
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Staff on Neem
+              {day.data && day.data.board.length === 0 ? (
+                <p className="px-4 py-10 text-center text-sm text-slate-500">
+                  No patients yet today.
                 </p>
-                <ul className="mt-1 space-y-1 text-sm">
-                  {facility.data.staff.map((member) => (
-                    <li key={member.userPublicId}>
-                      <span className="font-semibold">{member.fullName}</span>
-                      {member.title ? (
-                        <span className="text-slate-500"> · {member.title}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              ) : null}
+              {day.data && day.data.board.length > 0 ? (
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="text-xs uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 font-semibold">Arrived</th>
+                      <th className="px-4 py-2 font-semibold">Patient</th>
+                      <th className="px-4 py-2 font-semibold">Complaint</th>
+                      <th className="px-4 py-2 font-semibold">Triage</th>
+                      <th className="px-4 py-2 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {day.data.board.map((row) => (
+                      <tr
+                        key={row.publicId}
+                        className={
+                          row.status === "ESCALATED" ? "bg-red-50/60" : "hover:bg-slate-50"
+                        }
+                      >
+                        <td className="px-4 py-3 tabular-nums text-slate-600">
+                          {new Date(row.arrivedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link
+                            to="/facility/patients/$patientNumber"
+                            params={{ patientNumber: row.patient.patientNumber }}
+                            className="font-semibold hover:text-brand"
+                          >
+                            {row.patient.fullName}
+                          </Link>
+                          <p className="text-xs text-slate-500">
+                            {SEX_LABEL[row.patient.sex]} · {ageLabel(row.patient.dateOfBirth)} ·{" "}
+                            <span className="font-mono">{row.patient.patientNumber}</span>
+                          </p>
+                        </td>
+                        <td className="max-w-xs truncate px-4 py-3 text-slate-600">
+                          {row.presentingComplaint}
+                        </td>
+                        <td className="px-4 py-3">
+                          <TriageBadge category={row.triageCategory} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Chip tone={VISIT_STATUS_TONE[row.status]}>
+                            {VISIT_STATUS_LABELS[row.status]}
+                          </Chip>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
             </div>
 
-            <div className="card-soft mt-4 p-5 text-sm text-slate-600">
-              <p className="font-semibold text-foreground">Coming next</p>
-              <p className="mt-1">
-                Registering walk-in patients, recording vital signs and requesting a doctor will
-                appear here. Until then, care for patients through your usual CHPS and referral
-                arrangements. If anything above is wrong, tell your district office or Neem.
-              </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="card-soft p-5 text-sm">
+                <MapPin className="size-5 text-brand" />
+                <p className="mt-2 font-semibold">{facility.data.location.community}</p>
+                <p className="text-slate-500">
+                  {facility.data.location.district.name}, {facility.data.location.region.name}
+                </p>
+                <p className="mt-2 text-slate-500">
+                  Station: {EQUIPMENT_LABEL[facility.data.equipmentStatus]} · Internet:{" "}
+                  {CONNECTIVITY_LABEL[facility.data.connectivityStatus]} (as reported)
+                </p>
+              </div>
+              <div className="card-soft p-5 text-sm text-slate-600">
+                <p className="font-semibold text-foreground">Requesting a doctor</p>
+                <p className="mt-1">
+                  Connecting a patient to a Neem doctor arrives next. Until then, complete each
+                  visit here, and use your usual referral arrangements when a patient needs more.
+                </p>
+              </div>
             </div>
           </>
         ) : null}
       </div>
     </AppShell>
+  );
+}
+
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  danger = false,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: number;
+  danger?: boolean;
+}) {
+  return (
+    <div className={`card-soft p-4 ${danger ? "border-red-200 bg-red-50" : ""}`}>
+      <Icon className={`size-5 ${danger ? "text-red-600" : "text-brand"}`} />
+      <p className="mt-2 text-3xl font-bold tabular-nums">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+    </div>
   );
 }

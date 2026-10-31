@@ -1,6 +1,6 @@
 # Neem V2 (CHPS): assessment and migration plan
 
-**Status: slice 1a built (D73); the rest is proposal.** Written 2026-10-31 against `main` at
+**Status: slices 1a and 1b built (D73, D75); the rest is proposal.** Written 2026-10-31 against `main` at
 `3964406`.
 
 "V2" already names something else in this repository: the patient-direct channel
@@ -94,6 +94,10 @@ an engineering one.
 
 ## 4. Decisions needed
 
+> **Answered 2026-10-31 (D74):** past records readable by the patient's clinicians (CHPS only);
+> consultations free, doctors salaried by government; red/orange/yellow/green triage assigned by
+> the CHO; districts from the official online list. Q4 (notifications) is still open.
+
 1. **D23: may clinicians read past records?** Today: retained, encrypted, readable by no one. The brief: a longitudinal record for authorised staff. Reversing this needs a lawful basis under Act 843 (Data Protection), a statement of who may read what, an access-logging rule (`ClinicalRecordAccessLog` already exists) and someone qualified to sign it off. **Phase 1 can go ahead without it**: the doctor sees the current visit's CHO assessment, which is live data. A6 and B5 history views wait for the answer.
 2. **Do the pharmacy and direct channels keep running?** The pilot is live at a pharmacy. Proposed: CHPS is added alongside both, nothing is removed, and retiring the pharmacy channel is a separate, explicit decision later. Removing it now would also rewrite 20 modules for no gain.
 3. **Who pays for a CHPS consultation?** Proposed: free to the patient and the fee is waived at creation, as D71 already does. Doctor pay then needs a basis. D55's 50% share of nothing is nothing, so is it salaried, paid per consultation from a grant, or something else?
@@ -111,13 +115,13 @@ was chosen, and tests.
 
 ### Phase 1: core CHPS operations
 
-| Slice | Delivers                                                                                                                                                                                     | Depends on                                                  |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1a    | **Built (D73).** Geography, `Facility`, `FacilityUser` and the `FACILITY` role. Admin registers a CHPS and creates CHO accounts. The other admin roles and geographic scope moved to Phase 3 | Q6 for real data (regions are seeded)                       |
-| 1b    | Patient registry with duplicate search, visit, consent, triage and extended vitals. CHPS dashboard: register, search, today's board                                                          | Q1 only for history views                                   |
-| 1c    | Consultation request from a visit (`CHPS` channel, fee waived) into the existing queue. Live status board covering every A5 state. Scenario 2 ("no doctor") shown truthfully                 | Q3                                                          |
-| 1d    | Station pairing, `/station` kiosk route, waiting screen, join, clear on end (Scenario 6)                                                                                                     |                                                             |
-| 1e    | Doctor: Busy status, incoming-request panel with the CHO assessment, structured encounter (B4) with amendment audit, completion. Emergency escalation bypassing the queue (Scenario 3)       | Q5 for flags; the escalation button itself does not need it |
+| Slice | Delivers                                                                                                                                                                                                                    | Depends on                                                  |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1a    | **Built (D73).** Geography, `Facility`, `FacilityUser` and the `FACILITY` role. Admin registers a CHPS and creates CHO accounts. The other admin roles and geographic scope moved to Phase 3                                | Q6 for real data (regions are seeded)                       |
+| 1b    | **Built (D75).** Patient registry with search, consent, walk-in visits, red/orange/yellow/green triage with vital signs, emergency escalation, closing a visit at the facility. CHO dashboard with today's counts and board | —                                                           |
+| 1c    | Consultation request from a visit (`CHPS` channel, fee waived) into the existing queue. Live status board covering every A5 state. Scenario 2 ("no doctor") shown truthfully                                                | Q3                                                          |
+| 1d    | Station pairing, `/station` kiosk route, waiting screen, join, clear on end (Scenario 6)                                                                                                                                    |                                                             |
+| 1e    | Doctor: Busy status, incoming-request panel with the CHO assessment, structured encounter (B4) with amendment audit, completion. Emergency escalation bypassing the queue (Scenario 3)                                      | Q5 for flags; the escalation button itself does not need it |
 
 **Milestone:** Scenarios 1, 2, 3, 4 and 6 pass end to end in Playwright against the mock media
 provider, and once by hand against Whereby on a real tablet.

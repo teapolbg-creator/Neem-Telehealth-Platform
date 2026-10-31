@@ -699,3 +699,38 @@ are referral destinations.
 Deactivating an active facility requires a `statusReason`. Suspending a staff
 member ends their live sessions at once. Equipment and connectivity are what a
 person **reported**; nothing measures them until station heartbeats (slice 1d).
+
+---
+
+## 14. CHPS patients, visits and triage (slice 1b, D75)
+
+```
+GET    /facility/today                             counts and the board: open visits plus today's
+GET    /facility/patients                          ?name | phone | nhisNumber | patientNumber
+POST   /facility/patients                          register a walk-in and open their visit
+GET    /facility/patients/:patientNumber           the full record; every call is logged (D74)
+PATCH  /facility/patients/:patientNumber           contact details, NHIS, allergies, medicines, history
+POST   /facility/patients/:patientNumber/visits    a returning patient; one open visit at a time
+POST   /facility/visits/:publicId/triage           red, orange, yellow or green, with vital signs
+POST   /facility/visits/:publicId/escalate         the emergency path, with a note of what was done
+POST   /facility/visits/:publicId/close            CLOSED or CANCELLED, with a note
+```
+
+Facility staff only, always inside their own facility. Another facility's
+patient or visit is 404. An inactive facility can read its records but not add
+to them.
+
+**Registration needs only** a name, sex, a date of birth or an estimated age,
+a community, a presenting complaint, and who gave consent (the patient, or a
+named guardian). Phone, NHIS number and history are optional, so a patient with
+no phone and no ID is registered all the same and given a card number
+(`NM-XXXX-XXXX`). A resubmission with the same `clientRequestId` returns the
+patient already registered.
+
+**Search** matches any word of a name exactly, or a phone, NHIS or card number.
+Names, contacts and clinical text are encrypted; search runs on keyed hashes.
+
+**Triage** is the CHO's category; Neem computes none (D74). Readings are
+optional and checked only for plausibility. A re-triage adds a record and never
+edits one. **Red moves the visit to `ESCALATED` at once**, and a later milder
+category does not move it back.

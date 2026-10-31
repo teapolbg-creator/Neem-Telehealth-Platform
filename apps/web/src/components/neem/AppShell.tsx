@@ -55,8 +55,11 @@ const NAV: Record<
     // documents and signature are kept, not a process still under way.
     { label: "Onboarding", to: "/doctor/onboarding" },
   ],
-  // CHPS facility staff (D73). One page until registration arrives (slice 1b).
-  facility: [{ label: "Facility", to: "/facility" }],
+  // CHPS facility staff (D73, D75).
+  facility: [
+    { label: "Today", to: "/facility" },
+    { label: "Find or register", to: "/facility/register" },
+  ],
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },

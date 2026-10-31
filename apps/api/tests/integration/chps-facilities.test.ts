@@ -103,13 +103,15 @@ describe('CHPS facilities', () => {
     await resetDatabase();
   });
 
-  it('seeds the sixteen regions and nothing below them', async () => {
+  it('seeds the sixteen regions and the 261 districts, and no sub-districts', async () => {
     const admin = await adminCookies();
     const geography = await request<GeographyRegion[]>('/admin/geography', { cookies: admin });
 
     expect(geography.status).toBe(200);
     expect(geography.body.data!.map((region) => region.name)).toEqual([...GHANA_REGIONS].sort());
-    expect(geography.body.data!.every((region) => region.districts.length === 0)).toBe(true);
+    const districts = geography.body.data!.flatMap((region) => region.districts);
+    expect(districts).toHaveLength(261);
+    expect(districts.every((district) => district.subDistricts.length === 0)).toBe(true);
   });
 
   it('refuses a second district of the same name in one region', async () => {
