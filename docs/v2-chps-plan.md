@@ -124,7 +124,8 @@ was chosen, and tests.
 | 1e    | **Built (D78).** Doctor sees the CHO's triage, readings, note and earlier visits; structured encounter record, never sealed, versioned amendments; completion needs assessment and plan; CHO sees the doctor's advice. Emergency escalation was built in 1b–1c. **Not built:** a separate Busy status (the existing capacity limit already stops offers to a doctor mid-consultation) | —                                     |
 
 **Milestone:** Scenarios 1, 2, 3, 4 and 6 pass end to end in Playwright against the mock media
-provider, and once by hand against Whereby on a real tablet.
+provider (done, D90: `e2e/chps.spec.ts`), and once by hand against Whereby on a real tablet (not
+done yet).
 
 ### Phase 2: referrals and continuity
 
@@ -137,7 +138,7 @@ Patient history is already built (D74, D78). What remains, in four slices:
 | 2c    | **Built (D82).** Facility report for a day, a month or any range up to 92 days: attendance, triage, emergencies, doctor requests and waiting times, per-doctor completions, referrals, follow-ups, complaints as written, visits per day; CSV download                                                                     | —          |
 | 2d    | **Built (D83).** CHPS prescriptions shown to the CHO, printable, and markable as given from facility stock (once); files on a visit, checked and encrypted, readable by the facility and the consultation's doctor                                                                                                         | —          |
 
-**Milestone:** Scenario 5 end to end.
+**Milestone:** Scenario 5 end to end (done, D90).
 
 **Questions for Phase 2** (answered 2026-11-01, D79: the CHO records referral acknowledgement and
 feedback; complaints stay free text; prescriptions are printed and may be dispensed at the facility):

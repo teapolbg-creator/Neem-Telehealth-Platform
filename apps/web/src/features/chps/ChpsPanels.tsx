@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Building2,
@@ -238,17 +238,37 @@ export function EncounterForm({
    * once when they leave a field, so a doctor who goes straight to Complete
    * does not complete over a draft a keystroke behind.
    */
+  const latest = useRef(content);
+  latest.current = content;
+  const { isPending: saving } = save;
+  /*
+   * One save at a time, and a save only marks the form saved if nothing was
+   * typed since it was sent. Otherwise a save still in flight from leaving one
+   * field cleared the flag for the next field's text, cancelled its timer, and
+   * showed "Draft saved" over words that never left the browser. The slower
+   * the line, the likelier that was. Anything typed meanwhile is sent when
+   * this one settles, because `saving` going false re-runs the effect below.
+   */
+  const sendDraft = useCallback(() => {
+    const sent = latest.current;
+    mutate(
+      { content: sent },
+      {
+        onSuccess: () => {
+          if (latest.current === sent) setDirty(false);
+        },
+      },
+    );
+  }, [mutate]);
   const saveDraft = () => {
-    if (!dirty || final) return;
-    mutate({ content }, { onSuccess: () => setDirty(false) });
+    if (!dirty || final || saving) return;
+    sendDraft();
   };
   useEffect(() => {
-    if (!dirty || final) return;
-    const timer = window.setTimeout(() => {
-      mutate({ content }, { onSuccess: () => setDirty(false) });
-    }, 1000);
+    if (!dirty || final || saving) return;
+    const timer = window.setTimeout(sendDraft, 1000);
     return () => window.clearTimeout(timer);
-  }, [content, dirty, final, mutate]);
+  }, [content, dirty, final, saving, sendDraft]);
 
   const missing = ENCOUNTER_REQUIRED.filter((key) => !content[key]?.trim());
 

@@ -1,4 +1,5 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { CloudOff, Loader2, RefreshCw } from "lucide-react";
 import { syncNow, useOfflineQueue } from "./queue";
 
@@ -8,6 +9,26 @@ import { syncNow, useOfflineQueue } from "./queue";
  */
 export function OfflineBar({ userId }: { userId: string }) {
   const offline = useOfflineQueue(userId);
+
+  /*
+   * Each screen's code is fetched the first time it is opened, which cannot
+   * happen with no connection: saving a walk-in moved to a page that could not
+   * load, and the CHO was left looking at a blank screen. So every facility
+   * screen is fetched while the line is up.
+   */
+  const router = useRouter();
+  useEffect(() => {
+    const screens = [
+      { to: "/facility" },
+      { to: "/facility/register" },
+      { to: "/facility/offline" },
+      { to: "/facility/referrals" },
+      { to: "/facility/reports" },
+      { to: "/facility/patients/$patientNumber", params: { patientNumber: "preload" } },
+    ] as const;
+    for (const screen of screens) void router.preloadRoute(screen).catch(() => undefined);
+  }, [router]);
+
   const queued = offline.entries.filter((entry) => entry.state === "QUEUED").length;
   const needsYou = offline.entries.length - queued;
   const waiting = offline.entries.length + offline.locked;

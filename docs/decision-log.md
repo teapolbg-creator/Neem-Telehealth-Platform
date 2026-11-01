@@ -3250,3 +3250,37 @@ measured at the station (§6, "Rural bandwidth").
 sides, which the embed does not offer; measuring against the video service's
 own servers; and monitoring of the station devices themselves (battery, camera,
 browser), which is still proposed.
+
+---
+
+### D90 — The CHPS scenarios are walked end to end, and what that found · 2026-11-03 · **DECIDED**
+
+**Context.** The milestone for Phases 1 and 2 was the brief's six scenarios
+passing in Playwright. Nothing had walked them: the API tests check one route at
+a time, and earlier browser checks were by hand.
+
+**Decision.**
+
+- **`e2e/chps.spec.ts` walks all six,** plus offline walk-ins and the district
+  and operations views, across the screens of each person involved, in browser
+  contexts of their own. Each run makes its own compounds and accounts through
+  the admin routes, and withdraws any request it leaves waiting, because the
+  queue is shared and the next test's doctor would otherwise be offered it.
+- **It refuses to run unless messages are mocked.** Playwright's mock settings
+  do not reach an API it reuses, and a developer's `.env` may name a real SMS
+  provider. The suite asks `/admin/system-health` first.
+
+**What it found, both fixed.**
+
+- **An encounter draft could be lost behind "Draft saved".** A save in flight
+  from leaving one field cleared the unsaved flag for text typed in the next, and
+  cancelled that text's timer. Now one save runs at a time, and a save marks the
+  form saved only if nothing changed since it was sent.
+- **Saving a walk-in offline left a blank page.** Each screen's code is fetched
+  when first opened, which cannot happen with no connection, and the earlier
+  check had stopped only the API. Facility screens are now fetched in advance.
+
+**What was not done.** A real call on a real tablet, which is the other half of
+the milestone and needs a person, a device and a live Whereby room. Also Scenario
+2's outright refusal when no doctor is on shift: the suite always has one on
+shift, so that path stays covered by the API tests.
