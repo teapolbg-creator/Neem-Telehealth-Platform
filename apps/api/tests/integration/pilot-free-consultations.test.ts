@@ -166,8 +166,13 @@ describe('consultations at the pharmacy counter are free during the pilot', () =
     const events = await getPrisma().consultationStateEvent.findMany({
       where: { consultation: { publicId: created.body.data!.publicId } },
       orderBy: { occurredAt: 'asc' },
-      select: { toState: true, accepted: true },
+      select: { toState: true, accepted: true, occurredAt: true },
     });
+
+    // One order, not a tie broken however the rows came back: these four are
+    // written in one transaction, often within a millisecond.
+    const times = events.map((event) => event.occurredAt.getTime());
+    expect(times.every((time, index) => index === 0 || time > times[index - 1]!)).toBe(true);
 
     expect(events.map((event) => event.toState)).toEqual([
       'PENDING_PAYMENT',
