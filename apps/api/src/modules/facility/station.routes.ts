@@ -3,10 +3,15 @@ import { z } from 'zod';
 import {
   PERMISSIONS,
   STATION_HEADER,
+  CONNECTION_CHECK_DOWN_BYTES,
+  connectionReportSchema,
+  connectionUploadSchema,
   stationAssignSchema,
   stationCreateSchema,
   stationPairSchema,
+  videoQualitySchema,
 } from '@neem/contracts';
+import { randomBytes } from 'node:crypto';
 import { getEnv } from '../../config/env.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -17,7 +22,10 @@ import {
   createStation,
   listStations,
   pairStation,
+  recordConnection,
   repairStation,
+  setVideoQuality,
+  videoQuality,
   resolveStation,
   revokeStation,
   sendToStation,
@@ -76,6 +84,17 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   // Facility staff
   // -------------------------------------------------------------------------
+
+  app.get('/facility/video-quality', { preHandler: manage }, async (request, reply) => {
+    const data = await videoQuality(await ctx(request, false));
+    return reply.send({ data, meta: { requestId: request.correlationId } });
+  });
+
+  app.put('/facility/video-quality', { preHandler: manage }, async (request, reply) => {
+    const { lowData } = videoQualitySchema.parse(request.body);
+    const data = await setVideoQuality(await ctx(request, true), lowData);
+    return reply.send({ data, meta: { requestId: request.correlationId } });
+  });
 
   app.get('/facility/stations', { preHandler: manage }, async (request, reply) => {
     const data = await listStations(await ctx(request, false));
@@ -147,6 +166,27 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/station/leave', async (request, reply) => {
     await stationLeave(await requireStation(request));
+    return reply.send({ data: { ok: true }, meta: { requestId: request.correlationId } });
+  });
+
+  // Connection check (D89): bytes to time, and the result.
+  app.get('/station/connection-check', async (request, reply) => {
+    await requireStation(request);
+    return reply
+      .header('cache-control', 'no-store')
+      .type('application/octet-stream')
+      .send(randomBytes(CONNECTION_CHECK_DOWN_BYTES));
+  });
+
+  app.post('/station/connection-check/upload', async (request, reply) => {
+    await requireStation(request);
+    connectionUploadSchema.parse(request.body);
+    return reply.status(204).send();
+  });
+
+  app.post('/station/connection-check', async (request, reply) => {
+    const principal = await requireStation(request);
+    await recordConnection(principal, connectionReportSchema.parse(request.body));
     return reply.send({ data: { ok: true }, meta: { requestId: request.correlationId } });
   });
 }

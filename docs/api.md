@@ -996,3 +996,26 @@ again returns the same visit, including one first made by the ordinary
 registration form, and records its triage if that was all that was missing. The
 visit's `syncedAt` marks it as recorded offline; it is audited as
 `visit.offline-synced`.
+
+## 26. Station connection and video quality (slice 4b, D89)
+
+```
+GET    /station/connection-check                      256 KiB of random bytes for the station to time
+POST   /station/connection-check/upload               128 KiB the station sends to time, discarded
+POST   /station/connection-check                      the station's result: downKbps, upKbps, rttMs
+GET    /facility/video-quality                        whether calls from this facility use low-data video
+PUT    /facility/video-quality                        { lowData } — set it
+```
+
+The three `/station/connection-check` routes take the station's cookie, and the
+writes need the station header, like every station write. The station runs the
+check only while idle (nothing assigned), on opening and every ten minutes. The
+result is stored on the station and shown in `GET /facility/stations` as
+`link: { downKbps, upKbps, rttMs, measuredAt }` (null until measured). It is
+measured against Neem's server, not the video service, and Neem draws no
+conclusion from it.
+
+`/facility/video-quality` is for facility staff with `station:manage`. When
+`lowData` is on, both participants of a call from that facility join with the
+video service's low-data mode (Whereby `lowData=on`), from the next join. The
+change is audited as `facility.video-quality-set`.

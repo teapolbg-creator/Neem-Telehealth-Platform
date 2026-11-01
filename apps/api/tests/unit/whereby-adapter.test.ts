@@ -188,6 +188,22 @@ describe('who gets which URL', () => {
     expect(new URL(patient.endpoint!).searchParams.get('displayName')).toBe('Patient');
   });
 
+  it('asks for the low-data mode only when the facility chose it (D89)', async () => {
+    const { provider, room } = await createRoom();
+    const join = (lowData?: boolean) =>
+      provider.issueJoinToken({
+        providerRoomRef: room.providerRoomRef,
+        participant: 'PATIENT',
+        displayName: 'Patient',
+        ttlSeconds: 1800,
+        lowData,
+      });
+
+    expect(new URL((await join(true)).endpoint!).searchParams.get('lowData')).toBe('on');
+    expect(new URL((await join(false)).endpoint!).searchParams.has('lowData')).toBe(false);
+    expect(new URL((await join()).endpoint!).searchParams.has('lowData')).toBe(false);
+  });
+
   it('starts an audio consultation with the camera off', async () => {
     const { provider, room } = await createRoom('AUDIO');
 

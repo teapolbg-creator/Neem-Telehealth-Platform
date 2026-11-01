@@ -10,6 +10,7 @@ import {
   useStationLeave,
   useStationState,
 } from "@/features/station/api";
+import { useConnectionCheck } from "@/features/station/connection";
 
 export const Route = createFileRoute("/station")({
   component: StationScreen,
@@ -36,6 +37,8 @@ function StationScreen() {
   const lastSession = useRef<string | null>(null);
   const online = useOnline();
   useWakeLock();
+  // Measured while nobody is waiting or on a call (D89).
+  useConnectionCheck(state.data?.mode === "IDLE");
 
   const sessionKey = state.data?.sessionKey ?? null;
   useEffect(() => {

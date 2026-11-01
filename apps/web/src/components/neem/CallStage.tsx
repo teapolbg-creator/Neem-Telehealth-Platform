@@ -209,7 +209,22 @@ export function CallStage({
       {unstable && (
         <div className="flex items-start gap-2 bg-amber-50 px-5 py-3 text-xs leading-relaxed text-amber-900">
           <AlertCircle className="mt-px size-4 shrink-0" />
-          <p>The connection is unstable. Audio may drop.</p>
+          <div className="flex-1">
+            <p>The connection is unstable. Audio may drop.</p>
+            {/*
+              Offered, never done for them (D89): sending no video frees the
+              line for the voice, and the doctor may still need to see.
+            */}
+            {isVideo && cameraEnabled && controlsReady ? (
+              <button
+                type="button"
+                onClick={toggleCamera}
+                className="mt-1 font-bold underline underline-offset-2"
+              >
+                Turn my camera off to keep the sound
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
 

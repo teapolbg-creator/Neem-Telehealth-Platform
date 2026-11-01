@@ -3217,3 +3217,36 @@ local store and a conflict design (§3, "Not proposed").
 **What was not done.** A service worker so the app opens with no connection at
 all (today the app must have loaded once since sign-in), offline work on
 patients already on file, offline doctor requests, and key rotation.
+
+---
+
+### D89 — A thin line is measured and shown; the CHO chooses lower quality · 2026-11-03 · **DECIDED**
+
+**Context.** Slice 4b. Rural CHPS lines are slow and costly, and the plan asked
+for an audio-first, lower-resolution profile and for connectivity to be
+measured at the station (§6, "Rural bandwidth").
+
+**Decision.**
+
+- **Measured by the station, shown to the CHO.** An idle station times a round
+  trip, a 256 KiB download and a 128 KiB upload against Neem's server, on
+  opening and every ten minutes, never while a patient is waiting or on a
+  call. The CHO sees the latest figures beside each station and beside the
+  Video / Audio choice when requesting a doctor. They describe the line to
+  Neem, not to the video service, and are labelled that way.
+- **No threshold.** Neem does not mark a figure good or bad, and does not pick
+  audio or low quality by itself: the bandwidth a call needs depends on the
+  video service, the device and the moment, and nobody has set a number. Audio
+  only was already the CHO's choice at request time (D76).
+- **Lower video quality is the facility's switch.** When the CHO turns it on,
+  both sides of every call from that facility join with Whereby's own low-data
+  mode, which lowers the resolution. It applies from the next join and is
+  audited.
+- **Offered mid-call.** When the video service reports an unstable connection,
+  the call offers to turn one's own camera off to keep the sound. It is never
+  done for them, because the doctor may need to see.
+
+**What was not done.** Switching a live call from video to audio for both
+sides, which the embed does not offer; measuring against the video service's
+own servers; and monitoring of the station devices themselves (battery, camera,
+browser), which is still proposed.

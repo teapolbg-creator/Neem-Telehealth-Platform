@@ -2626,6 +2626,9 @@ model Facility {
   equipmentStatus        FacilityEquipmentStatus    @default(NOT_INSTALLED)
   connectivityStatus     FacilityConnectivityStatus @default(UNKNOWN)
   connectivityReportedAt DateTime?
+  /// Calls from this facility join with the video service's low-data mode
+  /// (slice 4b, D89). Chosen by the facility's staff.
+  lowDataVideo           Boolean                    @default(false)
 
   createdByUserId String
   isDemo          Boolean  @default(false)
@@ -2859,6 +2862,13 @@ model FacilityStation {
   pairedAt         DateTime?
   lastSeenAt       DateTime?
   revokedAt        DateTime?
+
+  /// The station's last connection check against Neem's server (slice 4b,
+  /// D89): download and upload in kbit/s and round trip in ms.
+  linkDownKbps     Int?
+  linkUpKbps       Int?
+  linkRttMs        Int?
+  linkMeasuredAt   DateTime?
 
   /// The consultation the station is showing, set by a CHO. Cleared when that
   /// consultation ends, so the next patient sees nothing of the last.

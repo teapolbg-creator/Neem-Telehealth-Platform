@@ -72,6 +72,7 @@ export async function joinMediaSession(
     where: { id: consultationId },
     include: {
       mediaSessions: { where: { endedAt: null }, orderBy: { startedAt: 'desc' }, take: 1 },
+      facility: { select: { lowDataVideo: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -179,6 +180,9 @@ export async function joinMediaSession(
       hostRoomUrl: current.hostRoomUrlEnc ? decryptField(current.hostRoomUrlEnc) : undefined,
       kind: current.kind === 'AUDIO' ? 'AUDIO' : 'VIDEO',
       expiresAt: current.roomExpiresAt ?? undefined,
+      // A CHPS facility on a thin line asks for the low-data mode, for both
+      // sides of the call (D89).
+      lowData: consultation!.facility?.lowDataVideo ?? false,
     });
   }
 

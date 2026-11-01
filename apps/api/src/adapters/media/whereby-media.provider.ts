@@ -255,7 +255,7 @@ export class WherebyVideoProvider implements VideoProvider {
        * would put a host room key into every field that logs a "token".
        */
       token: `whereby_url_in_endpoint_${input.participant.toLowerCase()}`,
-      endpoint: withDisplayOptions(base, input.displayName, room.kind),
+      endpoint: withDisplayOptions(base, input.displayName, room.kind, input.lowData ?? false),
       // The room, not the URL, is what expires.
       expiresAt: room.expiresAt,
     };
@@ -360,6 +360,7 @@ function withDisplayOptions(
   roomUrl: string,
   displayName: string,
   kind: CreateRoomInput['kind'],
+  lowData = false,
 ): string {
   const url = new URL(roomUrl);
 
@@ -371,6 +372,11 @@ function withDisplayOptions(
 
   if (kind === 'AUDIO') {
     url.searchParams.set('video', 'off');
+  }
+
+  // Whereby's own low-data mode: a lower video resolution for a thin line (D89).
+  if (lowData) {
+    url.searchParams.set('lowData', 'on');
   }
 
   return url.toString();

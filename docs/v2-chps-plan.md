@@ -1,6 +1,6 @@
 # Neem V2 (CHPS): assessment and migration plan
 
-**Status: Phases 1–3 built (D73, D75–D87); Phase 4 under way: 4a built (D88).** Written 2026-10-31 against `main` at
+**Status: Phases 1–3 built (D73, D75–D87); Phase 4 under way: 4a–4b built (D88–D89).** Written 2026-10-31 against `main` at
 `3964406`.
 
 "V2" already names something else in this repository: the patient-direct channel
@@ -170,9 +170,9 @@ into super and operations administrators.
 | Slice | Delivers                                                                                                                                                                                                                                    | Depends on |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | 4a    | **Built (D88).** Walk-ins and their triage recorded with no connection, encrypted on the device under a key held by the API, sent by themselves when the connection returns; possible duplicates decided by the CHO; device times corrected | —          |
+| 4b    | **Built (D89).** Stations measure their connection to Neem when idle and the CHO sees it; the CHO can turn on lower video quality (Whereby low-data mode) for the facility's calls; an unstable call offers to turn the camera off          | —          |
 
-Still proposed: low-bandwidth video profile (Whereby audio-first and resolution caps), device
-monitoring, SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
+Still proposed: device monitoring, SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 
 ---
 

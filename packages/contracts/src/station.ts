@@ -43,7 +43,46 @@ export interface StationSummary {
   pairedAt: string | null;
   /** What it is showing, for the CHO's eyes only. */
   current: { visitPublicId: string; patientName: string; consultationState: string } | null;
+  /** The station's last connection check, or null if it has never run one (D89). */
+  link: StationLink | null;
 }
+
+/**
+ * A station's connection to Neem, as the station measured it (slice 4b, D89).
+ *
+ * Measured against Neem's own server, not the video service, so it is a
+ * guide to the line rather than a promise about a call. No figure here is
+ * judged good or bad by Neem.
+ */
+export interface StationLink {
+  downKbps: number;
+  upKbps: number;
+  rttMs: number;
+  measuredAt: string;
+}
+
+/** Bytes the station downloads and uploads to time its connection (D89). */
+export const CONNECTION_CHECK_DOWN_BYTES = 256 * 1024;
+export const CONNECTION_CHECK_UP_BYTES = 128 * 1024;
+
+export const connectionUploadSchema = z.object({
+  sample: z.string().max(CONNECTION_CHECK_UP_BYTES + 1024),
+});
+
+export const connectionReportSchema = z.object({
+  downKbps: z.number().int().min(0).max(10_000_000),
+  upKbps: z.number().int().min(0).max(10_000_000),
+  rttMs: z.number().int().min(0).max(600_000),
+});
+export type ConnectionReport = z.infer<typeof connectionReportSchema>;
+
+/**
+ * The facility's choice of lower video quality for its calls (D89): when on,
+ * both sides of a CHPS call from this facility join with the video service's
+ * low-data mode.
+ */
+export const videoQualitySchema = z.object({ lowData: z.boolean() });
+export type VideoQuality = z.infer<typeof videoQualitySchema>;
 
 export interface StationPairing {
   station: StationSummary;

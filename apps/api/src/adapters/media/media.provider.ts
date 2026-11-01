@@ -66,6 +66,8 @@ export interface JoinTokenInput {
    */
   displayName: string;
   ttlSeconds: number;
+  /** Join with the provider's low-data mode: lower video resolution (D89). */
+  lowData?: boolean;
 }
 
 export interface JoinToken {

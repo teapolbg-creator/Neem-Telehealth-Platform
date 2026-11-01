@@ -3,6 +3,7 @@ import type { ConsultationState, PrismaClient } from '@prisma/client';
 import { addMinutes } from 'date-fns';
 import {
   STATION_PAIRING_MINUTES,
+  type ConnectionReport,
   type StationPairing,
   type StationState,
   type StationSummary,
@@ -107,6 +108,18 @@ function toSummary(row: StationRow, now: Date): StationSummary {
               ? decryptField(consultation.patientSession.fullNameEnc)
               : 'Patient',
             consultationState: consultation.state,
+          }
+        : null,
+    link:
+      row.linkMeasuredAt &&
+      row.linkDownKbps !== null &&
+      row.linkUpKbps !== null &&
+      row.linkRttMs !== null
+        ? {
+            downKbps: row.linkDownKbps,
+            upKbps: row.linkUpKbps,
+            rttMs: row.linkRttMs,
+            measuredAt: row.linkMeasuredAt.toISOString(),
           }
         : null,
   };
@@ -511,4 +524,55 @@ export async function stationLeave(
   db: PrismaClient = getPrisma(),
 ): Promise<void> {
   await leaveMediaSession(await assignedConsultation(principal, db), 'PATIENT', db);
+}
+
+// ---------------------------------------------------------------------------
+// Connection (slice 4b, D89)
+// ---------------------------------------------------------------------------
+
+/**
+ * What the station measured, kept as reported: the line from the station to
+ * Neem, which the CHO sees beside the station. Neem draws no conclusion.
+ */
+export async function recordConnection(
+  principal: StationPrincipal,
+  report: ConnectionReport,
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<void> {
+  await db.facilityStation.update({
+    where: { id: principal.stationId },
+    data: {
+      linkDownKbps: report.downKbps,
+      linkUpKbps: report.upKbps,
+      linkRttMs: report.rttMs,
+      linkMeasuredAt: clock.now(),
+    },
+  });
+}
+
+export async function videoQuality(ctx: StaffContext, db: Db = getPrisma()) {
+  const facility = await db.facility.findUniqueOrThrow({
+    where: { id: ctx.facilityId },
+    select: { lowDataVideo: true },
+  });
+  return { lowData: facility.lowDataVideo };
+}
+
+/** The facility's choice; it applies from the next join, not mid-call. */
+export async function setVideoQuality(ctx: StaffContext, lowData: boolean, db: Db = getPrisma()) {
+  await db.facility.update({ where: { id: ctx.facilityId }, data: { lowDataVideo: lowData } });
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.FACILITY_VIDEO_QUALITY_SET,
+      actorType: 'FACILITY',
+      actorId: ctx.userId,
+      entityType: 'facility',
+      entityId: ctx.facilityId,
+      correlationId: ctx.correlationId,
+      metadata: { lowData },
+    },
+    db,
+  );
+  return { lowData };
 }

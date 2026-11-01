@@ -1,10 +1,11 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StationPairing, StationState, StationSummary } from '@neem/contracts';
 import { disconnectPrisma, getPrisma } from '../../src/db/prisma.ts';
 import { closeTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/database.ts';
 import { generatePublicId } from '../../src/lib/crypto.ts';
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
+import { getVideoProvider } from '../../src/adapters/media/index.ts';
 
 /**
  * Consultation stations (CHPS slice 1d, D77).
@@ -223,6 +224,10 @@ describe('consultation stations', () => {
     const ready = await stateOf(station);
     expect(ready.body.data).toMatchObject({ mode: 'READY', doctorName: 'Dr. Yaa Asantewaa' });
 
+    // The facility chose lower video quality: the join asks the provider for it (D89).
+    await getPrisma().facility.updateMany({ data: { lowDataVideo: true } });
+    const issue = vi.spyOn(getVideoProvider(), 'issueJoinToken');
+
     const joined = await request<{ kind: string }>('/station/join', {
       method: 'POST',
       cookies: station,
@@ -230,6 +235,8 @@ describe('consultation stations', () => {
     });
     expect(joined.status).toBe(200);
     expect(joined.body.data!.kind).toBe('VIDEO');
+    expect(issue).toHaveBeenCalledWith(expect.objectContaining({ lowData: true }));
+    issue.mockRestore();
 
     const attendance = await getPrisma().callAttendanceEvent.findFirst({
       where: { consultationId: consultation.id, participant: 'PATIENT', event: 'JOINED' },

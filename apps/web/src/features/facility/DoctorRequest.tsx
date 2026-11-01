@@ -11,7 +11,13 @@ import {
   useRequestDoctor,
   useWithdrawRequest,
 } from "@/features/facility/patients";
-import { useClearStation, useSendToStation, useStations } from "@/features/facility/stations";
+import {
+  latestLink,
+  linkLabel,
+  useClearStation,
+  useSendToStation,
+  useStations,
+} from "@/features/facility/stations";
 
 /**
  * Asking for a Neem doctor, and following the request (slice 1c, D76).
@@ -52,6 +58,8 @@ function RequestForm({ visit }: { visit: VisitView }) {
   const [languageCode, setLanguageCode] = useState("");
   const [type, setType] = useState<"VIDEO" | "AUDIO">("VIDEO");
   const [note, setNote] = useState("");
+  // What the stations last measured, beside the choice it informs (D89).
+  const link = latestLink(useStations().data);
 
   return (
     <form
@@ -99,6 +107,11 @@ function RequestForm({ visit }: { visit: VisitView }) {
               </button>
             ))}
           </div>
+          {link ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Station line to Neem: {linkLabel(link)}. Audio only uses much less data.
+            </p>
+          ) : null}
         </div>
       </div>
       <label className="block text-sm">

@@ -9,8 +9,12 @@ import {
   useCreateStation,
   useRepairStation,
   useRevokeStation,
+  useSetVideoQuality,
   useStations,
+  useVideoQuality,
+  linkLabel,
 } from "@/features/facility/stations";
+import { sinceLabel } from "@/features/operations/api";
 
 /**
  * The facility's consultation stations (slice 1d, D77): add one, pair it,
@@ -92,6 +96,45 @@ export function StationsPanel({ enabled }: { enabled: boolean }) {
           <StationRow key={station.publicId} station={station} onPairing={setPairing} />
         ))}
       </ul>
+
+      {stations.data && stations.data.length > 0 ? <VideoQualityChoice enabled={enabled} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Lower video quality for every call from this facility (D89). The CHO's
+ * choice, from what they see of their own line; Neem never turns it on.
+ */
+function VideoQualityChoice({ enabled }: { enabled: boolean }) {
+  const quality = useVideoQuality(enabled);
+  const set = useSetVideoQuality();
+  if (!quality.data) return null;
+  const on = quality.data.lowData;
+
+  return (
+    <div className="space-y-1 border-t border-border pt-3 text-sm">
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={set.isPending}
+          onChange={(event) => set.mutate(event.target.checked)}
+          className="mt-0.5 size-4 accent-[var(--color-brand)]"
+        />
+        <span>
+          <span className="font-semibold">Lower video quality for calls from here</span>
+          <span className="block text-xs text-slate-500">
+            Uses less data on a slow or costly connection; the picture is less sharp for the patient
+            and the doctor. Applies from the next call. Audio only uses less still.
+          </span>
+        </span>
+      </label>
+      {set.error ? (
+        <p className="text-xs text-red-600">
+          {set.error instanceof ApiError ? set.error.message : "Not changed."}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -122,6 +165,13 @@ function StationRow({
                   ? "Revoked"
                   : "Waiting to be paired"}
           </p>
+          {station.status === "PAIRED" ? (
+            <p className="text-xs text-slate-500">
+              {station.link
+                ? `Line to Neem ${linkLabel(station.link)}, measured ${sinceLabel(station.link.measuredAt).toLowerCase()}`
+                : "Line to Neem not measured yet"}
+            </p>
+          ) : null}
         </div>
         <Chip
           tone={station.status !== "PAIRED" ? "muted" : station.online ? "brand" : "warning"}
