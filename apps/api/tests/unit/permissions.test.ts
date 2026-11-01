@@ -93,6 +93,7 @@ describe('role permissions', () => {
         PERMISSIONS.CHPS_REFERRAL_MANAGE,
         PERMISSIONS.CHPS_FOLLOW_UP_MANAGE,
         PERMISSIONS.CHPS_REPORT_READ,
+        PERMISSIONS.CHPS_PRESCRIPTION_DISPENSE,
       ]);
     });
 

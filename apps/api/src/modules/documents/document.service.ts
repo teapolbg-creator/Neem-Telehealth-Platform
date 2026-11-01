@@ -716,6 +716,8 @@ export interface StaffReadableDocument {
   doctorId: string;
   /** Null for a patient-direct consultation, which no pharmacy may read (v2). */
   pharmacyId: string | null;
+  /** The CHPS compound whose patient it is, for a CHPS consultation (D83). */
+  facilityId?: string | null;
   pdfStorageKey: string | null;
 }
 
@@ -742,13 +744,21 @@ export async function findDocumentForStaff(
   if (kind === 'prescription') {
     const row = await db.prescription.findUnique({
       where: { publicId },
-      select: { id: true, doctorId: true, pharmacyId: true, pdfStorageKey: true, state: true },
+      select: {
+        id: true,
+        doctorId: true,
+        pharmacyId: true,
+        pdfStorageKey: true,
+        state: true,
+        consultation: { select: { facilityId: true } },
+      },
     });
     if (!row || row.state === 'DRAFT') return null;
     return {
       id: row.id,
       doctorId: row.doctorId,
       pharmacyId: row.pharmacyId,
+      facilityId: row.consultation.facilityId,
       pdfStorageKey: row.pdfStorageKey,
     };
   }

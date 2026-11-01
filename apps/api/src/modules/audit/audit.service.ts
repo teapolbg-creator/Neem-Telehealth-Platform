@@ -97,6 +97,10 @@ export const AUDIT_ACTIONS = {
   FOLLOW_UP_MISSED: 'follow-up.missed',
   FOLLOW_UP_CANCELLED: 'follow-up.cancelled',
 
+  /** CHPS slice 2d (D83). Files are clinical; every read is recorded. */
+  ATTACHMENT_ADDED: 'attachment.added',
+  ATTACHMENT_DOWNLOADED: 'attachment.downloaded',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

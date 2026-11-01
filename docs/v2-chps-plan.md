@@ -1,6 +1,6 @@
 # Neem V2 (CHPS): assessment and migration plan
 
-**Status: Phase 1 and slices 2a–2b built (D73, D75–D81); the rest is proposal.** Written 2026-10-31 against `main` at
+**Status: Phases 1 and 2 built (D73, D75–D83); Phases 3–4 are proposal.** Written 2026-10-31 against `main` at
 `3964406`.
 
 "V2" already names something else in this repository: the patient-direct channel
@@ -135,7 +135,7 @@ Patient history is already built (D74, D78). What remains, in four slices:
 | 2a    | **Built (D80).** Tracked referrals: registry or free-text destination, urgency, reason, clinical summary, transport; issued → acknowledged → attended or did not arrive, each recorded by the CHO with how they learned it; feedback; emergency referrals from escalated visits; visits end as Referred; referral register | —          |
 | 2b    | **Built (D81).** Follow-ups set by the CHO from the doctor's advice or a referral's feedback, with a due date; overdue shown but never marked missed by itself; resolved as seen (linked to the return visit), missed or cancelled; due list and count on the Today page                                                   | —          |
 | 2c    | **Built (D82).** Facility report for a day, a month or any range up to 92 days: attendance, triage, emergencies, doctor requests and waiting times, per-doctor completions, referrals, follow-ups, complaints as written, visits per day; CSV download                                                                     | —          |
-| 2d    | Prescriptions for CHPS patients, and attachments on a visit through the existing storage adapter                                                                                                                                                                                                                           | Q9         |
+| 2d    | **Built (D83).** CHPS prescriptions shown to the CHO, printable, and markable as given from facility stock (once); files on a visit, checked and encrypted, readable by the facility and the consultation's doctor                                                                                                         | —          |
 
 **Milestone:** Scenario 5 end to end.
 

@@ -66,6 +66,8 @@ export const PERMISSIONS = {
   CHPS_FOLLOW_UP_MANAGE: 'chps-follow-up:manage',
   /** Read the CHPS compound's own daily and monthly reports (D82). */
   CHPS_REPORT_READ: 'chps-report:read',
+  /** Give a CHPS patient's prescription from the compound's stock (D83). */
+  CHPS_PRESCRIPTION_DISPENSE: 'chps-prescription:dispense',
   SHIFT_MANAGE: 'shift:manage',
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
@@ -136,8 +138,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
    * CHPS facility staff (D73). Each slice adds exactly what it needs:
    * registration, the patient record and triage arrived with 1b (D75), and
    * requesting a doctor with 1c (D76), stations with 1d (D77), and tracked
-   * referrals with 2a (D80), follow-ups with 2b (D81), and reports with 2c
-   * (D82).
+   * referrals with 2a (D80), follow-ups with 2b (D81), reports with 2c (D82),
+   * and dispensing with 2d (D83).
    * Always within their own facility, which the service checks.
    */
   FACILITY: [
@@ -149,6 +151,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.CHPS_REFERRAL_MANAGE,
     P.CHPS_FOLLOW_UP_MANAGE,
     P.CHPS_REPORT_READ,
+    P.CHPS_PRESCRIPTION_DISPENSE,
   ],
 
   ADMIN: Object.values(P),

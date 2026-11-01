@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Building2, Check, History, Loader2, MessageSquare } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  Check,
+  History,
+  Loader2,
+  MessageSquare,
+  Paperclip,
+} from "lucide-react";
 import {
   ENCOUNTER_REQUIRED,
   ENCOUNTER_SECTIONS,
@@ -13,6 +21,7 @@ import { ApiError } from "@/lib/api-client";
 import { TriageBadge } from "@/features/facility/TriageBadge";
 import { SEX_LABEL, ageLabel } from "@/features/facility/patients";
 import { useSaveEncounter } from "@/features/chps/doctor";
+import { doctorAttachmentUrl } from "@/features/facility/records";
 
 /**
  * What the doctor sees from the CHPS compound, and the encounter record they
@@ -74,7 +83,13 @@ function TriageBlock({ triage }: { triage: TriageView }) {
 }
 
 /** The CHO's side of the patient, above the call. */
-export function ChpsContextPanel({ context }: { context: ChpsConsultationContext }) {
+export function ChpsContextPanel({
+  context,
+  publicId,
+}: {
+  context: ChpsConsultationContext;
+  publicId: string;
+}) {
   const { patient, visit, facility } = context;
 
   return (
@@ -136,6 +151,25 @@ export function ChpsContextPanel({ context }: { context: ChpsConsultationContext
           )}
         </div>
       </div>
+
+      {visit.attachments.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Files from the CHO
+          </p>
+          {visit.attachments.map((attachment) => (
+            <a
+              key={attachment.publicId}
+              href={doctorAttachmentUrl(publicId, attachment.publicId)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 text-sm font-semibold text-brand hover:underline"
+            >
+              <Paperclip className="size-4" /> {attachment.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
 
       {context.priorVisits.length > 0 ? (
         <details className="rounded-xl border border-border p-3">

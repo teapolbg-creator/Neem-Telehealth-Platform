@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { NhisStatus, TriageView, VisitConsultation } from './patient.ts';
+import type { NhisStatus, TriageView, VisitAttachmentView, VisitConsultation } from './patient.ts';
 
 /**
  * The doctor's side of a CHPS consultation (slice 1e, D78): what the CHO
@@ -117,6 +117,8 @@ export interface ChpsConsultationContext {
     choNote: string | null;
     triage: TriageView | null;
     triageHistory: TriageView[];
+    /** Files the CHO kept with this visit (D83). */
+    attachments: VisitAttachmentView[];
   };
   priorVisits: PriorVisitView[];
   encounter: EncounterView | null;

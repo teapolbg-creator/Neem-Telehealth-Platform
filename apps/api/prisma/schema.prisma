@@ -1490,12 +1490,14 @@ model Prescription {
   prescriberQualification String?    @db.VarChar(160)
   prescriberAddress       String?    @db.VarChar(300)
 
-  issuedAt          DateTime?
-  dispensedAt       DateTime?
-  dispensedByUserId String?
-  revokedAt         DateTime?
-  revokedReason     String?   @db.VarChar(500)
-  revokedByDoctorId String?
+  issuedAt            DateTime?
+  dispensedAt         DateTime?
+  dispensedByUserId   String?
+  /// Set when a CHPS compound dispensed it from its own stock (D83).
+  dispensedFacilityId String?
+  revokedAt           DateTime?
+  revokedReason       String?   @db.VarChar(500)
+  revokedByDoctorId   String?
 
   signatureId    String?
   pdfStorageKey  String? @db.VarChar(400)
@@ -1505,10 +1507,11 @@ model Prescription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  consultation Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
-  doctor       Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  pharmacy     Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
-  signature    DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
+  consultation      Consultation     @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  doctor            Doctor           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  pharmacy          Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  signature         DoctorSignature? @relation(fields: [signatureId], references: [id], onDelete: Restrict)
+  dispensedFacility Facility?        @relation("PrescriptionDispensedAt", fields: [dispensedFacilityId], references: [id], onDelete: Restrict)
 
   items         PrescriptionItem[]
   versions      PrescriptionVersion[]
@@ -2585,6 +2588,8 @@ model Facility {
   consultations Consultation[]
   stations      FacilityStation[]
   followUps     FollowUp[]
+  attachments   VisitAttachment[]
+  dispensed     Prescription[]    @relation("PrescriptionDispensedAt")
   referralsSent ChpsReferral[]    @relation("ReferralOrigin")
   referralsIn   ChpsReferral[]    @relation("ReferralDestination")
 
@@ -2684,6 +2689,7 @@ model Patient {
   encounters    EncounterRecord[]
   referrals     ChpsReferral[]
   followUps     FollowUp[]
+  attachments   VisitAttachment[]
 
   @@index([facilityId, createdAt])
   @@index([facilityId, phoneHash])
@@ -2716,13 +2722,14 @@ model PatientVisit {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  facility      Facility       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  patient       Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  facility      Facility          @relation(fields: [facilityId], references: [id], onDelete: Restrict)
   triages       TriageRecord[]
   consultations Consultation[]
   referrals     ChpsReferral[]
-  followUps     FollowUp[]     @relation("FollowUpOrigin")
-  followUpsMet  FollowUp[]     @relation("FollowUpResolution")
+  followUps     FollowUp[]        @relation("FollowUpOrigin")
+  followUpsMet  FollowUp[]        @relation("FollowUpResolution")
+  attachments   VisitAttachment[]
 
   @@index([facilityId, arrivedAt])
   @@index([facilityId, status])
@@ -2972,4 +2979,32 @@ model FollowUp {
   @@index([facilityId, status, dueDate])
   @@index([patientId, dueDate])
   @@map("follow_ups")
+}
+
+/// A file kept with a CHPS visit: a scanned letter, a photo of a test strip, a
+/// result from another facility (slice 2d, D83).
+///
+/// The bytes are encrypted before they reach storage, because local storage
+/// is not, and a photo of a result is as clinical as the result. Readable by
+/// the facility's staff and by the doctor assigned to a consultation on the
+/// visit, never by anyone through a public link.
+model VisitAttachment {
+  id               String   @id @default(uuid(7))
+  publicId         String   @unique @db.VarChar(32)
+  facilityId       String
+  patientId        String
+  visitId          String
+  label            String   @db.VarChar(160)
+  contentType      String   @db.VarChar(80)
+  sizeBytes        Int
+  storageKey       String   @db.VarChar(400)
+  uploadedByUserId String
+  createdAt        DateTime @default(now())
+
+  facility Facility     @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  patient  Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  visit    PatientVisit @relation(fields: [visitId], references: [id], onDelete: Restrict)
+
+  @@index([visitId, createdAt])
+  @@map("visit_attachments")
 }

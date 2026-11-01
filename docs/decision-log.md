@@ -3014,3 +3014,33 @@ compound.
 **What was not done.** No printing layout, no comparison with a previous
 period, and no DHIMS2 indicator mapping (the brief keeps that for an approved
 integration).
+
+---
+
+### D83 — A CHPS prescription can be printed and given at the facility, and visit files are encrypted · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 2d, closing Phase 2. The operator decided that a CHPS
+prescription is printed for the patient and may be dispensed from facility
+stock (D79).
+
+**Decision.**
+
+- **The doctor's prescription, unchanged.** Issued, signed and verifiable as on
+  every channel. The facility sees it on the visit, with its items, and may
+  open the PDF to print it: the document access rule gains one reader, the
+  staff of the CHPS compound whose consultation it was.
+- **Given here, once.** The CHO marks a prescription "given here" when the
+  compound has the medicine; it becomes `DISPENSED` with the facility recorded
+  as `dispensedFacilityId`, and cannot be dispensed again anywhere. A revoked
+  prescription is refused. When the patient takes it to a pharmacy instead,
+  that pharmacy checks it on the public verification page; Neem does not track
+  which pharmacy, since none of them takes part.
+- **Files are clinical, so encrypted.** A photo of a test strip or a hospital
+  letter is checked like every upload (size, declared type, magic bytes), then
+  encrypted before it reaches storage, because the local storage adapter writes
+  plain files. The facility's staff and the doctor of a consultation on the same
+  visit can open it; nobody else, and every download is audited.
+
+**What was not done.** No dispensing of part of a prescription; no stock
+records; no deleting an attachment (a wrong one is relabelled by uploading the
+right one, and the audit keeps both).

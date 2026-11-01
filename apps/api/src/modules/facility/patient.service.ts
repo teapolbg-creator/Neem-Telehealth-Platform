@@ -12,6 +12,7 @@ import {
   type PatientUpdate,
   type TriageCreate,
   type TriageView,
+  type VisitPrescription,
   type VisitView,
   type VitalSigns,
 } from '@neem/contracts';
@@ -29,6 +30,8 @@ import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
 import { toEncounterSummary } from '../clinical/chps-encounter.service.ts';
+import { toAttachmentView } from './attachment.service.ts';
+import { toVisitPrescription, visitPrescriptionInclude } from './chps-prescription.service.ts';
 import {
   countFollowUpsDue,
   followUpActorIds,
@@ -197,6 +200,7 @@ const visitInclude = {
   consultations: consultationInclude,
   referrals: { orderBy: { issuedAt: 'desc' }, include: referralInclude },
   followUps: { orderBy: { dueDate: 'asc' }, include: followUpInclude },
+  attachments: { orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.PatientVisitInclude;
 
 type VisitRow = Prisma.PatientVisitGetPayload<{ include: typeof visitInclude }>;
@@ -225,7 +229,11 @@ export function toTriageView(
   };
 }
 
-function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
+function toVisitView(
+  row: VisitRow,
+  names: Map<string, string>,
+  prescriptions: VisitPrescription[] = [],
+): VisitView {
   const triages = row.triages.map((triage) => toTriageView(triage, names));
   return {
     publicId: row.publicId,
@@ -247,6 +255,8 @@ function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
       : null,
     referrals: row.referrals.map((referral) => toReferralView(referral, names)),
     followUps: row.followUps.map((followUp) => toFollowUpView(followUp, names, systemClock.now())),
+    prescriptions,
+    attachments: row.attachments.map((attachment) => toAttachmentView(attachment, names)),
   };
 }
 
@@ -472,10 +482,28 @@ export async function getPatientRecord(
       ...visit.triages.map((triage) => triage.recordedByUserId),
       ...referralActorIds(visit.referrals),
       ...followUpActorIds(visit.followUps),
+      ...visit.attachments.map((attachment) => attachment.uploadedByUserId),
     ]),
     db,
   );
-  const visitViews = visits.map((visit) => toVisitView(visit, names));
+  // Every consultation's prescriptions, not only the latest's (D83).
+  const prescriptions = await db.prescription.findMany({
+    where: {
+      ...visitPrescriptionInclude.where,
+      consultation: { visitId: { in: visits.map((visit) => visit.id) } },
+    },
+    orderBy: visitPrescriptionInclude.orderBy,
+    include: { ...visitPrescriptionInclude.include, consultation: { select: { visitId: true } } },
+  });
+  const visitViews = visits.map((visit) =>
+    toVisitView(
+      visit,
+      names,
+      prescriptions
+        .filter((prescription) => prescription.consultation.visitId === visit.id)
+        .map(toVisitPrescription),
+    ),
+  );
 
   return {
     publicId: patient.publicId,

@@ -337,6 +337,40 @@ export interface VisitView {
   referrals: ReferralView[];
   /** Follow-ups arising from this visit (D81). */
   followUps: FollowUpView[];
+  /** Prescriptions the doctor issued on this visit (D83). */
+  prescriptions: VisitPrescription[];
+  /** Files kept with the visit (D83). */
+  attachments: VisitAttachmentView[];
+}
+
+/** A prescription as the CHO sees it: what to give, and whether it was given here (D83). */
+export interface VisitPrescription {
+  publicId: string;
+  state: string;
+  issuedAt: string | null;
+  doctorName: string;
+  items: {
+    medication: string;
+    strength: string | null;
+    form: string | null;
+    dose: string;
+    frequency: string;
+    duration: string;
+    quantity: string;
+    instructions: string | null;
+  }[];
+  dispensedAt: string | null;
+  /** True when this facility dispensed it from its own stock. */
+  dispensedHere: boolean;
+}
+
+export interface VisitAttachmentView {
+  publicId: string;
+  label: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface PatientRecord extends PatientSummary {

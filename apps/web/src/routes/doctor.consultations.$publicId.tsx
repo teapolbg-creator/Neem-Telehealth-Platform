@@ -146,7 +146,7 @@ function DoctorConsultation() {
         {isChps ? (
           <div className="mt-6">
             {chps.data ? (
-              <ChpsContextPanel context={chps.data} />
+              <ChpsContextPanel context={chps.data} publicId={publicId} />
             ) : chps.error ? (
               <p className="card-soft p-5 text-sm text-red-600">
                 {chps.error instanceof ApiError

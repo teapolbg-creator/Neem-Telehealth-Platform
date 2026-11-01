@@ -16,6 +16,7 @@ import { isTerminal } from '../../domain/consultation-state.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { staffNames, toTriageView } from '../facility/patient.service.ts';
 import { toConsultationView } from '../facility/chps-consultation.service.ts';
+import { toAttachmentView } from '../facility/attachment.service.ts';
 
 /**
  * The doctor's side of a CHPS consultation (slice 1e, D78).
@@ -108,7 +109,10 @@ export async function getChpsContext(
     }),
     db.patientVisit.findUniqueOrThrow({
       where: { id: consultation.visitId! },
-      include: { triages: { orderBy: { recordedAt: 'desc' } } },
+      include: {
+        triages: { orderBy: { recordedAt: 'desc' } },
+        attachments: { orderBy: { createdAt: 'asc' } },
+      },
     }),
     db.patientVisit.findMany({
       where: { patientId: consultation.chpsPatientId!, NOT: { id: consultation.visitId! } },
@@ -140,9 +144,12 @@ export async function getChpsContext(
   });
 
   const names = await staffNames(
-    [...visit.triages, ...priorVisits.flatMap((prior) => prior.triages)].map(
-      (triage) => triage.recordedByUserId,
-    ),
+    [
+      ...[...visit.triages, ...priorVisits.flatMap((prior) => prior.triages)].map(
+        (triage) => triage.recordedByUserId,
+      ),
+      ...visit.attachments.map((attachment) => attachment.uploadedByUserId),
+    ],
     db,
   );
   const triages = visit.triages.map((triage) => toTriageView(triage, names));
@@ -172,6 +179,7 @@ export async function getChpsContext(
       choNote: decryptNullable(consultation.requestNoteEnc),
       triage: triages[0] ?? null,
       triageHistory: triages,
+      attachments: visit.attachments.map((attachment) => toAttachmentView(attachment, names)),
     },
     priorVisits: priorVisits.map((prior): PriorVisitView => {
       const priorConsultation = prior.consultations[0];

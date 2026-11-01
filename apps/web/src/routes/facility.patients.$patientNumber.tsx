@@ -32,6 +32,7 @@ import { DoctorRequest } from "@/features/facility/DoctorRequest";
 import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
 import { VisitReferrals } from "@/features/facility/ReferralPanel";
 import { VisitFollowUps } from "@/features/facility/FollowUpPanel";
+import { VisitAttachments, VisitPrescriptions } from "@/features/facility/RecordsPanels";
 
 export const Route = createFileRoute("/facility/patients/$patientNumber")({
   component: PatientPage,
@@ -237,11 +238,15 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
 
       {visit.encounter ? <DoctorAdvice encounter={visit.encounter} /> : null}
 
+      <VisitPrescriptions visit={visit} />
+
       <DoctorRequest visit={visit} />
 
       <VisitReferrals visit={visit} canRefer />
 
       <VisitFollowUps visit={visit} canSet />
+
+      <VisitAttachments visit={visit} canAdd />
 
       <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
         {!escalated || !visit.escalationNote ? <EscalateForm visit={visit} /> : null}
@@ -550,6 +555,8 @@ function PastVisit({ visit, canSetFollowUp }: { visit: VisitView; canSetFollowUp
         <p className="text-xs text-red-700">Emergency: {visit.escalationNote}</p>
       ) : null}
       {visit.encounter ? <DoctorAdvice encounter={visit.encounter} compact /> : null}
+      <VisitPrescriptions visit={visit} />
+      <VisitAttachments visit={visit} canAdd={false} />
       {visit.referrals.length > 0 ? <VisitReferrals visit={visit} canRefer={false} /> : null}
       {visit.followUps.length > 0 || canSetFollowUp ? (
         <VisitFollowUps visit={visit} canSet={canSetFollowUp} />

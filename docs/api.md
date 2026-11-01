@@ -877,3 +877,28 @@ resolved, presenting complaints as written, and a row per day.
 Days are UTC days, which are Ghana's. Each record counts on the day it
 started: a visit on arrival, a consultation on request, a referral on issue, a
 follow-up on its due date. Complaints are listed, not counted by type (D79).
+
+---
+
+## 20. Prescriptions at the facility, and visit files (slice 2d, D83)
+
+```
+POST   /facility/prescriptions/:publicId/dispense                    given from the compound's stock
+POST   /facility/visits/:publicId/attachments                        multipart: file, label
+GET    /facility/attachments/:publicId                               the file, decrypted
+GET    /doctor/consultations/:publicId/attachments/:attachmentId     the same, for the consultation's doctor
+```
+
+A CHPS prescription is issued by the doctor as on any channel. Each visit view
+carries its `prescriptions` (from every consultation on the visit) with their
+items and whether they were dispensed at the facility. The facility's staff may
+open the prescription PDF at `GET /documents/prescriptions/:publicId.pdf` to
+print it, as the issuing doctor and the dispensing pharmacy can. Dispensing at
+the facility needs `chps-prescription:dispense` and works once; a revoked
+prescription is refused.
+
+Attachments are PDF, JPEG, PNG or WebP, checked against their bytes, limited by
+`UPLOAD_MAX_BYTES`, and encrypted before storage. They are readable by the
+facility's staff and by the doctor of a consultation on the same visit; every
+download is audited. Each visit view carries its `attachments`, and the doctor's
+`…/chps` context lists the current visit's.

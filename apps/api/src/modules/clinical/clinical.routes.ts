@@ -773,7 +773,11 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
       const permitted =
         principal.role === 'ADMIN' ||
         (principal.role === 'DOCTOR' && principal.organisationId === document.doctorId) ||
-        (principal.role === 'PHARMACY' && principal.organisationId === document.pharmacyId);
+        (principal.role === 'PHARMACY' && principal.organisationId === document.pharmacyId) ||
+        // The CHPS compound prints its patient's prescription (D83).
+        (principal.role === 'FACILITY' &&
+          Boolean(document.facilityId) &&
+          principal.organisationId === document.facilityId);
 
       // The same answer as a missing document, deliberately: whether someone
       // else's referral exists is not something a caller should be able to
