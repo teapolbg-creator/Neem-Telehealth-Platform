@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ghanaPhoneSchema } from './onboarding.ts';
 import type { VisitEncounterSummary } from './encounter.ts';
+import type { ReferralView } from './referral.ts';
 
 /**
  * CHPS patients, walk-in visits and triage (CHPS slice 1b, D74, D75).
@@ -43,6 +44,7 @@ export const VISIT_STATUSES = [
   'ESCALATED',
   'CLOSED',
   'CANCELLED',
+  'REFERRED',
 ] as const;
 export type VisitStatus = (typeof VISIT_STATUSES)[number];
 
@@ -52,6 +54,7 @@ export const VISIT_STATUS_LABELS: Record<VisitStatus, string> = {
   ESCALATED: 'Emergency',
   CLOSED: 'Completed',
   CANCELLED: 'Cancelled',
+  REFERRED: 'Referred',
 };
 
 /** A visit is open until it is closed or cancelled. */
@@ -288,7 +291,8 @@ export interface VisitConsultation {
 }
 
 export const visitCloseSchema = z.object({
-  outcome: z.enum(['CLOSED', 'CANCELLED']),
+  /** REFERRED needs a referral on the visit (D80). */
+  outcome: z.enum(['CLOSED', 'CANCELLED', 'REFERRED']),
   note: z.string().trim().min(2, 'Record how the visit ended').max(2000),
 });
 
@@ -328,6 +332,8 @@ export interface VisitView {
   consultation: VisitConsultation | null;
   /** The doctor's finalised record, once there is one (D78). */
   encounter: VisitEncounterSummary | null;
+  /** Referrals from this visit, newest first (D80). */
+  referrals: ReferralView[];
 }
 
 export interface PatientRecord extends PatientSummary {

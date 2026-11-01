@@ -90,6 +90,7 @@ describe('role permissions', () => {
         PERMISSIONS.TRIAGE_WRITE,
         PERMISSIONS.CHPS_CONSULTATION_REQUEST,
         PERMISSIONS.STATION_MANAGE,
+        PERMISSIONS.CHPS_REFERRAL_MANAGE,
       ]);
     });
 

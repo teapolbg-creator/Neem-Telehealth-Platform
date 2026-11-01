@@ -811,3 +811,29 @@ visit view: the doctor's name, assessment, diagnosis, plan, referral and
 follow-up. `GET /doctor/queue` offers for a CHPS consultation carry `chps`:
 facility, district, sex, age, complaint and triage category, so the doctor can
 decide before accepting (brief §B2).
+
+---
+
+## 17. Tracked referrals (slice 2a, D79, D80)
+
+```
+GET    /facility/referral-destinations           active facilities other than this one
+GET    /facility/referrals                       the register: ?status | open=true | from | to (dates)
+POST   /facility/visits/:publicId/referrals       issue: destination, urgency, reason, summary, transport
+POST   /facility/referrals/:publicId/acknowledge  { via, contact? }: the receiving facility expects them
+POST   /facility/referrals/:publicId/outcome      { outcome: ATTENDED | DID_NOT_ARRIVE, via, feedback? }
+POST   /facility/referrals/:publicId/feedback     { feedback }: what the receiving facility said
+POST   /facility/referrals/:publicId/cancel       { reason }, only while still open
+```
+
+Facility staff with `chps-referral:manage`, within their own facility; another
+facility's referral is 404. The receiving facility has no route (D79):
+everything after issue is recorded by the CHO, with who recorded it and how
+they learned it.
+
+A referral is issued from an open visit, to a facility from the registry or to
+a free-text destination; the doctor whose completed consultation it acts on is
+linked automatically. Status starts `ISSUED`, said as "Sent, not yet
+confirmed", and changes only when somebody records news. A visit may be closed
+with `outcome: REFERRED` once it has a referral that is not cancelled. Each
+visit view carries its `referrals`.

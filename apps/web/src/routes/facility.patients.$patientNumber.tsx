@@ -30,6 +30,7 @@ import {
 import { TriageBadge } from "@/features/facility/TriageBadge";
 import { DoctorRequest } from "@/features/facility/DoctorRequest";
 import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
+import { VisitReferrals } from "@/features/facility/ReferralPanel";
 
 export const Route = createFileRoute("/facility/patients/$patientNumber")({
   component: PatientPage,
@@ -231,6 +232,8 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
       {visit.encounter ? <DoctorAdvice encounter={visit.encounter} /> : null}
 
       <DoctorRequest visit={visit} />
+
+      <VisitReferrals visit={visit} canRefer />
 
       <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
         {!escalated || !visit.escalationNote ? <EscalateForm visit={visit} /> : null}
@@ -472,6 +475,7 @@ function EscalateForm({ visit }: { visit: VisitView }) {
 function CloseForm({ visit }: { visit: VisitView }) {
   const close = useCloseVisit(visit.publicId);
   const [note, setNote] = useState("");
+  const referred = visit.referrals.some((referral) => referral.status !== "CANCELLED");
 
   return (
     <div className="space-y-2">
@@ -483,7 +487,17 @@ function CloseForm({ visit }: { visit: VisitView }) {
         onChange={(event) => setNote(event.target.value)}
         className={inputClass}
       />
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        {referred ? (
+          <button
+            type="button"
+            disabled={note.trim().length < 2 || close.isPending}
+            onClick={() => close.mutate({ outcome: "REFERRED", note })}
+            className="flex-1 rounded-lg bg-medical px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            End as referred
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={note.trim().length < 2 || close.isPending}
@@ -528,6 +542,7 @@ function PastVisit({ visit }: { visit: VisitView }) {
         <p className="text-xs text-red-700">Emergency: {visit.escalationNote}</p>
       ) : null}
       {visit.encounter ? <DoctorAdvice encounter={visit.encounter} compact /> : null}
+      {visit.referrals.length > 0 ? <VisitReferrals visit={visit} canRefer={false} /> : null}
       {visit.closingNote ? <p className="text-xs text-slate-500">{visit.closingNote}</p> : null}
     </li>
   );

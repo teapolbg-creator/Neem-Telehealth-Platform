@@ -111,7 +111,7 @@ export function useEscalateVisit(visitPublicId: string) {
 export function useCloseVisit(visitPublicId: string) {
   const invalidate = useInvalidateFacility();
   return useMutation({
-    mutationFn: (input: { outcome: "CLOSED" | "CANCELLED"; note: string }) =>
+    mutationFn: (input: { outcome: "CLOSED" | "CANCELLED" | "REFERRED"; note: string }) =>
       api.post<{ status: VisitStatus }>(`/facility/visits/${visitPublicId}/close`, input),
     onSuccess: invalidate,
   });
@@ -190,4 +190,5 @@ export const VISIT_STATUS_TONE: Record<VisitStatus, "brand" | "warning" | "dange
   ESCALATED: "danger",
   CLOSED: "muted",
   CANCELLED: "muted",
+  REFERRED: "muted",
 };

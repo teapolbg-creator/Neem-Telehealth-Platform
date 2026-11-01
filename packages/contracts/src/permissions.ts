@@ -60,6 +60,8 @@ export const PERMISSIONS = {
   CHPS_CONSULTATION_REQUEST: 'chps-consultation:request',
   /** Pair, revoke and direct the facility's consultation stations (D77). */
   STATION_MANAGE: 'station:manage',
+  /** Issue and track a CHPS compound's referrals (D80). */
+  CHPS_REFERRAL_MANAGE: 'chps-referral:manage',
   SHIFT_MANAGE: 'shift:manage',
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
@@ -129,7 +131,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   /**
    * CHPS facility staff (D73). Each slice adds exactly what it needs:
    * registration, the patient record and triage arrived with 1b (D75), and
-   * requesting a doctor with 1c (D76), and stations with 1d (D77).
+   * requesting a doctor with 1c (D76), stations with 1d (D77), and tracked
+   * referrals with 2a (D80).
    * Always within their own facility, which the service checks.
    */
   FACILITY: [
@@ -138,6 +141,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.TRIAGE_WRITE,
     P.CHPS_CONSULTATION_REQUEST,
     P.STATION_MANAGE,
+    P.CHPS_REFERRAL_MANAGE,
   ],
 
   ADMIN: Object.values(P),

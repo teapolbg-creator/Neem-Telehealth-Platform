@@ -2910,3 +2910,41 @@ The operator answered the questions in docs/v2-chps-plan.md, Phase 2.
    the facility.** The doctor issues it as today, with its verification code;
    the patient may take it to any pharmacy, and the CHO marks it dispensed at
    the facility when the compound has the medicine in stock.
+
+---
+
+### D80 — A CHPS referral is tracked until somebody hears back, and only a person moves it on · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 2a: brief §A7 and Scenario 5. Receiving facilities have no
+accounts (D79).
+
+**Decision.**
+
+- **A new record, not the doctor's referral document.** `ChpsReferral` is the
+  CHO's working record: destination, department, urgency, reason, clinical
+  summary, transport, and what became of it. The pharmacy channels' `Referral`
+  is a signed PDF the doctor issues and nothing more; the two are kept apart so
+  neither has to mean both.
+- **Issued by the CHO, from an open visit.** That covers a referral the doctor
+  advised and an emergency one with no doctor at all (Scenario 3). When the
+  visit had a completed consultation, the referral links to it and names the
+  doctor whose advice it carries out.
+- **The registry first, free text when it must.** A destination is a facility
+  from the registry where one exists, so referrals to it can be counted and
+  traced; a destination the registry does not have yet is typed, rather than
+  turning a patient away from the form.
+- **Nothing moves by itself.** `ISSUED` ("Sent, not yet confirmed") becomes
+  `ACKNOWLEDGED` when the receiving facility says it expects the patient, and
+  `ATTENDED` or `DID_NOT_ARRIVE` when it says what happened. Each is recorded by
+  a named member of staff, with how they learned it (phone, in person) and who
+  told them. Feedback can be added after the outcome, because it often comes
+  later.
+- **A visit can end as REFERRED**, a new visit status (brief §A5), but only
+  with a referral on it that is not cancelled.
+- **A register, not a report.** Each facility has a referral register, filterable
+  by status, open or not, and date, with days outstanding for those still
+  waiting. Counting referrals across facilities is Phase 3.
+
+**What was not done.** No reminders when a referral waits too long; no
+printed referral slip yet (the reference number is shown and can be written on
+the facility's own form). Referral statistics belong to the reports in 2c.

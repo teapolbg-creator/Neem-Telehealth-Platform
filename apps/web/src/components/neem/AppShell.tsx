@@ -59,6 +59,7 @@ const NAV: Record<
   facility: [
     { label: "Today", to: "/facility" },
     { label: "Find or register", to: "/facility/register" },
+    { label: "Referrals", to: "/facility/referrals" },
   ],
   admin: [
     { label: "Overview", to: "/admin" },

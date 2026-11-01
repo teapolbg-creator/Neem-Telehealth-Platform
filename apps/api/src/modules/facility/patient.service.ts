@@ -30,6 +30,12 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
 import { toEncounterSummary } from '../clinical/chps-encounter.service.ts';
 import {
+  referralActorIds,
+  referralInclude,
+  toReferralView,
+  visitHasReferral,
+} from './referral.service.ts';
+import {
   activeConsultationFor,
   toConsultationView,
   withdrawWaitingRequest,
@@ -183,6 +189,7 @@ const consultationInclude = {
 const visitInclude = {
   triages: { orderBy: { recordedAt: 'desc' } },
   consultations: consultationInclude,
+  referrals: { orderBy: { issuedAt: 'desc' }, include: referralInclude },
 } satisfies Prisma.PatientVisitInclude;
 
 type VisitRow = Prisma.PatientVisitGetPayload<{ include: typeof visitInclude }>;
@@ -231,6 +238,7 @@ function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
           row.consultations[0].doctor?.fullName ?? null,
         )
       : null,
+    referrals: row.referrals.map((referral) => toReferralView(referral, names)),
   };
 }
 
@@ -452,7 +460,10 @@ export async function getPatientRecord(
   });
 
   const names = await staffNames(
-    visits.flatMap((visit) => visit.triages.map((triage) => triage.recordedByUserId)),
+    visits.flatMap((visit) => [
+      ...visit.triages.map((triage) => triage.recordedByUserId),
+      ...referralActorIds(visit.referrals),
+    ]),
     db,
   );
   const visitViews = visits.map((visit) => toVisitView(visit, names));
@@ -671,7 +682,7 @@ export async function escalateVisit(
 export async function closeVisit(
   ctx: StaffContext,
   visitPublicId: string,
-  input: { outcome: 'CLOSED' | 'CANCELLED'; note: string },
+  input: { outcome: 'CLOSED' | 'CANCELLED' | 'REFERRED'; note: string },
   db: Db = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<{ status: VisitStatus }> {
@@ -680,6 +691,9 @@ export async function closeVisit(
     throw errors.businessRule(
       'A doctor request for this visit is still open. Withdraw it, or wait for the doctor to finish, before ending the visit.',
     );
+  }
+  if (input.outcome === 'REFERRED' && !(await visitHasReferral(visit.id, db))) {
+    throw errors.businessRule('Record the referral before ending the visit as referred.');
   }
   await db.patientVisit.update({
     where: { id: visit.id },

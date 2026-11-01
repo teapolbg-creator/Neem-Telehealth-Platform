@@ -84,6 +84,13 @@ export const AUDIT_ACTIONS = {
   /** CHPS slice 1e (D78). Finalising is the consultation's completion; amendments are their own. */
   ENCOUNTER_AMENDED: 'encounter.amended',
 
+  /** CHPS slice 2a (D80). Each step records who learned what, and how. */
+  REFERRAL_ISSUED: 'referral.issued',
+  REFERRAL_ACKNOWLEDGED: 'referral.acknowledged',
+  REFERRAL_OUTCOME_RECORDED: 'referral.outcome-recorded',
+  REFERRAL_FEEDBACK_RECORDED: 'referral.feedback-recorded',
+  REFERRAL_CANCELLED: 'referral.cancelled',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

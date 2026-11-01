@@ -388,6 +388,32 @@ enum VisitStatus {
   /// Finished at the facility, with or without a remote doctor.
   CLOSED
   CANCELLED
+  /// Ended by sending the patient on to another facility (slice 2a, D80).
+  REFERRED
+}
+
+/// How urgent a referral is (slice 2a, D80).
+enum ReferralUrgency {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+/// Where a referral has got to. Never past ISSUED until somebody at the
+/// facility has confirmed it with the receiving facility (brief §A7, D79).
+enum ReferralStatus {
+  ISSUED
+  ACKNOWLEDGED
+  ATTENDED
+  DID_NOT_ARRIVE
+  CANCELLED
+}
+
+/// How the CHO learned what they are recording (D79).
+enum ReferralContactMethod {
+  PHONE
+  IN_PERSON
+  OTHER
 }
 
 /// Red, orange, yellow, green, assigned by the CHO (D74).
@@ -1094,6 +1120,7 @@ model Consultation {
   visit          PatientVisit?    @relation(fields: [visitId], references: [id], onDelete: Restrict)
   station        FacilityStation?
   encounter      EncounterRecord?
+  chpsReferrals  ChpsReferral[]
 
   stateEvents         ConsultationStateEvent[]
   accessTokens        ConsultationAccessToken[]
@@ -2557,6 +2584,8 @@ model Facility {
   visits        PatientVisit[]
   consultations Consultation[]
   stations      FacilityStation[]
+  referralsSent ChpsReferral[]    @relation("ReferralOrigin")
+  referralsIn   ChpsReferral[]    @relation("ReferralDestination")
 
   @@index([districtId, status])
   @@index([type, status])
@@ -2652,6 +2681,7 @@ model Patient {
   accesses      PatientRecordAccess[]
   consultations Consultation[]
   encounters    EncounterRecord[]
+  referrals     ChpsReferral[]
 
   @@index([facilityId, createdAt])
   @@index([facilityId, phoneHash])
@@ -2688,6 +2718,7 @@ model PatientVisit {
   facility      Facility       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
   triages       TriageRecord[]
   consultations Consultation[]
+  referrals     ChpsReferral[]
 
   @@index([facilityId, arrivedAt])
   @@index([facilityId, status])
@@ -2819,4 +2850,69 @@ model EncounterRecordVersion {
 
   @@unique([encounterId, version])
   @@map("encounter_record_versions")
+}
+
+/// A referral from a CHPS compound, tracked until the receiving facility's
+/// response is known (slice 2a, D80).
+///
+/// Distinct from `Referral`, which is a doctor's signed document for the
+/// pharmacy channels. This is the CHO's working record: where the patient was
+/// sent, how, whether they arrived, and what the receiving facility said. The
+/// receiving facility has no Neem account (D79), so everything after ISSUED is
+/// recorded by facility staff, with who recorded it and how they learned it.
+model ChpsReferral {
+  id             String  @id @default(uuid(7))
+  /// Printed on the referral slip and quoted on the phone.
+  publicId       String  @unique @db.VarChar(16)
+  facilityId     String
+  patientId      String
+  visitId        String
+  /// The doctor's consultation whose advice it acts on, when there was one.
+  consultationId String?
+
+  /// From the facility registry where possible; otherwise free text.
+  destinationFacilityId String?
+  destinationName       String  @db.VarChar(200)
+  destinationDepartment String? @db.VarChar(160)
+
+  urgency ReferralUrgency
+  status  ReferralStatus  @default(ISSUED)
+
+  reasonEnc          String  @db.Text
+  clinicalSummaryEnc String? @db.Text
+  /// How the patient is getting there, e.g. "NAS ambulance called 10:42".
+  transportEnc       String? @db.Text
+
+  issuedByUserId String
+  issuedAt       DateTime @default(now())
+
+  acknowledgedAt       DateTime?
+  acknowledgedByUserId String?
+  acknowledgedVia      ReferralContactMethod?
+  /// Who at the receiving facility confirmed it.
+  acknowledgedContact  String?                @db.VarChar(160)
+
+  outcomeAt       DateTime?
+  outcomeByUserId String?
+
+  feedbackEnc      String?   @db.Text
+  feedbackAt       DateTime?
+  feedbackByUserId String?
+
+  cancelledAt  DateTime?
+  cancelReason String?   @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  facility            Facility      @relation("ReferralOrigin", fields: [facilityId], references: [id], onDelete: Restrict)
+  destinationFacility Facility?     @relation("ReferralDestination", fields: [destinationFacilityId], references: [id], onDelete: Restrict)
+  patient             Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  visit               PatientVisit  @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  consultation        Consultation? @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+
+  @@index([facilityId, issuedAt])
+  @@index([facilityId, status])
+  @@index([patientId, issuedAt])
+  @@map("chps_referrals")
 }

@@ -1,6 +1,6 @@
 # Neem V2 (CHPS): assessment and migration plan
 
-**Status: Phase 1 built (slices 1a–1e, D73, D75–D78); Phases 2–4 are proposal.** Written 2026-10-31 against `main` at
+**Status: Phase 1 and slice 2a built (D73, D75–D80); the rest is proposal.** Written 2026-10-31 against `main` at
 `3964406`.
 
 "V2" already names something else in this repository: the patient-direct channel
@@ -130,12 +130,12 @@ provider, and once by hand against Whereby on a real tablet.
 
 Patient history is already built (D74, D78). What remains, in four slices:
 
-| Slice | Delivers                                                                                                                                                                                                                                                                                                                                                         | Depends on |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 2a    | Referrals as tracked records: destination from the facility registry, reason and clinical summary drawn from the encounter record, urgency, transport, status `ISSUED → ACKNOWLEDGED → ATTENDED / DID NOT ARRIVE`, feedback from the receiving facility, and an emergency referral straight from an escalated visit (Scenario 3). Referral register per facility | Q7         |
-| 2b    | Follow-up records from the doctor's follow-up instruction: due date, done or missed, and a follow-up list on the CHO's Today page                                                                                                                                                                                                                                |            |
-| 2c    | Daily and monthly facility reports (brief §A8) with date filters                                                                                                                                                                                                                                                                                                 | Q8         |
-| 2d    | Prescriptions for CHPS patients, and attachments on a visit through the existing storage adapter                                                                                                                                                                                                                                                                 | Q9         |
+| Slice | Delivers                                                                                                                                                                                                                                                                                                                   | Depends on |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 2a    | **Built (D80).** Tracked referrals: registry or free-text destination, urgency, reason, clinical summary, transport; issued → acknowledged → attended or did not arrive, each recorded by the CHO with how they learned it; feedback; emergency referrals from escalated visits; visits end as Referred; referral register | —          |
+| 2b    | Follow-up records from the doctor's follow-up instruction: due date, done or missed, and a follow-up list on the CHO's Today page                                                                                                                                                                                          |            |
+| 2c    | Daily and monthly facility reports (brief §A8) with date filters                                                                                                                                                                                                                                                           | Q8         |
+| 2d    | Prescriptions for CHPS patients, and attachments on a visit through the existing storage adapter                                                                                                                                                                                                                           | Q9         |
 
 **Milestone:** Scenario 5 end to end.
 
