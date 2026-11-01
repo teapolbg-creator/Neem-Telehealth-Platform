@@ -13,6 +13,14 @@
 /** Shown wherever a pharmacy name would be, for a consultation with no pharmacy. */
 export const DIRECT_ORIGIN_NAME = 'Neem online';
 
-export function originName(pharmacy: { name: string } | null | undefined): string {
-  return pharmacy?.name ?? DIRECT_ORIGIN_NAME;
+/**
+ * A CHPS consultation comes from its facility (D76); the facility is passed by
+ * the callers that load it, and a consultation has a pharmacy or a facility,
+ * never both.
+ */
+export function originName(
+  pharmacy: { name: string } | null | undefined,
+  facility?: { name: string } | null,
+): string {
+  return pharmacy?.name ?? facility?.name ?? DIRECT_ORIGIN_NAME;
 }

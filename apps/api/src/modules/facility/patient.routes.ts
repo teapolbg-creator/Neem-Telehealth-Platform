@@ -6,6 +6,8 @@ import {
   patientSearchSchema,
   patientUpdateSchema,
   triageCreateSchema,
+  chpsConsultationCancelSchema,
+  chpsConsultationRequestSchema,
   visitCloseSchema,
   visitCreateSchema,
   visitEscalateSchema,
@@ -23,6 +25,7 @@ import {
   staffContext,
   updatePatient,
 } from './patient.service.ts';
+import { cancelRequest, requestConsultation } from './chps-consultation.service.ts';
 
 /**
  * CHPS patients, visits and triage (CHPS slice 1b, D75) — docs/api.md §14.
@@ -41,6 +44,10 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
     permissions: [PERMISSIONS.PATIENT_RECORD_READ],
   });
   const triage = guard({ roles: ['FACILITY'], permissions: [PERMISSIONS.TRIAGE_WRITE] });
+  const requestDoctor = guard({
+    roles: ['FACILITY'],
+    permissions: [PERMISSIONS.CHPS_CONSULTATION_REQUEST],
+  });
 
   const ctx = (request: FastifyRequest, write: boolean) =>
     staffContext(requireAuth(request), { write, correlationId: request.correlationId });
@@ -108,6 +115,28 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
       const { publicId } = visitParams.parse(request.params);
       const { note } = visitEscalateSchema.parse(request.body);
       const data = await escalateVisit(await ctx(request, true), publicId, note);
+      return reply.send({ data, meta: { requestId: request.correlationId } });
+    },
+  );
+
+  app.post(
+    '/facility/visits/:publicId/consultation',
+    { preHandler: requestDoctor },
+    async (request, reply) => {
+      const { publicId } = visitParams.parse(request.params);
+      const input = chpsConsultationRequestSchema.parse(request.body);
+      const data = await requestConsultation(await ctx(request, true), publicId, input);
+      return reply.status(201).send({ data, meta: { requestId: request.correlationId } });
+    },
+  );
+
+  app.post(
+    '/facility/visits/:publicId/consultation/cancel',
+    { preHandler: requestDoctor },
+    async (request, reply) => {
+      const { publicId } = visitParams.parse(request.params);
+      const { reason } = chpsConsultationCancelSchema.parse(request.body);
+      const data = await cancelRequest(await ctx(request, true), publicId, reason);
       return reply.send({ data, meta: { requestId: request.correlationId } });
     },
   );

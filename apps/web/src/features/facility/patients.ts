@@ -7,6 +7,7 @@ import type {
   PatientUpdate,
   TriageCategory,
   TriageCreate,
+  VisitConsultation,
   VisitStatus,
 } from "@neem/contracts";
 import { api } from "@/lib/api-client";
@@ -114,6 +115,38 @@ export function useCloseVisit(visitPublicId: string) {
       api.post<{ status: VisitStatus }>(`/facility/visits/${visitPublicId}/close`, input),
     onSuccess: invalidate,
   });
+}
+
+export function useRequestDoctor(visitPublicId: string) {
+  const invalidate = useInvalidateFacility();
+  return useMutation({
+    mutationFn: (input: { languageCode: string; type: "VIDEO" | "AUDIO"; note?: string }) =>
+      api.post<VisitConsultation>(`/facility/visits/${visitPublicId}/consultation`, input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useWithdrawRequest(visitPublicId: string) {
+  const invalidate = useInvalidateFacility();
+  return useMutation({
+    mutationFn: (reason: string) =>
+      api.post<VisitConsultation>(`/facility/visits/${visitPublicId}/consultation/cancel`, {
+        reason,
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+/** States in which no doctor has accepted yet, so the facility may still withdraw. */
+export const WAITING_FOR_DOCTOR_STATES = ["WAITING_FOR_DOCTOR", "ASSIGNED", "REASSIGNING"];
+
+export function consultationTone(
+  state: string,
+): "brand" | "warning" | "danger" | "muted" | "medical" {
+  if (WAITING_FOR_DOCTOR_STATES.includes(state)) return "warning";
+  if (["DOCTOR_ACCEPTED", "IN_PROGRESS", "COMPLETING"].includes(state)) return "medical";
+  if (state === "INTERRUPTED" || state === "EXPIRED") return "danger";
+  return "muted";
 }
 
 /** "34 y", "7 m", or "34 y (est.)" for an estimated age. */

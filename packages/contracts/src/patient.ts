@@ -244,6 +244,48 @@ export const visitEscalateSchema = z.object({
     .max(2000),
 });
 
+/** Asking for a Neem doctor for a triaged visit (slice 1c, D76). */
+export const chpsConsultationRequestSchema = z.object({
+  languageCode: z.string().trim().min(2).max(8),
+  type: z.enum(['VIDEO', 'AUDIO']).default('VIDEO'),
+  note: z.string().trim().max(1000).optional(),
+});
+export type ChpsConsultationRequest = z.infer<typeof chpsConsultationRequestSchema>;
+
+export const chpsConsultationCancelSchema = z.object({
+  reason: z.string().trim().min(2, 'Say why the request is withdrawn').max(500),
+});
+
+/**
+ * A consultation's state in words for the facility (D76). Says what is true —
+ * "waiting for a doctor" until one has accepted, never sooner.
+ */
+export const CHPS_CONSULTATION_PROGRESS: Record<string, string> = {
+  WAITING_FOR_DOCTOR: 'Waiting for a doctor',
+  ASSIGNED: 'Waiting for a doctor',
+  REASSIGNING: 'Waiting for a doctor',
+  DOCTOR_ACCEPTED: 'Doctor accepted',
+  IN_PROGRESS: 'In consultation',
+  INTERRUPTED: 'Call interrupted',
+  COMPLETING: 'Doctor finishing notes',
+  COMPLETED: 'Consultation completed',
+  CANCELLED: 'Request withdrawn',
+  EXPIRED: 'No doctor was available',
+  ABANDONED: 'Consultation ended',
+};
+
+export interface VisitConsultation {
+  reference: string;
+  state: string;
+  type: 'VIDEO' | 'AUDIO';
+  requestedAt: string;
+  /** Only once a doctor has accepted; an offer can still be declined. */
+  doctorName: string | null;
+  language: string | null;
+  /** True until the consultation reaches an end state. */
+  active: boolean;
+}
+
 export const visitCloseSchema = z.object({
   outcome: z.enum(['CLOSED', 'CANCELLED']),
   note: z.string().trim().min(2, 'Record how the visit ended').max(2000),
@@ -282,6 +324,7 @@ export interface VisitView {
   closingNote: string | null;
   triage: TriageView | null;
   triageHistory: TriageView[];
+  consultation: VisitConsultation | null;
 }
 
 export interface PatientRecord extends PatientSummary {
@@ -305,6 +348,7 @@ export interface VisitBoardRow {
   arrivedAt: string;
   presentingComplaint: string;
   triageCategory: TriageCategory | null;
+  consultation: VisitConsultation | null;
   patient: {
     patientNumber: string;
     fullName: string;
@@ -319,5 +363,9 @@ export interface FacilityDaySummary {
   waiting: number;
   escalatedToday: number;
   closedToday: number;
+  /** Requests no doctor has accepted yet (D76). */
+  awaitingDoctor: number;
+  /** Consultations a doctor has accepted and not yet finished. */
+  withDoctor: number;
   board: VisitBoardRow[];
 }

@@ -102,6 +102,10 @@ export async function recordEarning(
   if (!consultation) return false;
   if (!consultation.doctorId || !consultation.doctor) return false;
 
+  // Government pays the doctors who serve CHPS compounds a salary (D74), so a
+  // CHPS consultation earns nothing through Neem.
+  if (consultation.channel === 'CHPS') return false;
+
   const payment = consultation.payments[0];
   if (!payment) return false;
 

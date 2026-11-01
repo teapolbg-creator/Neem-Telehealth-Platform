@@ -47,6 +47,8 @@ import { SETTING_KEYS } from '../settings/settings.defaults.ts';
 /** The only reason a fee is waived today. Stored on the consultation. */
 export const FEE_WAIVER_REASONS = {
   PILOT_FREE: 'pilot_free',
+  /** Free to the patient at a CHPS compound, always (D74). */
+  CHPS_FREE: 'chps_free',
 } as const;
 
 export type FeeWaiverReason = (typeof FEE_WAIVER_REASONS)[keyof typeof FEE_WAIVER_REASONS];

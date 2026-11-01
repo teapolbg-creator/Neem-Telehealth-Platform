@@ -259,6 +259,7 @@ export async function offerNextDoctor(
       language: true,
       queueEntry: true,
       pharmacy: { select: { name: true } },
+      facility: { select: { name: true } },
       service: { select: { id: true, discipline: true, clinic: true } },
       appointment: { select: { doctorId: true, state: true } },
     },
@@ -387,7 +388,10 @@ export async function offerNextDoctor(
   void notify({
     templateCode: 'doctor.consultation.offered',
     recipient: { type: 'DOCTOR', doctorId: best.doctorId },
-    variables: { pharmacyName: originName(consultation.pharmacy), seconds: windowSeconds },
+    variables: {
+      pharmacyName: originName(consultation.pharmacy, consultation.facility),
+      seconds: windowSeconds,
+    },
   });
   emitToConsultation(consultation.publicId, 'consultation.state_changed', { state: 'ASSIGNED' });
 
@@ -641,6 +645,7 @@ export async function enforceResponseWindow(
           publicId: true,
           state: true,
           pharmacy: { select: { name: true } },
+          facility: { select: { name: true } },
         },
       },
     },
@@ -713,7 +718,12 @@ export async function enforceResponseWindow(
       void notify({
         templateCode: 'doctor.consultation.missed',
         recipient: { type: 'DOCTOR', doctorId: assignment.doctorId },
-        variables: { pharmacyName: originName(assignment.consultation.pharmacy) },
+        variables: {
+          pharmacyName: originName(
+            assignment.consultation.pharmacy,
+            assignment.consultation.facility,
+          ),
+        },
       });
 
       // Straight back into allocation; the patient is never left stranded.

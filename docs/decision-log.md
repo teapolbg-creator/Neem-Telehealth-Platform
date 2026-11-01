@@ -2755,3 +2755,51 @@ The operator answered the four open questions in docs/v2-chps-plan.md §4.
 **What was not done.** Requesting a doctor from a visit is slice 1c. The
 emergency path records what the CHO did; an emergency referral record with a
 destination and transport is Phase 2.
+
+---
+
+### D76 — A CHPS request is an ordinary consultation that starts in the queue · 2026-10-31 · **DECIDED**
+
+**Context.** Slice 1c: a CHO asks for a Neem doctor for a triaged walk-in.
+
+**Decision.**
+
+- **One queue, one set of rules.** A request becomes a `Consultation` with a
+  new channel, `CHPS`, and goes through the same queue, matching, offers,
+  reassignment, interruption handling and wait limits as every other
+  consultation. A parallel queue for CHPS would be a second place for
+  allocation to be wrong.
+- **It starts in the queue.** The patient is already in the room with the
+  CHO, so the consultation is activated free (the D69 waiver path, reason
+  `chps_free`) and moved straight to `WAITING_FOR_DOCTOR` in the same
+  transaction, then offered at once instead of at the next sweep. Every state
+  is still passed through, so its history reads like any other.
+- **Price zero, not a discount.** `priceMinor` and `netMinor` are both 0: no
+  fee would ever have been charged (D74), unlike the pilot, where the waived
+  price is kept to measure it. `recordEarning` returns early for `CHPS`.
+- **Linked three ways.** `facilityId`, `chpsPatientId` and `visitId` are set
+  together, and a database CHECK constraint refuses one without the others.
+  The patient details the doctor's workspace reads are copied from the
+  facility's record into the consultation's patient session.
+- **Only from a triaged visit off the emergency path.** Before triage, for a
+  red or escalated visit, or with no doctor on duty, the request is refused
+  with a sentence telling the CHO what to do instead. Scenario 2 of the brief
+  is this refusal: no consultation is created, and the patient stays on the
+  board with the CHO.
+- **The facility sees the truth.** A doctor is named only once they have
+  accepted; an offer can still be declined. "Waiting for a doctor" covers
+  waiting, offered and reassigning alike.
+- **Withdrawing.** Allowed until a doctor accepts, without a refund request,
+  since nothing was charged; the counter's `cancelConsultation` would raise one,
+  so CHPS does not use it. After acceptance only the doctor ends it (D57), and
+  the visit cannot be closed under them.
+- **Emergency wins.** Escalating a visit, or triaging it red, withdraws a
+  request still waiting for a doctor. One a doctor has already accepted stays:
+  that doctor may be the help the CHO needs.
+
+**What was not done.** The patient joining the call on the facility station is
+slice 1d; until then an accepted CHPS consultation has nobody to join it on the
+patient side. The doctor's view of the CHO's assessment and the structured
+encounter record are slice 1e. A CHPS consultation's clinical notes are still
+sealed by D23 when it ends; carrying them into the readable CHPS record (D74)
+is part of 1e.

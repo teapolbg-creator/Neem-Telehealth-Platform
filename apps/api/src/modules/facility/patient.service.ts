@@ -28,6 +28,11 @@ import {
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
+import {
+  activeConsultationFor,
+  toConsultationView,
+  withdrawWaitingRequest,
+} from './chps-consultation.service.ts';
 
 /**
  * CHPS patients, walk-in visits and triage (CHPS slice 1b, D74, D75).
@@ -102,7 +107,7 @@ function birthDateFromAge(years: number, months: number, now: Date): Date {
 // Who is asking
 // ---------------------------------------------------------------------------
 
-interface StaffContext {
+export interface StaffContext {
   userId: string;
   facilityId: string;
   correlationId?: string;
@@ -164,8 +169,18 @@ async function audit(
 // Views
 // ---------------------------------------------------------------------------
 
+const consultationInclude = {
+  orderBy: { createdAt: 'desc' },
+  take: 1,
+  include: {
+    doctor: { select: { fullName: true } },
+    language: { select: { label: true } },
+  },
+} satisfies Prisma.PatientVisit$consultationsArgs;
+
 const visitInclude = {
   triages: { orderBy: { recordedAt: 'desc' } },
+  consultations: consultationInclude,
 } satisfies Prisma.PatientVisitInclude;
 
 type VisitRow = Prisma.PatientVisitGetPayload<{ include: typeof visitInclude }>;
@@ -204,6 +219,7 @@ function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
     closingNote: decryptNullable(row.closingNoteEnc),
     triage: triages[0] ?? null,
     triageHistory: triages,
+    consultation: row.consultations[0] ? toConsultationView(row.consultations[0]) : null,
   };
 }
 
@@ -598,6 +614,9 @@ export async function recordTriage(
     where: { id: visit.id },
     data: { status, escalatedAt: status === 'ESCALATED' ? (visit.escalatedAt ?? now) : null },
   });
+  if (status === 'ESCALATED') {
+    await withdrawWaitingRequest(ctx, visit.id, db as PrismaClient, clock);
+  }
 
   await audit(
     ctx,
@@ -631,6 +650,8 @@ export async function escalateVisit(
       escalationNoteEnc: encryptField(note),
     },
   });
+  // An emergency does not wait in the queue (D74, D76).
+  await withdrawWaitingRequest(ctx, visit.id, db as PrismaClient, clock);
   await audit(ctx, AUDIT_ACTIONS.VISIT_ESCALATED, 'patient_visit', visit.id, {}, db);
   return { status: 'ESCALATED' };
 }
@@ -644,6 +665,11 @@ export async function closeVisit(
   clock: Clock = systemClock,
 ): Promise<{ status: VisitStatus }> {
   const visit = await findOpenVisit(ctx, visitPublicId, db);
+  if (await activeConsultationFor(visit.id, db)) {
+    throw errors.businessRule(
+      'A doctor request for this visit is still open. Withdraw it, or wait for the doctor to finish, before ending the visit.',
+    );
+  }
   await db.patientVisit.update({
     where: { id: visit.id },
     data: {
@@ -693,6 +719,7 @@ export async function facilityDay(
         select: { patientNumber: true, fullNameEnc: true, sex: true, dateOfBirth: true },
       },
       triages: { orderBy: { recordedAt: 'desc' }, take: 1, select: { category: true } },
+      consultations: consultationInclude,
     },
   });
 
@@ -708,12 +735,23 @@ export async function facilityDay(
     closedToday: visits.filter(
       (visit) => visit.status === 'CLOSED' && visit.closedAt !== null && visit.closedAt >= dayStart,
     ).length,
+    awaitingDoctor: visits.filter((visit) =>
+      ['WAITING_FOR_DOCTOR', 'ASSIGNED', 'REASSIGNING'].includes(
+        visit.consultations[0]?.state ?? '',
+      ),
+    ).length,
+    withDoctor: visits.filter((visit) =>
+      ['DOCTOR_ACCEPTED', 'IN_PROGRESS', 'INTERRUPTED', 'COMPLETING'].includes(
+        visit.consultations[0]?.state ?? '',
+      ),
+    ).length,
     board: visits.map((visit) => ({
       publicId: visit.publicId,
       status: visit.status,
       arrivedAt: visit.arrivedAt.toISOString(),
       presentingComplaint: decryptField(visit.presentingComplaintEnc),
       triageCategory: visit.triages[0]?.category ?? null,
+      consultation: visit.consultations[0] ? toConsultationView(visit.consultations[0]) : null,
       patient: {
         patientNumber: visit.patient.patientNumber,
         fullName: decryptField(visit.patient.fullNameEnc),

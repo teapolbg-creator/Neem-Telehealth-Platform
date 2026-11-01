@@ -28,6 +28,7 @@ import {
   useRecordTriage,
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
+import { DoctorRequest } from "@/features/facility/DoctorRequest";
 
 export const Route = createFileRoute("/facility/patients/$patientNumber")({
   component: PatientPage,
@@ -225,6 +226,8 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
       {visit.triage ? <TriageSummary triage={visit.triage} /> : null}
 
       <TriageForm visit={visit} />
+
+      <DoctorRequest visit={visit} />
 
       <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
         {!escalated || !visit.escalationNote ? <EscalateForm visit={visit} /> : null}

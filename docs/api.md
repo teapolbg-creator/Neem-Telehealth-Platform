@@ -714,6 +714,8 @@ POST   /facility/patients/:patientNumber/visits    a returning patient; one open
 POST   /facility/visits/:publicId/triage           red, orange, yellow or green, with vital signs
 POST   /facility/visits/:publicId/escalate         the emergency path, with a note of what was done
 POST   /facility/visits/:publicId/close            CLOSED or CANCELLED, with a note
+POST   /facility/visits/:publicId/consultation         request a Neem doctor (slice 1c, D76)
+POST   /facility/visits/:publicId/consultation/cancel  withdraw a request no doctor has accepted
 ```
 
 Facility staff only, always inside their own facility. Another facility's
@@ -734,3 +736,14 @@ Names, contacts and clinical text are encrypted; search runs on keyed hashes.
 optional and checked only for plausibility. A re-triage adds a record and never
 edits one. **Red moves the visit to `ESCALATED` at once**, and a later milder
 category does not move it back.
+
+**Requesting a doctor (slice 1c, D76)** takes `{ languageCode, type: VIDEO | AUDIO,
+note? }` and needs the `chps-consultation:request` permission. It is refused
+before triage, for a visit on the emergency path, and when no doctor is on
+duty, with a sentence the CHO can act on. Otherwise it creates a free `CHPS`
+consultation that enters the ordinary queue at once and is offered straight
+away. Every visit view carries `consultation`: its state, and the doctor's name
+**only once they have accepted**. One open request per visit. A request can be
+withdrawn until a doctor accepts; escalating the visit, or a red triage,
+withdraws a waiting request automatically and leaves an accepted one alone. A
+visit cannot be ended while its request is open.

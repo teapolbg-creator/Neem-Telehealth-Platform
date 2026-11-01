@@ -111,6 +111,9 @@ enum ConsultationState {
 enum ConsultationChannel {
   COUNTER
   DIRECT
+  /// Requested by a CHPS compound for a walk-in patient (D76). Free, and paid
+  /// for by nobody through Neem: doctors are salaried by government (D74).
+  CHPS
 }
 
 /// Who delivers a service (v2). Every professional who existed before v2 is a
@@ -951,6 +954,11 @@ model Consultation {
   serviceId        String?
   /// Set when the patient booked through an account they can come back to (v2).
   patientAccountId String?
+  /// The CHPS compound, patient and walk-in visit a CHPS consultation was
+  /// requested for (D76). All three are set together, or none is.
+  facilityId       String?
+  chpsPatientId    String?
+  visitId          String?
   doctorId         String?
   state            ConsultationState   @default(PENDING_PAYMENT)
   type             ConsultationType?
@@ -1078,6 +1086,9 @@ model Consultation {
   promotion      Promotion?      @relation(fields: [promotionId], references: [id], onDelete: Restrict)
   service        Service?        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   patientAccount PatientAccount? @relation(fields: [patientAccountId], references: [id], onDelete: SetNull)
+  facility       Facility?       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  chpsPatient    Patient?        @relation(fields: [chpsPatientId], references: [id], onDelete: Restrict)
+  visit          PatientVisit?   @relation(fields: [visitId], references: [id], onDelete: Restrict)
 
   stateEvents         ConsultationStateEvent[]
   accessTokens        ConsultationAccessToken[]
@@ -1104,6 +1115,8 @@ model Consultation {
   earning             ProfessionalEarning?
 
   @@index([pharmacyId, createdAt])
+  @@index([facilityId, createdAt])
+  @@index([visitId])
   @@index([doctorId, createdAt])
   @@index([state])
   @@index([completedAt])
@@ -2532,11 +2545,12 @@ model Facility {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  district    District       @relation(fields: [districtId], references: [id], onDelete: Restrict)
-  subDistrict SubDistrict?   @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
-  staff       FacilityUser[]
-  patients    Patient[]
-  visits      PatientVisit[]
+  district      District       @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  subDistrict   SubDistrict?   @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
+  staff         FacilityUser[]
+  patients      Patient[]
+  visits        PatientVisit[]
+  consultations Consultation[]
 
   @@index([districtId, status])
   @@index([type, status])
@@ -2627,9 +2641,10 @@ model Patient {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  facility Facility              @relation(fields: [facilityId], references: [id], onDelete: Restrict)
-  visits   PatientVisit[]
-  accesses PatientRecordAccess[]
+  facility      Facility              @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  visits        PatientVisit[]
+  accesses      PatientRecordAccess[]
+  consultations Consultation[]
 
   @@index([facilityId, createdAt])
   @@index([facilityId, phoneHash])
@@ -2662,9 +2677,10 @@ model PatientVisit {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  patient  Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  facility Facility       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
-  triages  TriageRecord[]
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  facility      Facility       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  triages       TriageRecord[]
+  consultations Consultation[]
 
   @@index([facilityId, arrivedAt])
   @@index([facilityId, status])

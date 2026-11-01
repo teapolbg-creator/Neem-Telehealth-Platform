@@ -310,6 +310,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           consultation: {
             include: {
               pharmacy: { select: { name: true } },
+              facility: { select: { name: true } },
               assignments: { orderBy: { offeredAt: 'desc' }, take: 1 },
             },
           },
@@ -323,7 +324,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           state: entry.consultation.state,
           queueState: entry.state,
           language: entry.language,
-          pharmacyName: originName(entry.consultation.pharmacy),
+          pharmacyName: originName(entry.consultation.pharmacy, entry.consultation.facility),
           waitingSeconds: Math.floor((now.getTime() - entry.enqueuedAt.getTime()) / 1000),
           offerAttempts: entry.offerAttempts,
           noLanguageMatch: entry.noMatchAlertedAt !== null,

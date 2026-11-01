@@ -7,10 +7,16 @@ import {
   Loader2,
   MapPin,
   Search,
+  Stethoscope,
+  Timer,
   UserPlus,
   Users,
 } from "lucide-react";
-import { FACILITY_TYPE_LABELS, VISIT_STATUS_LABELS } from "@neem/contracts";
+import {
+  CHPS_CONSULTATION_PROGRESS,
+  FACILITY_TYPE_LABELS,
+  VISIT_STATUS_LABELS,
+} from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -25,6 +31,7 @@ import {
   SEX_LABEL,
   VISIT_STATUS_TONE,
   ageLabel,
+  consultationTone,
   useFacilityDay,
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
@@ -113,9 +120,11 @@ function FacilityHome() {
             ) : null}
 
             {day.data ? (
-              <div className="mt-6 grid gap-3 sm:grid-cols-4">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <Stat icon={Users} label="Seen today" value={day.data.seenToday} />
                 <Stat icon={Clock} label="Waiting now" value={day.data.waiting} />
+                <Stat icon={Timer} label="Awaiting a doctor" value={day.data.awaitingDoctor} />
+                <Stat icon={Stethoscope} label="With a doctor" value={day.data.withDoctor} />
                 <Stat
                   icon={AlertTriangle}
                   label="Emergencies today"
@@ -137,7 +146,7 @@ function FacilityHome() {
                 </p>
               ) : null}
               {day.data && day.data.board.length > 0 ? (
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="text-xs uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-4 py-2 font-semibold">Arrived</th>
@@ -145,6 +154,7 @@ function FacilityHome() {
                       <th className="px-4 py-2 font-semibold">Complaint</th>
                       <th className="px-4 py-2 font-semibold">Triage</th>
                       <th className="px-4 py-2 font-semibold">Status</th>
+                      <th className="px-4 py-2 font-semibold">Doctor</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -185,6 +195,19 @@ function FacilityHome() {
                             {VISIT_STATUS_LABELS[row.status]}
                           </Chip>
                         </td>
+                        <td className="px-4 py-3 text-xs">
+                          {row.consultation ? (
+                            <Chip tone={consultationTone(row.consultation.state)}>
+                              {CHPS_CONSULTATION_PROGRESS[row.consultation.state] ??
+                                row.consultation.state}
+                            </Chip>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                          {row.consultation?.doctorName ? (
+                            <p className="mt-1 text-slate-500">{row.consultation.doctorName}</p>
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -207,8 +230,8 @@ function FacilityHome() {
               <div className="card-soft p-5 text-sm text-slate-600">
                 <p className="font-semibold text-foreground">Requesting a doctor</p>
                 <p className="mt-1">
-                  Connecting a patient to a Neem doctor arrives next. Until then, complete each
-                  visit here, and use your usual referral arrangements when a patient needs more.
+                  Open a triaged patient and choose Request a doctor. If no doctor is on duty, care
+                  for the patient here and use your usual referral arrangements.
                 </p>
               </div>
             </div>
