@@ -837,3 +837,23 @@ linked automatically. Status starts `ISSUED`, said as "Sent, not yet
 confirmed", and changes only when somebody records news. A visit may be closed
 with `outcome: REFERRED` once it has a referral that is not cancelled. Each
 visit view carries its `referrals`.
+
+---
+
+## 18. Follow-ups (slice 2b, D81)
+
+```
+GET    /facility/follow-ups                       ?view=due (today and overdue) | upcoming (14 days) | all
+POST   /facility/visits/:publicId/follow-ups      { dueDate, instructions, referralPublicId? }
+POST   /facility/follow-ups/:publicId/complete    { note?, visitPublicId? }: the patient was seen
+POST   /facility/follow-ups/:publicId/missed      { note }: what happened
+POST   /facility/follow-ups/:publicId/cancel      { reason }
+```
+
+Facility staff with `chps-follow-up:manage`, within their own facility. The CHO
+sets the date from the doctor's follow-up advice or a referral's feedback; a
+date in the past is refused. A follow-up past its date is returned with
+`overdue: true` and stays `DUE`: only the CHO marks one missed. Completing it
+links the visit at which the patient was seen, by default their open visit.
+Each visit view carries its `followUps`; `GET /facility/today` adds
+`followUpsDue`.

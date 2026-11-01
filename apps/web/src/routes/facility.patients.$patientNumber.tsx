@@ -31,6 +31,7 @@ import { TriageBadge } from "@/features/facility/TriageBadge";
 import { DoctorRequest } from "@/features/facility/DoctorRequest";
 import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
 import { VisitReferrals } from "@/features/facility/ReferralPanel";
+import { VisitFollowUps } from "@/features/facility/FollowUpPanel";
 
 export const Route = createFileRoute("/facility/patients/$patientNumber")({
   component: PatientPage,
@@ -129,8 +130,13 @@ function Record({ patient }: { patient: PatientRecord }) {
               <p className="mt-2 text-sm text-slate-500">This is their first visit.</p>
             ) : (
               <ul className="mt-2 divide-y divide-border">
-                {past.map((visit) => (
-                  <PastVisit key={visit.publicId} visit={visit} />
+                {past.map((visit, index) => (
+                  <PastVisit
+                    key={visit.publicId}
+                    visit={visit}
+                    // A follow-up is often thought of after the visit ends (D81).
+                    canSetFollowUp={!current && index === 0}
+                  />
                 ))}
               </ul>
             )}
@@ -234,6 +240,8 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
       <DoctorRequest visit={visit} />
 
       <VisitReferrals visit={visit} canRefer />
+
+      <VisitFollowUps visit={visit} canSet />
 
       <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
         {!escalated || !visit.escalationNote ? <EscalateForm visit={visit} /> : null}
@@ -524,7 +532,7 @@ function CloseForm({ visit }: { visit: VisitView }) {
   );
 }
 
-function PastVisit({ visit }: { visit: VisitView }) {
+function PastVisit({ visit, canSetFollowUp }: { visit: VisitView; canSetFollowUp: boolean }) {
   return (
     <li className="space-y-1 py-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -543,6 +551,9 @@ function PastVisit({ visit }: { visit: VisitView }) {
       ) : null}
       {visit.encounter ? <DoctorAdvice encounter={visit.encounter} compact /> : null}
       {visit.referrals.length > 0 ? <VisitReferrals visit={visit} canRefer={false} /> : null}
+      {visit.followUps.length > 0 || canSetFollowUp ? (
+        <VisitFollowUps visit={visit} canSet={canSetFollowUp} />
+      ) : null}
       {visit.closingNote ? <p className="text-xs text-slate-500">{visit.closingNote}</p> : null}
     </li>
   );

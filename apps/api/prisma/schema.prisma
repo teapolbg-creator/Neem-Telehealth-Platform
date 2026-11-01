@@ -2584,6 +2584,7 @@ model Facility {
   visits        PatientVisit[]
   consultations Consultation[]
   stations      FacilityStation[]
+  followUps     FollowUp[]
   referralsSent ChpsReferral[]    @relation("ReferralOrigin")
   referralsIn   ChpsReferral[]    @relation("ReferralDestination")
 
@@ -2682,6 +2683,7 @@ model Patient {
   consultations Consultation[]
   encounters    EncounterRecord[]
   referrals     ChpsReferral[]
+  followUps     FollowUp[]
 
   @@index([facilityId, createdAt])
   @@index([facilityId, phoneHash])
@@ -2719,6 +2721,8 @@ model PatientVisit {
   triages       TriageRecord[]
   consultations Consultation[]
   referrals     ChpsReferral[]
+  followUps     FollowUp[]     @relation("FollowUpOrigin")
+  followUpsMet  FollowUp[]     @relation("FollowUpResolution")
 
   @@index([facilityId, arrivedAt])
   @@index([facilityId, status])
@@ -2910,9 +2914,62 @@ model ChpsReferral {
   patient             Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
   visit               PatientVisit  @relation(fields: [visitId], references: [id], onDelete: Restrict)
   consultation        Consultation? @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  followUps           FollowUp[]
 
   @@index([facilityId, issuedAt])
   @@index([facilityId, status])
   @@index([patientId, issuedAt])
   @@map("chps_referrals")
+}
+
+/// Where a follow-up has got to (slice 2b, D81). Nothing moves it but a
+/// person: a patient who has not come back is overdue, not missed, until the
+/// CHO says so.
+enum FollowUpStatus {
+  DUE
+  DONE
+  MISSED
+  CANCELLED
+}
+
+/// A patient the facility expects to see again (slice 2b, D81).
+///
+/// Set by the CHO from what the doctor advised or what a receiving facility
+/// said, because both say "come back in two weeks" in words, and only a person
+/// can turn that into a date.
+model FollowUp {
+  id         String  @id @default(uuid(7))
+  publicId   String  @unique @db.VarChar(32)
+  facilityId String
+  patientId  String
+  /// The visit it arose from.
+  visitId    String
+  /// The referral whose feedback asked for it, if any.
+  referralId String?
+
+  dueDate         DateTime       @db.Date
+  instructionsEnc String         @db.Text
+  status          FollowUpStatus @default(DUE)
+
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  /// When it was resolved, by whom, and what happened. The visit at which the
+  /// patient was seen, when they came back.
+  resolvedAt        DateTime?
+  resolvedByUserId  String?
+  resolutionNoteEnc String?   @db.Text
+  resolvedVisitId   String?
+
+  updatedAt DateTime @updatedAt
+
+  facility      Facility      @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  visit         PatientVisit  @relation("FollowUpOrigin", fields: [visitId], references: [id], onDelete: Restrict)
+  resolvedVisit PatientVisit? @relation("FollowUpResolution", fields: [resolvedVisitId], references: [id], onDelete: Restrict)
+  referral      ChpsReferral? @relation(fields: [referralId], references: [id], onDelete: Restrict)
+
+  @@index([facilityId, status, dueDate])
+  @@index([patientId, dueDate])
+  @@map("follow_ups")
 }

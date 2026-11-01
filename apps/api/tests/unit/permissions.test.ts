@@ -91,6 +91,7 @@ describe('role permissions', () => {
         PERMISSIONS.CHPS_CONSULTATION_REQUEST,
         PERMISSIONS.STATION_MANAGE,
         PERMISSIONS.CHPS_REFERRAL_MANAGE,
+        PERMISSIONS.CHPS_FOLLOW_UP_MANAGE,
       ]);
     });
 

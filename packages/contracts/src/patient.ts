@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ghanaPhoneSchema } from './onboarding.ts';
 import type { VisitEncounterSummary } from './encounter.ts';
 import type { ReferralView } from './referral.ts';
+import type { FollowUpView } from './followup.ts';
 
 /**
  * CHPS patients, walk-in visits and triage (CHPS slice 1b, D74, D75).
@@ -334,6 +335,8 @@ export interface VisitView {
   encounter: VisitEncounterSummary | null;
   /** Referrals from this visit, newest first (D80). */
   referrals: ReferralView[];
+  /** Follow-ups arising from this visit (D81). */
+  followUps: FollowUpView[];
 }
 
 export interface PatientRecord extends PatientSummary {
@@ -376,5 +379,7 @@ export interface FacilityDaySummary {
   awaitingDoctor: number;
   /** Consultations a doctor has accepted and not yet finished. */
   withDoctor: number;
+  /** Follow-ups due today or overdue (D81). */
+  followUpsDue: number;
   board: VisitBoardRow[];
 }

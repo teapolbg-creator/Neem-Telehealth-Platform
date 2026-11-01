@@ -7,6 +7,7 @@ import {
   Loader2,
   MapPin,
   Search,
+  CalendarClock,
   Stethoscope,
   Timer,
   UserPlus,
@@ -36,6 +37,7 @@ import {
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
 import { StationsPanel } from "@/features/facility/StationsPanel";
+import { FollowUpsDue } from "@/features/facility/FollowUpsDue";
 
 export const Route = createFileRoute("/facility/")({
   component: FacilityHome,
@@ -121,7 +123,7 @@ function FacilityHome() {
             ) : null}
 
             {day.data ? (
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <Stat icon={Users} label="Seen today" value={day.data.seenToday} />
                 <Stat icon={Clock} label="Waiting now" value={day.data.waiting} />
                 <Stat icon={Timer} label="Awaiting a doctor" value={day.data.awaitingDoctor} />
@@ -133,6 +135,7 @@ function FacilityHome() {
                   danger={day.data.escalatedToday > 0}
                 />
                 <Stat icon={CheckCircle2} label="Completed today" value={day.data.closedToday} />
+                <Stat icon={CalendarClock} label="Follow-ups due" value={day.data.followUpsDue} />
               </div>
             ) : null}
 
@@ -215,6 +218,8 @@ function FacilityHome() {
                 </table>
               ) : null}
             </div>
+
+            <FollowUpsDue enabled={isStaff} />
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <StationsPanel enabled={isStaff && active} />

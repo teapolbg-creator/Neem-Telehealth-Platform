@@ -19,6 +19,7 @@ import { facilityRoutes } from './modules/facility/facility.routes.ts';
 import { patientRoutes as chpsPatientRoutes } from './modules/facility/patient.routes.ts';
 import { stationRoutes } from './modules/facility/station.routes.ts';
 import { referralRoutes } from './modules/facility/referral.routes.ts';
+import { followUpRoutes } from './modules/facility/followup.routes.ts';
 import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
 import { webhookRoutes } from './modules/payment/webhook.routes.ts';
@@ -149,6 +150,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(chpsPatientRoutes);
       await api.register(stationRoutes);
       await api.register(referralRoutes);
+      await api.register(followUpRoutes);
       await api.register(patientRoutes);
       await api.register(pharmacyConsultationRoutes);
       await api.register(queueRoutes);

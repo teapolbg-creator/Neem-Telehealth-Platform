@@ -30,6 +30,12 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
 import { toEncounterSummary } from '../clinical/chps-encounter.service.ts';
 import {
+  countFollowUpsDue,
+  followUpActorIds,
+  followUpInclude,
+  toFollowUpView,
+} from './followup.service.ts';
+import {
   referralActorIds,
   referralInclude,
   toReferralView,
@@ -190,6 +196,7 @@ const visitInclude = {
   triages: { orderBy: { recordedAt: 'desc' } },
   consultations: consultationInclude,
   referrals: { orderBy: { issuedAt: 'desc' }, include: referralInclude },
+  followUps: { orderBy: { dueDate: 'asc' }, include: followUpInclude },
 } satisfies Prisma.PatientVisitInclude;
 
 type VisitRow = Prisma.PatientVisitGetPayload<{ include: typeof visitInclude }>;
@@ -239,6 +246,7 @@ function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
         )
       : null,
     referrals: row.referrals.map((referral) => toReferralView(referral, names)),
+    followUps: row.followUps.map((followUp) => toFollowUpView(followUp, names, systemClock.now())),
   };
 }
 
@@ -463,6 +471,7 @@ export async function getPatientRecord(
     visits.flatMap((visit) => [
       ...visit.triages.map((triage) => triage.recordedByUserId),
       ...referralActorIds(visit.referrals),
+      ...followUpActorIds(visit.followUps),
     ]),
     db,
   );
@@ -732,6 +741,7 @@ export async function facilityDay(
   clock: Clock = systemClock,
 ): Promise<FacilityDaySummary> {
   const dayStart = startOfDay(clock.now());
+  const followUpsDue = await countFollowUpsDue(ctx.facilityId, db, clock);
 
   const visits = await db.patientVisit.findMany({
     where: {
@@ -765,6 +775,7 @@ export async function facilityDay(
         visit.consultations[0]?.state ?? '',
       ),
     ).length,
+    followUpsDue,
     withDoctor: visits.filter((visit) =>
       ['DOCTOR_ACCEPTED', 'IN_PROGRESS', 'INTERRUPTED', 'COMPLETING'].includes(
         visit.consultations[0]?.state ?? '',

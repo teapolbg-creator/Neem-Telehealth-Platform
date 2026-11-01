@@ -91,6 +91,12 @@ export const AUDIT_ACTIONS = {
   REFERRAL_FEEDBACK_RECORDED: 'referral.feedback-recorded',
   REFERRAL_CANCELLED: 'referral.cancelled',
 
+  /** CHPS slice 2b (D81). A follow-up is set and resolved by a person, never by a clock. */
+  FOLLOW_UP_SET: 'follow-up.set',
+  FOLLOW_UP_DONE: 'follow-up.done',
+  FOLLOW_UP_MISSED: 'follow-up.missed',
+  FOLLOW_UP_CANCELLED: 'follow-up.cancelled',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

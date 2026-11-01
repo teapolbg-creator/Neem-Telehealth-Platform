@@ -2948,3 +2948,33 @@ accounts (D79).
 **What was not done.** No reminders when a referral waits too long; no
 printed referral slip yet (the reference number is shown and can be written on
 the facility's own form). Referral statistics belong to the reports in 2c.
+
+---
+
+### D81 — A follow-up has a date a person chose, and only a person closes it · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 2b: brief §A5 ("Follow-up required") and §A7 (follow-up
+after referral). The doctor writes follow-up advice in words (D78), and so
+does a receiving facility (D80).
+
+**Decision.**
+
+- **The CHO sets the date.** "Return in three days" and "review at CHPS in two
+  weeks" are instructions, not dates; turning one into a due date is the CHO's
+  judgement, made with the patient in front of them. A follow-up records the
+  instruction, the date, the visit it came from and, when it came from a
+  referral's feedback, that referral.
+- **Overdue is shown; missed is decided.** Past its date a follow-up is listed
+  as overdue and stays `DUE`. It becomes `MISSED` only when the CHO records what
+  happened, because a patient a day late is not lost, and a list that writes
+  people off by itself is one nobody trusts.
+- **Done means seen, and says where.** Completing a follow-up links the visit at
+  which the patient came back, by default their open one, so the record reads as
+  "asked to return on the 4th, returned on the 5th".
+- **A list for the day.** The Today page counts follow-ups due today or overdue,
+  and a follow-up list shows them oldest first with the patient's phone and
+  community, so the CHO can call or send word.
+
+**What was not done.** No SMS reminders (SMS is off, D46, and the brief keeps
+the core workflow independent of it). No automatic follow-up from the doctor's
+record: the doctor's words still need a person to make them a date.
