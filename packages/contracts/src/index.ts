@@ -9,6 +9,7 @@ export * from './station.ts';
 export * from './encounter.ts';
 export * from './referral.ts';
 export * from './followup.ts';
+export * from './report.ts';
 export * from './pilot.ts';
 export * from './consultation.ts';
 export * from './media.ts';

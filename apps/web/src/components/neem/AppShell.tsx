@@ -60,6 +60,7 @@ const NAV: Record<
     { label: "Today", to: "/facility" },
     { label: "Find or register", to: "/facility/register" },
     { label: "Referrals", to: "/facility/referrals" },
+    { label: "Reports", to: "/facility/reports" },
   ],
   admin: [
     { label: "Overview", to: "/admin" },

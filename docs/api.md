@@ -857,3 +857,23 @@ date in the past is refused. A follow-up past its date is returned with
 links the visit at which the patient was seen, by default their open visit.
 Each visit view carries its `followUps`; `GET /facility/today` adds
 `followUpsDue`.
+
+---
+
+## 19. Facility reports (slice 2c, D82)
+
+```
+GET    /facility/report?from=YYYY-MM-DD&to=YYYY-MM-DD    a day, a month, or any range up to 92 days
+```
+
+Facility staff with `chps-report:read`, their own facility only. Returns
+attendance (visits, new patients, distinct patients, by triage category,
+emergencies, how visits ended), consultations (requested, completed, withdrawn,
+no doctor available, still open, minutes from request to a doctor accepting,
+median length), completed consultations per doctor, referrals (by urgency,
+status and destination), follow-ups due in the range and how they were
+resolved, presenting complaints as written, and a row per day.
+
+Days are UTC days, which are Ghana's. Each record counts on the day it
+started: a visit on arrival, a consultation on request, a referral on issue, a
+follow-up on its due date. Complaints are listed, not counted by type (D79).

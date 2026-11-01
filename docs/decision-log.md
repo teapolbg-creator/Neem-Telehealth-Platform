@@ -2978,3 +2978,39 @@ does a receiving facility (D80).
 **What was not done.** No SMS reminders (SMS is off, D46, and the brief keeps
 the core workflow independent of it). No automatic follow-up from the doctor's
 record: the doctor's words still need a person to make them a date.
+
+---
+
+### D82 — A facility report counts what was recorded, on the day it began · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 2c: brief §A8, daily and monthly reports for a CHPS
+compound.
+
+**Decision.**
+
+- **One report, any range.** A day, a month, or any range up to 92 days, from
+  one route. Daily and monthly are presets on the screen, not two reports with
+  two sets of rules. Longer ranges and other facilities are the district
+  dashboard's job (Phase 3).
+- **Counted, never estimated.** Every figure comes from records the facility
+  already keeps. A record belongs to the day it began, so a report for a past
+  day does not change because a visit that started then ended later; only its
+  outcome column does.
+- **Waiting time is request to acceptance.** Minutes from the CHO requesting a
+  doctor to a doctor accepting, read from the consultation's state history
+  (made strictly ordered for exactly this kind of reading in 5783a02). Median,
+  average and longest, over the requests a doctor accepted; requests nobody
+  accepted are counted separately as withdrawn or "no doctor available", not
+  averaged in as zero or infinity.
+- **Complaints as written.** Listed with their date, newest first, and never
+  counted by type, because there is no coded list (D79). Counting by matching
+  words would invent categories the CHO never chose.
+- **Doctor utilisation is per facility.** How many of this facility's
+  consultations each doctor completed, and their median length. It is not a
+  measure of the doctor's whole workload, which spans facilities.
+- **CSV from the screen.** The report page exports what it shows; there is no
+  separate export route to keep in step.
+
+**What was not done.** No printing layout, no comparison with a previous
+period, and no DHIMS2 indicator mapping (the brief keeps that for an approved
+integration).

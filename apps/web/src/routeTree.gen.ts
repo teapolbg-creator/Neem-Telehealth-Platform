@@ -44,6 +44,7 @@ import { Route as DoctorSubstitutionsRouteImport } from './routes/doctor.substit
 import { Route as FacilityIndexRouteImport } from './routes/facility.index'
 import { Route as FacilityReferralsRouteImport } from './routes/facility.referrals'
 import { Route as FacilityRegisterRouteImport } from './routes/facility.register'
+import { Route as FacilityReportsRouteImport } from './routes/facility.reports'
 import { Route as OnboardingDoctorRouteImport } from './routes/onboarding.doctor'
 import { Route as OnboardingPharmacyRouteImport } from './routes/onboarding.pharmacy'
 import { Route as PatientIndexRouteImport } from './routes/patient.index'
@@ -236,6 +237,11 @@ const FacilityRegisterRoute = FacilityRegisterRouteImport.update({
   path: '/facility/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FacilityReportsRoute = FacilityReportsRouteImport.update({
+  id: '/facility/reports',
+  path: '/facility/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingDoctorRoute = OnboardingDoctorRouteImport.update({
   id: '/onboarding/doctor',
   path: '/onboarding/doctor',
@@ -346,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/facility/referrals': typeof FacilityReferralsRoute
   '/facility/register': typeof FacilityRegisterRoute
+  '/facility/reports': typeof FacilityReportsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/finance': typeof PharmacyFinanceRoute
@@ -398,6 +405,7 @@ export interface FileRoutesByTo {
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/facility/referrals': typeof FacilityReferralsRoute
   '/facility/register': typeof FacilityRegisterRoute
+  '/facility/reports': typeof FacilityReportsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/finance': typeof PharmacyFinanceRoute
@@ -451,6 +459,7 @@ export interface FileRoutesById {
   '/doctor/substitutions': typeof DoctorSubstitutionsRoute
   '/facility/referrals': typeof FacilityReferralsRoute
   '/facility/register': typeof FacilityRegisterRoute
+  '/facility/reports': typeof FacilityReportsRoute
   '/onboarding/doctor': typeof OnboardingDoctorRoute
   '/onboarding/pharmacy': typeof OnboardingPharmacyRoute
   '/pharmacy/finance': typeof PharmacyFinanceRoute
@@ -505,6 +514,7 @@ export interface FileRouteTypes {
     | '/doctor/substitutions'
     | '/facility/referrals'
     | '/facility/register'
+    | '/facility/reports'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/finance'
@@ -557,6 +567,7 @@ export interface FileRouteTypes {
     | '/doctor/substitutions'
     | '/facility/referrals'
     | '/facility/register'
+    | '/facility/reports'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/finance'
@@ -609,6 +620,7 @@ export interface FileRouteTypes {
     | '/doctor/substitutions'
     | '/facility/referrals'
     | '/facility/register'
+    | '/facility/reports'
     | '/onboarding/doctor'
     | '/onboarding/pharmacy'
     | '/pharmacy/finance'
@@ -662,6 +674,7 @@ export interface RootRouteChildren {
   DoctorSubstitutionsRoute: typeof DoctorSubstitutionsRoute
   FacilityReferralsRoute: typeof FacilityReferralsRoute
   FacilityRegisterRoute: typeof FacilityRegisterRoute
+  FacilityReportsRoute: typeof FacilityReportsRoute
   OnboardingDoctorRoute: typeof OnboardingDoctorRoute
   OnboardingPharmacyRoute: typeof OnboardingPharmacyRoute
   PharmacyFinanceRoute: typeof PharmacyFinanceRoute
@@ -931,6 +944,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FacilityRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/facility/reports': {
+      id: '/facility/reports'
+      path: '/facility/reports'
+      fullPath: '/facility/reports'
+      preLoaderRoute: typeof FacilityReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding/doctor': {
       id: '/onboarding/doctor'
       path: '/onboarding/doctor'
@@ -1070,6 +1090,7 @@ const rootRouteChildren: RootRouteChildren = {
   DoctorSubstitutionsRoute: DoctorSubstitutionsRoute,
   FacilityReferralsRoute: FacilityReferralsRoute,
   FacilityRegisterRoute: FacilityRegisterRoute,
+  FacilityReportsRoute: FacilityReportsRoute,
   OnboardingDoctorRoute: OnboardingDoctorRoute,
   OnboardingPharmacyRoute: OnboardingPharmacyRoute,
   PharmacyFinanceRoute: PharmacyFinanceRoute,
