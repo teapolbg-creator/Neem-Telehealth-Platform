@@ -937,3 +937,18 @@ area, with each facility's line in `byFacility`, for at most 92 days. Filters
 narrow the area and never widen it: a district, sub-district or facility
 outside it is answered 404. Presenting complaints are not included; they are
 free text about patients and stay at the facility.
+
+## 23. CHPS operations overview (slice 3c, D86)
+
+```
+GET    /admin/chps/overview?days=1|7|30               every CHPS compound's live state, and doctor utilisation
+```
+
+Both administrator roles, with `facility:manage`. Live figures are read at the
+moment of the request: paired and online stations (seen in the last minute),
+visits today, visits awaiting triage, open emergencies, doctor requests waiting
+and the oldest wait, consultations with a doctor, and when the facility's staff
+last used Neem. Facilities with open emergencies sort first, then the longest
+wait. Doctor utilisation counts completed consultations by channel and their
+minutes over `days` (1 is today), for doctors online now or with a completed
+consultation in the period. No threshold marks anything as late or failing.

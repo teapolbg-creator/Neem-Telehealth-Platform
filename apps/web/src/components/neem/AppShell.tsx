@@ -80,6 +80,7 @@ const NAV: Record<
     { label: "Services", to: "/admin/services", permission: PERMISSIONS.SETTINGS_MANAGE },
     { label: "Promotions", to: "/admin/promotions", permission: PERMISSIONS.PROMOTION_MANAGE },
     { label: "Verification", to: "/admin/verification" },
+    { label: "CHPS", to: "/admin/chps", permission: PERMISSIONS.FACILITY_MANAGE },
     { label: "Facilities", to: "/admin/facilities" },
     { label: "Pilot", to: "/admin/pilot" },
     { label: "Quality", to: "/admin/quality" },

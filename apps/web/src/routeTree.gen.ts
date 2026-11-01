@@ -15,6 +15,7 @@ import { Route as AccountIndexRouteImport } from './routes/account.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminArchiveRouteImport } from './routes/admin.archive'
 import { Route as AdminAuditRouteImport } from './routes/admin.audit'
+import { Route as AdminChpsRouteImport } from './routes/admin.chps'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminPayrollRouteImport } from './routes/admin.payroll'
@@ -91,6 +92,11 @@ const AdminArchiveRoute = AdminArchiveRouteImport.update({
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin/audit',
   path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChpsRoute = AdminChpsRouteImport.update({
+  id: '/admin/chps',
+  path: '/admin/chps',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chps': typeof AdminChpsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
@@ -393,6 +400,7 @@ export interface FileRoutesByTo {
   '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chps': typeof AdminChpsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
@@ -449,6 +457,7 @@ export interface FileRoutesById {
   '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/chps': typeof AdminChpsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/payroll': typeof AdminPayrollRoute
@@ -506,6 +515,7 @@ export interface FileRouteTypes {
     | '/station'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/chps'
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
@@ -561,6 +571,7 @@ export interface FileRouteTypes {
     | '/station'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/chps'
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/station'
     | '/admin/archive'
     | '/admin/audit'
+    | '/admin/chps'
     | '/admin/notifications'
     | '/admin/payouts'
     | '/admin/payroll'
@@ -672,6 +684,7 @@ export interface RootRouteChildren {
   StationRoute: typeof StationRoute
   AdminArchiveRoute: typeof AdminArchiveRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminChpsRoute: typeof AdminChpsRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminPayrollRoute: typeof AdminPayrollRoute
@@ -765,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/chps': {
+      id: '/admin/chps'
+      path: '/admin/chps'
+      fullPath: '/admin/chps'
+      preLoaderRoute: typeof AdminChpsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/notifications': {
@@ -1104,6 +1124,7 @@ const rootRouteChildren: RootRouteChildren = {
   StationRoute: StationRoute,
   AdminArchiveRoute: AdminArchiveRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminChpsRoute: AdminChpsRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminPayrollRoute: AdminPayrollRoute,

@@ -39,7 +39,7 @@ export const STATION_COOKIE = 'neem_station';
 /** A station is a fixture; re-pairing it every few days would be a burden. */
 export const STATION_CREDENTIAL_DAYS = 180;
 /** A station polling every few seconds counts as online for this long after. */
-const ONLINE_WINDOW_MS = 60_000;
+export const STATION_ONLINE_WINDOW_MS = 60_000;
 /** lastSeenAt is written at most this often, so polling does not write every time. */
 const SEEN_WRITE_INTERVAL_MS = 20_000;
 
@@ -89,7 +89,7 @@ function toSummary(row: StationRow, now: Date): StationSummary {
     online: Boolean(
       row.tokenHash &&
       row.lastSeenAt &&
-      now.getTime() - row.lastSeenAt.getTime() < ONLINE_WINDOW_MS,
+      now.getTime() - row.lastSeenAt.getTime() < STATION_ONLINE_WINDOW_MS,
     ),
     lastSeenAt: row.lastSeenAt?.toISOString() ?? null,
     pairedAt: row.pairedAt?.toISOString() ?? null,

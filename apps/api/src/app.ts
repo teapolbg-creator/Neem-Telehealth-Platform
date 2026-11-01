@@ -23,6 +23,7 @@ import { followUpRoutes } from './modules/facility/followup.routes.ts';
 import { reportRoutes } from './modules/facility/report.routes.ts';
 import { staffAccountRoutes } from './modules/admin/staff-account.routes.ts';
 import { districtRoutes } from './modules/district/district.routes.ts';
+import { chpsOperationsRoutes } from './modules/admin/chps-operations.routes.ts';
 import { recordsRoutes } from './modules/facility/records.routes.ts';
 import { patientRoutes } from './modules/consultation/patient.routes.ts';
 import { pharmacyConsultationRoutes } from './modules/consultation/pharmacy-consultation.routes.ts';
@@ -158,6 +159,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(reportRoutes);
       await api.register(staffAccountRoutes);
       await api.register(districtRoutes);
+      await api.register(chpsOperationsRoutes);
       await api.register(recordsRoutes);
       await api.register(patientRoutes);
       await api.register(pharmacyConsultationRoutes);

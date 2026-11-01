@@ -3114,3 +3114,33 @@ aggregate reporting with filters and CSV.
 
 **What was not done.** No comparison with an earlier period, no map, and no
 admin view of a district (operations gets its own overview in 3c).
+
+---
+
+### D86 — Operations sees every CHPS compound live, and no threshold calls anything late · 2026-11-02 · **DECIDED**
+
+**Context.** Slice 3c. Neem operations needs one place to see the CHPS
+network as it stands, and how doctors are used across all three channels.
+
+**Decision.**
+
+- **Live, not cached.** `GET /admin/chps/overview` reads the facilities' own
+  records at the moment of the request, using the CHO Today page's definitions
+  of waiting and with-doctor (D76) and the station page's one-minute online
+  window (D77), so the three views cannot disagree. The page refreshes every 30
+  seconds.
+- **Sorted, not judged.** Open emergencies sort first, then the longest wait
+  for a doctor. Nothing is labelled late, failing or at risk, because no one has
+  set what those mean; the minutes are shown and operations decides.
+- **Unknown is not zero.** A station never seen, staff who never signed in and
+  a facility with nobody waiting show "Never" or a dash, not 0.
+- **Doctors across channels.** Online now (declared and heartbeating, D72) with
+  their load, and completed consultations by channel (pharmacy, direct, CHPS)
+  and their minutes for today, 7 or 30 days. Doctors are listed when online or
+  when they completed something in the period.
+- **Both administrator roles.** It is operations' page, behind
+  `facility:manage`; district officers have their own dashboard (D85).
+
+**What was not done.** Alerts or notifications from this page, history of past
+live states, and system monitoring (sessions, failures, security events),
+which is slice 3d.

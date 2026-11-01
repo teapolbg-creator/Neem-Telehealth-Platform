@@ -11,6 +11,7 @@ export * from './encounter.ts';
 export * from './referral.ts';
 export * from './followup.ts';
 export * from './report.ts';
+export * from './operations.ts';
 export * from './pilot.ts';
 export * from './consultation.ts';
 export * from './media.ts';
