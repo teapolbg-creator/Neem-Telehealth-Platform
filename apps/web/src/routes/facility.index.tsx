@@ -35,6 +35,7 @@ import {
   useFacilityDay,
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
+import { StationsPanel } from "@/features/facility/StationsPanel";
 
 export const Route = createFileRoute("/facility/")({
   component: FacilityHome,
@@ -215,8 +216,9 @@ function FacilityHome() {
               ) : null}
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="card-soft p-5 text-sm">
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <StationsPanel enabled={isStaff && active} />
+              <div className="card-soft space-y-3 p-5 text-sm">
                 <MapPin className="size-5 text-brand" />
                 <p className="mt-2 font-semibold">{facility.data.location.community}</p>
                 <p className="text-slate-500">
@@ -226,13 +228,14 @@ function FacilityHome() {
                   Station: {EQUIPMENT_LABEL[facility.data.equipmentStatus]} · Internet:{" "}
                   {CONNECTIVITY_LABEL[facility.data.connectivityStatus]} (as reported)
                 </p>
-              </div>
-              <div className="card-soft p-5 text-sm text-slate-600">
-                <p className="font-semibold text-foreground">Requesting a doctor</p>
-                <p className="mt-1">
-                  Open a triaged patient and choose Request a doctor. If no doctor is on duty, care
-                  for the patient here and use your usual referral arrangements.
-                </p>
+                <div className="border-t border-border pt-3 text-slate-600">
+                  <p className="font-semibold text-foreground">Requesting a doctor</p>
+                  <p className="mt-1">
+                    Open a triaged patient, choose Request a doctor, then send them to a station. If
+                    no doctor is on duty, care for the patient here and use your usual referral
+                    arrangements.
+                  </p>
+                </div>
               </div>
             </div>
           </>

@@ -237,6 +237,7 @@ const INTENTIONALLY_PUBLIC = new Map<string, string>([
       'write endpoint acceptable — pilot.test.ts asserts that it grants nothing',
   ],
   ['POST /api/v1/s/exchange', 'the patient has a QR token and nothing else'],
+  ['POST /api/v1/station/pair', 'a station has a pairing code and nothing else (D77)'],
   [
     'POST /api/v1/patient/account/code',
     'a patient asking for a sign-in code has no session yet, and it answers ' +

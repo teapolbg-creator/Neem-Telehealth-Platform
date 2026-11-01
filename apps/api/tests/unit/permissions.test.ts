@@ -89,6 +89,7 @@ describe('role permissions', () => {
         PERMISSIONS.PATIENT_RECORD_READ,
         PERMISSIONS.TRIAGE_WRITE,
         PERMISSIONS.CHPS_CONSULTATION_REQUEST,
+        PERMISSIONS.STATION_MANAGE,
       ]);
     });
 

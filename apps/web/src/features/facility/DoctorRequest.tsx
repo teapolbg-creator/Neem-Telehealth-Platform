@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Mic, Stethoscope, Video } from "lucide-react";
+import { Loader2, Mic, Monitor, Stethoscope, Video } from "lucide-react";
 import { CHPS_CONSULTATION_PROGRESS, type VisitView } from "@neem/contracts";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
@@ -11,6 +11,7 @@ import {
   useRequestDoctor,
   useWithdrawRequest,
 } from "@/features/facility/patients";
+import { useClearStation, useSendToStation, useStations } from "@/features/facility/stations";
 
 /**
  * Asking for a Neem doctor, and following the request (slice 1c, D76).
@@ -183,13 +184,92 @@ function RequestProgress({ visit }: { visit: VisitView }) {
         </>
       ) : (
         <p className="text-xs text-slate-500">
-          The doctor ends the consultation. Connecting the patient on the consultation station
-          arrives in the next update.
+          The doctor ends the consultation. Send the patient to a station to join the call.
         </p>
       )}
       {withdraw.error ? (
         <p className="text-xs text-red-600">
           {withdraw.error instanceof ApiError ? withdraw.error.message : "Not withdrawn."}
+        </p>
+      ) : null}
+      <StationControl visit={visit} />
+    </div>
+  );
+}
+
+/**
+ * Which station this consultation is on, and a way to put it on one (D77).
+ * Sent while the patient waits, so the station greets them before the doctor
+ * arrives and joins the call by itself when the doctor accepts.
+ */
+function StationControl({ visit }: { visit: VisitView }) {
+  const stations = useStations();
+  const send = useSendToStation(visit.publicId);
+  const clear = useClearStation();
+  const [choice, setChoice] = useState("");
+
+  const paired = (stations.data ?? []).filter((station) => station.status === "PAIRED");
+  const showing = paired.find((station) => station.current?.visitPublicId === visit.publicId);
+  const error = send.error ?? clear.error;
+
+  if (stations.isLoading) return null;
+
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      {showing ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="flex items-center gap-2">
+            <Monitor className="size-4 text-brand" /> On{" "}
+            <span className="font-semibold">{showing.label}</span>
+            {!showing.online ? (
+              <span className="text-xs text-amber-700">(not seen in the last minute)</span>
+            ) : null}
+          </p>
+          <button
+            type="button"
+            disabled={clear.isPending}
+            onClick={() => clear.mutate(showing.publicId)}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-slate-600"
+          >
+            Take off station
+          </button>
+        </div>
+      ) : paired.length === 0 ? (
+        <p className="text-xs text-slate-500">
+          No paired station. Add one under Consultation stations on the Today page.
+        </p>
+      ) : (
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            send.mutate(choice || paired[0]!.publicId);
+          }}
+        >
+          <select
+            value={choice || paired[0]!.publicId}
+            onChange={(event) => setChoice(event.target.value)}
+            className={inputClass}
+          >
+            {paired.map((station) => (
+              <option key={station.publicId} value={station.publicId}>
+                {station.label}
+                {station.current ? " (in use)" : station.online ? "" : " (off)"}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={send.isPending}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-4 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            <Monitor className="size-4" /> Send to station
+          </button>
+        </form>
+      )}
+      {error ? (
+        <p className="text-xs text-red-600">
+          {error instanceof ApiError ? error.message : "Not sent."}
         </p>
       ) : null}
     </div>

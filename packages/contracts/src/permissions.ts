@@ -58,6 +58,8 @@ export const PERMISSIONS = {
   TRIAGE_WRITE: 'triage:write',
   /** A CHPS compound asking for a Neem doctor (D76). Not the counter's consultation:create. */
   CHPS_CONSULTATION_REQUEST: 'chps-consultation:request',
+  /** Pair, revoke and direct the facility's consultation stations (D77). */
+  STATION_MANAGE: 'station:manage',
   SHIFT_MANAGE: 'shift:manage',
   SUBSCRIPTION_MANAGE: 'subscription:manage',
   SETTINGS_MANAGE: 'settings:manage',
@@ -127,7 +129,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   /**
    * CHPS facility staff (D73). Each slice adds exactly what it needs:
    * registration, the patient record and triage arrived with 1b (D75), and
-   * requesting a doctor with 1c (D76).
+   * requesting a doctor with 1c (D76), and stations with 1d (D77).
    * Always within their own facility, which the service checks.
    */
   FACILITY: [
@@ -135,6 +137,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.PATIENT_RECORD_READ,
     P.TRIAGE_WRITE,
     P.CHPS_CONSULTATION_REQUEST,
+    P.STATION_MANAGE,
   ],
 
   ADMIN: Object.values(P),

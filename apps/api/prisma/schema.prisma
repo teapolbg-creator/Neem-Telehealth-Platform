@@ -1080,15 +1080,16 @@ model Consultation {
   isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
-  pharmacy       Pharmacy?       @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
-  doctor         Doctor?         @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  language       Language?       @relation(fields: [languageId], references: [id], onDelete: Restrict)
-  promotion      Promotion?      @relation(fields: [promotionId], references: [id], onDelete: Restrict)
-  service        Service?        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  patientAccount PatientAccount? @relation(fields: [patientAccountId], references: [id], onDelete: SetNull)
-  facility       Facility?       @relation(fields: [facilityId], references: [id], onDelete: Restrict)
-  chpsPatient    Patient?        @relation(fields: [chpsPatientId], references: [id], onDelete: Restrict)
-  visit          PatientVisit?   @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  pharmacy       Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  doctor         Doctor?          @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  language       Language?        @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  promotion      Promotion?       @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  service        Service?         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  patientAccount PatientAccount?  @relation(fields: [patientAccountId], references: [id], onDelete: SetNull)
+  facility       Facility?        @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  chpsPatient    Patient?         @relation(fields: [chpsPatientId], references: [id], onDelete: Restrict)
+  visit          PatientVisit?    @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  station        FacilityStation?
 
   stateEvents         ConsultationStateEvent[]
   accessTokens        ConsultationAccessToken[]
@@ -2545,12 +2546,13 @@ model Facility {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  district      District       @relation(fields: [districtId], references: [id], onDelete: Restrict)
-  subDistrict   SubDistrict?   @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
+  district      District          @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  subDistrict   SubDistrict?      @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
   staff         FacilityUser[]
   patients      Patient[]
   visits        PatientVisit[]
   consultations Consultation[]
+  stations      FacilityStation[]
 
   @@index([districtId, status])
   @@index([type, status])
@@ -2726,4 +2728,44 @@ model PatientRecordAccess {
   @@index([patientId, accessedAt])
   @@index([actorUserId, accessedAt])
   @@map("patient_record_access")
+}
+
+/// A consultation station: the tablet or screen a CHPS patient speaks to the
+/// doctor on (slice 1d, D77).
+///
+/// Not a user. It holds its own credential, obtained once by entering a
+/// short pairing code a CHO generated, and that credential can do four things:
+/// read the station's state, join and leave the call it has been given, and
+/// nothing else. It never reads a patient record.
+model FacilityStation {
+  id         String @id @default(uuid(7))
+  publicId   String @unique @db.VarChar(32)
+  facilityId String
+  label      String @db.VarChar(80)
+
+  /// SHA-256 of the station's credential; the raw value lives only in its
+  /// cookie. Null until paired, and again once revoked or re-paired.
+  tokenHash        String?   @unique @db.VarChar(64)
+  /// SHA-256 of the one-time pairing code, while one is outstanding.
+  pairingCodeHash  String?   @unique @db.VarChar(64)
+  pairingExpiresAt DateTime?
+  pairedAt         DateTime?
+  lastSeenAt       DateTime?
+  revokedAt        DateTime?
+
+  /// The consultation the station is showing, set by a CHO. Cleared when that
+  /// consultation ends, so the next patient sees nothing of the last.
+  consultationId   String?   @unique
+  assignedAt       DateTime?
+  assignedByUserId String?
+
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  facility     Facility      @relation(fields: [facilityId], references: [id], onDelete: Restrict)
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@index([facilityId])
+  @@map("facility_stations")
 }

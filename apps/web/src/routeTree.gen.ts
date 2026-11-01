@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StationRouteImport } from './routes/station'
 import { Route as AccountIndexRouteImport } from './routes/account.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminArchiveRouteImport } from './routes/admin.archive'
@@ -61,6 +62,11 @@ import { Route as VerifyKindCodeRouteImport } from './routes/verify.$kind.$code'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StationRoute = StationRouteImport.update({
+  id: '/station',
+  path: '/station',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountIndexRoute = AccountIndexRouteImport.update({
@@ -305,6 +311,7 @@ const VerifyKindCodeRoute = VerifyKindCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -355,6 +362,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -406,6 +414,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/station': typeof StationRoute
   '/admin/archive': typeof AdminArchiveRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -458,6 +467,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/station'
     | '/admin/archive'
     | '/admin/audit'
     | '/admin/notifications'
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/station'
     | '/admin/archive'
     | '/admin/audit'
     | '/admin/notifications'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/station'
     | '/admin/archive'
     | '/admin/audit'
     | '/admin/notifications'
@@ -609,6 +621,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  StationRoute: typeof StationRoute
   AdminArchiveRoute: typeof AdminArchiveRoute
   AdminAuditRoute: typeof AdminAuditRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
@@ -665,6 +678,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/station': {
+      id: '/station'
+      path: '/station'
+      fullPath: '/station'
+      preLoaderRoute: typeof StationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account/': {
@@ -1001,6 +1021,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StationRoute: StationRoute,
   AdminArchiveRoute: AdminArchiveRoute,
   AdminAuditRoute: AdminAuditRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,

@@ -73,6 +73,14 @@ export const AUDIT_ACTIONS = {
   VISIT_ESCALATED: 'visit.escalated',
   VISIT_CLOSED: 'visit.closed',
 
+  /** CHPS slice 1d (D77). Who paired, revoked and directed each station. */
+  STATION_CREATED: 'station.created',
+  STATION_PAIRING_ISSUED: 'station.pairing-issued',
+  STATION_PAIRED: 'station.paired',
+  STATION_REVOKED: 'station.revoked',
+  STATION_ASSIGNED: 'station.assigned',
+  STATION_CLEARED: 'station.cleared',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

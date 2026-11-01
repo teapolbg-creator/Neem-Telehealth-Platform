@@ -2803,3 +2803,46 @@ patient side. The doctor's view of the CHO's assessment and the structured
 encounter record are slice 1e. A CHPS consultation's clinical notes are still
 sealed by D23 when it ends; carrying them into the readable CHPS record (D74)
 is part of 1e.
+
+---
+
+### D77 — A station is a paired device with one job, and it forgets every patient · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 1d: the patient speaks to the doctor on a tablet or screen
+at the CHPS compound, not on a phone of their own.
+
+**Decision.**
+
+- **A station is not a user.** It has no account and no password. A CHO adds
+  it and gets an eight-character pairing code (Crockford base32, 15 minutes,
+  one use); the station's `/station` page exchanges the code for a credential
+  held in an httpOnly cookie for 180 days. Re-pairing or revoking stops the old
+  credential at once.
+- **Four things, and no record.** The credential can read the station's state,
+  join the call it has been given, and leave it. No route it can reach returns
+  a patient record, a search, or the facility's board; a test asserts it. Every
+  station `POST` must carry `x-neem-station: 1`, which a cross-site form cannot
+  send and a cross-origin script cannot send without a preflight the API
+  refuses. Pairing is public and rate limited like sign-in.
+- **The CHO directs it.** A consultation is shown on a station when a CHO sends
+  it there; one station shows one consultation, one consultation is on one
+  station, and a station showing a live consultation must be cleared before it
+  takes another, so nobody mid-call is swapped out by a misclick.
+- **It joins as the patient, through the existing path.** `joinMediaSession`
+  already takes a consultation and a participant rather than a patient
+  session, so the station uses it unchanged, with the same rejoin windows and
+  deadlines (D57, D61, D63). It joins on its own as soon as a doctor has
+  accepted: the patient should not have to find a button.
+- **It forgets.** The station is told a first name, to greet the patient, and
+  the doctor's name once they have accepted. When the consultation ends it is
+  cleared from the station on the station's next poll, and the page shows a
+  thank-you and then **reloads itself**, so nothing from that patient survives
+  in the browser's memory for the next person (brief §C4, Scenario 6).
+- **Kiosk locking is the device's job.** The page has no navigation, but
+  keeping a patient on it is done with the device's own pinning or kiosk mode;
+  docs/station-setup.md says how for each platform.
+
+**What was not done.** Station heartbeats are recorded (`lastSeenAt`) and shown
+to the CHO as on or off, but the facility's reported connectivity (D73) is not
+yet updated from them, and there is no measurement of call quality. A station
+cannot be paired by an administrator, only by the facility's own staff.

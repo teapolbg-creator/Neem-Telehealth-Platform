@@ -747,3 +747,38 @@ away. Every visit view carries `consultation`: its state, and the doctor's name
 withdrawn until a doctor accepts; escalating the visit, or a red triage,
 withdraws a waiting request automatically and leaves an accepted one alone. A
 visit cannot be ended while its request is open.
+
+---
+
+## 15. Consultation stations (slice 1d, D77)
+
+```
+GET    /facility/stations                        the facility's stations, online or not, and what each shows
+POST   /facility/stations                        { label } → a station and a pairing code, shown once
+POST   /facility/stations/:publicId/pairing-code a new code; the station's current credential stops
+POST   /facility/stations/:publicId/revoke       a lost device: its credential stops at once
+POST   /facility/stations/:publicId/clear        back to the welcome screen
+POST   /facility/visits/:publicId/station        { stationPublicId } → show this visit's consultation there
+
+POST   /station/pair                             { code } → sets the station's httpOnly cookie
+GET    /station/state                            mode IDLE | WAITING_FOR_DOCTOR | READY, and a greeting
+POST   /station/join                             the patient's side of the call
+POST   /station/leave
+```
+
+The `/facility` routes need `station:manage`. The `/station` routes take only
+the station's own cookie, valid 180 days; every `POST` must also carry
+`x-neem-station: 1`, or it is refused with 403. `POST /station/pair` is public
+and rate limited like sign-in; a pairing code lasts 15 minutes and is spent
+on use.
+
+**What a station may know.** `/station/state` returns the facility and station
+names, the mode, the patient's **first name only**, and the doctor's name once
+they have accepted. Nothing else about the patient ever reaches a station: no
+route a station can call returns a record. When the consultation it shows
+ends, the station's next poll clears it and returns `IDLE`.
+
+**Sending a patient.** Only a visit's open consultation, only to a paired
+station of the same facility, and never onto a station showing another live
+consultation; that station must be cleared first. A consultation is on one
+station at a time.
