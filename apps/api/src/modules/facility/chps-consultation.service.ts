@@ -147,6 +147,7 @@ export async function requestConsultation(
         actorType: 'FACILITY',
         actorId: ctx.userId,
         accepted: true,
+        occurredAt: now,
       },
     });
 
