@@ -70,6 +70,23 @@ function readCookie(name: string): string | undefined {
   return match?.[1] ? decodeURIComponent(match[1]) : undefined;
 }
 
+/**
+ * Whether the last request reached the API (D88). The offline queue listens,
+ * so a dropped connection is noticed the first time any screen fails to load
+ * rather than only when a walk-in is saved.
+ */
+type ReachabilityListener = (reachable: boolean) => void;
+const reachabilityListeners = new Set<ReachabilityListener>();
+
+export function onReachability(listener: ReachabilityListener): () => void {
+  reachabilityListeners.add(listener);
+  return () => reachabilityListeners.delete(listener);
+}
+
+function reportReachability(reachable: boolean) {
+  for (const listener of reachabilityListeners) listener(reachable);
+}
+
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
@@ -105,6 +122,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       signal: options.signal,
     });
   } catch (cause) {
+    // An aborted request says nothing about the connection.
+    if (!options.signal?.aborted) reportReachability(false);
     // A network failure must surface as a definite state, never as a silent
     // hang or an ambiguous success (spec §67).
     throw new ApiError({
@@ -113,6 +132,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       status: 0,
     });
   }
+
+  reportReachability(true);
 
   if (response.status === 204) {
     return undefined as T;

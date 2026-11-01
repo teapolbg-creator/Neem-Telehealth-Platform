@@ -83,9 +83,9 @@ export function nameWords(name: string): string[] {
   ];
 }
 
-const nameToken = (word: string) => keyedHash(`chps-patient-name:${word}`);
-const phoneHash = (phone: string) => keyedHash(`chps-patient-phone:${phone}`);
-const nhisHash = (nhis: string) => keyedHash(`chps-patient-nhis:${nhis}`);
+export const nameToken = (word: string) => keyedHash(`chps-patient-name:${word}`);
+export const phoneHash = (phone: string) => keyedHash(`chps-patient-phone:${phone}`);
+export const nhisHash = (nhis: string) => keyedHash(`chps-patient-nhis:${nhis}`);
 
 /**
  * Crockford base32 — no I, L, O or U — so a number read aloud or copied by
@@ -240,6 +240,7 @@ function toVisitView(
     status: row.status,
     presentingComplaint: decryptField(row.presentingComplaintEnc),
     arrivedAt: row.arrivedAt.toISOString(),
+    syncedAt: row.syncedAt?.toISOString() ?? null,
     escalatedAt: row.escalatedAt?.toISOString() ?? null,
     escalationNote: decryptNullable(row.escalationNoteEnc),
     closedAt: row.closedAt?.toISOString() ?? null,

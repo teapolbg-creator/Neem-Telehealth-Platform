@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { NeemLogo } from "@/components/neem/Logo";
 import { DoctorAlerts } from "@/components/neem/DoctorAlerts";
 import { useLogout, useSession } from "@/features/auth/use-session";
+import { OfflineBar } from "@/features/offline/OfflineBar";
 import { useHeartbeat } from "@/features/queue/api";
 import { ApiError } from "@/lib/api-client";
 import { PERMISSIONS, type Permission } from "@neem/contracts";
@@ -254,6 +255,10 @@ export function AppShell({
         their earnings. Mounted once, which is also what stops two chimes.
       */}
       {active === "doctor" && user?.role === "DOCTOR" ? <DoctorAlerts /> : null}
+      {/* The offline queue outlives any one facility screen (D88). */}
+      {active === "facility" && user?.role === "FACILITY" ? (
+        <OfflineBar userId={user.publicId} />
+      ) : null}
 
       {wrongPortal && (
         <div className="bg-warning-soft border-b border-warning/30 px-4 sm:px-6 py-2.5 flex items-center gap-2 text-xs text-slate-700">

@@ -84,6 +84,7 @@ export const AUDIT_ACTIONS = {
   STATION_PAIRED: 'station.paired',
   /** A wrong or expired pairing code (D87); the code itself is never recorded. */
   STATION_PAIRING_REFUSED: 'station.pairing-refused',
+  OFFLINE_WALK_IN_SYNCED: 'visit.offline-synced',
   STATION_REVOKED: 'station.revoked',
   STATION_ASSIGNED: 'station.assigned',
   STATION_CLEARED: 'station.cleared',

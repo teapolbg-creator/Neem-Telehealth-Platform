@@ -4,14 +4,10 @@ import { AlertCircle, AlertTriangle, ArrowLeft, Loader2, Pill, Siren } from "luc
 import {
   NHIS_STATUS_LABELS,
   OPEN_VISIT_STATUSES,
-  TRIAGE_CATEGORIES,
-  TRIAGE_CATEGORY_INFO,
   VISIT_STATUS_LABELS,
   type PatientRecord,
-  type TriageCategory,
   type TriageView,
   type VisitView,
-  type VitalSigns,
 } from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
@@ -19,7 +15,6 @@ import { ApiError } from "@/lib/api-client";
 import { inputClass } from "@/features/facility/form";
 import {
   SEX_LABEL,
-  TRIAGE_STYLE,
   VISIT_STATUS_TONE,
   ageLabel,
   useCloseVisit,
@@ -28,6 +23,8 @@ import {
   useRecordTriage,
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
+import { TriageFields } from "@/features/facility/TriageFields";
+import { EMPTY_TRIAGE, formatVitals, toTriage, type TriageDraft } from "@/features/facility/triage";
 import { DoctorRequest } from "@/features/facility/DoctorRequest";
 import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
 import { VisitReferrals } from "@/features/facility/ReferralPanel";
@@ -208,6 +205,12 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
               hour: "2-digit",
               minute: "2-digit",
             })}
+            {visit.syncedAt
+              ? ` · recorded offline, reached Neem ${new Date(visit.syncedAt).toLocaleString([], {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}`
+              : null}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -256,30 +259,6 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
   );
 }
 
-const VITAL_FIELDS: { key: keyof VitalSigns; label: string; unit: string; step?: string }[] = [
-  { key: "bpSystolic", label: "BP systolic", unit: "mmHg" },
-  { key: "bpDiastolic", label: "BP diastolic", unit: "mmHg" },
-  { key: "temperatureC", label: "Temperature", unit: "°C", step: "0.1" },
-  { key: "pulseBpm", label: "Pulse", unit: "/min" },
-  { key: "respiratoryRate", label: "Respiratory rate", unit: "/min" },
-  { key: "spo2Percent", label: "Oxygen saturation", unit: "%" },
-  { key: "weightKg", label: "Weight", unit: "kg", step: "0.1" },
-  { key: "heightCm", label: "Height", unit: "cm", step: "0.1" },
-  { key: "glucoseMmolL", label: "Blood glucose", unit: "mmol/L", step: "0.1" },
-];
-
-function formatVitals(vitals: VitalSigns): string[] {
-  const parts: string[] = [];
-  if (vitals.bpSystolic && vitals.bpDiastolic) {
-    parts.push(`BP ${vitals.bpSystolic}/${vitals.bpDiastolic}`);
-  }
-  for (const field of VITAL_FIELDS.slice(2)) {
-    const value = vitals[field.key];
-    if (value !== null && value !== undefined) parts.push(`${field.label} ${value} ${field.unit}`);
-  }
-  return parts;
-}
-
 function TriageSummary({ triage }: { triage: TriageView }) {
   const vitals = formatVitals(triage.vitals);
   return (
@@ -298,10 +277,7 @@ function TriageSummary({ triage }: { triage: TriageView }) {
 function TriageForm({ visit }: { visit: VisitView }) {
   const record = useRecordTriage(visit.publicId);
   const [open, setOpen] = useState(!visit.triage);
-  const [category, setCategory] = useState<TriageCategory | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [symptoms, setSymptoms] = useState("");
-  const [observations, setObservations] = useState("");
+  const [draft, setDraft] = useState<TriageDraft>(EMPTY_TRIAGE);
   const errors = record.error instanceof ApiError ? record.error.fieldErrors : {};
 
   if (!open) {
@@ -317,21 +293,14 @@ function TriageForm({ visit }: { visit: VisitView }) {
   }
 
   const submit = () => {
-    if (!category) return;
-    const vitals: Record<string, number> = {};
-    for (const [key, raw] of Object.entries(values)) {
-      if (raw.trim() !== "") vitals[key] = Number(raw);
-    }
-    record.mutate(
-      { category, vitals, symptoms, observations },
-      {
-        onSuccess: () => {
-          setOpen(false);
-          setValues({});
-          setCategory(null);
-        },
+    const triage = toTriage(draft);
+    if (!triage) return;
+    record.mutate(triage, {
+      onSuccess: () => {
+        setOpen(false);
+        setDraft(EMPTY_TRIAGE);
       },
-    );
+    });
   };
 
   return (
@@ -342,84 +311,7 @@ function TriageForm({ visit }: { visit: VisitView }) {
         submit();
       }}
     >
-      <div>
-        <p className="mb-2 text-sm font-bold">Vital signs</p>
-        <p className="mb-2 text-xs text-slate-500">
-          Record what you can measure; leave the rest empty.
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {VITAL_FIELDS.map((field) => (
-            <label key={field.key} className="text-sm">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">
-                {field.label} <span className="font-normal">({field.unit})</span>
-              </span>
-              <input
-                inputMode="decimal"
-                step={field.step}
-                value={values[field.key] ?? ""}
-                onChange={(event) =>
-                  setValues({
-                    ...values,
-                    [field.key]: event.target.value.replace(/[^\d.]/g, ""),
-                  })
-                }
-                aria-invalid={Boolean(errors[`vitals.${field.key}`])}
-                className={inputClass}
-              />
-              {errors[`vitals.${field.key}`] ? (
-                <span className="mt-1 block text-xs text-red-600">
-                  {errors[`vitals.${field.key}`]}
-                </span>
-              ) : null}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">Symptoms</span>
-          <textarea
-            rows={2}
-            value={symptoms}
-            onChange={(event) => setSymptoms(event.target.value)}
-            className={inputClass}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">Your observations</span>
-          <textarea
-            rows={2}
-            value={observations}
-            onChange={(event) => setObservations(event.target.value)}
-            className={inputClass}
-          />
-        </label>
-      </div>
-
-      <div>
-        <p className="mb-2 text-sm font-bold">Triage category</p>
-        <p className="mb-2 text-xs text-slate-500">
-          Your clinical judgement, following your triage protocol. Neem does not calculate it.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {TRIAGE_CATEGORIES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              data-on={category === value}
-              onClick={() => setCategory(value)}
-              className={`rounded-xl border-2 px-3 py-3 text-left text-sm ${TRIAGE_STYLE[value].button}`}
-            >
-              <span className="block font-bold">{TRIAGE_CATEGORY_INFO[value].label}</span>
-              <span className="block text-xs opacity-90">
-                {TRIAGE_CATEGORY_INFO[value].meaning}
-              </span>
-            </button>
-          ))}
-        </div>
-        {errors.category ? <p className="mt-1 text-xs text-red-600">{errors.category}</p> : null}
-      </div>
+      <TriageFields draft={draft} onChange={setDraft} errors={errors} />
 
       {record.error && Object.keys(errors).length === 0 ? (
         <p className="text-sm text-red-600">
@@ -439,10 +331,10 @@ function TriageForm({ visit }: { visit: VisitView }) {
         ) : null}
         <button
           type="submit"
-          disabled={!category || record.isPending}
-          className={`rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 ${category === "RED" ? "bg-red-600" : "bg-brand"}`}
+          disabled={!draft.category || record.isPending}
+          className={`rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40 ${draft.category === "RED" ? "bg-red-600" : "bg-brand"}`}
         >
-          {category === "RED" ? "Save and start emergency" : "Save assessment"}
+          {draft.category === "RED" ? "Save and start emergency" : "Save assessment"}
         </button>
       </div>
     </form>

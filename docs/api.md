@@ -968,3 +968,31 @@ lockouts, wrong 2FA codes and refused station pairings. `security.recent` lists
 the latest 50 of those events with the account concerned, and is `null` unless
 the caller holds `audit:read`. A refused station pairing is now audited
 (`station.pairing-refused`), without the code.
+
+## 25. Walk-ins recorded offline (slice 4a, D88)
+
+```
+GET    /facility/offline-key                          the CHO's key for encrypting walk-ins on the device
+POST   /facility/offline/walk-ins                     a walk-in registered offline, with its triage
+```
+
+Facility staff with `patient:register` and `triage:write`. The key is 32 random
+bytes (base64), one per CHO, made on first request, stored encrypted and sent
+with `cache-control: no-store`. The browser keeps it in memory only, so walk-ins
+left on a device cannot be read without signing in again.
+
+A walk-in carries `clientRequestId`, `capturedAt` and `sentAt` from the device's
+clock, the registration (as `POST /facility/patients`), an optional triage with
+`triagedAt`, and optionally `decision`. The device's times are corrected by the
+gap between `sentAt` and the server's clock, and nothing is placed in the
+future. Without a `decision`, patients at the facility with the same phone or
+NHIS number, or a name whose words all appear in the other's, are returned as
+`{ outcome: 'POSSIBLE_DUPLICATE', candidates }` (200) and nothing is saved.
+`decision: { kind: 'EXISTING', patientNumber }` opens a visit on that patient
+(409 if they already have one in progress); `{ kind: 'NEW' }` registers a new
+patient. Saved walk-ins answer `{ outcome: 'SAVED', patientNumber,
+visitPublicId, matchedExisting }` (201). Sending the same `clientRequestId`
+again returns the same visit, including one first made by the ordinary
+registration form, and records its triage if that was all that was missing. The
+visit's `syncedAt` marks it as recorded offline; it is audited as
+`visit.offline-synced`.

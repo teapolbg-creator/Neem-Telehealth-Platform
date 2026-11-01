@@ -8,6 +8,7 @@ import {
   triageCreateSchema,
   chpsConsultationCancelSchema,
   chpsConsultationRequestSchema,
+  offlineWalkInSchema,
   visitCloseSchema,
   visitCreateSchema,
   visitEscalateSchema,
@@ -26,6 +27,7 @@ import {
   updatePatient,
 } from './patient.service.ts';
 import { cancelRequest, requestConsultation } from './chps-consultation.service.ts';
+import { offlineKey, syncWalkIn } from './offline.service.ts';
 
 /**
  * CHPS patients, visits and triage (CHPS slice 1b, D75) — docs/api.md §14.
@@ -49,6 +51,12 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
     permissions: [PERMISSIONS.CHPS_CONSULTATION_REQUEST],
   });
 
+  // Sending a walk-in recorded offline registers and triages in one step (D88).
+  const syncOffline = guard({
+    roles: ['FACILITY'],
+    permissions: [PERMISSIONS.PATIENT_REGISTER, PERMISSIONS.TRIAGE_WRITE],
+  });
+
   const ctx = (request: FastifyRequest, write: boolean) =>
     staffContext(requireAuth(request), { write, correlationId: request.correlationId });
 
@@ -67,6 +75,21 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
     const input = patientRegistrationSchema.parse(request.body);
     const data = await registerPatient(await ctx(request, true), input);
     return reply.status(201).send({ data, meta: { requestId: request.correlationId } });
+  });
+
+  app.get('/facility/offline-key', { preHandler: syncOffline }, async (request, reply) => {
+    const data = await offlineKey(await ctx(request, false));
+    return reply
+      .header('cache-control', 'no-store')
+      .send({ data, meta: { requestId: request.correlationId } });
+  });
+
+  app.post('/facility/offline/walk-ins', { preHandler: syncOffline }, async (request, reply) => {
+    const input = offlineWalkInSchema.parse(request.body);
+    const data = await syncWalkIn(await ctx(request, true), input);
+    return reply
+      .status(data.outcome === 'SAVED' ? 201 : 200)
+      .send({ data, meta: { requestId: request.correlationId } });
   });
 
   app.get(

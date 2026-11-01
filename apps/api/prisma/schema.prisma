@@ -2662,6 +2662,11 @@ model FacilityUser {
   /// Reserved for Phase 3, when a facility administrator may manage their own
   /// facility's staff. Grants nothing yet.
   isFacilityAdmin Boolean  @default(false)
+  /// The key this CHO's browser encrypts walk-ins recorded offline with
+  /// (slice 4a, D88), itself encrypted. Made on first request; the device
+  /// never stores it, so a queue left on a device is unreadable without
+  /// signing in again.
+  offlineKeyEnc   String?  @db.Text
   createdAt       DateTime @default(now())
 
   facility Facility @relation(fields: [facilityId], references: [id], onDelete: Restrict)
@@ -2771,6 +2776,9 @@ model PatientVisit {
   createdByUserId String
   closedByUserId  String?
   clientRequestId String?  @unique @db.VarChar(64)
+  /// Set when the visit was recorded offline and reached the server later
+  /// (slice 4a, D88); `arrivedAt` is then the time on the device.
+  syncedAt        DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

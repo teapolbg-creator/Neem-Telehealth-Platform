@@ -1,16 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Loader2, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, CloudOff, Loader2, Search, ShieldCheck, UserPlus } from "lucide-react";
 import {
   CHPS_CONSENT_TEXT,
   NHIS_STATUSES,
   NHIS_STATUS_LABELS,
+  patientRegistrationSchema,
   type ConsentGivenBy,
   type NhisStatus,
   type PatientSummary,
 } from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
 import { ApiError } from "@/lib/api-client";
+import { useSession } from "@/features/auth/use-session";
+import { saveWalkIn, useOfflineQueue } from "@/features/offline/queue";
 import { Field } from "@/features/facility/LocationFields";
 import { inputClass } from "@/features/facility/form";
 import {
@@ -135,7 +138,11 @@ function FindPatient({ onRegister }: { onRegister: () => void }) {
 
       {search.error ? (
         <p className="text-sm text-red-600">
-          {search.error instanceof ApiError ? search.error.message : "Search failed."}
+          {search.error instanceof ApiError && search.error.status === 0
+            ? "Searching needs the connection. Register them as a walk-in instead: Neem checks whether they are already on file once the connection returns."
+            : search.error instanceof ApiError
+              ? search.error.message
+              : "Search failed."}
         </p>
       ) : null}
 
@@ -242,6 +249,10 @@ function RegisterForm({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   const register = useRegisterPatient();
   const [requestId] = useState(() => crypto.randomUUID());
+  const { user } = useSession();
+  const offline = useOfflineQueue(user?.role === "FACILITY" ? user.publicId : null);
+  const [offlineErrors, setOfflineErrors] = useState<Record<string, string>>({});
+  const [savingOffline, setSavingOffline] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [sex, setSex] = useState<"FEMALE" | "MALE" | "OTHER" | "">("");
@@ -264,44 +275,82 @@ function RegisterForm({ onBack }: { onBack: () => void }) {
   const [guardianName, setGuardianName] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState("");
 
-  const errors = register.error instanceof ApiError ? register.error.fieldErrors : {};
+  const errors = {
+    ...(register.error instanceof ApiError ? register.error.fieldErrors : {}),
+    ...offlineErrors,
+  };
   const years = ageYears === "" ? null : Number(ageYears);
+  // No connection now, or the last attempt could not reach Neem (D88).
+  const unreachable =
+    !offline.reachable || (register.error instanceof ApiError && register.error.status === 0);
+
+  const build = () => {
+    if (!sex || !consentGivenBy) return null;
+    return {
+      fullName,
+      sex,
+      dateOfBirth: ageMode === "date" ? dateOfBirth || null : null,
+      ageYears: ageMode === "age" ? years : null,
+      ageMonths: ageMode === "age" && ageMonths !== "" ? Number(ageMonths) : null,
+      phone,
+      community,
+      nhisStatus,
+      nhisNumber: nhisStatus === "NOT_MEMBER" ? null : nhisNumber,
+      emergencyContact: contactName.trim()
+        ? { name: contactName, phone: contactPhone, relationship: contactRelationship }
+        : null,
+      allergies,
+      medications,
+      medicalHistory,
+      presentingComplaint: complaint,
+      consentGivenBy,
+      representative:
+        consentGivenBy === "GUARDIAN"
+          ? { name: guardianName, relationship: guardianRelationship }
+          : null,
+      clientRequestId: requestId,
+    };
+  };
+
+  /**
+   * Checked here with the same rules the API applies, because nothing will
+   * check it again until the connection returns.
+   */
+  const saveOffline = async () => {
+    const parsed = patientRegistrationSchema.safeParse(build());
+    if (!parsed.success) {
+      setOfflineErrors(
+        Object.fromEntries(
+          parsed.error.issues.map((issue) => [issue.path.join("."), issue.message]),
+        ),
+      );
+      return;
+    }
+    setOfflineErrors({});
+    setSavingOffline(true);
+    try {
+      await saveWalkIn(parsed.data, null);
+      void navigate({ to: "/facility/offline" });
+    } finally {
+      setSavingOffline(false);
+    }
+  };
 
   const submit = () => {
-    if (!sex || !consentGivenBy) return;
-    register.mutate(
-      {
-        fullName,
-        sex,
-        dateOfBirth: ageMode === "date" ? dateOfBirth || null : null,
-        ageYears: ageMode === "age" ? years : null,
-        ageMonths: ageMode === "age" && ageMonths !== "" ? Number(ageMonths) : null,
-        phone,
-        community,
-        nhisStatus,
-        nhisNumber: nhisStatus === "NOT_MEMBER" ? null : nhisNumber,
-        emergencyContact: contactName.trim()
-          ? { name: contactName, phone: contactPhone, relationship: contactRelationship }
-          : null,
-        allergies,
-        medications,
-        medicalHistory,
-        presentingComplaint: complaint,
-        consentGivenBy,
-        representative:
-          consentGivenBy === "GUARDIAN"
-            ? { name: guardianName, relationship: guardianRelationship }
-            : null,
-        clientRequestId: requestId,
-      },
-      {
-        onSuccess: (result) =>
-          void navigate({
-            to: "/facility/patients/$patientNumber",
-            params: { patientNumber: result.patientNumber },
-          }),
-      },
-    );
+    const input = build();
+    if (!input) return;
+    if (!offline.reachable && offline.canSave) {
+      void saveOffline();
+      return;
+    }
+    setOfflineErrors({});
+    register.mutate(input, {
+      onSuccess: (result) =>
+        void navigate({
+          to: "/facility/patients/$patientNumber",
+          params: { patientNumber: result.patientNumber },
+        }),
+    });
   };
 
   return (
@@ -552,7 +601,16 @@ function RegisterForm({ onBack }: { onBack: () => void }) {
         </p>
       </section>
 
-      {register.error && Object.keys(errors).length === 0 ? (
+      {unreachable ? (
+        <div className="card-soft flex items-start gap-3 border-warning/30 bg-warning-soft p-4 text-sm">
+          <CloudOff className="mt-0.5 size-5 shrink-0 text-warning" />
+          <p>
+            {offline.canSave
+              ? "No connection to Neem. Save this walk-in on this device: it is encrypted here and sent, with a check for a match among your patients, when the connection returns."
+              : "No connection to Neem, and this device cannot save walk-ins until it has connected once since sign-in. Record this patient on paper."}
+          </p>
+        </div>
+      ) : register.error && Object.keys(errors).length === 0 ? (
         <p className="text-sm text-red-600">
           {register.error instanceof ApiError ? register.error.message : "Not registered."}
         </p>
@@ -569,14 +627,30 @@ function RegisterForm({ onBack }: { onBack: () => void }) {
         >
           Search first
         </button>
-        <button
-          type="submit"
-          disabled={!sex || !consentGivenBy || register.isPending}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
-        >
-          {register.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-          Register and start visit
-        </button>
+        {unreachable && offline.canSave ? (
+          <button
+            type="button"
+            onClick={() => void saveOffline()}
+            disabled={!sex || !consentGivenBy || savingOffline}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+          >
+            {savingOffline ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <CloudOff className="size-4" />
+            )}
+            Save on this device
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!sex || !consentGivenBy || register.isPending}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+          >
+            {register.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+            Register and start visit
+          </button>
+        )}
       </div>
     </form>
   );

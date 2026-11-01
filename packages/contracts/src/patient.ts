@@ -324,6 +324,8 @@ export interface VisitView {
   status: VisitStatus;
   presentingComplaint: string;
   arrivedAt: string;
+  /** When a visit recorded offline reached Neem (D88); null for one recorded online. */
+  syncedAt: string | null;
   escalatedAt: string | null;
   escalationNote: string | null;
   closedAt: string | null;

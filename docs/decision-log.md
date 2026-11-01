@@ -3173,3 +3173,47 @@ sessions, presence, station heartbeats, failures and security events.
 **What was not done.** Alerting (email, SMS or push when something happens),
 application error rates and latency, which belong to the hosting provider's
 metrics, and device monitoring, which is Phase 4.
+
+---
+
+### D88 — Walk-ins recorded offline are sealed on the device and checked on arrival · 2026-11-03 · **DECIDED**
+
+**Context.** Slice 4a, opening Phase 4. CHPS compounds lose their connection,
+and the plan deferred offline clinical capture until there was an encrypted
+local store and a conflict design (§3, "Not proposed").
+
+**Decision.**
+
+- **What works offline: a new walk-in and its triage.** Registration with
+  consent and the presenting complaint, then vital signs and the category. Not
+  searching the registry, opening a record, requesting a doctor, referring or
+  closing a visit: those need what only the server holds, and pretending
+  otherwise would show stale or invented state. The registry is never copied
+  to the device.
+- **Sealed with a key the device does not keep.** Each walk-in is encrypted
+  with AES-GCM in IndexedDB the moment it is saved. The key is per CHO, made
+  by the API on first request, stored encrypted there, and held by the browser
+  in memory only, imported as non-extractable. A queue left on a lost or
+  shared tablet is unreadable without that CHO signing in again; another
+  account on the same device sees only how many are waiting.
+- **Duplicates are decided by the CHO, on arrival.** The server compares each
+  walk-in with the facility's patients by phone, NHIS number, or a name whose
+  words all appear in the other's. Possible matches come back to the CHO, who
+  says "this is them" (a new visit on their record) or "none of them" (a new
+  patient). Nothing is merged by itself, and details typed offline are not
+  copied onto an existing record.
+- **The time on the device, corrected.** A visit recorded offline keeps the
+  arrival and triage times the CHO saw, moved by the gap between the device's
+  clock and the server's when it sends, and never into the future. `syncedAt`
+  marks it, and the record says "recorded offline, reached Neem …".
+- **Sent once, oldest first.** The request id makes a resend return the same
+  visit, including one first made by the online form whose reply was lost, and
+  completes the triage if only that failed. A refusal stops that walk-in alone
+  and is shown to the CHO with what they can do.
+- **Connection state is what the API answers.** Any failed request marks the
+  facility screens offline; while offline the browser checks every 15 seconds
+  and sends what is waiting when it is back.
+
+**What was not done.** A service worker so the app opens with no connection at
+all (today the app must have loaded once since sign-in), offline work on
+patients already on file, offline doctor requests, and key rotation.
