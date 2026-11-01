@@ -62,8 +62,8 @@ const NAV: Record<
     { label: "Referrals", to: "/facility/referrals" },
     { label: "Reports", to: "/facility/reports" },
   ],
-  // District health officers (D84). One page until the dashboard arrives (3b).
-  district: [{ label: "My district", to: "/district" }],
+  // District health officers (D84, D85).
+  district: [{ label: "Dashboard", to: "/district" }],
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },

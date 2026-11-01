@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { PERMISSIONS } from '@neem/contracts';
+import { PERMISSIONS, districtReportQuerySchema } from '@neem/contracts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
-import { districtOverview } from './district.service.ts';
+import { districtOverview, districtReport } from './district.service.ts';
 
 /**
  * A district health officer's view of their area (CHPS slice 3a, D84) —
@@ -14,6 +14,15 @@ export async function districtRoutes(app: FastifyInstance): Promise<void> {
     const principal = requireAuth(request);
     return reply.send({
       data: await districtOverview(principal.userId),
+      meta: { requestId: request.correlationId },
+    });
+  });
+
+  app.get('/district/report', { preHandler: officer }, async (request, reply) => {
+    const principal = requireAuth(request);
+    const query = districtReportQuerySchema.parse(request.query);
+    return reply.send({
+      data: await districtReport(principal.userId, query),
       meta: { requestId: request.correlationId },
     });
   });

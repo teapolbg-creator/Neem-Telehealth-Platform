@@ -7,6 +7,7 @@ import {
   TRIAGE_CATEGORIES,
   type FacilityReport,
   type ReportDay,
+  type ReportTotals,
 } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -40,12 +41,8 @@ function average(values: number[]): number | null {
 
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
-export async function facilityReport(
-  ctx: StaffContext,
-  range: { from: string; to: string },
-  db: Db = getPrisma(),
-  clock: Clock = systemClock,
-): Promise<FacilityReport> {
+/** The range as instants, refused beyond REPORT_MAX_DAYS. */
+export function reportPeriod(range: { from: string; to: string }) {
   const start = new Date(`${range.from}T00:00:00Z`);
   const lastDay = new Date(`${range.to}T00:00:00Z`);
   const end = addDays(lastDay, 1);
@@ -56,17 +53,23 @@ export async function facilityReport(
       `A report covers at most ${REPORT_MAX_DAYS} days.`,
     );
   }
-  const period = { gte: start, lt: end };
-  const facilityId = ctx.facilityId;
+  return { start, dayCount, period: { gte: start, lt: end } };
+}
 
-  const [facility, visits, newPatients, consultations, referrals, followUps] = await Promise.all([
-    db.facility.findUniqueOrThrow({
-      where: { id: facilityId },
-      select: { name: true, code: true },
-    }),
+export type ReportPeriod = ReturnType<typeof reportPeriod>;
+
+/**
+ * Every record a report counts, for one facility or many. Each row carries
+ * its facility so a district report can split the same rows by facility
+ * instead of querying each one again.
+ */
+export async function reportRecords(facilityIds: string[], period: ReportPeriod['period'], db: Db) {
+  const facilityId = { in: facilityIds };
+  const [visits, newPatients, consultations, referrals, followUps] = await Promise.all([
     db.patientVisit.findMany({
       where: { facilityId, arrivedAt: period },
       select: {
+        facilityId: true,
         patientId: true,
         arrivedAt: true,
         status: true,
@@ -76,10 +79,14 @@ export async function facilityReport(
       },
       orderBy: { arrivedAt: 'desc' },
     }),
-    db.patient.findMany({ where: { facilityId, createdAt: period }, select: { createdAt: true } }),
+    db.patient.findMany({
+      where: { facilityId, createdAt: period },
+      select: { facilityId: true, createdAt: true },
+    }),
     db.consultation.findMany({
       where: { facilityId, channel: 'CHPS', createdAt: period },
       select: {
+        facilityId: true,
         createdAt: true,
         state: true,
         durationSeconds: true,
@@ -93,10 +100,43 @@ export async function facilityReport(
     }),
     db.chpsReferral.findMany({
       where: { facilityId, issuedAt: period },
-      select: { issuedAt: true, urgency: true, status: true, destinationName: true },
+      select: {
+        facilityId: true,
+        issuedAt: true,
+        urgency: true,
+        status: true,
+        destinationName: true,
+      },
     }),
-    db.followUp.findMany({ where: { facilityId, dueDate: period }, select: { status: true } }),
+    db.followUp.findMany({
+      where: { facilityId, dueDate: period },
+      select: { facilityId: true, status: true },
+    }),
   ]);
+  return { visits, newPatients, consultations, referrals, followUps };
+}
+
+export type ReportRecords = Awaited<ReturnType<typeof reportRecords>>;
+
+/** The records narrowed to one facility, for its line in a district comparison. */
+export function recordsFor(records: ReportRecords, facilityId: string): ReportRecords {
+  const mine = <T extends { facilityId: string | null }>(rows: T[]) =>
+    rows.filter((row) => row.facilityId === facilityId);
+  return {
+    visits: mine(records.visits),
+    newPatients: mine(records.newPatients),
+    consultations: mine(records.consultations),
+    referrals: mine(records.referrals),
+    followUps: mine(records.followUps),
+  };
+}
+
+/** Counts the records. Pure: everything it needs was fetched already. */
+export function reportTotals(
+  records: ReportRecords,
+  { start, dayCount }: Pick<ReportPeriod, 'start' | 'dayCount'>,
+): ReportTotals {
+  const { visits, newPatients, consultations, referrals, followUps } = records;
 
   // ---- attendance -------------------------------------------------------
   const byTriage = Object.fromEntries(
@@ -195,10 +235,6 @@ export async function facilityReport(
   }
 
   return {
-    facility,
-    from: range.from,
-    to: range.to,
-    generatedAt: clock.now().toISOString(),
     attendance: {
       visits: visits.length,
       newPatients: newPatients.length,
@@ -242,10 +278,34 @@ export async function facilityReport(
       cancelled: followUps.filter((f) => f.status === 'CANCELLED').length,
       stillDue: followUps.filter((f) => f.status === 'DUE').length,
     },
-    complaints: visits.slice(0, 300).map((visit) => ({
+    days,
+  };
+}
+
+export async function facilityReport(
+  ctx: StaffContext,
+  range: { from: string; to: string },
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<FacilityReport> {
+  const period = reportPeriod(range);
+  const [facility, records] = await Promise.all([
+    db.facility.findUniqueOrThrow({
+      where: { id: ctx.facilityId },
+      select: { name: true, code: true },
+    }),
+    reportRecords([ctx.facilityId], period.period, db),
+  ]);
+
+  return {
+    facility,
+    from: range.from,
+    to: range.to,
+    generatedAt: clock.now().toISOString(),
+    ...reportTotals(records, period),
+    complaints: records.visits.slice(0, 300).map((visit) => ({
       date: dateOnly(visit.arrivedAt),
       text: decryptField(visit.presentingComplaintEnc),
     })),
-    days,
   };
 }

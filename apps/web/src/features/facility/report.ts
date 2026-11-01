@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { FacilityReport } from "@neem/contracts";
+import type { FacilityReport, ReportTotals } from "@neem/contracts";
 import { api } from "@/lib/api-client";
 
 /** A CHPS facility's report for a date range (slice 2c, D82). */
@@ -40,23 +41,23 @@ export function presetRange(preset: "today" | "yesterday" | "thisMonth" | "lastM
   }
 }
 
+export type CsvRow = (string | number | null)[];
+
 function csvCell(value: string | number | null): string {
   const text = value === null ? "" : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+export function toCsv(rows: CsvRow[]): string {
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
 /**
- * The report as CSV: the summary figures, then a row per day. Built from
- * exactly what the screen shows, so the two cannot disagree (D82).
+ * The figures any report shares, then a row per day. Built from exactly what
+ * the screen shows, so the two cannot disagree (D82, D85).
  */
-export function reportCsv(report: FacilityReport): string {
-  const rows: (string | number | null)[][] = [
-    ["Facility", report.facility.name],
-    ["Code", report.facility.code],
-    ["From", report.from],
-    ["To", report.to],
-    ["Generated", report.generatedAt],
-    [],
+export function totalsCsvRows(report: ReportTotals): CsvRow[] {
+  return [
     ["Visits", report.attendance.visits],
     ["New patients", report.attendance.newPatients],
     ["Patients seen", report.attendance.patientsSeen],
@@ -87,15 +88,63 @@ export function reportCsv(report: FacilityReport): string {
       day.referrals,
     ]),
   ];
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
-export function downloadCsv(report: FacilityReport) {
-  const blob = new Blob([reportCsv(report)], { type: "text/csv;charset=utf-8" });
+/** The facility report as CSV: who and when, then the shared figures. */
+export function reportCsv(report: FacilityReport): string {
+  return toCsv([
+    ["Facility", report.facility.name],
+    ["Code", report.facility.code],
+    ["From", report.from],
+    ["To", report.to],
+    ["Generated", report.generatedAt],
+    [],
+    ...totalsCsvRows(report),
+  ]);
+}
+
+export function saveCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `neem-${report.facility.code}-${report.from}-to-${report.to}.csv`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export function downloadCsv(report: FacilityReport) {
+  saveCsv(reportCsv(report), `neem-${report.facility.code}-${report.from}-to-${report.to}.csv`);
+}
+
+export type Preset = "today" | "yesterday" | "thisMonth" | "lastMonth" | "custom";
+
+export const PRESETS: [Preset, string][] = [
+  ["today", "Today"],
+  ["yesterday", "Yesterday"],
+  ["thisMonth", "This month"],
+  ["lastMonth", "Last month"],
+  ["custom", "Choose dates"],
+];
+
+/** The chosen range, from a preset or two dates. */
+export function useReportRange(initial: Preset = "today") {
+  const [preset, setPreset] = useState<Preset>(initial);
+  const [custom, setCustom] = useState(() => presetRange("thisMonth"));
+  const range = preset === "custom" ? custom : presetRange(preset);
+  return { preset, setPreset, custom, setCustom, range };
+}
+
+export function formatRange(from: string, to: string) {
+  const format = (iso: string) =>
+    new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  return from === to ? format(from) : `${format(from)} – ${format(to)}`;
+}
+
+/** Minutes for a report cell, or a dash when there is nothing to measure. */
+export const minutes = (value: number | null) => (value === null ? "—" : `${value} min`);

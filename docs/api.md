@@ -926,7 +926,14 @@ sessions at once.
 
 ```
 GET    /district/overview                             the officer, their area and its CHPS compounds
+GET    /district/report?from&to[&districtId][&subDistrictId][&facility]   the dashboard (slice 3b, D85)
 ```
 
 Read-only, for `DISTRICT` holding `district-report:read`. The area is read from
 the officer's record on every request, never from the URL.
+
+The report is the facility report (§19) summed over the CHPS compounds in the
+area, with each facility's line in `byFacility`, for at most 92 days. Filters
+narrow the area and never widen it: a district, sub-district or facility
+outside it is answered 404. Presenting complaints are not included; they are
+free text about patients and stay at the facility.

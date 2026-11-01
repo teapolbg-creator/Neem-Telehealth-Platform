@@ -3084,3 +3084,33 @@ administrator.
 **What was not done.** Changing an officer's area (suspend and create a new
 account); per-person permission overrides; the district dashboard itself,
 which is slice 3b.
+
+---
+
+### D85 — The district dashboard is the facility report, summed and compared · 2026-11-02 · **DECIDED**
+
+**Context.** Slice 3b. A district officer (D84) needs the brief's district
+aggregate reporting with filters and CSV.
+
+**Decision.**
+
+- **One way of counting.** The facility report (D82) is split into fetching
+  the records, which now carry their facility, and a pure count over them. The
+  facility report, the district totals and each facility's line all use the
+  same count, so a district total is exactly the sum of its facilities.
+- **Filters narrow, never widen.** District (for a regional officer),
+  sub-district and facility are ANDed with the officer's area. A filter that
+  matches nothing in the area is refused as not found, rather than answered
+  with zeros that would read as a real, quiet report.
+- **Counts only.** Presenting complaints are free text about a patient and are
+  left out of the district view; the officer sees how many, not what was said.
+  Doctors are named, as on the facility report: they are Neem staff, and their
+  completed consultations are an operational figure.
+- **A table for comparison.** Facilities are compared in a table of ten
+  measures, busiest first, because the reader looks across several at once; the
+  CSV carries the totals, the days and one row per facility.
+- **Same limits.** At most 92 days, UTC days (Ghana's), a record on the day it
+  started.
+
+**What was not done.** No comparison with an earlier period, no map, and no
+admin view of a district (operations gets its own overview in 3c).
