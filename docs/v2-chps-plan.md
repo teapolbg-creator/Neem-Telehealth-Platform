@@ -128,9 +128,30 @@ provider, and once by hand against Whereby on a real tablet.
 
 ### Phase 2: referrals and continuity
 
-Referral register, destination registry, acknowledgement and feedback, transport, follow-up records
-and a follow-up list, the patient history view (gated on Q1), document attachments in the existing
-storage adapter, and daily and monthly facility reports. **Milestone:** Scenario 5.
+Patient history is already built (D74, D78). What remains, in four slices:
+
+| Slice | Delivers                                                                                                                                                                                                                                                                                                                                                         | Depends on |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 2a    | Referrals as tracked records: destination from the facility registry, reason and clinical summary drawn from the encounter record, urgency, transport, status `ISSUED → ACKNOWLEDGED → ATTENDED / DID NOT ARRIVE`, feedback from the receiving facility, and an emergency referral straight from an escalated visit (Scenario 3). Referral register per facility | Q7         |
+| 2b    | Follow-up records from the doctor's follow-up instruction: due date, done or missed, and a follow-up list on the CHO's Today page                                                                                                                                                                                                                                |            |
+| 2c    | Daily and monthly facility reports (brief §A8) with date filters                                                                                                                                                                                                                                                                                                 | Q8         |
+| 2d    | Prescriptions for CHPS patients, and attachments on a visit through the existing storage adapter                                                                                                                                                                                                                                                                 | Q9         |
+
+**Milestone:** Scenario 5 end to end.
+
+**Questions for Phase 2** (answered 2026-11-01, D79: the CHO records referral acknowledgement and
+feedback; complaints stay free text; prescriptions are printed and may be dispensed at the facility):
+
+7. **Receiving facilities have no Neem accounts.** How is a referral acknowledged and fed back?
+   Proposed: both. A printed referral slip carries a code that opens a public page, where the
+   receiving facility confirms arrival and writes feedback without an account, as prescriptions are
+   verified today; and the CHO can record either one after a phone call.
+8. **"Common presenting complaints" cannot be counted from free text.** Proposed: a short list of
+   complaint categories chosen at registration alongside the free text, editable by an
+   administrator, seeded from a list the operator supplies.
+9. **Who receives a CHPS prescription?** Proposed: printed for the patient with its verification
+   code, to collect at a pharmacy, and marked "dispensed at the facility" when the compound has the
+   medicine in stock.
 
 ### Phase 3: administration and analytics
 

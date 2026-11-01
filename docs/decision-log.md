@@ -2889,3 +2889,24 @@ existing documents; making a referral a tracked record with a destination
 facility, acknowledgement and feedback is Phase 2. Diagnosis is free text, not
 a coded classification. Another doctor's later amendment to a record they did
 not write is not allowed.
+
+---
+
+### D79 — Three Phase 2 questions answered by the operator · 2026-11-01 · **DECIDED**
+
+The operator answered the questions in docs/v2-chps-plan.md, Phase 2.
+
+1. **Referral acknowledgement and feedback are recorded by the CHO.**
+   Receiving facilities get no accounts and no public page: the CHO phones
+   the receiving facility and records arrival and feedback in Neem. Nothing
+   reachable from outside Neem accepts input about a referral, so a referral
+   slip carries no code that could be used to write to a patient's record.
+   Who recorded each acknowledgement, and how they learned it, is kept.
+2. **Presenting complaints stay free text.** No category list. Reports show
+   complaints as written; they do not count them by type, and must not
+   pretend to by matching words. Counting by type would need a coded list,
+   which is a later decision.
+3. **A CHPS prescription is printed for the patient, and may be dispensed at
+   the facility.** The doctor issues it as today, with its verification code;
+   the patient may take it to any pharmacy, and the CHO marks it dispensed at
+   the facility when the compound has the medicine in stock.
