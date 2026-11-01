@@ -2846,3 +2846,46 @@ at the CHPS compound, not on a phone of their own.
 to the CHO as on or off, but the facility's reported connectivity (D73) is not
 yet updated from them, and there is no measurement of call quality. A station
 cannot be paired by an administrator, only by the facility's own staff.
+
+---
+
+### D78 — The CHPS encounter record is the doctor's, the patient's and the CHO's, and it is never sealed · 2026-11-01 · **DECIDED**
+
+**Context.** Slice 1e: the doctor sees what the CHO found, documents the
+encounter, and the CHO acts on it. This completes Phase 1.
+
+**Decision.**
+
+- **A separate record, not the sealed notes.** `EncounterRecord` holds the
+  brief's structured sections as one encrypted object, linked to the CHPS
+  patient. `ConsultationClinicalNotes` is sealed at the end of a consultation
+  under D23; this is the readable record D74 promised, so it is its own table
+  and nothing seals it. For CHPS, the workspace's Notes tab becomes the
+  encounter record and the patient-summary tab is hidden.
+- **Draft, final, amended.** While the consultation is live a save overwrites
+  the draft: a half-written sentence autosaved is not a clinical record.
+  Completion finalises it as version 1 in the completion transaction. Every
+  later save is an amendment: it needs a reason, adds an
+  `EncounterRecordVersion` with its author, and is audited. Nothing is edited
+  in place once final.
+- **Completion needs an assessment and a plan.** A CHPS consultation cannot be
+  completed without them, checked before anything is written. With them, the
+  record satisfies the advice-only rule (D25) in place of a patient summary,
+  because the CHO is who carries the advice to the patient.
+- **What the doctor sees.** The assigned doctor reads the patient's identity,
+  allergies, medicines and history, the CHO's triage, readings and note, and up
+  to ten earlier visits with their finalised conclusions. Each read is logged.
+  Before accepting, an offer shows only facility, sex, age, complaint and
+  triage category (brief §B2).
+- **What the CHO sees.** The finalised record's assessment, diagnosis, plan,
+  referral and follow-up, under "Doctor's advice" on the visit. A draft never
+  reaches the facility.
+- **A slice 1c fix.** The CHO's note on a request was validated and then
+  dropped. It is now stored, encrypted, as `Consultation.requestNoteEnc`, and
+  shown to the doctor.
+
+**What was not done.** Prescriptions and referrals for CHPS still use the
+existing documents; making a referral a tracked record with a destination
+facility, acknowledgement and feedback is Phase 2. Diagnosis is free text, not
+a coded classification. Another doctor's later amendment to a record they did
+not write is not allowed.

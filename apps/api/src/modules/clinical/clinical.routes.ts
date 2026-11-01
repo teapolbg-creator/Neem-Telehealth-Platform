@@ -5,6 +5,8 @@ import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { completeConsultation, readWorkspace, saveClinicalNotes } from './clinical.service.ts';
+import { getChpsContext, saveEncounter } from './chps-encounter.service.ts';
+import { encounterSaveSchema } from '@neem/contracts';
 import {
   createDraft,
   decideSubstitution,
@@ -234,6 +236,41 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
         data: await readWorkspace(consultationId),
         meta: { requestId: request.correlationId },
       });
+    },
+  );
+
+  /*
+   * The CHPS compound's side of the patient, and the encounter record the
+   * doctor writes into their readable record (D78). Assigned doctor only; any
+   * other caller is told the consultation does not exist.
+   */
+  app.get(
+    '/doctor/consultations/:publicId/chps',
+    { preHandler: doctorOnly },
+    async (request, reply) => {
+      const doctorId = requireDoctor(request);
+      const { publicId } = publicIdParams.parse(request.params);
+      const data = await getChpsContext(publicId, {
+        doctorId,
+        userId: requireAuth(request).userId,
+      });
+      return reply.send({ data, meta: { requestId: request.correlationId } });
+    },
+  );
+
+  app.put(
+    '/doctor/consultations/:publicId/encounter',
+    { preHandler: doctorOnly },
+    async (request, reply) => {
+      const doctorId = requireDoctor(request);
+      const { publicId } = publicIdParams.parse(request.params);
+      const input = encounterSaveSchema.parse(request.body);
+      const data = await saveEncounter(
+        publicId,
+        { doctorId, userId: requireAuth(request).userId },
+        input,
+      );
+      return reply.send({ data, meta: { requestId: request.correlationId } });
     },
   );
 

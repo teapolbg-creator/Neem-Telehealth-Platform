@@ -29,6 +29,7 @@ import {
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
 import { DoctorRequest } from "@/features/facility/DoctorRequest";
+import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
 
 export const Route = createFileRoute("/facility/patients/$patientNumber")({
   component: PatientPage,
@@ -226,6 +227,8 @@ function CurrentVisit({ visit }: { visit: VisitView }) {
       {visit.triage ? <TriageSummary triage={visit.triage} /> : null}
 
       <TriageForm visit={visit} />
+
+      {visit.encounter ? <DoctorAdvice encounter={visit.encounter} /> : null}
 
       <DoctorRequest visit={visit} />
 
@@ -524,6 +527,7 @@ function PastVisit({ visit }: { visit: VisitView }) {
       {visit.escalationNote ? (
         <p className="text-xs text-red-700">Emergency: {visit.escalationNote}</p>
       ) : null}
+      {visit.encounter ? <DoctorAdvice encounter={visit.encounter} compact /> : null}
       {visit.closingNote ? <p className="text-xs text-slate-500">{visit.closingNote}</p> : null}
     </li>
   );

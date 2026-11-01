@@ -148,6 +148,15 @@ export interface QueueOffer {
   language: { code: string; label: string } | null;
   /** Null for a patient who booked on Neem themselves (v2). */
   pharmacy: { name: string; city: string } | null;
+  /** Set for a request from a CHPS compound (D78). */
+  chps?: {
+    facilityName: string;
+    district: string;
+    sex: "FEMALE" | "MALE" | "OTHER" | null;
+    ageYears: number | null;
+    presentingComplaint: string | null;
+    triageCategory: "RED" | "ORANGE" | "YELLOW" | "GREEN" | null;
+  } | null;
   offeredAt: string;
   respondByAt: string;
   secondsRemaining: number;
@@ -157,8 +166,13 @@ export interface QueueOffer {
  * Where a consultation came from, as the doctor is told it. A patient who
  * booked online has no pharmacy, and saying so is the answer, not a blank.
  */
-export function consultationOrigin(pharmacy: { name: string; city: string } | null): string {
-  return pharmacy ? `${pharmacy.name}, ${pharmacy.city}` : "Booked online by the patient";
+export function consultationOrigin(
+  pharmacy: { name: string; city: string } | null,
+  facility?: { name: string; district: string } | null,
+): string {
+  if (pharmacy) return `${pharmacy.name}, ${pharmacy.city}`;
+  if (facility) return `${facility.name}, ${facility.district}`;
+  return "Booked online by the patient";
 }
 
 /**
@@ -168,8 +182,12 @@ export function consultationOrigin(pharmacy: { name: string; city: string } | nu
  * dispense and may propose a substitution, and an online patient keeps what
  * is issued and takes it wherever they choose.
  */
-export function channelLabel(pharmacy: { name: string; city: string } | null): string {
-  return pharmacy ? "At a pharmacy" : "Online patient";
+export function channelLabel(
+  pharmacy: { name: string; city: string } | null,
+  facility?: { name: string } | null,
+): string {
+  if (pharmacy) return "At a pharmacy";
+  return facility ? "CHPS compound" : "Online patient";
 }
 
 export function useQueue(enabled: boolean) {
@@ -282,6 +300,9 @@ export interface DoctorConsultation {
   language: { code: string; label: string } | null;
   /** Null for a patient who booked on Neem themselves (v2). */
   pharmacy: { name: string; city: string } | null;
+  /** CHPS consultations only (D78). */
+  channel?: "COUNTER" | "DIRECT" | "CHPS";
+  facility?: { name: string; community: string; district: string } | null;
   patient: { fullName: string; age: number; sex: string } | null;
   vitals: Record<string, unknown> | null;
   tests: Array<{ code: string; label: string; result: string; recordedAt: string }>;

@@ -6,6 +6,7 @@ export * from './onboarding.ts';
 export * from './facility.ts';
 export * from './patient.ts';
 export * from './station.ts';
+export * from './encounter.ts';
 export * from './pilot.ts';
 export * from './consultation.ts';
 export * from './media.ts';

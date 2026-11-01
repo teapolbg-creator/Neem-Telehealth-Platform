@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ghanaPhoneSchema } from './onboarding.ts';
+import type { VisitEncounterSummary } from './encounter.ts';
 
 /**
  * CHPS patients, walk-in visits and triage (CHPS slice 1b, D74, D75).
@@ -325,6 +326,8 @@ export interface VisitView {
   triage: TriageView | null;
   triageHistory: TriageView[];
   consultation: VisitConsultation | null;
+  /** The doctor's finalised record, once there is one (D78). */
+  encounter: VisitEncounterSummary | null;
 }
 
 export interface PatientRecord extends PatientSummary {

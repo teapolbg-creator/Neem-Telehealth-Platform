@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
@@ -32,6 +33,8 @@ import {
   usePlaceCall,
 } from "@/features/media/api";
 import { useRealtimeEvent } from "@/features/realtime/socket";
+import { useChpsContext } from "@/features/chps/doctor";
+import { ChpsContextPanel, EncounterForm } from "@/features/chps/ChpsPanels";
 
 export const Route = createFileRoute("/doctor/consultations/$publicId")({
   component: DoctorConsultation,
@@ -50,6 +53,10 @@ function DoctorConsultation() {
   const { publicId } = Route.useParams();
   const navigate = useNavigate();
   const { data, isLoading, error } = useDoctorConsultation(publicId);
+  const queryClient = useQueryClient();
+  // A CHPS consultation brings the compound's side of the patient (D78).
+  const isChps = data?.channel === "CHPS";
+  const chps = useChpsContext(publicId, isChps);
 
   // Held here rather than re-read from the server: once completed, the
   // workspace query is a 403 by design, so the result of the completion is the
@@ -115,22 +122,44 @@ function DoctorConsultation() {
             <h1 className="text-3xl font-bold">Consultation</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
               <MapPin className="size-4" />
-              {consultationOrigin(data.pharmacy)}
+              {consultationOrigin(data.pharmacy, data.facility)}
             </p>
             {/* What the channel means in practice, rather than leaving the
                 professional to infer it from a pharmacy name. */}
             <p className="mt-1 text-xs text-slate-400">
               {data.pharmacy
                 ? "Anything you issue goes to this pharmacy, which may propose a substitution for you to decide."
-                : "No pharmacy is involved. The patient keeps whatever you issue, under My care."}
+                : isChps
+                  ? "The patient is with a Community Health Officer at the compound. Your encounter record goes into their CHPS record, and the CHO acts on your plan."
+                  : "No pharmacy is involved. The patient keeps whatever you issue, under My care."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Chip tone={data.pharmacy ? "medical" : "muted"}>{channelLabel(data.pharmacy)}</Chip>
+            <Chip tone={data.pharmacy || isChps ? "medical" : "muted"}>
+              {channelLabel(data.pharmacy, data.facility)}
+            </Chip>
             {data.language && <Chip tone="muted">{data.language.label}</Chip>}
             <Chip tone="brand">{data.state.replace(/_/g, " ").toLowerCase()}</Chip>
           </div>
         </header>
+
+        {isChps ? (
+          <div className="mt-6">
+            {chps.data ? (
+              <ChpsContextPanel context={chps.data} />
+            ) : chps.error ? (
+              <p className="card-soft p-5 text-sm text-red-600">
+                {chps.error instanceof ApiError
+                  ? chps.error.message
+                  : "The CHPS record could not be loaded."}
+              </p>
+            ) : (
+              <div className="card-soft grid place-items-center p-8">
+                <Loader2 className="size-5 animate-spin text-brand" />
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="card-soft overflow-hidden">
@@ -142,7 +171,12 @@ function DoctorConsultation() {
               counter, and offered a Reconnect button that could never work.
             */}
             {isTerminalConsultationState(data.state) ? (
-              <EndedPanel state={data.state} outcome={data.outcome} outcomes={data.outcomes} />
+              <EndedPanel
+                state={data.state}
+                outcome={data.outcome}
+                outcomes={data.outcomes}
+                chps={isChps}
+              />
             ) : data.type === "CALL_ME" ? (
               <CallMePanel publicId={publicId} />
             ) : (
@@ -156,7 +190,7 @@ function DoctorConsultation() {
             )}
           </div>
 
-          <PatientPanel consultation={data} />
+          <PatientPanel consultation={data} chps={isChps} />
         </div>
 
         {/*
@@ -166,18 +200,40 @@ function DoctorConsultation() {
           use on a laptop.
         */}
         <div className="mt-6">
-          <ClinicalWorkspace
-            consultationPublicId={publicId}
-            viaPharmacy={Boolean(data.pharmacy)}
-            onCompleted={setCompletion}
-          />
+          {isChps && isTerminalConsultationState(data.state) ? (
+            // Not sealed (D78): the record stays open to its author for amendment.
+            chps.data ? (
+              <div className="card-soft p-6">
+                <EncounterForm publicId={publicId} context={chps.data} />
+              </div>
+            ) : null
+          ) : (
+            <ClinicalWorkspace
+              consultationPublicId={publicId}
+              viaPharmacy={Boolean(data.pharmacy)}
+              onCompleted={
+                isChps
+                  ? () => void queryClient.invalidateQueries({ queryKey: ["doctor"] })
+                  : setCompletion
+              }
+              encounterSlot={
+                isChps ? (
+                  chps.data ? (
+                    <EncounterForm publicId={publicId} context={chps.data} />
+                  ) : (
+                    <Loader2 className="size-5 animate-spin text-brand" />
+                  )
+                ) : undefined
+              }
+            />
+          )}
         </div>
 
         <p className="mt-6 flex items-start gap-2 rounded-2xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
           <ShieldCheck className="mt-px size-4 shrink-0 text-slate-400" />
-          Nothing here is recorded. What you write is sealed when you complete the consultation and
-          retained under a legal record-keeping obligation. It is not readable afterwards, and is
-          destroyed when its retention period ends.
+          {isChps
+            ? "The call is not recorded. Your encounter record is kept in the patient's CHPS record, readable by the clinicians who care for them, and every amendment after completion is versioned with its reason."
+            : "Nothing here is recorded. What you write is sealed when you complete the consultation and retained under a legal record-keeping obligation. It is not readable afterwards, and is destroyed when its retention period ends."}
         </p>
       </div>
     </AppShell>
@@ -603,10 +659,13 @@ function EndedPanel({
   state,
   outcome,
   outcomes,
+  chps = false,
 }: {
   state: string;
   outcome: string | null;
   outcomes?: string[];
+  /** A CHPS record is not sealed (D78). */
+  chps?: boolean;
 }) {
   /*
     Everything the consultation produced, or the single outcome for a record
@@ -629,7 +688,9 @@ function EndedPanel({
       </h2>
       <p className="mt-2 max-w-sm text-pretty text-sm leading-relaxed text-slate-500">
         {wasCompleted
-          ? "There is no call to rejoin. What you wrote is sealed."
+          ? chps
+            ? "There is no call to rejoin. Your encounter record is below; amend it there if you need to."
+            : "There is no call to rejoin. What you wrote is sealed."
           : `It ended as ${state.replace(/_/g, " ").toLowerCase()} and cannot be rejoined.`}
       </p>
 
@@ -657,7 +718,10 @@ function EndedPanel({
 /** Demographics and what the pharmacy recorded. No history, by design. */
 function PatientPanel({
   consultation,
+  chps = false,
 }: {
+  /** A CHPS consultation (D78): its record is not sealed, and earlier visits are shown. */
+  chps?: boolean;
   consultation: {
     pharmacy: { name: string; city: string } | null;
     patient: { fullName: string; age: number; sex: string } | null;
@@ -683,10 +747,13 @@ function PatientPanel({
         <p className="mt-2 text-sm text-slate-500">Details are no longer available.</p>
       )}
 
-      <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-slate-400">
-        {consultation.pharmacy ? "Recorded at the pharmacy" : "Recorded before the consultation"}
-      </h3>
-      {vitals ? (
+      {/* For CHPS the CHO's readings are in the panel above (D78). */}
+      {!chps ? (
+        <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-slate-400">
+          {consultation.pharmacy ? "Recorded at the pharmacy" : "Recorded before the consultation"}
+        </h3>
+      ) : null}
+      {chps ? null : vitals ? (
         <dl className="mt-2 space-y-1.5 text-sm">
           {readVitals(vitals).map((row) => (
             <div key={row.label} className="flex justify-between gap-4">
@@ -726,8 +793,9 @@ function PatientPanel({
         this consultation and no other, ever.
       */}
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        This consultation only. Neem shows you no past consultations for this patient, and this
-        record is sealed once you complete it.
+        {chps
+          ? "Earlier visits and the CHO's assessment are above. Your encounter record stays in the patient's CHPS record."
+          : "This consultation only. Neem shows you no past consultations for this patient, and this record is sealed once you complete it."}
       </p>
     </aside>
   );

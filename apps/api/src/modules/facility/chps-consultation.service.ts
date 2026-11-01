@@ -134,6 +134,7 @@ export async function requestConsultation(
         netMinor: 0,
         currency,
         feeWaivedReason: FEE_WAIVER_REASONS.CHPS_FREE,
+        requestNoteEnc: note ? encryptField(note) : null,
         isDemo: visit.patient.isDemo || visit.facility.isDemo,
       },
     });

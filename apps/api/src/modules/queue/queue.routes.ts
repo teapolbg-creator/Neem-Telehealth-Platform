@@ -1,3 +1,4 @@
+import { decryptField } from '../../lib/crypto.ts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { PERMISSIONS } from '@neem/contracts';
@@ -106,6 +107,14 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           include: {
             pharmacy: { select: { name: true, city: true } },
             language: { select: { code: true, label: true } },
+            facility: { select: { name: true, district: { select: { name: true } } } },
+            chpsPatient: { select: { sex: true, dateOfBirth: true } },
+            visit: {
+              select: {
+                presentingComplaintEnc: true,
+                triages: { orderBy: { recordedAt: 'desc' }, take: 1, select: { category: true } },
+              },
+            },
           },
         },
       },
@@ -129,6 +138,28 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           type: offer.consultation.type,
           language: offer.consultation.language,
           pharmacy: offer.consultation.pharmacy,
+          /*
+           * What a doctor needs to decide on a CHPS request (brief §B2, D78):
+           * where it is from, who, why, and how urgent the CHO judged it.
+           * The full record opens only once they accept.
+           */
+          chps: offer.consultation.facility
+            ? {
+                facilityName: offer.consultation.facility.name,
+                district: offer.consultation.facility.district.name,
+                sex: offer.consultation.chpsPatient?.sex ?? null,
+                ageYears: offer.consultation.chpsPatient
+                  ? Math.floor(
+                      (now.getTime() - offer.consultation.chpsPatient.dateOfBirth.getTime()) /
+                        (365.25 * 86_400_000),
+                    )
+                  : null,
+                presentingComplaint: offer.consultation.visit
+                  ? decryptField(offer.consultation.visit.presentingComplaintEnc)
+                  : null,
+                triageCategory: offer.consultation.visit?.triages[0]?.category ?? null,
+              }
+            : null,
           offeredAt: offer.offeredAt.toISOString(),
           respondByAt: offer.respondByAt.toISOString(),
           secondsRemaining: Math.max(
@@ -183,6 +214,9 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
         where: { publicId },
         include: {
           pharmacy: { select: { name: true, city: true } },
+          facility: {
+            select: { name: true, community: true, district: { select: { name: true } } },
+          },
           language: { select: { code: true, label: true } },
         },
       });
@@ -219,6 +253,15 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
           type: consultation.type,
           language: consultation.language,
           pharmacy: consultation.pharmacy,
+          channel: consultation.channel,
+          // Where a CHPS consultation comes from (D78); null for the others.
+          facility: consultation.facility
+            ? {
+                name: consultation.facility.name,
+                community: consultation.facility.community,
+                district: consultation.facility.district.name,
+              }
+            : null,
           patient,
           vitals: clinical.vitals,
           tests: clinical.tests,

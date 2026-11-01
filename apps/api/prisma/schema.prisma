@@ -959,6 +959,9 @@ model Consultation {
   facilityId       String?
   chpsPatientId    String?
   visitId          String?
+  /// What the CHO asked the doctor to know, beyond the triage (D76, D78).
+  /// Encrypted. Null for every other channel.
+  requestNoteEnc   String?             @db.Text
   doctorId         String?
   state            ConsultationState   @default(PENDING_PAYMENT)
   type             ConsultationType?
@@ -1090,6 +1093,7 @@ model Consultation {
   chpsPatient    Patient?         @relation(fields: [chpsPatientId], references: [id], onDelete: Restrict)
   visit          PatientVisit?    @relation(fields: [visitId], references: [id], onDelete: Restrict)
   station        FacilityStation?
+  encounter      EncounterRecord?
 
   stateEvents         ConsultationStateEvent[]
   accessTokens        ConsultationAccessToken[]
@@ -2647,6 +2651,7 @@ model Patient {
   visits        PatientVisit[]
   accesses      PatientRecordAccess[]
   consultations Consultation[]
+  encounters    EncounterRecord[]
 
   @@index([facilityId, createdAt])
   @@index([facilityId, phoneHash])
@@ -2768,4 +2773,50 @@ model FacilityStation {
 
   @@index([facilityId])
   @@map("facility_stations")
+}
+
+/// The doctor's structured record of a CHPS consultation (slice 1e, D78).
+///
+/// Part of the patient's readable CHPS record (D74), so it is NOT sealed when
+/// the consultation ends, unlike `ConsultationClinicalNotes` (D23). Content is
+/// one encrypted JSON object, because the sections are written and read
+/// together and never queried one by one.
+///
+/// A draft is overwritten freely while the consultation is live. Completing
+/// the consultation finalises it as version 1; every later amendment needs a
+/// reason and adds a version, so who wrote what, and when, is never lost.
+model EncounterRecord {
+  id             String    @id @default(uuid(7))
+  consultationId String    @unique
+  chpsPatientId  String
+  doctorId       String
+  contentEnc     String    @db.Text
+  version        Int       @default(0)
+  finalisedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  consultation Consultation             @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  chpsPatient  Patient                  @relation(fields: [chpsPatientId], references: [id], onDelete: Restrict)
+  versions     EncounterRecordVersion[]
+
+  @@index([chpsPatientId, createdAt])
+  @@map("encounter_records")
+}
+
+/// One finalised version of an encounter record. Append-only.
+model EncounterRecordVersion {
+  id           String   @id @default(uuid(7))
+  encounterId  String
+  version      Int
+  contentEnc   String   @db.Text
+  authorUserId String
+  /// Why it was amended. Null for version 1, the record as completed.
+  reason       String?  @db.VarChar(500)
+  createdAt    DateTime @default(now())
+
+  encounter EncounterRecord @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+
+  @@unique([encounterId, version])
+  @@map("encounter_record_versions")
 }

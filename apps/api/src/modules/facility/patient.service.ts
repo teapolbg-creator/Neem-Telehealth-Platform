@@ -28,6 +28,7 @@ import {
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
+import { toEncounterSummary } from '../clinical/chps-encounter.service.ts';
 import {
   activeConsultationFor,
   toConsultationView,
@@ -175,6 +176,7 @@ const consultationInclude = {
   include: {
     doctor: { select: { fullName: true } },
     language: { select: { label: true } },
+    encounter: { select: { contentEnc: true, version: true, finalisedAt: true } },
   },
 } satisfies Prisma.PatientVisit$consultationsArgs;
 
@@ -185,7 +187,7 @@ const visitInclude = {
 
 type VisitRow = Prisma.PatientVisitGetPayload<{ include: typeof visitInclude }>;
 
-async function staffNames(userIds: string[], db: Db): Promise<Map<string, string>> {
+export async function staffNames(userIds: string[], db: Db): Promise<Map<string, string>> {
   if (userIds.length === 0) return new Map();
   const members = await db.facilityUser.findMany({
     where: { userId: { in: [...new Set(userIds)] } },
@@ -194,7 +196,10 @@ async function staffNames(userIds: string[], db: Db): Promise<Map<string, string
   return new Map(members.map((member) => [member.userId, member.fullName]));
 }
 
-function toTriageView(row: VisitRow['triages'][number], names: Map<string, string>): TriageView {
+export function toTriageView(
+  row: VisitRow['triages'][number],
+  names: Map<string, string>,
+): TriageView {
   return {
     id: row.id,
     category: row.category,
@@ -220,6 +225,12 @@ function toVisitView(row: VisitRow, names: Map<string, string>): VisitView {
     triage: triages[0] ?? null,
     triageHistory: triages,
     consultation: row.consultations[0] ? toConsultationView(row.consultations[0]) : null,
+    encounter: row.consultations[0]
+      ? toEncounterSummary(
+          row.consultations[0].encounter,
+          row.consultations[0].doctor?.fullName ?? null,
+        )
+      : null,
   };
 }
 

@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, Phone, PhoneOutgoing, Video, Wifi, WifiOff } from
 import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
+import { TriageBadge } from "@/features/facility/TriageBadge";
 import { ApiError } from "@/lib/api-client";
 import {
   channelLabel,
@@ -220,13 +221,33 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
             </Chip>
             {/* Which kind it is, before accepting: it decides what happens to
                 anything issued, and whether a pharmacy can propose a swap. */}
-            <Chip tone={offer.pharmacy ? "medical" : "muted"}>{channelLabel(offer.pharmacy)}</Chip>
+            <Chip tone={offer.pharmacy || offer.chps ? "medical" : "muted"}>
+              {channelLabel(offer.pharmacy, offer.chps ? { name: offer.chps.facilityName } : null)}
+            </Chip>
+            {offer.chps ? <TriageBadge category={offer.chps.triageCategory} /> : null}
           </div>
           <h2 className="mt-3 text-2xl font-bold">
             {offer.language?.label ?? "Consultation"} ·{" "}
             <span className="capitalize">{offer.type?.replace("_", " ").toLowerCase()}</span>
           </h2>
-          <p className="mt-1 text-sm text-slate-500">{consultationOrigin(offer.pharmacy)}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {consultationOrigin(
+              offer.pharmacy,
+              offer.chps ? { name: offer.chps.facilityName, district: offer.chps.district } : null,
+            )}
+          </p>
+          {offer.chps ? (
+            // What a doctor needs to decide on a CHPS request (brief §B2, D78).
+            <p className="mt-2 text-sm">
+              {[
+                offer.chps.sex ? offer.chps.sex.toLowerCase() : null,
+                offer.chps.ageYears !== null ? `${offer.chps.ageYears} years` : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              {offer.chps.presentingComplaint ? ` — ${offer.chps.presentingComplaint}` : ""}
+            </p>
+          ) : null}
         </div>
 
         <div className="text-right">
@@ -257,8 +278,8 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
       <div className="mt-5 flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
         <ModeIcon className="size-5 shrink-0 text-slate-500" />
         <p className="text-xs leading-relaxed text-slate-600">
-          The patient is waiting. Accepting opens their details, the vitals the pharmacy recorded,
-          and your clinical workspace.
+          The patient is waiting. Accepting opens their details, the vitals{" "}
+          {offer.chps ? "the CHO recorded" : "the pharmacy recorded"}, and your clinical workspace.
         </p>
       </div>
 

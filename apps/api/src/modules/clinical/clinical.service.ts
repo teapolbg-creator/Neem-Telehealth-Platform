@@ -15,6 +15,7 @@ import { recordEarning } from '../payment/earnings.service.ts';
 import { getLogger } from '../../lib/logger.ts';
 import { emitToConsultation, emitToPharmacy } from '../realtime/realtime.service.ts';
 import { notify } from '../notification/notification.service.ts';
+import { assertEncounterComplete, finaliseEncounter } from './chps-encounter.service.ts';
 
 /**
  * The doctor's clinical workspace and consultation completion (spec §14–§17).
@@ -85,9 +86,11 @@ export async function completeConsultation(
       prescriptions: { select: { id: true, state: true } },
       referrals: { select: { id: true } },
       summary: { select: { id: true } },
+      doctor: { select: { userId: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
+  const chps = consultation.channel === 'CHPS';
 
   // 404 rather than 403 — another doctor's consultation must not be confirmed
   // to exist (spec §102).
@@ -136,8 +139,16 @@ export async function completeConsultation(
    * came in for, and the one where they would otherwise walk out with no
    * evidence a doctor was ever involved, and no consultation reference.
    */
+  /*
+   * A CHPS consultation is documented in its encounter record (D78), which
+   * must hold an assessment and a plan. That record is what the CHO acts on
+   * and what stays in the patient's readable record, so it stands in for the
+   * advice-only summary a patient at home would otherwise need (D25).
+   */
+  if (chps) await assertEncounterComplete(consultationId, db);
+
   const held = {
-    summary: Boolean(consultation.summary),
+    summary: Boolean(consultation.summary) || chps,
     prescription: consultation.prescriptions.length > 0,
     referral: consultation.referrals.length > 0,
   };
@@ -181,6 +192,10 @@ export async function completeConsultation(
   await db.$transaction(async (tx) => {
     if (input.notes) {
       await saveClinicalNotes(consultationId, input.notes, tx, clock);
+    }
+
+    if (chps && consultation.doctor) {
+      await finaliseEncounter(consultationId, consultation.doctor.userId, tx, clock);
     }
 
     await tx.consultation.update({

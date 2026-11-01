@@ -81,6 +81,9 @@ export const AUDIT_ACTIONS = {
   STATION_ASSIGNED: 'station.assigned',
   STATION_CLEARED: 'station.cleared',
 
+  /** CHPS slice 1e (D78). Finalising is the consultation's completion; amendments are their own. */
+  ENCOUNTER_AMENDED: 'encounter.amended',
+
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_VERIFIED: 'document.verified',
   DOCUMENT_DOWNLOADED: 'document.downloaded',

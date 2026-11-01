@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   Check,
@@ -48,6 +48,7 @@ export function ClinicalWorkspace({
   consultationPublicId,
   viaPharmacy = true,
   onCompleted,
+  encounterSlot,
 }: {
   consultationPublicId: string;
   /**
@@ -56,6 +57,12 @@ export function ClinicalWorkspace({
    */
   viaPharmacy?: boolean;
   onCompleted: (result: { destroyAt: string | null }) => void;
+  /**
+   * A CHPS consultation is documented in its encounter record (D78), which
+   * takes the place of the sealed notes and of the patient summary: the record
+   * stays readable and is what the CHO acts on.
+   */
+  encounterSlot?: ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>("notes");
   const { data: workspace, isLoading, error } = useWorkspace(consultationPublicId);
@@ -68,7 +75,12 @@ export function ClinicalWorkspace({
   const { can } = useSession();
   const tabs = (
     [
-      { key: "notes", label: "Notes", icon: FileText, allowed: true },
+      {
+        key: "notes",
+        label: encounterSlot ? "Encounter record" : "Notes",
+        icon: FileText,
+        allowed: true,
+      },
       {
         key: "prescribe",
         label: "Prescribe",
@@ -76,7 +88,7 @@ export function ClinicalWorkspace({
         allowed: can(PERMISSIONS.PRESCRIPTION_CREATE),
       },
       { key: "refer", label: "Refer", icon: Send, allowed: can(PERMISSIONS.REFERRAL_CREATE) },
-      { key: "summary", label: "Summary", icon: ShieldAlert, allowed: true },
+      { key: "summary", label: "Summary", icon: ShieldAlert, allowed: !encounterSlot },
     ] as const
   ).filter((item) => item.allowed);
 
@@ -127,9 +139,10 @@ export function ClinicalWorkspace({
       </div>
 
       <div className="p-6">
-        {tab === "notes" && (
-          <NotesPanel consultationPublicId={consultationPublicId} workspace={workspace} />
-        )}
+        {tab === "notes" &&
+          (encounterSlot ?? (
+            <NotesPanel consultationPublicId={consultationPublicId} workspace={workspace} />
+          ))}
         {tab === "prescribe" && (
           <PrescribePanel consultationPublicId={consultationPublicId} viaPharmacy={viaPharmacy} />
         )}
@@ -141,7 +154,11 @@ export function ClinicalWorkspace({
         )}
       </div>
 
-      <CompletionBar consultationPublicId={consultationPublicId} onCompleted={onCompleted} />
+      <CompletionBar
+        consultationPublicId={consultationPublicId}
+        onCompleted={onCompleted}
+        chps={Boolean(encounterSlot)}
+      />
     </div>
   );
 }
@@ -650,9 +667,12 @@ const OUTCOMES: Array<{ value: Outcome; label: string; help: string }> = [
 function CompletionBar({
   consultationPublicId,
   onCompleted,
+  chps = false,
 }: {
   consultationPublicId: string;
   onCompleted: (result: { destroyAt: string | null }) => void;
+  /** A CHPS consultation: its encounter record is not sealed (D78). */
+  chps?: boolean;
 }) {
   const complete = useCompleteConsultation(consultationPublicId);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
@@ -684,6 +704,11 @@ function CompletionBar({
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {OUTCOMES.map((option) => {
           const picked = outcomes.includes(option.value);
+          // For CHPS the encounter record is the advice, not a separate summary (D78).
+          const help =
+            chps && option.value === "ADVICE_ONLY"
+              ? "No medication needed. The encounter record holds your advice."
+              : option.help;
           return (
             <label
               key={option.value}
@@ -702,10 +727,8 @@ function CompletionBar({
               />
               <span className="min-w-0">
                 <span className="block font-semibold">{option.label}</span>
-                {option.help ? (
-                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                    {option.help}
-                  </span>
+                {help ? (
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">{help}</span>
                 ) : null}
               </span>
             </label>
@@ -732,8 +755,10 @@ function CompletionBar({
       </button>
 
       <p className="mt-2 text-center text-xs text-slate-500">
-        Completing seals the clinical record. Nothing else ends a consultation: not the timer, not
-        the patient leaving.
+        {chps
+          ? "Completing finalises the encounter record, which stays in the patient's CHPS record. "
+          : "Completing seals the clinical record. "}
+        Nothing else ends a consultation: not the timer, not the patient leaving.
       </p>
     </div>
   );

@@ -782,3 +782,32 @@ ends, the station's next poll clears it and returns `IDLE`.
 station of the same facility, and never onto a station showing another live
 consultation; that station must be cleared first. A consultation is on one
 station at a time.
+
+---
+
+## 16. The doctor's side of a CHPS consultation (slice 1e, D78)
+
+```
+GET    /doctor/consultations/:publicId/chps       the compound's side: patient, CHO triage and note, earlier visits, the record
+PUT    /doctor/consultations/:publicId/encounter  { content, amendmentReason? } → the encounter record
+```
+
+Assigned doctor only, CHPS consultations only; anyone else gets 404. Every
+`GET …/chps` is written to the patient's record-access log (D74).
+
+**The encounter record** has the nine sections of brief §B4 (presenting
+complaint, its history, relevant history, examination findings including what
+could not be examined remotely, assessment, diagnosis, treatment plan, referral
+instructions, follow-up); vital signs are the CHO's, copied in as they stood at
+each save. Before completion `PUT` overwrites a draft. `POST …/complete`
+refuses a CHPS consultation whose record lacks a clinical assessment or a
+treatment plan, then finalises it as version 1 in the same transaction; the
+record also stands in for the advice-only summary (D25). After completion
+`PUT` needs `amendmentReason` and adds a version, audited as
+`encounter.amended`. The record is never sealed.
+
+The facility sees the finalised record (never a draft) as `encounter` on each
+visit view: the doctor's name, assessment, diagnosis, plan, referral and
+follow-up. `GET /doctor/queue` offers for a CHPS consultation carry `chps`:
+facility, district, sex, age, complaint and triage category, so the doctor can
+decide before accepting (brief §B2).
