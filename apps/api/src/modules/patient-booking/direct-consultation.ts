@@ -87,6 +87,8 @@ export async function createDirectConsultation(
       toState: 'PENDING_PAYMENT',
       actorType: 'PATIENT',
       accepted: true,
+      // The application's clock, as every later event uses, not the database's.
+      occurredAt: input.now,
     },
   });
 

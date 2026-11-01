@@ -150,6 +150,23 @@ export async function transition(
     },
   });
 
+  /*
+   * Strictly after the consultation's previous event, so its history has one
+   * order. Several transitions in one request can fall in the same
+   * millisecond, and the row creating a consultation used to take the
+   * database's clock rather than this one; either way, sorting by time
+   * returned the history in whichever order the rows happened to come back.
+   * The refund path reads "the state before REFUND_REQUESTED" from this
+   * order, so it is not cosmetic.
+   */
+  const previous = await db.consultationStateEvent.findFirst({
+    where: { consultationId },
+    orderBy: { occurredAt: 'desc' },
+    select: { occurredAt: true },
+  });
+  const occurredAt =
+    previous && previous.occurredAt >= now ? new Date(previous.occurredAt.getTime() + 1) : now;
+
   await db.consultationStateEvent.create({
     data: {
       consultationId,
@@ -159,7 +176,7 @@ export async function transition(
       actorId: context.actorId ?? null,
       reason: context.reason ?? null,
       accepted: true,
-      occurredAt: now,
+      occurredAt,
     },
   });
 
@@ -333,6 +350,8 @@ export async function createConsultation(
         actorType: 'PHARMACY',
         actorId: context.actorId,
         accepted: true,
+        // The application's clock, as every later event uses, not the database's.
+        occurredAt: clock.now(),
       },
     });
 
