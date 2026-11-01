@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ChpsOperationsOverview } from "@neem/contracts";
+import type { ChpsOperationsOverview, SystemMonitoring } from "@neem/contracts";
 import { api } from "@/lib/api-client";
 
 /**
@@ -24,4 +24,13 @@ export function sinceLabel(iso: string | null, now = Date.now()): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return `${hours} h ago`;
   return `${Math.floor(hours / 24)} days ago`;
+}
+
+/** System monitoring (slice 3d, D87), refreshed every minute while open. */
+export function useSystemMonitoring(hours: number) {
+  return useQuery({
+    queryKey: ["admin", "monitoring", hours],
+    queryFn: ({ signal }) => api.get<SystemMonitoring>(`/admin/monitoring?hours=${hours}`, signal),
+    refetchInterval: 60_000,
+  });
 }

@@ -952,3 +952,19 @@ last used Neem. Facilities with open emergencies sort first, then the longest
 wait. Doctor utilisation counts completed consultations by channel and their
 minutes over `days` (1 is today), for doctors online now or with a completed
 consultation in the period. No threshold marks anything as late or failing.
+
+## 24. System monitoring (slice 3d, D87)
+
+```
+GET    /admin/monitoring?hours=24|168                 sessions, presence, stations, calls, notifications, security
+```
+
+Both administrator roles, with `system-health:read`. Live figures: staff
+sessions by role, doctors online and those declared online with a stale
+heartbeat, paired stations and the ones not seen in the last minute. Over the
+window: rooms opened, calls interrupted, rooms replaced, failed notifications by
+channel, provider webhooks and those with a bad signature, and failed sign-ins,
+lockouts, wrong 2FA codes and refused station pairings. `security.recent` lists
+the latest 50 of those events with the account concerned, and is `null` unless
+the caller holds `audit:read`. A refused station pairing is now audited
+(`station.pairing-refused`), without the code.

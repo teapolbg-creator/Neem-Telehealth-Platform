@@ -129,6 +129,7 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
     const { code } = stationPairSchema.parse(request.body);
     const { token, expiresAt } = await pairStation(code, {
       correlationId: request.correlationId,
+      ip: request.ip,
     });
     setStationCookie(reply, token, expiresAt);
     return reply.send({ data: { paired: true }, meta: { requestId: request.correlationId } });

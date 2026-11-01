@@ -87,6 +87,7 @@ const NAV: Record<
     { label: "Archive", to: "/admin/archive", permission: PERMISSIONS.AUDIT_READ },
     { label: "Audit", to: "/admin/audit", permission: PERMISSIONS.AUDIT_READ },
     { label: "Notifications", to: "/admin/notifications" },
+    { label: "Monitoring", to: "/admin/monitoring", permission: PERMISSIONS.SYSTEM_HEALTH_READ },
     { label: "Staff accounts", to: "/admin/staff", permission: PERMISSIONS.STAFF_ACCOUNT_MANAGE },
     { label: "Settings", to: "/admin/settings", permission: PERMISSIONS.SETTINGS_MANAGE },
   ],

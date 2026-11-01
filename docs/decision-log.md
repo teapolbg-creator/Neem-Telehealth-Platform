@@ -3144,3 +3144,32 @@ network as it stands, and how doctors are used across all three channels.
 **What was not done.** Alerts or notifications from this page, history of past
 live states, and system monitoring (sessions, failures, security events),
 which is slice 3d.
+
+---
+
+### D87 — Monitoring counts what the system already records · 2026-11-02 · **DECIDED**
+
+**Context.** Slice 3d, closing Phase 3. The brief asks for monitoring of
+sessions, presence, station heartbeats, failures and security events.
+
+**Decision.**
+
+- **No new collector.** `GET /admin/monitoring` counts records the system
+  already writes: live sessions by role, doctor presence and stale heartbeats
+  (D72), paired stations not seen in the last minute (D77), rooms opened,
+  interrupted calls (D57) and replaced rooms, failed notifications, provider
+  webhooks with a bad signature, and failed sign-ins, lockouts and wrong 2FA
+  codes from the audit log. The one addition: a refused station pairing is now
+  audited (`station.pairing-refused`, without the code), because a run of them
+  is somebody guessing and nothing recorded it before.
+- **A window, not an alarm.** Event counts cover the last 24 hours or 7 days;
+  none turns red at a number, since nobody has decided what number is wrong.
+  The page refreshes every minute and sits beside the existing system health
+  (database, providers, mocks).
+- **Counts for both, names for the super administrator.** Operations sees how
+  many security events there were. The list itself, which names accounts and
+  comes from the audit log, goes only to holders of `audit:read` (D84).
+
+**What was not done.** Alerting (email, SMS or push when something happens),
+application error rates and latency, which belong to the hosting provider's
+metrics, and device monitoring, which is Phase 4.

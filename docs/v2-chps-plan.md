@@ -1,6 +1,6 @@
 # Neem V2 (CHPS): assessment and migration plan
 
-**Status: Phases 1 and 2 built (D73, D75–D83); Phase 3 under way (D84–D86); Phase 4 is proposal.** Written 2026-10-31 against `main` at
+**Status: Phases 1–3 built (D73, D75–D87); Phase 4 is proposal.** Written 2026-10-31 against `main` at
 `3964406`.
 
 "V2" already names something else in this repository: the patient-direct channel
@@ -160,7 +160,7 @@ feedback; complaints stay free text; prescriptions are printed and may be dispen
 | 3a    | **Built (D84).** `ADMIN` becomes the super administrator; `OPS_ADMIN` holds everything but staff accounts, settings, money and the audit log; `DISTRICT` officers read one region, district or sub-district. Staff accounts page with one-time set-up links; district officer's facility list | —          |
 | 3b    | **Built (D85).** District dashboard: the slice 2c report summed across the facilities in scope, compared facility by facility, filtered by sub-district, facility and date range, with CSV                                                                                                    | 3a         |
 | 3c    | **Built (D86).** Neem CHPS operations overview: every facility's live state (stations online, waiting requests, emergencies, CHO activity today) and doctor utilisation across channels                                                                                                       | 3a         |
-| 3d    | System monitoring: sessions, presence, station heartbeats, failed calls and security events (failed sign-ins, lockouts, refused pairings)                                                                                                                                                     | 3c         |
+| 3d    | **Built (D87).** System monitoring: sessions, presence, station heartbeats, failed calls and security events (failed sign-ins, lockouts, refused pairings)                                                                                                                                    | 3c         |
 
 **Operator decisions (2026-11-01, D84):** district officers view only; the administrator is split
 into super and operations administrators.

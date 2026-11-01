@@ -9,7 +9,13 @@ import {
 } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { decryptField, generatePublicId, generateToken, hashToken } from '../../lib/crypto.ts';
+import {
+  decryptField,
+  generatePublicId,
+  generateToken,
+  hashIp,
+  hashToken,
+} from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { acceptsCallJoin, isTerminal } from '../../domain/consultation-state.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
@@ -327,7 +333,7 @@ export interface StationPrincipal {
  */
 export async function pairStation(
   code: string,
-  context: { correlationId?: string },
+  context: { correlationId?: string; ip?: string },
   db: Db = getPrisma(),
   clock: Clock = systemClock,
 ): Promise<{ token: string; expiresAt: Date }> {
@@ -337,6 +343,20 @@ export async function pairStation(
     include: { facility: { select: { status: true } } },
   });
   if (!station || !station.pairingExpiresAt || station.pairingExpiresAt <= now) {
+    // Counted on the monitoring page (D87): a run of these is someone guessing.
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.STATION_PAIRING_REFUSED,
+        actorType: 'SYSTEM',
+        outcome: 'FAILURE',
+        ipHash: hashIp(context.ip),
+        entityType: station ? 'facility_station' : undefined,
+        entityId: station?.id,
+        correlationId: context.correlationId,
+        metadata: { reason: station ? 'expired_code' : 'unknown_code' },
+      },
+      db,
+    );
     throw errors.unauthenticated(
       'That pairing code is not valid. Ask the facility staff for a new one.',
     );
