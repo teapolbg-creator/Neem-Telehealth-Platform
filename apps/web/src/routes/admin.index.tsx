@@ -11,7 +11,9 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { PERMISSIONS } from "@neem/contracts";
 import { AppShell } from "@/components/neem/AppShell";
+import { useSession } from "@/features/auth/use-session";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import { formatMinor } from "@/features/finance/api";
@@ -43,12 +45,14 @@ export const Route = createFileRoute("/admin/")({
  */
 function AdminOverview() {
   const operational = useOperationalSummary();
-  const financial = useFinancialSummary();
+  const { can } = useSession();
+  const seesMoney = can(PERMISSIONS.FINANCE_READ_ALL);
+  const financial = useFinancialSummary(seesMoney);
   const satisfaction = useSatisfactionSummary();
   const outcomes = useOutcomeMix();
   const health = useSystemHealth();
 
-  const loading = operational.isLoading || financial.isLoading;
+  const loading = operational.isLoading || (seesMoney && financial.isLoading);
   const error = operational.error ?? financial.error;
 
   return (
@@ -131,16 +135,20 @@ function AdminOverview() {
               value={String(operational.data.doctors.onlineNow)}
               hint={`${operational.data.doctors.active} active`}
             />
-            <Stat
-              icon={Wallet}
-              label="Net revenue"
-              value={
-                financial.data
-                  ? formatMinor(financial.data.netMinor, financial.data.currency)
-                  : "Not yet"
-              }
-              hint={financial.data ? `${financial.data.paidConsultations} paid consultations` : ""}
-            />
+            {seesMoney && (
+              <Stat
+                icon={Wallet}
+                label="Net revenue"
+                value={
+                  financial.data
+                    ? formatMinor(financial.data.netMinor, financial.data.currency)
+                    : "Not yet"
+                }
+                hint={
+                  financial.data ? `${financial.data.paidConsultations} paid consultations` : ""
+                }
+              />
+            )}
           </div>
 
           {/*

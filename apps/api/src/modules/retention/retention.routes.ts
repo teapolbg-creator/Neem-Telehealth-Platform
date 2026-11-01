@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import {
   RETRIEVAL_PURPOSES,
@@ -23,7 +23,7 @@ import { overdueDestructions } from './clinical-record.service.ts';
  * more than one consultation. Retrieval takes exactly one reference.
  */
 export async function retentionRoutes(app: FastifyInstance): Promise<void> {
-  const retentionAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.AUDIT_READ] });
+  const retentionAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.AUDIT_READ] });
 
   /**
    * Retrieves one archived consultation for a stated lawful reason.

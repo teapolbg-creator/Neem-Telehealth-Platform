@@ -6,9 +6,31 @@
  * API package asserts they have not drifted apart.
  */
 
-/** FACILITY is the staff of a CHPS compound (CHPS slice 1a, D73). */
-export const USER_ROLES = ['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY'] as const;
+/**
+ * FACILITY is the staff of a CHPS compound (CHPS slice 1a, D73). ADMIN is the
+ * super administrator, OPS_ADMIN Neem operations, and DISTRICT a district
+ * health officer who only reads (D84).
+ */
+export const USER_ROLES = [
+  'ADMIN',
+  'DOCTOR',
+  'PHARMACY',
+  'FACILITY',
+  'OPS_ADMIN',
+  'DISTRICT',
+] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** The two administrator roles: both use the admin console (D84). */
+export const ADMIN_ROLES = ['ADMIN', 'OPS_ADMIN'] as const satisfies readonly UserRole[];
+
+export function isAdminRole(role: UserRole): boolean {
+  return (ADMIN_ROLES as readonly UserRole[]).includes(role);
+}
+
+/** How much of the country a district officer's account covers (D84). */
+export const GEO_SCOPE_LEVELS = ['REGION', 'DISTRICT', 'SUB_DISTRICT'] as const;
+export type GeoScopeLevel = (typeof GEO_SCOPE_LEVELS)[number];
 
 /**
  * What a professional is (v2).

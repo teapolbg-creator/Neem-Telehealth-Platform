@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { queryBoolean } from '../../lib/query.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { createPromotion, deactivatePromotion, listPromotions } from './promotion.service.ts';
@@ -18,7 +18,7 @@ import { createPromotion, deactivatePromotion, listPromotions } from './promotio
  */
 
 export async function promotionRoutes(app: FastifyInstance): Promise<void> {
-  const adminOnly = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PROMOTION_MANAGE] });
+  const adminOnly = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PROMOTION_MANAGE] });
 
   app.get('/admin/promotions', { preHandler: adminOnly }, async (request, reply) => {
     const query = z

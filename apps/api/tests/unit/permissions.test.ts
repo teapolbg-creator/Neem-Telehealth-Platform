@@ -3,7 +3,10 @@ import {
   PERMISSIONS,
   PROFESSIONAL_DISCIPLINES,
   ROLE_PERMISSIONS,
+  SUPER_ADMIN_ONLY,
+  USER_ROLES,
   disciplineMayPrescribe,
+  isAdminRole,
   permissionsForProfessional,
   permissionsForRole,
   roleHasPermission,
@@ -109,6 +112,36 @@ describe('role permissions', () => {
     });
   });
 
+  describe('operations administrators and district officers (D84)', () => {
+    it('give operations everything except the super administrator’s list', () => {
+      for (const permission of Object.values(PERMISSIONS)) {
+        expect(roleHasPermission('OPS_ADMIN', permission)).toBe(
+          !SUPER_ADMIN_ONLY.includes(permission),
+        );
+      }
+      for (const permission of [
+        PERMISSIONS.STAFF_ACCOUNT_MANAGE,
+        PERMISSIONS.SETTINGS_MANAGE,
+        PERMISSIONS.AUDIT_READ,
+        PERMISSIONS.FINANCE_READ_ALL,
+        PERMISSIONS.PAYOUT_MANAGE,
+        PERMISSIONS.REFUND_DECIDE,
+      ]) {
+        expect(SUPER_ADMIN_ONLY).toContain(permission);
+      }
+      expect(roleHasPermission('OPS_ADMIN', PERMISSIONS.FACILITY_MANAGE)).toBe(true);
+      expect(roleHasPermission('OPS_ADMIN', PERMISSIONS.CONSULTATION_ASSIGN)).toBe(true);
+    });
+
+    it('let a district officer read their area and nothing else', () => {
+      expect(permissionsForRole('DISTRICT')).toEqual([PERMISSIONS.DISTRICT_REPORT_READ]);
+    });
+
+    it('treat both administrator roles as administrators, and nobody else', () => {
+      expect(USER_ROLES.filter(isAdminRole)).toEqual(['ADMIN', 'OPS_ADMIN']);
+    });
+  });
+
   describe('administrators', () => {
     it('hold every defined permission', () => {
       const all = Object.values(PERMISSIONS);
@@ -118,9 +151,7 @@ describe('role permissions', () => {
     });
 
     it('are the only role that can read the audit log', () => {
-      const readers = (['ADMIN', 'DOCTOR', 'PHARMACY', 'FACILITY'] as const).filter((role) =>
-        roleHasPermission(role, PERMISSIONS.AUDIT_READ),
-      );
+      const readers = USER_ROLES.filter((role) => roleHasPermission(role, PERMISSIONS.AUDIT_READ));
       expect(readers).toEqual(['ADMIN']);
     });
 

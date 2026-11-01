@@ -9,7 +9,7 @@ import { useHeartbeat } from "@/features/queue/api";
 import { ApiError } from "@/lib/api-client";
 import { PERMISSIONS, type Permission } from "@neem/contracts";
 
-type AppKey = "pharmacy" | "doctor" | "admin" | "facility";
+type AppKey = "pharmacy" | "doctor" | "admin" | "facility" | "district";
 
 /**
  * Application shell for the authenticated portals.
@@ -62,24 +62,32 @@ const NAV: Record<
     { label: "Referrals", to: "/facility/referrals" },
     { label: "Reports", to: "/facility/reports" },
   ],
+  // District health officers (D84). One page until the dashboard arrives (3b).
+  district: [{ label: "My district", to: "/district" }],
   admin: [
     { label: "Overview", to: "/admin" },
     { label: "Live queue", to: "/admin/queue" },
     { label: "Scheduling", to: "/admin/scheduling" },
-    { label: "Refunds", to: "/admin/refunds" },
-    { label: "Payouts", to: "/admin/payouts" },
-    { label: "Professional pay", to: "/admin/professional-payouts" },
-    { label: "Payroll", to: "/admin/payroll" },
-    { label: "Services", to: "/admin/services" },
-    { label: "Promotions", to: "/admin/promotions" },
+    // The super administrator's alone; operations is refused them (D84).
+    { label: "Refunds", to: "/admin/refunds", permission: PERMISSIONS.REFUND_DECIDE },
+    { label: "Payouts", to: "/admin/payouts", permission: PERMISSIONS.PAYOUT_MANAGE },
+    {
+      label: "Professional pay",
+      to: "/admin/professional-payouts",
+      permission: PERMISSIONS.PAYOUT_MANAGE,
+    },
+    { label: "Payroll", to: "/admin/payroll", permission: PERMISSIONS.PAYOUT_MANAGE },
+    { label: "Services", to: "/admin/services", permission: PERMISSIONS.SETTINGS_MANAGE },
+    { label: "Promotions", to: "/admin/promotions", permission: PERMISSIONS.PROMOTION_MANAGE },
     { label: "Verification", to: "/admin/verification" },
     { label: "Facilities", to: "/admin/facilities" },
     { label: "Pilot", to: "/admin/pilot" },
     { label: "Quality", to: "/admin/quality" },
-    { label: "Archive", to: "/admin/archive" },
-    { label: "Audit", to: "/admin/audit" },
+    { label: "Archive", to: "/admin/archive", permission: PERMISSIONS.AUDIT_READ },
+    { label: "Audit", to: "/admin/audit", permission: PERMISSIONS.AUDIT_READ },
     { label: "Notifications", to: "/admin/notifications" },
-    { label: "Settings", to: "/admin/settings" },
+    { label: "Staff accounts", to: "/admin/staff", permission: PERMISSIONS.STAFF_ACCOUNT_MANAGE },
+    { label: "Settings", to: "/admin/settings", permission: PERMISSIONS.SETTINGS_MANAGE },
   ],
 };
 
@@ -87,13 +95,22 @@ const NAV: Record<
  * Pages that own a section of the app rather than a page within it. Everything
  * under them belongs to a sibling tab, not to them.
  */
-const SECTION_ROOTS = new Set(["/", "/doctor", "/pharmacy", "/admin", "/facility"]);
+const SECTION_ROOTS = new Set(["/", "/doctor", "/pharmacy", "/admin", "/facility", "/district"]);
 
 const ROLE_TO_APP: Record<string, AppKey> = {
   PHARMACY: "pharmacy",
   DOCTOR: "doctor",
   ADMIN: "admin",
+  OPS_ADMIN: "admin",
   FACILITY: "facility",
+  DISTRICT: "district",
+};
+
+/** How a role is named under the signed-in person's name. */
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "super admin",
+  OPS_ADMIN: "operations",
+  DISTRICT: "district officer",
 };
 
 export function AppShell({
@@ -192,7 +209,7 @@ export function AppShell({
               <div className="hidden md:flex flex-col items-end leading-tight">
                 <span className="text-xs font-semibold">{user.displayName}</span>
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider">
-                  {user.organisation?.name ?? user.role.toLowerCase()}
+                  {user.organisation?.name ?? ROLE_LABEL[user.role] ?? user.role.toLowerCase()}
                 </span>
               </div>
               <div
@@ -240,8 +257,8 @@ export function AppShell({
         <div className="bg-warning-soft border-b border-warning/30 px-4 sm:px-6 py-2.5 flex items-center gap-2 text-xs text-slate-700">
           <ShieldAlert className="size-4 text-warning shrink-0" />
           <span>
-            You are signed in as a {user?.role.toLowerCase()} account. This portal belongs to a
-            different role, and the API will refuse its requests.
+            You are signed in as a {user ? (ROLE_LABEL[user.role] ?? user.role.toLowerCase()) : ""}{" "}
+            account. This portal belongs to a different role, and the API will refuse its requests.
           </span>
         </div>
       )}

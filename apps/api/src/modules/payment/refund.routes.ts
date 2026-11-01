@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { queryBoolean } from '../../lib/query.ts';
@@ -70,7 +70,7 @@ export async function refundRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/refunds',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.REFUND_DECIDE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.REFUND_DECIDE] }) },
     async (request, reply) => {
       const query = z
         .object({
@@ -96,7 +96,7 @@ export async function refundRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/admin/refunds/:publicId/decide',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.REFUND_DECIDE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.REFUND_DECIDE] }) },
     async (request, reply) => {
       const principal = requireAuth(request);
       const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);

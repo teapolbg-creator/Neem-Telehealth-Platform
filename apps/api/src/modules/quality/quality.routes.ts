@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { decideComplaint, listComplaints, qualityBoard } from './complaint.service.ts';
 import { recomputeQualityScores } from './quality.service.ts';
@@ -19,10 +19,10 @@ import { recomputeQualityScores } from './quality.service.ts';
  */
 export async function qualityRoutes(app: FastifyInstance): Promise<void> {
   const complaintAdmin = guard({
-    roles: ['ADMIN'],
+    roles: ADMIN_ROLES,
     permissions: [PERMISSIONS.COMPLAINT_MANAGE],
   });
-  const qualityAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.QUALITY_READ] });
+  const qualityAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.QUALITY_READ] });
 
   app.get('/admin/complaints', { preHandler: complaintAdmin }, async (request, reply) => {
     const query = z
@@ -75,7 +75,7 @@ export async function qualityRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/admin/quality/recompute',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.SETTINGS_MANAGE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.SETTINGS_MANAGE] }) },
     async (request, reply) => {
       const result = await recomputeQualityScores();
 

@@ -3044,3 +3044,43 @@ stock (D79).
 **What was not done.** No dispensing of part of a prescription; no stock
 records; no deleting an attachment (a wrong one is relabelled by uploading the
 right one, and the audit keeps both).
+
+---
+
+### D84 — The administrator splits in two, and district officers only read · 2026-11-02 · **DECIDED**
+
+**Context.** Slice 3a, opening Phase 3. The brief asks for super, operations,
+district, sub-district and reporting roles with geographic scope. The operator
+decided (2026-11-01) that a district health officer only views, and that the
+Neem administrator is split into a super administrator and an operations
+administrator.
+
+**Decision.**
+
+- **`ADMIN` stays, and is the super administrator.** Every administrator that
+  existed keeps every permission, so the live pharmacy pilot is untouched and
+  nothing is migrated.
+- **`OPS_ADMIN` is `ADMIN` less `SUPER_ADMIN_ONLY`:** staff accounts, settings
+  (and the service catalogue, which sits behind them), the audit log and
+  retention, finance totals, payouts and payroll, refund decisions, promotions
+  and memberships. Written as a subtraction so a later permission reaches
+  operations unless deliberately withheld. 2FA is mandatory, as for `ADMIN`.
+  Operations is audited as `OPS_ADMIN`, not as `ADMIN`.
+- **`DISTRICT` covers district, sub-district and regional officers.** One role
+  with a scope of `REGION`, `DISTRICT` or `SUB_DISTRICT` rather than three
+  roles: what differs is the area, not what they may do. The scope lives on
+  `DistrictOfficer`, a CHECK constraint ties the level to the columns set, and
+  it is read from the database on every request. The only permission is
+  `district-report:read`. 2FA is offered, not forced: the dashboards hold
+  counts, not patients.
+- **Reporter not added.** A read-only reporting role would be `DISTRICT` with a
+  wider scope; it waits for someone who needs it.
+- **Accounts are the super administrator's.** Operations administrators and
+  district officers are created on the Staff accounts page with a one-time
+  set-up link, as CHPS staff are (D73). Super administrators are listed but
+  made and changed only by the server script, so a stolen browser session
+  cannot mint or lock out another; nobody changes their own account.
+
+**What was not done.** Changing an officer's area (suspend and create a new
+account); per-person permission overrides; the district dashboard itself,
+which is slice 3b.

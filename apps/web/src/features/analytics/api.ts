@@ -83,10 +83,12 @@ export function useOperationalSummary() {
   });
 }
 
-export function useFinancialSummary() {
+/** `enabled` false for operations, who are refused finance totals (D84). */
+export function useFinancialSummary(enabled = true) {
   return useQuery({
     queryKey: ["admin", "analytics", "financial"],
     queryFn: ({ signal }) => api.get<FinancialSummary>("/admin/analytics/financial", signal),
+    enabled,
   });
 }
 

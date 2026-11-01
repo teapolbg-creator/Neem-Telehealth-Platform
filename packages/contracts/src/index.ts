@@ -4,6 +4,7 @@ export * from './auth.ts';
 export * from './permissions.ts';
 export * from './onboarding.ts';
 export * from './facility.ts';
+export * from './staff.ts';
 export * from './patient.ts';
 export * from './station.ts';
 export * from './encounter.ts';

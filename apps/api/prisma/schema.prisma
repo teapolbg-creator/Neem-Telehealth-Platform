@@ -49,12 +49,27 @@ datasource db {
 // =============================================================================
 
 enum UserRole {
+  /// Super administrator: everything, including staff accounts, settings and
+  /// money (D84). Every administrator who existed before D84 is one.
   ADMIN
   DOCTOR
   PHARMACY
   /// Staff of a CHPS compound — a Community Health Officer or other authorised
   /// facility personnel (CHPS slice 1a, docs/v2-chps-plan.md).
   FACILITY
+  /// Neem operations: the queue, doctors, pharmacies and facilities, without
+  /// staff accounts, settings, money or the audit log (D84).
+  OPS_ADMIN
+  /// A district health officer: reads the dashboards of the facilities in one
+  /// region, district or sub-district, and changes nothing (D84).
+  DISTRICT
+}
+
+/// How much of the country a district officer's account covers (D84).
+enum GeoScopeLevel {
+  REGION
+  DISTRICT
+  SUB_DISTRICT
 }
 
 enum UserStatus {
@@ -312,6 +327,10 @@ enum ActorType {
   PATIENT_ACCOUNT
   /// A member of a CHPS compound's staff (CHPS slice 1a).
   FACILITY
+  /// Neem operations and a district health officer, recorded as themselves
+  /// rather than as ADMIN (D84).
+  OPS_ADMIN
+  DISTRICT
   SYSTEM
 }
 
@@ -464,6 +483,7 @@ model User {
   doctor              Doctor?
   pharmacyMembership  PharmacyUser?
   facilityMembership  FacilityUser?
+  districtOfficer     DistrictOfficer?
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
   recoveryCodes       TwoFactorRecoveryCode[]
@@ -2511,6 +2531,7 @@ model Region {
   createdAt DateTime @default(now())
 
   districts District[]
+  officers  DistrictOfficer[]
 
   @@map("regions")
 }
@@ -2521,9 +2542,10 @@ model District {
   name      String   @db.VarChar(160)
   createdAt DateTime @default(now())
 
-  region       Region        @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  region       Region            @relation(fields: [regionId], references: [id], onDelete: Restrict)
   subDistricts SubDistrict[]
   facilities   Facility[]
+  officers     DistrictOfficer[]
 
   @@unique([regionId, name])
   @@map("districts")
@@ -2535,11 +2557,41 @@ model SubDistrict {
   name       String   @db.VarChar(160)
   createdAt  DateTime @default(now())
 
-  district   District   @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  district   District          @relation(fields: [districtId], references: [id], onDelete: Restrict)
   facilities Facility[]
+  officers   DistrictOfficer[]
 
   @@unique([districtId, name])
   @@map("sub_districts")
+}
+
+/// A district health officer's account and the area it covers (D84).
+///
+/// The region is always stored, and the district and sub-district down to the
+/// level of the scope, so "is this facility in scope" is one equality on the
+/// narrowest of them. A CHECK constraint keeps the level and the columns in
+/// agreement.
+model DistrictOfficer {
+  userId          String        @id
+  fullName        String        @db.VarChar(160)
+  title           String?       @db.VarChar(120)
+  phone           String?       @db.VarChar(40)
+  scopeLevel      GeoScopeLevel
+  regionId        String
+  districtId      String?
+  subDistrictId   String?
+  createdByUserId String
+  createdAt       DateTime      @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region      Region       @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  district    District?    @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  subDistrict SubDistrict? @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
+
+  @@index([regionId])
+  @@index([districtId])
+  @@index([subDistrictId])
+  @@map("district_officers")
 }
 
 /// A health facility: a CHPS compound that uses Neem, or a facility a patient

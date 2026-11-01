@@ -1,7 +1,7 @@
 import { decryptField } from '../../lib/crypto.ts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock } from '../../lib/clock.ts';
@@ -341,7 +341,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/queue',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.CONSULTATION_ASSIGN] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.CONSULTATION_ASSIGN] }) },
     async (request, reply) => {
       const prisma = getPrisma();
       const now = systemClock.now();
@@ -392,7 +392,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/admin/queue/:publicId/reallocate',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.CONSULTATION_ASSIGN] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.CONSULTATION_ASSIGN] }) },
     async (request, reply) => {
       const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
 

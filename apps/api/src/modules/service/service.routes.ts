@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  ADMIN_ROLES,
   OFFERED_PROFESSIONAL_DISCIPLINES,
   OFFERED_SERVICE_CLINICS,
   PERMISSIONS,
@@ -19,7 +20,7 @@ import { createService, listClinics, listServices, updateService } from './servi
  * sits behind the settings permission, audited on every change.
  */
 export async function serviceRoutes(app: FastifyInstance): Promise<void> {
-  const adminOnly = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.SETTINGS_MANAGE] });
+  const adminOnly = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.SETTINGS_MANAGE] });
 
   /**
    * Unauthenticated: a patient has no account at the moment they are choosing.

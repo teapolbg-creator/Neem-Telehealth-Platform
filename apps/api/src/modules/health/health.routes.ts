@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { guard } from '../../middleware/auth.ts';
 import { getEnv, mockedProviders } from '../../config/env.ts';
 import { getPrisma } from '../../db/prisma.ts';
@@ -96,7 +96,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get(
     '/admin/system-health',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.SYSTEM_HEALTH_READ] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.SYSTEM_HEALTH_READ] }) },
     async (request, reply) => {
       const env = getEnv();
       const started = Date.now();

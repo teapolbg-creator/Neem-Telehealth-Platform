@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { errors } from '../../lib/errors.ts';
 import { queryBoolean } from '../../lib/query.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -46,7 +46,7 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/payouts',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
     async (request, reply) => {
       const query = z
         .object({
@@ -71,7 +71,7 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/admin/payouts/calculate',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
     async (request, reply) => {
       const principal = requireAuth(request);
       const body = z
@@ -99,7 +99,7 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post(
     '/admin/payouts/:publicId/mark-paid',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PAYOUT_MANAGE] }) },
     async (request, reply) => {
       const principal = requireAuth(request);
       const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);

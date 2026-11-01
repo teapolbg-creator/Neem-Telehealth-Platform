@@ -902,3 +902,31 @@ Attachments are PDF, JPEG, PNG or WebP, checked against their bytes, limited by
 facility's staff and by the doctor of a consultation on the same visit; every
 download is audited. Each visit view carries its `attachments`, and the doctor's
 `…/chps` context lists the current visit's.
+
+## 21. Staff accounts (slice 3a, D84)
+
+```
+GET    /admin/staff                                   administrators and district officers
+POST   /admin/staff                                   create OPS_ADMIN or DISTRICT; returns a one-time set-up link
+POST   /admin/staff/:userPublicId/status              suspend or restore
+POST   /admin/staff/:userPublicId/setup-link          a fresh set-up link
+```
+
+The super administrator's alone (`ADMIN` holding `staff-account:manage`).
+`OPS_ADMIN` holds every permission except those in `SUPER_ADMIN_ONLY`: staff
+accounts, settings, the audit log, finance totals, payouts, refund decisions,
+promotions and memberships. Both administrator roles must enrol in 2FA. A
+`DISTRICT` account carries a scope of `REGION`, `DISTRICT` or `SUB_DISTRICT`;
+the district must lie in the region and the sub-district in the district.
+Super administrator accounts are listed but changed only with the server
+script; nobody changes their own account here. Suspension ends the account's
+sessions at once.
+
+## 22. District officers (slice 3a, D84)
+
+```
+GET    /district/overview                             the officer, their area and its CHPS compounds
+```
+
+Read-only, for `DISTRICT` holding `district-report:read`. The area is read from
+the officer's record on every request, never from the URL.

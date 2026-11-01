@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { CONSULTATION_OUTCOMES, PERMISSIONS, type Permission } from '@neem/contracts';
+import { isAdminRole, CONSULTATION_OUTCOMES, PERMISSIONS, type Permission } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -771,7 +771,7 @@ export async function clinicalRoutes(app: FastifyInstance): Promise<void> {
       if (!document) throw errors.notFound(notFoundMessage);
 
       const permitted =
-        principal.role === 'ADMIN' ||
+        isAdminRole(principal.role) ||
         (principal.role === 'DOCTOR' && principal.organisationId === document.doctorId) ||
         (principal.role === 'PHARMACY' && principal.organisationId === document.pharmacyId) ||
         // The CHPS compound prints its patient's prescription (D83).

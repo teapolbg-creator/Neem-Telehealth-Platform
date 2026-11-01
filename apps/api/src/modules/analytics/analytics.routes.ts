@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { listSettings, updateSetting } from '../settings/settings.service.ts';
@@ -34,8 +34,8 @@ function resolvePeriod(query: { from?: Date; to?: Date }): Period {
 }
 
 export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
-  const analyticsOnly = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.ANALYTICS_READ] });
-  const settingsOnly = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.SETTINGS_MANAGE] });
+  const analyticsOnly = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.ANALYTICS_READ] });
+  const settingsOnly = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.SETTINGS_MANAGE] });
 
   app.get('/admin/analytics/operational', { preHandler: analyticsOnly }, async (request, reply) => {
     const period = resolvePeriod(periodQuery.parse(request.query));
@@ -48,7 +48,7 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/analytics/financial',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.FINANCE_READ_ALL] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.FINANCE_READ_ALL] }) },
     async (request, reply) => {
       const period = resolvePeriod(periodQuery.parse(request.query));
 
@@ -61,7 +61,7 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/analytics/satisfaction',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.QUALITY_READ] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.QUALITY_READ] }) },
     async (request, reply) => {
       const period = resolvePeriod(periodQuery.parse(request.query));
 

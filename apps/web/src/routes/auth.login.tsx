@@ -26,7 +26,9 @@ const HOME_FOR_ROLE: Record<string, string> = {
   PHARMACY: "/pharmacy",
   DOCTOR: "/doctor",
   ADMIN: "/admin",
+  OPS_ADMIN: "/admin",
   FACILITY: "/facility",
+  DISTRICT: "/district",
 };
 
 function SignIn() {

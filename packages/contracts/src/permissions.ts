@@ -51,6 +51,10 @@ export const PERMISSIONS = {
   PHARMACY_MANAGE: 'pharmacy:manage',
   /** Register and edit health facilities, and create their staff accounts (D73). */
   FACILITY_MANAGE: 'facility:manage',
+  /** Create and suspend operations administrators and district officers (D84). */
+  STAFF_ACCOUNT_MANAGE: 'staff-account:manage',
+  /** Read the facilities and dashboards of a region, district or sub-district (D84). */
+  DISTRICT_REPORT_READ: 'district-report:read',
 
   // CHPS patients (D75)
   PATIENT_REGISTER: 'patient:register',
@@ -87,6 +91,23 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 const P = PERMISSIONS;
 
 /**
+ * What only the super administrator holds (D84): who has an account, how the
+ * system is configured, money in and out, and the audit log that records all
+ * of it. Operations runs the service; it does not decide who runs it or check
+ * its own trail.
+ */
+export const SUPER_ADMIN_ONLY: readonly Permission[] = [
+  P.STAFF_ACCOUNT_MANAGE,
+  P.SETTINGS_MANAGE,
+  P.AUDIT_READ,
+  P.FINANCE_READ_ALL,
+  P.PAYOUT_MANAGE,
+  P.REFUND_DECIDE,
+  P.PROMOTION_MANAGE,
+  P.SUBSCRIPTION_MANAGE,
+];
+
+/**
  * Deliberate omissions, each traceable to the specification:
  *
  *  - DOCTOR has no FEEDBACK_READ and no QUALITY_READ. Doctors must not see
@@ -97,6 +118,8 @@ const P = PERMISSIONS;
  *  - PHARMACY has no FINANCE_READ_ALL. It sees its own share, never Neem's
  *    gross revenue (spec §18).
  *  - Nobody but ADMIN reads the audit log.
+ *  - OPS_ADMIN is ADMIN less SUPER_ADMIN_ONLY (D84).
+ *  - DISTRICT changes nothing (D84).
  */
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   PHARMACY: [
@@ -154,7 +177,21 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     P.CHPS_PRESCRIPTION_DISPENSE,
   ],
 
+  /**
+   * A district health officer (D84): reads the facilities and dashboards of
+   * their own area, which the service checks, and changes nothing.
+   */
+  DISTRICT: [P.DISTRICT_REPORT_READ],
+
+  /** The super administrator (D84). */
   ADMIN: Object.values(P),
+
+  /**
+   * Neem operations (D84): runs the queue, doctors, pharmacies and facilities.
+   * Written as a subtraction, so a permission added later reaches operations
+   * unless it is deliberately listed as the super administrator's.
+   */
+  OPS_ADMIN: Object.values(P).filter((permission) => !SUPER_ADMIN_ONLY.includes(permission)),
 };
 
 /**

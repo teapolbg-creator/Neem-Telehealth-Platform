@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { doctorSignatureSchema, documentTypesFor, PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, doctorSignatureSchema, documentTypesFor, PERMISSIONS } from '@neem/contracts';
 import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -245,7 +245,7 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get(
     '/admin/payroll',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.FINANCE_READ_ALL] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.FINANCE_READ_ALL] }) },
     async (request, reply) => {
       const query = z
         .object({
@@ -396,7 +396,7 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
   /** Public-facing doctor summary, used by admin screens. */
   app.get(
     '/doctors/:publicId',
-    { preHandler: guard({ roles: ['ADMIN'] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES }) },
     async (request, reply) => {
       const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
       const doctor = await getDoctorByPublicId(publicId);

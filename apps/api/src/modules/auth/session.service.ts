@@ -1,5 +1,6 @@
 import type { User, UserRole } from '@prisma/client';
 import {
+  isAdminRole,
   permissionsForProfessional,
   type Permission,
   type ProfessionalDiscipline,
@@ -36,14 +37,17 @@ export interface IssuedSession {
 }
 
 export interface AuthenticatedPrincipal {
-  kind: 'ADMIN' | 'DOCTOR' | 'PHARMACY' | 'FACILITY';
+  kind: UserRole;
   sessionId: string;
   userId: string;
   userPublicId: string;
   email: string;
   role: UserRole;
   permissions: Permission[];
-  /** The doctor, pharmacy or facility this account acts for; null for admins. */
+  /**
+   * The doctor, pharmacy or facility this account acts for; null for admins
+   * and district officers, whose area is looked up where it is used (D84).
+   */
   organisationId: string | null;
   /**
    * What kind of professional this is, for anyone who must say so in words
@@ -122,8 +126,8 @@ export async function resolveSession(
   if (user.status !== 'ACTIVE') return null;
 
   // An admin who has not completed TOTP enrolment holds no usable session
-  // (spec §9 — 2FA is mandatory for admins).
-  if (user.role === 'ADMIN' && !user.twoFactorEnabledAt) return null;
+  // (spec §9 — 2FA is mandatory for admins, operations included: D84).
+  if (isAdminRole(user.role) && !user.twoFactorEnabledAt) return null;
 
   const organisationId =
     user.role === 'DOCTOR'

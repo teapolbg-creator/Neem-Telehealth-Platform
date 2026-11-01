@@ -1,5 +1,6 @@
 import type { PrismaClient, User } from '@prisma/client';
 import type { LoginResponse } from '@neem/contracts';
+import { isAdminRole } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { getEnv } from '../../config/env.ts';
 import { addMinutes, systemClock, type Clock } from '../../lib/clock.ts';
@@ -124,7 +125,7 @@ export async function login(
     data: { failedLoginCount: 0, lockedUntil: null },
   });
 
-  const requiresTwoFactor = user.role === 'ADMIN' || user.twoFactorEnabledAt !== null;
+  const requiresTwoFactor = isAdminRole(user.role) || user.twoFactorEnabledAt !== null;
 
   if (requiresTwoFactor) {
     const enrollmentRequired = user.twoFactorEnabledAt === null;

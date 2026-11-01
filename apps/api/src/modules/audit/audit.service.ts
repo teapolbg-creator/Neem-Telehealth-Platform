@@ -65,6 +65,11 @@ export const AUDIT_ACTIONS = {
   FACILITY_STAFF_STATUS_CHANGED: 'facility.staff.status-changed',
   FACILITY_STAFF_SETUP_ISSUED: 'facility.staff.setup-issued',
 
+  /** Operations administrators and district officers (D84). */
+  STAFF_ACCOUNT_CREATED: 'staff-account.created',
+  STAFF_ACCOUNT_STATUS_CHANGED: 'staff-account.status-changed',
+  STAFF_ACCOUNT_SETUP_ISSUED: 'staff-account.setup-issued',
+
   /** CHPS slice 1b (D75). Metadata never carries clinical content. */
   PATIENT_REGISTERED: 'patient.registered',
   PATIENT_UPDATED: 'patient.updated',

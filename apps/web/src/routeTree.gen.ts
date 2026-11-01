@@ -27,6 +27,7 @@ import { Route as AdminRefundsRouteImport } from './routes/admin.refunds'
 import { Route as AdminSchedulingRouteImport } from './routes/admin.scheduling'
 import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminStaffRouteImport } from './routes/admin.staff'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
@@ -34,6 +35,7 @@ import { Route as AuthResetRouteImport } from './routes/auth.reset'
 import { Route as BookIndexRouteImport } from './routes/book.index'
 import { Route as BookServiceCodeRouteImport } from './routes/book.$serviceCode'
 import { Route as BookPaidRouteImport } from './routes/book.paid'
+import { Route as DistrictIndexRouteImport } from './routes/district.index'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorAvailabilityRouteImport } from './routes/doctor.availability'
 import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
@@ -152,6 +154,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminStaffRoute = AdminStaffRouteImport.update({
+  id: '/admin/staff',
+  path: '/admin/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminVerificationRoute = AdminVerificationRouteImport.update({
   id: '/admin/verification',
   path: '/admin/verification',
@@ -185,6 +192,11 @@ const BookServiceCodeRoute = BookServiceCodeRouteImport.update({
 const BookPaidRoute = BookPaidRouteImport.update({
   id: '/book/paid',
   path: '/book/paid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DistrictIndexRoute = DistrictIndexRouteImport.update({
+  id: '/district/',
+  path: '/district/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoctorIndexRoute = DoctorIndexRouteImport.update({
@@ -338,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -363,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/book/': typeof BookIndexRoute
+  '/district/': typeof DistrictIndexRoute
   '/doctor/': typeof DoctorIndexRoute
   '/facility/': typeof FacilityIndexRoute
   '/patient/': typeof PatientIndexRoute
@@ -391,6 +405,7 @@ export interface FileRoutesByTo {
   '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -416,6 +431,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
   '/book': typeof BookIndexRoute
+  '/district': typeof DistrictIndexRoute
   '/doctor': typeof DoctorIndexRoute
   '/facility': typeof FacilityIndexRoute
   '/patient': typeof PatientIndexRoute
@@ -445,6 +461,7 @@ export interface FileRoutesById {
   '/admin/scheduling': typeof AdminSchedulingRoute
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -470,6 +487,7 @@ export interface FileRoutesById {
   '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/book/': typeof BookIndexRoute
+  '/district/': typeof DistrictIndexRoute
   '/doctor/': typeof DoctorIndexRoute
   '/facility/': typeof FacilityIndexRoute
   '/patient/': typeof PatientIndexRoute
@@ -500,6 +518,7 @@ export interface FileRouteTypes {
     | '/admin/scheduling'
     | '/admin/services'
     | '/admin/settings'
+    | '/admin/staff'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -525,6 +544,7 @@ export interface FileRouteTypes {
     | '/account/'
     | '/admin/'
     | '/book/'
+    | '/district/'
     | '/doctor/'
     | '/facility/'
     | '/patient/'
@@ -553,6 +573,7 @@ export interface FileRouteTypes {
     | '/admin/scheduling'
     | '/admin/services'
     | '/admin/settings'
+    | '/admin/staff'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -578,6 +599,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/book'
+    | '/district'
     | '/doctor'
     | '/facility'
     | '/patient'
@@ -606,6 +628,7 @@ export interface FileRouteTypes {
     | '/admin/scheduling'
     | '/admin/services'
     | '/admin/settings'
+    | '/admin/staff'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -631,6 +654,7 @@ export interface FileRouteTypes {
     | '/account/'
     | '/admin/'
     | '/book/'
+    | '/district/'
     | '/doctor/'
     | '/facility/'
     | '/patient/'
@@ -660,6 +684,7 @@ export interface RootRouteChildren {
   AdminSchedulingRoute: typeof AdminSchedulingRoute
   AdminServicesRoute: typeof AdminServicesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminStaffRoute: typeof AdminStaffRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -685,6 +710,7 @@ export interface RootRouteChildren {
   AccountIndexRoute: typeof AccountIndexRoute
   AdminIndexRoute: typeof AdminIndexRoute
   BookIndexRoute: typeof BookIndexRoute
+  DistrictIndexRoute: typeof DistrictIndexRoute
   DoctorIndexRoute: typeof DoctorIndexRoute
   FacilityIndexRoute: typeof FacilityIndexRoute
   PatientIndexRoute: typeof PatientIndexRoute
@@ -825,6 +851,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/staff': {
+      id: '/admin/staff'
+      path: '/admin/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/verification': {
       id: '/admin/verification'
       path: '/admin/verification'
@@ -872,6 +905,13 @@ declare module '@tanstack/react-router' {
       path: '/book/paid'
       fullPath: '/book/paid'
       preLoaderRoute: typeof BookPaidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/district/': {
+      id: '/district/'
+      path: '/district'
+      fullPath: '/district/'
+      preLoaderRoute: typeof DistrictIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/doctor/': {
@@ -1076,6 +1116,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSchedulingRoute: AdminSchedulingRoute,
   AdminServicesRoute: AdminServicesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminStaffRoute: AdminStaffRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,
@@ -1101,6 +1142,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountIndexRoute: AccountIndexRoute,
   AdminIndexRoute: AdminIndexRoute,
   BookIndexRoute: BookIndexRoute,
+  DistrictIndexRoute: DistrictIndexRoute,
   DoctorIndexRoute: DoctorIndexRoute,
   FacilityIndexRoute: FacilityIndexRoute,
   PatientIndexRoute: PatientIndexRoute,

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { toDataURL } from 'qrcode';
 import {
+  isAdminRole,
   changePasswordSchema,
   loginRequestSchema,
   passwordResetConfirmSchema,
@@ -206,6 +207,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       where: { id: principal.userId },
       include: {
         admin: { select: { fullName: true } },
+        districtOfficer: { select: { fullName: true } },
         doctor: { select: { publicId: true, fullName: true, status: true, discipline: true } },
         pharmacyMembership: {
           select: { pharmacy: { select: { publicId: true, name: true, status: true } } },
@@ -241,12 +243,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       role: user.role,
       displayName:
         user.admin?.fullName ??
+        user.districtOfficer?.fullName ??
         user.doctor?.fullName ??
         user.pharmacyMembership?.pharmacy.name ??
         user.facilityMembership?.fullName ??
         user.email,
       twoFactorEnabled: user.twoFactorEnabledAt !== null,
-      mustEnrollTwoFactor: user.role === 'ADMIN' && user.twoFactorEnabledAt === null,
+      mustEnrollTwoFactor: isAdminRole(user.role) && user.twoFactorEnabledAt === null,
       permissions: principal.permissions,
       organisation,
       discipline: user.doctor?.discipline ?? null,

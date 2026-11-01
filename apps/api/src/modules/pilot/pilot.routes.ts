@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  ADMIN_ROLES,
   PERMISSIONS,
   PILOT_APPLICANT_ROLES,
   PILOT_APPLICATION_STATUSES,
@@ -43,7 +44,7 @@ function submissionLimit() {
 }
 
 export async function pilotRoutes(app: FastifyInstance): Promise<void> {
-  const pilotAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PILOT_MANAGE] });
+  const pilotAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PILOT_MANAGE] });
 
   // -------------------------------------------------------------------------
   // Public

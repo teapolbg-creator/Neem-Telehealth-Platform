@@ -1,6 +1,6 @@
 import { SETTING_KEYS } from '../../src/modules/settings/settings.defaults.ts';
 import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, UserRole } from '@prisma/client';
 import { getPrisma } from '../../src/db/prisma.ts';
 import { hashPassword, generatePublicId } from '../../src/lib/crypto.ts';
 import { seedReferenceData } from '../../prisma/seed/reference-data.ts';
@@ -89,7 +89,7 @@ export async function resetDatabase(): Promise<void> {
 export interface TestUserOptions {
   email: string;
   password: string;
-  role: 'ADMIN' | 'DOCTOR' | 'PHARMACY' | 'FACILITY';
+  role: UserRole;
   status?: 'ACTIVE' | 'SUSPENDED' | 'DISABLED';
   /** When set, the account already has TOTP enrolled with this secret. */
   twoFactorSecretEnc?: string;

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -26,7 +26,7 @@ import {
  */
 export async function notificationRoutes(app: FastifyInstance): Promise<void> {
   const adminOnly = guard({
-    roles: ['ADMIN'],
+    roles: ADMIN_ROLES,
     permissions: [PERMISSIONS.NOTIFICATION_TEMPLATE_MANAGE],
   });
 

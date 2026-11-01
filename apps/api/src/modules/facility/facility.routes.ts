@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  ADMIN_ROLES,
   FACILITY_STATUSES,
   FACILITY_TYPES,
   PERMISSIONS,
@@ -41,7 +42,7 @@ const publicIdParams = z.object({ publicId: z.string().min(1).max(32) });
 const staffParams = publicIdParams.extend({ userPublicId: z.string().min(1).max(32) });
 
 export async function facilityRoutes(app: FastifyInstance): Promise<void> {
-  const facilityAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.FACILITY_MANAGE] });
+  const facilityAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.FACILITY_MANAGE] });
   const facilityStaff = guard({ roles: ['FACILITY'] });
 
   // -------------------------------------------------------------------------

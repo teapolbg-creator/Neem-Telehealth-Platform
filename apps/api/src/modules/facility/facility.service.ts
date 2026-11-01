@@ -1,5 +1,4 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { addHours } from 'date-fns';
 import type {
   FacilityConnectivityStatus,
   FacilityCreate,
@@ -13,14 +12,28 @@ import type {
   FacilityUpdate,
   GeographyRegion,
 } from '@neem/contracts';
-import { getEnv } from '../../config/env.ts';
-import { getNotificationProvider } from '../../adapters/notification/index.ts';
 import { getPrisma, isUniqueConstraintError, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
-import { generatePublicId, generateToken, hashPassword, hashToken } from '../../lib/crypto.ts';
+import { generatePublicId, generateToken, hashPassword } from '../../lib/crypto.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import { revokeAllSessionsForUser } from '../auth/session.service.ts';
+import { issueSetupLink as issueAccountSetupLink } from '../auth/setup-link.service.ts';
+
+/** CHPS staff hear about their account in their facility's name. */
+function issueSetupLink(
+  user: { id: string; email: string },
+  facilityName: string,
+  db: Db,
+  clock: Clock,
+) {
+  return issueAccountSetupLink(
+    user,
+    { createdFor: `at ${facilityName}`, whoToTell: 'your district office' },
+    db,
+    clock,
+  );
+}
 
 /**
  * Health facilities, their place in Ghana's administrative geography, and
@@ -32,12 +45,8 @@ import { revokeAllSessionsForUser } from '../auth/session.service.ts';
  * so no password ever passes through anybody but its owner.
  */
 
-/**
- * How long a set-up link lasts. Longer than a password reset's hour, because
- * it may be handed over on paper at a district meeting and used days later on
- * the facility's own device.
- */
-export const STAFF_SETUP_LINK_HOURS = 72;
+/** Moved to the shared set-up link service (D84); re-exported for callers. */
+export { STAFF_SETUP_LINK_HOURS } from '../auth/setup-link.service.ts';
 
 interface AdminContext {
   adminUserId: string;
@@ -170,7 +179,7 @@ async function assertLocation(
 // Facilities
 // ---------------------------------------------------------------------------
 
-const facilityInclude = {
+export const facilityInclude = {
   district: { include: { region: true } },
   subDistrict: true,
   _count: { select: { staff: true } },
@@ -178,7 +187,7 @@ const facilityInclude = {
 
 type FacilityRow = Prisma.FacilityGetPayload<{ include: typeof facilityInclude }>;
 
-function toSummary(row: FacilityRow): FacilitySummary {
+export function toSummary(row: FacilityRow): FacilitySummary {
   return {
     publicId: row.publicId,
     code: row.code,
@@ -500,52 +509,6 @@ export async function updateFacility(
  * second place for it to be wrong. Any unused earlier link dies first, so only
  * the newest one handed over works.
  */
-async function issueSetupLink(
-  user: { id: string; email: string },
-  facilityName: string,
-  db: Db,
-  clock: Clock,
-): Promise<{ setupPath: string; setupExpiresAt: Date; emailed: boolean }> {
-  const now = clock.now();
-  await db.passwordResetToken.updateMany({
-    where: { userId: user.id, usedAt: null, expiresAt: { gt: now } },
-    data: { expiresAt: now },
-  });
-
-  const token = generateToken();
-  const setupExpiresAt = addHours(now, STAFF_SETUP_LINK_HOURS);
-  await db.passwordResetToken.create({
-    data: { userId: user.id, tokenHash: hashToken(token), expiresAt: setupExpiresAt },
-  });
-
-  const setupPath = `/auth/reset?token=${token}`;
-
-  /*
-   * Emailed only where email is really delivered (as the reset route
-   * decides). Elsewhere the administrator hands the link over, and the
-   * screen says so rather than claiming a message went out.
-   */
-  const emailed = getEnv().EMAIL_PROVIDER === 'smtp';
-  if (emailed) {
-    void getNotificationProvider('EMAIL')
-      .send({
-        to: user.email,
-        subject: 'Set up your Neem account',
-        body:
-          `A Neem account has been created for you at ${facilityName}.\n\n` +
-          `Choose your password here:\n${getEnv().WEB_ORIGIN}${setupPath}\n\n` +
-          `The link can be used once and expires in ${STAFF_SETUP_LINK_HOURS} hours. ` +
-          `If you were not expecting this, ignore it and tell your district office.`,
-        reference: `staffsetup_${token.slice(0, 8)}`,
-      })
-      .catch(() => {
-        // The administrator still holds the link; a failed email loses nothing.
-      });
-  }
-
-  return { setupPath, setupExpiresAt, emailed };
-}
-
 async function findStaffMember(facilityId: string, userPublicId: string, db: Db) {
   const member = await db.facilityUser.findFirst({
     where: { facilityId, user: { publicId: userPublicId } },

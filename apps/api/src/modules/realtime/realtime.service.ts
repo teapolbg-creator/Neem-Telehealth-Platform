@@ -1,3 +1,4 @@
+import { isAdminRole } from '@neem/contracts';
 import type { Server as HttpServer } from 'node:http';
 import { Server as SocketServer, type Socket } from 'socket.io';
 import { getEnv } from '../../config/env.ts';
@@ -48,7 +49,7 @@ export function initialiseRealtime(server: HttpServer): SocketServer {
         socket.data.kind = principal.role;
         socket.data.principalId = principal.userId;
 
-        if (principal.role === 'ADMIN') socket.join(ADMIN_ROOM);
+        if (isAdminRole(principal.role)) socket.join(ADMIN_ROOM);
         if (principal.role === 'DOCTOR' && principal.organisationId) {
           socket.join(doctorRoom(principal.organisationId));
         }

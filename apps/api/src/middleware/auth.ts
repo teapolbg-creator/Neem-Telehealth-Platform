@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import type { Permission, UserRole } from '@neem/contracts';
+import { isAdminRole } from '@neem/contracts';
 import { errors } from '../lib/errors.ts';
 import {
   CSRF_HEADER,
@@ -65,7 +66,7 @@ export async function enforceCsrf(request: FastifyRequest): Promise<void> {
 /** Route guard: authenticated, CSRF-checked, and holding every listed permission. */
 export function guard(options: {
   permissions?: Permission[];
-  roles?: UserRole[];
+  roles?: readonly UserRole[];
 }): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request) => {
     const principal = requireAuth(request);
@@ -107,7 +108,7 @@ export function assertOwnership(
   ownerOrganisationId: string | null | undefined,
   entity = 'record',
 ): void {
-  if (principal.role === 'ADMIN') return;
+  if (isAdminRole(principal.role)) return;
 
   if (!ownerOrganisationId || principal.organisationId !== ownerOrganisationId) {
     // 404 rather than 403: confirming the record exists would itself leak.

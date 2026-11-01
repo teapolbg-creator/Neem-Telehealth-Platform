@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  ADMIN_ROLES,
   DOCTOR_STATUSES,
   PHARMACY_STATUSES,
   PERMISSIONS,
@@ -46,9 +47,9 @@ import { queryBoolean } from '../../lib/query.ts';
  */
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
-  const doctorAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.DOCTOR_MANAGE] });
-  const pharmacyAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PHARMACY_MANAGE] });
-  const shiftAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.SHIFT_MANAGE] });
+  const doctorAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.DOCTOR_MANAGE] });
+  const pharmacyAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PHARMACY_MANAGE] });
+  const shiftAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.SHIFT_MANAGE] });
 
   // -------------------------------------------------------------------------
   // Doctors
@@ -549,7 +550,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/admin/audit-logs',
-    { preHandler: guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.AUDIT_READ] }) },
+    { preHandler: guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.AUDIT_READ] }) },
     async (request, reply) => {
       const query = paginationQuerySchema
         .extend({

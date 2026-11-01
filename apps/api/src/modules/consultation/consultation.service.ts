@@ -569,6 +569,9 @@ function refundRequesterFor(actorType: ActorType): 'PATIENT' | 'PHARMACY' | 'ADM
   if (actorType === 'DOCTOR' || actorType === 'FACILITY') return 'SYSTEM';
   // A patient is a patient, however they reached us (v2).
   if (actorType === 'PATIENT_ACCOUNT') return 'PATIENT';
+  // Operations cancels as an administrator (D84); a district officer cannot cancel.
+  if (actorType === 'OPS_ADMIN') return 'ADMIN';
+  if (actorType === 'DISTRICT') return 'SYSTEM';
   return actorType;
 }
 

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
 import { errors } from '../../lib/errors.ts';
 import { queryBoolean } from '../../lib/query.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -32,7 +32,7 @@ function defaultPeriod(): { from: Date; to: Date } {
 }
 
 export async function professionalPayoutRoutes(app: FastifyInstance): Promise<void> {
-  const payoutAdmin = guard({ roles: ['ADMIN'], permissions: [PERMISSIONS.PAYOUT_MANAGE] });
+  const payoutAdmin = guard({ roles: ADMIN_ROLES, permissions: [PERMISSIONS.PAYOUT_MANAGE] });
 
   /**
    * A professional's own statement.
