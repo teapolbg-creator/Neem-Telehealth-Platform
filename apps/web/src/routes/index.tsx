@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ClipboardList, FileText, UserPlus, Video } from "lucide-react";
 import { NeemLogo } from "@/components/neem/Logo";
 import { usePatientSession } from "@/features/consultation/api";
 
@@ -44,71 +44,83 @@ function ResumeConsultation() {
   );
 }
 
+/** The CHPS model, in the order a patient's visit runs. */
+const VISIT_STEPS = [
+  {
+    icon: UserPlus,
+    title: "Register",
+    body: "The Community Health Officer registers the patient. No phone or ID is needed, and an estimated age is enough.",
+  },
+  {
+    icon: ClipboardList,
+    title: "Triage",
+    body: "The officer records vital signs and chooses the triage category. An emergency follows the emergency protocol, not a queue.",
+  },
+  {
+    icon: Video,
+    title: "See a doctor",
+    body: "If a doctor is needed, the patient sees one by video or audio on a tablet at the compound.",
+  },
+  {
+    icon: FileText,
+    title: "Record and follow up",
+    body: "The doctor's advice joins the patient's record at the compound, ready for referral and follow-up.",
+  },
+];
+
 function Landing() {
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
       <nav className="w-full px-6 py-4 flex items-center justify-between max-w-7xl mx-auto">
         <NeemLogo className="text-xl" markClassName="size-10" />
-        <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-          Telemedicine in Ghana, at your pharmacy or from your phone
-        </span>
       </nav>
 
       {/*
-        Centred in the space between the nav and the footer, so the page reads
-        as a deliberate hero on a tall screen rather than content followed by a
-        gap. Each portal is reached by signing in, and the patient's only by the
-        one-time code a pharmacy gives them — none needs a card here.
+        Says what the CHPS model does and nothing about where it runs. It has
+        not been deployed, so this page claims no pilot, no approval and no
+        partnership. Each portal is reached by signing in, and a station by
+        pairing it with the compound.
       */}
       <main className="flex flex-1 flex-col justify-center pb-16 sm:pb-24">
         <ResumeConsultation />
 
         <header className="w-full max-w-4xl mx-auto px-6 pt-12 sm:pt-20 pb-10 text-center">
-          <span className="chip bg-brand/10 text-brand mb-6">
-            <span className="size-1.5 rounded-full bg-brand animate-pulse" />
-            Live pilot across Accra, Kumasi & Tamale
-          </span>
           <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance">
-            A doctor's visit,
+            A doctor's consultation,
             <br />
-            <span className="text-brand">just around the corner.</span>
+            <span className="text-brand">right at the compound.</span>
           </h1>
-          <p className="mt-6 text-lg text-slate-600 max-w-2xl mx-auto text-pretty">
-            Neem connects patients with licensed Ghanaian doctors through secure video and audio
-            consultations. Book one yourself, or start a consultation at a participating pharmacy.
-            Nothing to download.
-          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <a
+              href="/auth/login"
+              className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Sign in
+            </a>
+            <a
+              href="/station"
+              className="rounded-xl border border-border bg-white px-6 py-3 text-sm font-semibold hover:bg-slate-50"
+            >
+              Open a consultation station
+            </a>
+          </div>
         </header>
 
-        <section className="mx-auto w-full max-w-4xl px-6">
-          <div className="card-soft flex flex-wrap items-center justify-between gap-4 p-6">
-            <div>
-              <h2 className="font-bold">Join the Neem network</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Applications are verified by a Neem administrator before activation.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <a
-                href="/onboarding/doctor"
-                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
-              >
-                Apply as a health professional
-              </a>
-              <a
-                href="/onboarding/pharmacy"
-                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
-              >
-                Register a pharmacy
-              </a>
-              <a
-                href="/auth/login"
-                className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold hover:bg-slate-50"
-              >
-                Sign in
-              </a>
-            </div>
-          </div>
+        <section aria-labelledby="visit-heading" className="mx-auto w-full max-w-6xl px-6">
+          <h2 id="visit-heading" className="text-center text-xl font-bold">
+            How a visit works
+          </h2>
+          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {VISIT_STEPS.map(({ icon: Icon, title, body }) => (
+              <li key={title} className="card-soft p-6">
+                <span className="grid size-10 place-items-center rounded-xl bg-brand/10 text-brand">
+                  <Icon className="size-5" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 font-bold">{title}</h3>
+                <p className="mt-1 text-sm text-slate-600">{body}</p>
+              </li>
+            ))}
+          </ol>
         </section>
       </main>
 
@@ -121,27 +133,7 @@ function Landing() {
             it (spec §78, decision D10).
           */}
           <span>&copy; 2026 Neem Health · Accra, Ghana</span>
-          {/*
-            This said "Privacy-first · Session-only" and "WCAG AA" until Phase
-            11. Both were claims the product could not support, sitting two
-            lines below a comment forbidding exactly that.
-
-            "Session-only" stopped being true at D23: clinical records are
-            retained under legal obligation for three years, not discarded when
-            the session ends. It was the original design's promise, left
-            standing on the one page a patient reads before anything else.
-
-            "WCAG AA" is a conformance claim, and no audit has been performed —
-            Phase 11 ran an accessibility pass and fixed real defects, which is
-            not the same thing and must not be described as if it were.
-
-            What is left is what can be shown: no patient account exists, and
-            the retention position is stated where it is explained rather than
-            compressed into a badge.
-          */}
-          <div className="flex gap-6">
-            <span>No patient accounts · No consultation recording</span>
-          </div>
+          <span>The Community Health Officer and the doctor decide. Neem does not diagnose.</span>
         </div>
       </footer>
     </div>

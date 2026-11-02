@@ -86,13 +86,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Neem connects patients visiting community pharmacies in Ghana with licensed doctors through secure video and audio consultations.",
+          "Neem connects patients at CHPS compounds in Ghana with doctors by video and audio.",
       },
       { name: "author", content: "Neem Health" },
       { property: "og:title", content: "Neem | Telemedicine in Ghana" },
       {
         property: "og:description",
-        content: "Secure, session-based video consultations for community pharmacies in Ghana.",
+        content: "Video and audio consultations with a doctor, at CHPS compounds in Ghana.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
