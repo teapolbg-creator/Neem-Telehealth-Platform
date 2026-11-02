@@ -6,6 +6,9 @@ Everything below is real: real payments through the mock provider, a real queue,
 
 ---
 
+> This walks through **V1, the pharmacy channel**. For V2, see
+> [`presentation-script.md`](presentation-script.md).
+
 ## Before you start
 
 ```bash

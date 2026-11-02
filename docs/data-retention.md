@@ -320,3 +320,14 @@ If epidemiological reporting later becomes a business requirement, it needs a se
 | G7d     | The lawful basis and the required form of patient notice at capture                                          | The product currently states no basis anywhere                                                                                                                                                                                                                                                                                                                       |
 | G7e     | How a patient exercises access and erasure rights, and how erasure interacts with a statutory retention duty | These usually conflict; the resolution has to be written down                                                                                                                                                                                                                                                                                                        |
 | G7f     | An acceptable backup window against a 3-year retention period                                                | §7                                                                                                                                                                                                                                                                                                                                                                   |
+
+## 11. CHPS records (V2)
+
+**The sealing rule above does not apply to a CHPS patient** (D74). Their record stays readable
+by the clinicians caring for them, with every opening logged, because continuity of care is
+what the record is for. This reverses D23 for this channel only, and needs a lawful basis under
+Act 843 confirmed before clinical use. No retention period has been set for it: nothing here
+destroys a CHPS record yet, and that needs deciding with counsel.
+
+Kept short on purpose: the notification feed, 90 days (D92), which holds no text; and walk-ins
+on a device, encrypted, only until they are sent (D88).

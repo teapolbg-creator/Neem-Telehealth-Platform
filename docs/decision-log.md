@@ -3322,7 +3322,8 @@ and a filtered history; none existed.
 free doctor could hold several open offers. The screen showed the newest, and the
 rest lapsed unseen and were recorded as missed responses against them. An open
 offer now counts toward capacity. This is shared queue code, so it also affects
-the pharmacy channel.
+the pharmacy channel. Nothing closed an offer when its request was withdrawn, either,
+so it would have blocked the doctor and been recorded as missed: now it does neither.
 
 **A second fault, found the same way, fixed.** The refunds "All" view sorted oldest
 first and stopped at 100, so past that the newest decisions never appeared. It now
@@ -3438,3 +3439,24 @@ screens would have been empty.
 
 **What was not done.** Opening the app with no connection on a device that has never
 loaded it. The presentation machine runs the server itself, so it does not need this.
+
+---
+
+### D96 — V2 is handed over as a complete local build · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5f. The operator's goal: a complete codebase to present to government from a
+local build, with V1 showing live functionality, and an engineer doing the final connections.
+
+**Decision.**
+
+- **`docs/v2-handover.md` is the entry point,** and says plainly what has never happened: no
+  deployment, and no live call.
+- **It separates keys from code.** Video, SMS, email and hosting need accounts. A telephone
+  bridge, WhatsApp and object storage need adapters written, because none exists.
+- **`docs/presentation-script.md` says what may be claimed.** The build backs up less than a
+  good demo implies: simulated video, fictional data, no DHIMS2, no approvals.
+- **The older documents gained CHPS sections rather than rewrites,** because the pharmacy channel
+  is still live and they still describe it.
+
+**What was not done.** A CHPS retention period, which needs counsel, so nothing destroys a CHPS
+record yet. It is recorded in `data-retention.md` as open.

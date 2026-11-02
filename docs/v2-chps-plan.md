@@ -179,6 +179,8 @@ Slice 5c is built (D93): a triage protocol table that ships empty, awaiting Q5.
 Slice 5d is built (D94): the remaining dashboard figures, station device status, and an empty
 reporting adapter where DHIMS2 would connect. No integration exists.
 Slice 5e is built (D95): CHPS demo data and `npm run demo`.
+Slice 5f is built (D96): the handover documents. **V2 is complete as a local build.** What
+remains needs accounts, people or approvals: see [`v2-handover.md`](v2-handover.md).
 
 Still proposed: SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 

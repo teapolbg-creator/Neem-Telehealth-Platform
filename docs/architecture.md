@@ -271,3 +271,27 @@ Business configuration — price, duration, revenue split, response window, queu
 Local: `docker compose up` (PostgreSQL, MailHog, Adminer) + `bun run dev` (web and api concurrently).
 
 Cloud, later, with no rewrite: the api is a stateless container behind a load balancer (sessions live in the database, not memory), the web builds to a Node target, PostgreSQL becomes a managed instance — Supabase, as of D43 — uploaded documents move from local disk to object storage behind the existing storage interface, and the in-process job scheduler moves to a dedicated worker container. Sticky sessions are unnecessary because Socket.IO can be given a Redis adapter at that point — the abstraction is in place from the start.
+
+## 11. The CHPS model (V2)
+
+Added to the same modular monolith, on the same queue, media and clinical modules. A
+consultation with `channel: 'CHPS'` carries a facility, patient and visit. See
+[`v2-handover.md`](v2-handover.md) and [`v2-chps-plan.md`](v2-chps-plan.md).
+
+```
+CHO (/facility) ──▶ register, triage ──▶ request ──▶ the ordinary queue ──▶ Doctor (/doctor)
+      │                                                                      │
+      └──▶ Station (/station): paired device, no user ◀── the same room ─────┘
+District (/district): counts only, by area       Neem (/admin): every compound, live
+```
+
+| Module                      | Holds                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `modules/facility`          | Facilities, patients, visits, triage, referrals, follow-ups, stations, offline walk-ins, the triage protocol |
+| `modules/district`          | An officer's area, read on every request, and their reports                                                  |
+| `modules/admin`             | Staff accounts, the operations overview, monitoring                                                          |
+| `modules/notification/feed` | The in-app feed, which stores no text (D92)                                                                  |
+| `adapters/reporting`        | An empty adapter where DHIMS2 would connect. No integration exists (D94)                                     |
+
+The rule worth knowing: **the facility comes from the session**. Nothing in a URL can point
+a CHO at another compound's patient, and a record elsewhere is "not found", not "forbidden".

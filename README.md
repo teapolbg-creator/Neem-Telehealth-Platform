@@ -6,6 +6,28 @@ Pharmacy-based telemedicine for Ghana. Patients at a participating pharmacy cons
 
 ---
 
+## Two versions
+
+**V1, the pharmacy channel,** is `main`: what follows describes it. It runs the live pilot.
+
+**V2, the CHPS model,** is the `v2-chps` branch. A patient walks into a CHPS compound, with
+no smartphone or appointment. The Community Health Officer registers and triages them, and
+they see a remote doctor on a tablet at the compound. It adds three interfaces (CHPS
+facility, consultation station, district) to the doctor and administration ones, keeps the
+pharmacy channel running, and is complete as a local build with no outside service connected.
+
+```bash
+npm run demo
+```
+
+| Start here                                                   | For                                     |
+| ------------------------------------------------------------ | --------------------------------------- |
+| [`docs/v2-handover.md`](docs/v2-handover.md)                 | Running it, and what is left to connect |
+| [`docs/presentation-script.md`](docs/presentation-script.md) | Showing it to people                    |
+| [`docs/v2-chps-plan.md`](docs/v2-chps-plan.md)               | What was built, slice by slice          |
+
+---
+
 ## What Neem does
 
 ```
@@ -79,6 +101,9 @@ npm run dev
 
 Printed by `npm run db:seed`. Every seeded row carries `isDemo: true` and a `.demo` email address, so demo and production data cannot be confused (spec §76). Demo data only ever goes into a database on this machine: the seed skips it when `NODE_ENV=production` or `SEED_DEMO_DATA=false`, and refuses it whenever `DATABASE_URL` or `DIRECT_DATABASE_URL` points anywhere but `localhost` — reference data is still seeded, so `db:seed` stays safe to run against production (D52). The config loader independently rejects `SEED_DEMO_DATA=true` in production.
 
+V2 adds `cho@chps.demo`, `cho2@chps.demo` and `cho3@chps.demo` (compound staff),
+`district@officer.demo` and `operations@neem.demo`.
+
 | Role     | Email                       | Note                                                               |
 | -------- | --------------------------- | ------------------------------------------------------------------ |
 | Admin    | `admin@neem.demo`           | Must enrol TOTP two-factor on first sign-in — it cannot be skipped |
@@ -100,6 +125,7 @@ Passwords are printed by the seed. **These are demonstration credentials and mus
 
 | Command                                              | Does                                                                    |
 | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `npm run demo`                                       | V2 presentation build: everything mocked, demo data in                  |
 | `npm run dev`                                        | Web and API together                                                    |
 | `npm run dev:api` / `npm run dev:web`                | One at a time                                                           |
 | `npm test`                                           | Unit and integration tests (Vitest, against a real PostgreSQL database) |
@@ -176,23 +202,26 @@ That guarantee is now **partly operational**: recording can be enabled in the Wh
 
 ## Documentation
 
-| Document                                                 | Contents                                                                     |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [`docs/launch-runbook.md`](docs/launch-runbook.md)       | Putting the counter and patient-direct systems live, stage by stage          |
-| [`docs/demonstration.md`](docs/demonstration.md)         | A 15-minute walkthrough of the full business cycle on a seeded machine       |
-| [`docs/roadmap.md`](docs/roadmap.md)                     | Phases 0–11, what each built, and what building it exposed                   |
-| [`docs/decision-log.md`](docs/decision-log.md)           | D1–D34, engineering decisions with their reasoning                           |
-| [`docs/architecture.md`](docs/architecture.md)           | Modules, layering, providers, folder structure                               |
-| [`docs/database.md`](docs/database.md)                   | Full schema with a retention class on every table                            |
-| [`docs/api.md`](docs/api.md)                             | REST surface, reconciled against the live router and kept that way by a test |
-| [`docs/security.md`](docs/security.md)                   | Auth design, RBAC, controls, and the §79 test plan                           |
-| [`docs/data-retention.md`](docs/data-retention.md)       | What is kept, what is destroyed, how it is proved                            |
-| [`docs/consultation-flow.md`](docs/consultation-flow.md) | Consultation state machine and failure handling                              |
-| [`docs/queue-engine.md`](docs/queue-engine.md)           | Smart allocation scoring and the 90-second window                            |
-| [`docs/payment-flow.md`](docs/payment-flow.md)           | Paystack sequence, idempotency, revenue split, refunds                       |
-| [`docs/product-backlog.md`](docs/product-backlog.md)     | MVP scope fence and what is deliberately post-MVP                            |
-| [`docs/phase-0-findings.md`](docs/phase-0-findings.md)   | What the Lovable prototype was, and the conflicts found in it                |
-| [`docs/compliance/`](docs/compliance/)                   | Ghanaian regulatory research — **all entries UNVERIFIED, not legal advice**  |
+| Document                                                     | Contents                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [`docs/v2-handover.md`](docs/v2-handover.md)                 | V2: running it, and what is left to connect                                  |
+| [`docs/presentation-script.md`](docs/presentation-script.md) | V2: a 20-minute presentation                                                 |
+| [`docs/v2-chps-plan.md`](docs/v2-chps-plan.md)               | V2: the plan, slice by slice                                                 |
+| [`docs/launch-runbook.md`](docs/launch-runbook.md)           | Putting the counter and patient-direct systems live, stage by stage          |
+| [`docs/demonstration.md`](docs/demonstration.md)             | A 15-minute walkthrough of the full business cycle on a seeded machine       |
+| [`docs/roadmap.md`](docs/roadmap.md)                         | Phases 0–11, what each built, and what building it exposed                   |
+| [`docs/decision-log.md`](docs/decision-log.md)               | D1–D34, engineering decisions with their reasoning                           |
+| [`docs/architecture.md`](docs/architecture.md)               | Modules, layering, providers, folder structure                               |
+| [`docs/database.md`](docs/database.md)                       | Full schema with a retention class on every table                            |
+| [`docs/api.md`](docs/api.md)                                 | REST surface, reconciled against the live router and kept that way by a test |
+| [`docs/security.md`](docs/security.md)                       | Auth design, RBAC, controls, and the §79 test plan                           |
+| [`docs/data-retention.md`](docs/data-retention.md)           | What is kept, what is destroyed, how it is proved                            |
+| [`docs/consultation-flow.md`](docs/consultation-flow.md)     | Consultation state machine and failure handling                              |
+| [`docs/queue-engine.md`](docs/queue-engine.md)               | Smart allocation scoring and the 90-second window                            |
+| [`docs/payment-flow.md`](docs/payment-flow.md)               | Paystack sequence, idempotency, revenue split, refunds                       |
+| [`docs/product-backlog.md`](docs/product-backlog.md)         | MVP scope fence and what is deliberately post-MVP                            |
+| [`docs/phase-0-findings.md`](docs/phase-0-findings.md)       | What the Lovable prototype was, and the conflicts found in it                |
+| [`docs/compliance/`](docs/compliance/)                       | Ghanaian regulatory research — **all entries UNVERIFIED, not legal advice**  |
 
 ---
 

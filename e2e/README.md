@@ -34,8 +34,7 @@ the stack itself.
 `chps.spec.ts` walks the six CHPS scenarios from the brief, offline walk-ins, and
 the district and operations views. It stops at once unless SMS, email, WhatsApp
 and video are all mocked, because a dev server that Playwright reuses keeps the
-providers in `.env`. To be sure, start the API with them mocked (the `api-e2e`
-configuration in `.claude/launch.json` does this).
+providers in `.env`. To be sure, run `npm run demo` first, which mocks them all.
 
 A real call on a real tablet is not covered here, and has to be done by hand.
 

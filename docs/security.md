@@ -256,3 +256,24 @@ Controls that are real obligations of a deployment rather than properties of the
 **The recording row is the one that changed character.** Until [D35](decision-log.md) it was not on this list at all: consultations could not be recorded because no adapter carried media and the interface had no method to ask. Moving video to Whereby kept the architectural half — the capability is still absent from the contract, and `whereby-adapter.test.ts` asserts the request body has no `recording` key — but added an account setting outside the code's reach. A guarantee that used to be structural is now structural **and** operational, which is weaker, and is listed here rather than left to be discovered.
 
 Run `npm run check:production-config` against the environment file a deployment will use. It applies the production rules to it and reports what would refuse to boot, which catches a development configuration copied to a server before the server does.
+
+## 11. CHPS (V2)
+
+| Principal        | Authentication                                 | Scope                                                                  |
+| ---------------- | ---------------------------------------------- | ---------------------------------------------------------------------- |
+| CHO (`FACILITY`) | Email + password, set through a one-time link  | One facility, from the session                                         |
+| `DISTRICT`       | Email + password, set through a one-time link  | One area, read on each request; read only                              |
+| `OPS_ADMIN`      | Email + password + **mandatory TOTP**          | Everything but staff accounts, settings, money and the audit log (D84) |
+| Station          | A paired device's cookie, from a one-time code | Its own screen, and only what is on it (D77)                           |
+
+- **Shared screen.** The station is given a first name and nothing more. It reloads itself
+  after each patient, so nothing survives in memory.
+- **Offline walk-ins.** Sealed with AES-GCM in IndexedDB under a key per CHO, held by the API
+  and kept by the browser only in memory, non-extractable. A device left behind cannot be read
+  without signing in (D88).
+- **Record access.** Opening a CHPS record is written to the access log (D74).
+- **District officers** see counts, never patients. Presenting complaints are free text about
+  people, and stay at the facility (D85).
+- **Consent** is recorded with who gave it, its version and when, including a guardian's.
+- **Review.** Not yet reviewed against Act 843 or telemedicine guidance. No screen may claim
+  approval by GHS, the MDC or the Data Protection Commission.

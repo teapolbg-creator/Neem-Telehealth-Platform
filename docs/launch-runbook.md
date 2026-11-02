@@ -7,6 +7,8 @@ what each step does to people who are already using Neem.
 Nothing here happens on its own. Every step is a deliberate act by the operator,
 and the stages are separated so that each can be judged, and undone, on its own.
 
+> This covers **V1**. V2 (CHPS) has not been deployed: see [`v2-handover.md`](v2-handover.md).
+
 ## What is already true
 
 - **One codebase, one database, one queue.** v2 is not a separate product: it is

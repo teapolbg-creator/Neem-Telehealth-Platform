@@ -279,3 +279,25 @@ All list endpoints paginate (cursor-based on `publicId` + `createdAt`) and filte
 ## 6. Transactions
 
 These must be single transactions, and each has a test that asserts atomicity: payment confirmation, consultation activation, doctor assignment, prescription state change, substitution approval, revenue calculation, refund processing, and shift assignment under the 40-hour rule (spec §65).
+
+## 7. CHPS tables (V2)
+
+`apps/api/prisma/schema.prisma` is the source of truth, and each model says why it is as it
+is. Unlike a counter patient, a CHPS patient has a lasting record the clinicians caring for
+them may read (D74). Identity and clinical text are encrypted; what must be searchable is a
+keyed hash.
+
+| Table                                   | Holds                                                       | Retention              |
+| --------------------------------------- | ----------------------------------------------------------- | ---------------------- |
+| `regions`, `districts`, `sub_districts` | The administrative hierarchy                                | Reference              |
+| `facilities`, `facility_users`          | Compounds and destinations, their staff                     | Permanent              |
+| `district_officers`                     | An officer's area                                           | Permanent              |
+| `patients`                              | Identity (encrypted), consent, and hashes to search by      | Lasting record (D74)   |
+| `patient_visits`                        | One walk-in; `syncedAt` marks one recorded offline          | Lasting record         |
+| `triage_records`                        | Category, vitals (encrypted), flags shown (D93)             | Lasting record         |
+| `triage_protocol_rules`                 | Rules from an approved protocol. **Ships empty**            | Retired, never deleted |
+| `encounter_records`                     | The doctor's record, versioned, never sealed (D78)          | Lasting record         |
+| `chps_referrals`, `follow_ups`          | What was sent on and due back                               | Lasting record         |
+| `visit_attachments`                     | Files, encrypted on disk                                    | Lasting record         |
+| `facility_stations`                     | Paired devices; line and device as last reported (D89, D94) | Operational            |
+| `feed_events`                           | Type, reference and time, no text (D92)                     | **90 days**            |
