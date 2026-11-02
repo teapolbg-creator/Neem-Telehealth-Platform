@@ -3330,3 +3330,29 @@ shows newest first; "Awaiting a decision" stays oldest first.
 
 **What was not done.** A reason for declining: nobody has said what would be done
 with one, and free text here invites patient detail in an audit trail.
+
+---
+
+### D92 — The in-app feed stores that something happened, not what it said · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5b. The brief (§9) asks for in-app notifications first, with SMS
+later. D32 refused an archive of message bodies, since it would be a copy of
+clinical and personal data. This answers the plan's open question Q4.
+
+**Decision.**
+
+- **A type, a reference and a time.** `feed_events` holds no text. Labels are fixed
+  in code, and a patient's or doctor's name comes from the live record when the
+  feed is read, so changing or removing a record changes the feed with it.
+- **By audience.** A facility, a doctor, or all administrators, worked out from the
+  session. Nothing in a request chooses it. District officers have no feed: they
+  are shown aggregates, and these are events about people.
+- **A pointer to the work,** kept 90 days. The record of anything is the thing
+  itself, as D32 said, so the feed can be lost without harm. It does not depend on
+  any outside service, and polls every 30 seconds rather than holding a connection.
+- **State changes publish from `transition`,** the one place every change passes
+  through, so no path can forget to.
+
+**What was not done.** SMS or email from these events, which the existing
+notification service can add once a provider is chosen; per-entry read state, which
+nobody has asked for.

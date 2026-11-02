@@ -6,9 +6,10 @@ import { NeemLogo } from "@/components/neem/Logo";
 import { DoctorAlerts } from "@/components/neem/DoctorAlerts";
 import { useLogout, useSession } from "@/features/auth/use-session";
 import { OfflineBar } from "@/features/offline/OfflineBar";
+import { NotificationBell } from "@/components/neem/NotificationBell";
 import { useHeartbeat } from "@/features/queue/api";
 import { ApiError } from "@/lib/api-client";
-import { PERMISSIONS, type Permission } from "@neem/contracts";
+import { PERMISSIONS, isAdminRole, type Permission } from "@neem/contracts";
 
 type AppKey = "pharmacy" | "doctor" | "admin" | "facility" | "district";
 
@@ -210,6 +211,9 @@ export function AppShell({
                   {logout.error instanceof ApiError ? logout.error.message : "Please try again."}
                 </p>
               )}
+              {user.role === "FACILITY" || user.role === "DOCTOR" || isAdminRole(user.role) ? (
+                <NotificationBell />
+              ) : null}
               <div className="hidden md:flex flex-col items-end leading-tight">
                 <span className="text-xs font-semibold">{user.displayName}</span>
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider">

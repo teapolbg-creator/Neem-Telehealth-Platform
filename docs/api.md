@@ -1037,3 +1037,20 @@ also carries `vitals` and `priority`.
 History lists only consultations this doctor accepted, 30 at a time. `patient`
 is a whole word of the name or a card number, and matches CHPS patients only:
 a pharmacy or direct patient's identity is sealed (D23), so `patientName` is null.
+
+## 28. Notification feed (slice 5b, D92)
+
+```
+GET    /notifications/feed                            the latest 30 entries for this person, and how many are new
+POST   /notifications/feed/read                       everything so far has been seen
+```
+
+For facility staff, doctors and both administrator roles, each seeing only their
+own audience: their facility, themselves, or all administrators. Events are stored
+as a type, a reference and a time, with no text (D32); the label is fixed and any
+name comes from the live record when the feed is read. Kept for 90 days.
+
+A facility hears of a doctor accepting, a consultation completing, being
+interrupted or expiring, referrals and referral news, and follow-ups. A doctor
+hears of requests offered to them and news of their referrals. Administrators hear
+of interruptions and doctors' availability.

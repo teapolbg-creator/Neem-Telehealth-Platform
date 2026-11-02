@@ -371,6 +371,13 @@ test.describe('CHPS doctor (D91)', () => {
       .click({ timeout: 30_000 });
     await doctorPage.waitForURL(/\/doctor\/consultations\//);
 
+    // The CHO's bell says so, names the patient, and leads to them (D92).
+    await page.reload();
+    await page.getByRole('button', { name: /Notifications, \d+ new/ }).click();
+    await page.getByRole('link', { name: new RegExp(`A doctor accepted.*${name}`) }).click();
+    await expect(page.getByRole('heading', { name })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+
     // Their own history, by patient and with the sealed rule untouched.
     await gotoHydrated(doctorPage, '/doctor/history');
     await expect(doctorPage.getByText(name)).toBeVisible();

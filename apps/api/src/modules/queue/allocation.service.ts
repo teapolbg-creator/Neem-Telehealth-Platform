@@ -1,3 +1,4 @@
+import { doctorAudience, publishFeedEvent } from '../notification/feed.service.ts';
 import type { PrismaClient } from '@prisma/client';
 import {
   getPrisma,
@@ -334,6 +335,14 @@ export async function offerNextDoctor(
           where: { consultationId },
           data: { state: 'OFFERING', offerAttempts: attemptNumber },
         });
+
+        await publishFeedEvent(
+          doctorAudience(best.doctorId),
+          'CONSULTATION_OFFERED',
+          consultation.publicId,
+          tx,
+          clock,
+        );
 
         await tx.consultation.update({
           where: { id: consultationId },

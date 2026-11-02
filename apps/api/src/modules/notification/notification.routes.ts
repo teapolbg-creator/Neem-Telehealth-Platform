@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
+import { markFeedRead, readFeed } from './feed.service.ts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
@@ -25,6 +26,18 @@ import {
  * discovered later.
  */
 export async function notificationRoutes(app: FastifyInstance): Promise<void> {
+  const feedReader = guard({ roles: [...ADMIN_ROLES, 'FACILITY', 'DOCTOR'] });
+
+  app.get('/notifications/feed', { preHandler: feedReader }, async (request, reply) => {
+    const data = await readFeed(requireAuth(request));
+    return reply.send({ data, meta: { requestId: request.correlationId } });
+  });
+
+  app.post('/notifications/feed/read', { preHandler: feedReader }, async (request, reply) => {
+    await markFeedRead(requireAuth(request));
+    return reply.send({ data: { ok: true }, meta: { requestId: request.correlationId } });
+  });
+
   const adminOnly = guard({
     roles: ADMIN_ROLES,
     permissions: [PERMISSIONS.NOTIFICATION_TEMPLATE_MANAGE],

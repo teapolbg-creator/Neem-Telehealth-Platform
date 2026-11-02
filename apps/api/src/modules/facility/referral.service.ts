@@ -1,3 +1,9 @@
+import type { FeedEventType } from '@neem/contracts';
+import {
+  doctorAudience,
+  facilityAudience,
+  publishFeedEvent,
+} from '../notification/feed.service.ts';
 import { randomInt } from 'node:crypto';
 import type { Prisma, ReferralStatus } from '@prisma/client';
 import { startOfDay } from 'date-fns';
@@ -123,6 +129,42 @@ async function audit(
 }
 
 /** Facilities a patient may be sent to: any active facility but this one. */
+/** A card number is what a facility's feed entry refers to (D92). */
+export async function tellFacility(
+  facilityId: string,
+  patientId: string,
+  type: FeedEventType,
+  db: Db,
+): Promise<void> {
+  const patient = await db.patient.findUniqueOrThrow({
+    where: { id: patientId },
+    select: { patientNumber: true },
+  });
+  await publishFeedEvent(facilityAudience(facilityId), type, patient.patientNumber, db);
+}
+
+/** The compound, and the doctor whose advice the referral acted on (D92). */
+async function tellAboutReferralNews(
+  facilityId: string,
+  referral: { patientId: string; visitId: string },
+  db: Db,
+): Promise<void> {
+  await tellFacility(facilityId, referral.patientId, 'REFERRAL_FEEDBACK', db);
+  const consultation = await db.consultation.findFirst({
+    where: { visitId: referral.visitId, state: 'COMPLETED', doctorId: { not: null } },
+    orderBy: { completedAt: 'desc' },
+    select: { publicId: true, doctorId: true },
+  });
+  if (consultation?.doctorId) {
+    await publishFeedEvent(
+      doctorAudience(consultation.doctorId),
+      'REFERRAL_FEEDBACK',
+      consultation.publicId,
+      db,
+    );
+  }
+}
+
 export async function listDestinations(
   ctx: StaffContext,
   db: Db = getPrisma(),
@@ -197,6 +239,7 @@ export async function createReferral(
           issuedAt: clock.now(),
         },
       });
+      await tellFacility(ctx.facilityId, visit.patientId, 'REFERRAL_ISSUED', db);
       await audit(
         ctx,
         AUDIT_ACTIONS.REFERRAL_ISSUED,
@@ -282,6 +325,7 @@ export async function recordReferralOutcome(
         : {}),
     },
   });
+  await tellAboutReferralNews(ctx.facilityId, referral, db);
   await audit(
     ctx,
     AUDIT_ACTIONS.REFERRAL_OUTCOME_RECORDED,
@@ -319,6 +363,7 @@ export async function recordReferralFeedback(
       feedbackByUserId: ctx.userId,
     },
   });
+  await tellAboutReferralNews(ctx.facilityId, referral, db);
   await audit(
     ctx,
     AUDIT_ACTIONS.REFERRAL_FEEDBACK_RECORDED,

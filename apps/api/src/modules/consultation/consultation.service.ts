@@ -1,3 +1,9 @@
+import type { FeedEventType } from '@neem/contracts';
+import {
+  ADMIN_AUDIENCE,
+  facilityAudience,
+  publishFeedEvent,
+} from '../notification/feed.service.ts';
 import type { ConsultationState, PrismaClient } from '@prisma/client';
 import type { ActorType } from '@prisma/client';
 import { assertDoctorOnDuty } from '../queue/availability.service.ts';
@@ -46,6 +52,13 @@ export interface TransitionContext {
  * the work that justifies it commit together — a consultation must never be
  * PAID without its payment row, nor COMPLETED without its purge.
  */
+const FACILITY_FEED_EVENTS: Partial<Record<ConsultationState, FeedEventType>> = {
+  DOCTOR_ACCEPTED: 'DOCTOR_ACCEPTED',
+  COMPLETED: 'CONSULTATION_COMPLETED',
+  INTERRUPTED: 'CONSULTATION_INTERRUPTED',
+  EXPIRED: 'CONSULTATION_EXPIRED',
+};
+
 export async function transition(
   consultationId: string,
   to: ConsultationState,
@@ -62,6 +75,10 @@ export async function transition(
       clinicalSealedAt: true,
       // Read so the first start can be told from a resume (D61).
       firstStartedAt: true,
+      // Who hears about it in the feed (D92).
+      publicId: true,
+      facilityId: true,
+      chpsPatient: { select: { patientNumber: true } },
     },
   });
   if (!consultation) throw errors.notFound('Consultation not found.');
@@ -166,6 +183,30 @@ export async function transition(
   });
   const occurredAt =
     previous && previous.occurredAt >= now ? new Date(previous.occurredAt.getTime() + 1) : now;
+
+  /*
+   * Here, because every change of state passes through here: a compound hears
+   * about its own patient however the consultation got there (D92).
+   */
+  const feedType = FACILITY_FEED_EVENTS[to];
+  if (feedType && consultation.facilityId && consultation.chpsPatient) {
+    await publishFeedEvent(
+      facilityAudience(consultation.facilityId),
+      feedType,
+      consultation.chpsPatient.patientNumber,
+      db,
+      clock,
+    );
+  }
+  if (to === 'INTERRUPTED') {
+    await publishFeedEvent(
+      ADMIN_AUDIENCE,
+      'CONSULTATION_INTERRUPTED',
+      consultation.publicId,
+      db,
+      clock,
+    );
+  }
 
   await db.consultationStateEvent.create({
     data: {

@@ -1,3 +1,4 @@
+import { ADMIN_AUDIENCE, publishFeedEvent } from '../notification/feed.service.ts';
 import { decryptField } from '../../lib/crypto.ts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -58,6 +59,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/doctor/presence/online', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
     const result = await goOnline(doctorId);
+    await publishFeedEvent(ADMIN_AUDIENCE, 'DOCTOR_AVAILABLE', doctorId);
 
     // A doctor coming online may unblock a consultation that had nobody
     // eligible when it was enqueued.
@@ -86,6 +88,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/doctor/presence/busy', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
     await goBusy(doctorId);
+    await publishFeedEvent(ADMIN_AUDIENCE, 'DOCTOR_BUSY', doctorId);
 
     return reply.send({ data: { busy: true }, meta: { requestId: request.correlationId } });
   });
@@ -93,6 +96,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/doctor/presence/offline', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
     await goOffline(doctorId);
+    await publishFeedEvent(ADMIN_AUDIENCE, 'DOCTOR_ON_BREAK', doctorId);
 
     return reply.send({ data: { online: false }, meta: { requestId: request.correlationId } });
   });

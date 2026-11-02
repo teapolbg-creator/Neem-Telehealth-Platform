@@ -1,3 +1,4 @@
+import { tellFacility } from './referral.service.ts';
 import type { Prisma } from '@prisma/client';
 import { addDays, startOfDay } from 'date-fns';
 import {
@@ -145,6 +146,7 @@ export async function createFollowUp(
       createdByUserId: ctx.userId,
     },
   });
+  await tellFacility(ctx.facilityId, visit.patientId, 'FOLLOW_UP_SET', db);
   await audit(
     ctx,
     AUDIT_ACTIONS.FOLLOW_UP_SET,

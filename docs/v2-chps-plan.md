@@ -96,7 +96,7 @@ an engineering one.
 
 > **Answered 2026-10-31 (D74):** past records readable by the patient's clinicians (CHPS only);
 > consultations free, doctors salaried by government; red/orange/yellow/green triage assigned by
-> the CHO; districts from the official online list. Q4 (notifications) is still open.
+> the CHO; districts from the official online list. Q4 (notifications) was answered 2026-11-04 (D92).
 
 1. **D23: may clinicians read past records?** Today: retained, encrypted, readable by no one. The brief: a longitudinal record for authorised staff. Reversing this needs a lawful basis under Act 843 (Data Protection), a statement of who may read what, an access-logging rule (`ClinicalRecordAccessLog` already exists) and someone qualified to sign it off. **Phase 1 can go ahead without it**: the doctor sees the current visit's CHO assessment, which is live data. A6 and B5 history views wait for the answer.
 2. **Do the pharmacy and direct channels keep running?** The pilot is live at a pharmacy. Proposed: CHPS is added alongside both, nothing is removed, and retiring the pharmacy channel is a separate, explicit decision later. Removing it now would also rewrite 20 modules for no gain.
@@ -174,6 +174,7 @@ into super and operations administrators.
 | 4b    | **Built (D89).** Stations measure their connection to Neem when idle and the CHO sees it; the CHO can turn on lower video quality (Whereby low-data mode) for the facility's calls; an unstable call offers to turn the camera off          | —          |
 
 Slice 5a is built (D91): Busy, declining a CHPS request, priority and doctor history.
+Slice 5b is built (D92): the in-app notification feed, which answers Q4.
 
 Still proposed: device monitoring, SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 

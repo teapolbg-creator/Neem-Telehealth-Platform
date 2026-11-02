@@ -1,3 +1,4 @@
+import { purgeOldFeedEvents } from '../modules/notification/feed.service.ts';
 import { getLogger } from '../lib/logger.ts';
 import { getEnv } from '../config/env.ts';
 import { expirePendingPayments } from '../modules/payment/payment.service.ts';
@@ -243,6 +244,12 @@ const JOBS: JobDefinition[] = [
     intervalMs: 60 * MINUTE,
     run: purgeExpiredClinicalRecords,
     describe: (count) => `destroyed ${count} clinical record(s) past their retention period`,
+  },
+  {
+    name: 'purge-old-feed-events',
+    intervalMs: 60 * MINUTE,
+    run: purgeOldFeedEvents,
+    describe: (count) => `removed ${count} old feed event(s)`,
   },
   {
     name: 'purge-expired-sessions',

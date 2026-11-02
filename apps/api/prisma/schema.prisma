@@ -472,6 +472,8 @@ enum PilotApplicationStatus {
 
 model User {
   id                 String     @id @default(uuid(7))
+  /// When they last opened the notification feed (D92).
+  feedReadAt         DateTime?
   publicId           String     @unique @db.VarChar(32)
   email              String     @unique @db.VarChar(255)
   passwordHash       String     @db.VarChar(255)
@@ -2047,6 +2049,23 @@ model NotificationTemplate {
 
   @@unique([code, channel, locale])
   @@map("notification_templates")
+}
+
+/// That something happened, for the in-app feed (slice 5b, D92). A type, a
+/// reference and a time, and never any text: what the feed says is worked out
+/// from live records when it is read, so this cannot become a copy of them (D32).
+model FeedEvent {
+  id         String   @id @default(uuid(7))
+  /// Who it is for: FACILITY:<id>, DOCTOR:<id> or ADMINS.
+  audience   String   @db.VarChar(64)
+  type       String   @db.VarChar(40)
+  /// A card number, a consultation reference or a doctor's id, by type.
+  reference  String   @db.VarChar(64)
+  occurredAt DateTime @default(now())
+
+  @@index([audience, occurredAt])
+  @@index([occurredAt])
+  @@map("feed_events")
 }
 
 /// Stores a HASH of the rendered body, not the body itself, so notification
