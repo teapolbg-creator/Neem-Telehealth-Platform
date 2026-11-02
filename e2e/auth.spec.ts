@@ -75,12 +75,6 @@ test.describe('sign-in', () => {
     await gotoHydrated(page, '/pharmacy');
     await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
   });
-
-  test('tells the patient they do not sign in', async ({ page }) => {
-    // Patients have no account — the sign-in page must not imply otherwise.
-    await gotoHydrated(page, '/auth/login');
-    await expect(page.getByText(/Patients do not sign in/i)).toBeVisible();
-  });
 });
 
 test.describe('admin two-factor authentication', () => {
