@@ -13,6 +13,7 @@ import {
   signIn,
   signInAdmin,
   type ActiveDoctor,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 import type { APIRequestContext } from '@playwright/test';
 
@@ -104,7 +105,13 @@ async function liveConsultation(
   const patientApi = await playwright.request.newContext();
   await patientApi.post(`${API}/s/exchange`, { data: { token } });
   await patientApi.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Adwoa Mensah', age: 34, sex: 'FEMALE', phone: '0245551234' },
+    data: {
+      fullName: 'Adwoa Mensah',
+      age: 34,
+      sex: 'FEMALE',
+      phone: '0245551234',
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await patientApi.post(`${API}/patient/session/language`, { data: { languageCode: 'en' } });
   await patientApi.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });

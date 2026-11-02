@@ -3280,6 +3280,13 @@ a time, and earlier browser checks were by hand.
   when first opened, which cannot happen with no connection, and the earlier
   check had stopped only the API. Facility screens are now fetched in advance.
 
+**Older tests had gone quiet.** The pharmacy tests built their own patient details
+and did not check the reply, so when D60 required an address and consent, the
+patient stopped at that step and twelve tests skipped themselves without saying
+why. They now share one statement of those details, the test doctors hold the
+prescriber details D60 requires, and two tests use the current labels (D56, D72).
+No product code changed for this.
+
 **What was not done.** A real call on a real tablet, which is the other half of
 the milestone and needs a person, a device and a live Whereby room. Also Scenario
 2's outright refusal when no doctor is on shift: the suite always has one on

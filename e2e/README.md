@@ -83,6 +83,4 @@ and marks each `fixme` until the phase that makes it possible has landed. A
 missing test looks like coverage nobody considered; a pending one is a visible,
 countable gap. Running the suite reports exactly how many remain.
 
-**Currently 0 of 16 implemented** — they exercise consultation, queue,
-telemedicine, clinical and payment flows built in Phases 3–7. As each lands,
-the placeholder is replaced by a real test in its own spec file.
+A test that skips is reporting a gap: read the reason before trusting a green run.

@@ -1,4 +1,5 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { PRIVACY_NOTICE_VERSION } from '../../packages/contracts/src/privacy.ts';
 import { authenticator } from 'otplib';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -753,6 +754,13 @@ export async function createActiveDoctor(
     data: { signatureDataUrl: `data:image/png;base64,${png.toString('base64')}` },
   });
 
+  // A prescription is refused without these (D60).
+  const prescriber = await request.patch(`${API}/doctor/profile/prescriber-details`, {
+    headers: csrfHeaders(doctorCsrf),
+    data: { qualification: 'MB ChB', practiceAddress: 'Ridge Clinic, Accra' },
+  });
+  expect(prescriber.ok(), await prescriber.text()).toBeTruthy();
+
   await request.post(`${API}/auth/logout`, { headers: csrfHeaders(doctorCsrf) });
 
   const { csrf: adminCsrf } = await signInAdmin(request);
@@ -789,3 +797,17 @@ export async function createActiveDoctor(
     mdcNumber,
   };
 }
+
+/**
+ * What a patient's identity step needs beyond their name and phone (D60).
+ *
+ * The prescription law asks for an address, and consent to the privacy notice
+ * is refused without it. Spread into every direct call: the helpers that built
+ * their own body kept sending the old one after the rule arrived, and nothing
+ * looked at the response, so the patient silently never got past this step.
+ */
+export const PATIENT_STATUTORY_DETAILS = {
+  address: 'Adenta, Accra',
+  acceptsDataProcessing: true,
+  privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+} as const;

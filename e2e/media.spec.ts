@@ -12,6 +12,7 @@ import {
   signInAdmin,
   signInThroughUi,
   type ActiveDoctor,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 import type { APIRequestContext, Page } from '@playwright/test';
 
@@ -78,7 +79,13 @@ async function queueAConsultation(
   expect(exchange.status()).toBe(200);
 
   await contexts.patient.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Kojo Asare', age: 29, sex: 'MALE', phone: PATIENT_PHONE },
+    data: {
+      fullName: 'Kojo Asare',
+      age: 29,
+      sex: 'MALE',
+      phone: PATIENT_PHONE,
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await contexts.patient.post(`${API}/patient/session/language`, { data: { languageCode } });
   await contexts.patient.post(`${API}/patient/session/mode`, { data: { type } });

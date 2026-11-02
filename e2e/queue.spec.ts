@@ -9,6 +9,7 @@ import {
   signIn,
   signInAdminOnPage,
   signInThroughUi,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 
 /**
@@ -69,7 +70,13 @@ async function queueAConsultation(
   expect(exchange.status(), 'the patient should be able to open the consultation').toBe(200);
 
   await contexts.patient.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+    data: {
+      fullName: 'Efua Mensah',
+      age: 34,
+      sex: 'FEMALE',
+      phone: '0240000000',
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await contexts.patient.post(`${API}/patient/session/language`, { data: { languageCode } });
   await contexts.patient.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });
