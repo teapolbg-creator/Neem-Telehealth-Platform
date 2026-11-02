@@ -198,7 +198,7 @@ test.describe('CHPS scenarios', () => {
     const publicId = doctorPage.url().split('/').pop()!;
     const csrf = (await doctorPage.context().cookies()).find((c) => c.name === 'neem_csrf')!.value;
     const interrupted = await doctorPage.request.post(
-      `http://localhost:4000/api/v1/doctor/consultations/${publicId}/interrupt`,
+      `${API}/doctor/consultations/${publicId}/interrupt`,
       { headers: csrfHeaders(decodeURIComponent(csrf)), data: {} },
     );
     expect(interrupted.ok(), await interrupted.text()).toBeTruthy();
@@ -298,7 +298,10 @@ test.describe('CHPS scenarios', () => {
     await expect(station.locator('body')).not.toContainText(patient);
 
     // Another facility's CHO is told the record does not exist.
-    const other = await page.context().browser()!.newContext({ baseURL: 'http://localhost:8080' });
+    const other = await page
+      .context()
+      .browser()!
+      .newContext({ baseURL: process.env.E2E_WEB_URL ?? 'http://localhost:8080' });
     const otherPage = await other.newPage();
     await signInThroughUi(otherPage, elsewhere.cho);
     await gotoHydrated(otherPage, `/facility/patients/${patient}`);
@@ -307,9 +310,7 @@ test.describe('CHPS scenarios', () => {
 
     // And nobody signed out gets past the door.
     const anonymous = await page.context().browser()!.newContext();
-    const refused = await anonymous.request.get(
-      `http://localhost:4000/api/v1/facility/patients/${patient}`,
-    );
+    const refused = await anonymous.request.get(`${API}/facility/patients/${patient}`);
     expect(refused.status()).toBe(401);
 
     await other.close();
