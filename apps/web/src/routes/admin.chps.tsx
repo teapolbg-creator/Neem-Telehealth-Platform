@@ -90,8 +90,16 @@ function Overview({
         <Tile
           label="Doctors online"
           value={totals.doctorsOnline}
-          note={`${totals.withDoctor} with a CHPS patient`}
+          note={`${totals.withDoctor} with a CHPS patient, ${totals.doctorsActive} active in all`}
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Tile label="Patients registered" value={totals.patientsRegistered} />
+        <Tile label="Consultations, all time" value={totals.consultations} />
+        <Tile label="Completed" value={totals.consultationsCompleted} />
+        <Tile label="Interrupted at least once" value={totals.consultationsInterrupted} />
+        <Tile label="Referrals issued" value={totals.referralsIssued} />
       </div>
 
       <Section title="Facilities">

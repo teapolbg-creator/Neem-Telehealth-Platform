@@ -45,6 +45,17 @@ export interface StationSummary {
   current: { visitPublicId: string; patientName: string; consultationState: string } | null;
   /** The station's last connection check, or null if it has never run one (D89). */
   link: StationLink | null;
+  /** What its browser last reported of the device (D94). */
+  device: StationDevice | null;
+}
+
+export interface StationDevice {
+  /** Null where the browser will not say, which is most tablets but Chrome's. */
+  batteryPercent: number | null;
+  charging: boolean | null;
+  hasCamera: boolean;
+  hasMicrophone: boolean;
+  browser: string | null;
 }
 
 /**
@@ -73,6 +84,15 @@ export const connectionReportSchema = z.object({
   downKbps: z.number().int().min(0).max(10_000_000),
   upKbps: z.number().int().min(0).max(10_000_000),
   rttMs: z.number().int().min(0).max(600_000),
+  device: z
+    .object({
+      batteryPercent: z.number().int().min(0).max(100).nullable(),
+      charging: z.boolean().nullable(),
+      hasCamera: z.boolean(),
+      hasMicrophone: z.boolean(),
+      browser: z.string().trim().max(40).nullable(),
+    })
+    .optional(),
 });
 export type ConnectionReport = z.infer<typeof connectionReportSchema>;
 

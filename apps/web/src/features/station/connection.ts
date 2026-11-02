@@ -24,6 +24,33 @@ async function timed(work: () => Promise<unknown>): Promise<number> {
 
 const kbps = (bytes: number, ms: number) => Math.round((bytes * 8) / ms);
 
+/** The Battery API is Chrome's alone, and most browsers will simply not say. */
+interface BatteryManagerLike {
+  level: number;
+  charging: boolean;
+}
+
+/** What the browser knows of its device (D94). Device kinds only, never their names. */
+async function describeDevice(): Promise<NonNullable<ConnectionReport["device"]>> {
+  const battery = await (
+    navigator as Navigator & { getBattery?: () => Promise<BatteryManagerLike> }
+  )
+    .getBattery?.()
+    .catch(() => null);
+  const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []);
+  const kinds = (devices ?? []).map((device) => device.kind);
+  const browser = /(Edg|Chrome|Firefox|Version)\/(\d+)/.exec(navigator.userAgent);
+  return {
+    batteryPercent: battery ? Math.round(battery.level * 100) : null,
+    charging: battery ? battery.charging : null,
+    hasCamera: kinds.includes("videoinput"),
+    hasMicrophone: kinds.includes("audioinput"),
+    browser: browser
+      ? `${browser[1] === "Version" ? "Safari" : browser[1] === "Edg" ? "Edge" : browser[1]} ${browser[2]}`
+      : null,
+  };
+}
+
 export async function measureConnection(): Promise<ConnectionReport> {
   // The quickest of three small requests: the line, not a busy moment.
   const trips: number[] = [];
@@ -56,6 +83,7 @@ export async function measureConnection(): Promise<ConnectionReport> {
     rttMs: Math.round(Math.min(...trips)),
     downKbps: kbps(downBytes, downMs),
     upKbps: kbps(sample.length, upMs),
+    device: await describeDevice(),
   };
 }
 

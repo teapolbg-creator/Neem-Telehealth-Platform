@@ -86,6 +86,24 @@ export async function chpsOperationsOverview(
       }),
     ]);
 
+  // ---- all time ---------------------------------------------------------
+  const chpsOnly = { channel: 'CHPS' } as const;
+  const [
+    doctorsActive,
+    patientsRegistered,
+    consultations,
+    consultationsCompleted,
+    consultationsInterrupted,
+    referralsIssued,
+  ] = await Promise.all([
+    db.doctor.count({ where: { status: 'ACTIVE' } }),
+    db.patient.count(),
+    db.consultation.count({ where: chpsOnly }),
+    db.consultation.count({ where: { ...chpsOnly, completedAt: { not: null } } }),
+    db.consultation.count({ where: { ...chpsOnly, firstInterruptedAt: { not: null } } }),
+    db.chpsReferral.count(),
+  ]);
+
   // ---- facilities -------------------------------------------------------
   const todayCount = new Map(visitsToday.map((row) => [row.facilityId, row._count._all]));
 
@@ -202,6 +220,12 @@ export async function chpsOperationsOverview(
       waitingForDoctor: sum((row) => row.waitingForDoctor),
       withDoctor: sum((row) => row.withDoctor),
       doctorsOnline: presences.length,
+      doctorsActive,
+      patientsRegistered,
+      consultations,
+      consultationsCompleted,
+      consultationsInterrupted,
+      referralsIssued,
     },
     facilities: rows,
     doctors: utilisation,

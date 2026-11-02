@@ -12,6 +12,7 @@ import {
   Timer,
   UserPlus,
   Users,
+  Send,
 } from "lucide-react";
 import {
   CHPS_CONSULTATION_PROGRESS,
@@ -134,7 +135,26 @@ function FacilityHome() {
                   value={day.data.escalatedToday}
                   danger={day.data.escalatedToday > 0}
                 />
-                <Stat icon={CheckCircle2} label="Completed today" value={day.data.closedToday} />
+                <Stat
+                  icon={CheckCircle2}
+                  label="Visits closed today"
+                  value={day.data.closedToday}
+                />
+                <Stat
+                  icon={Stethoscope}
+                  label="Consultations completed"
+                  value={day.data.consultationsCompletedToday}
+                />
+                <Stat
+                  icon={Timer}
+                  label="Average wait (min)"
+                  value={day.data.averageWaitMinutes ?? "None yet"}
+                />
+                <Stat
+                  icon={Send}
+                  label="Awaiting referral news"
+                  value={day.data.awaitingReferral}
+                />
                 <Stat icon={CalendarClock} label="Follow-ups due" value={day.data.followUpsDue} />
               </div>
             ) : null}
@@ -258,7 +278,7 @@ function Stat({
 }: {
   icon: typeof Users;
   label: string;
-  value: number;
+  value: number | string;
   danger?: boolean;
 }) {
   return (

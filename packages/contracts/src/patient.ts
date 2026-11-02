@@ -431,5 +431,11 @@ export interface FacilityDaySummary {
   withDoctor: number;
   /** Follow-ups due today or overdue (D81). */
   followUpsDue: number;
+  /** Consultations finished today, as distinct from visits closed (D94). */
+  consultationsCompletedToday: number;
+  /** Minutes from request to a doctor accepting, for today's; null when none (D94). */
+  averageWaitMinutes: number | null;
+  /** Referrals still waiting for news of the patient (D94). */
+  awaitingReferral: number;
   board: VisitBoardRow[];
 }

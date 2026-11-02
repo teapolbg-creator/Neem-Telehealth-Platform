@@ -4,6 +4,8 @@ import { addMinutes } from 'date-fns';
 import {
   STATION_PAIRING_MINUTES,
   type ConnectionReport,
+  type StationDevice,
+  type StationLink,
   type StationPairing,
   type StationState,
   type StationSummary,
@@ -110,18 +112,41 @@ function toSummary(row: StationRow, now: Date): StationSummary {
             consultationState: consultation.state,
           }
         : null,
-    link:
-      row.linkMeasuredAt &&
-      row.linkDownKbps !== null &&
-      row.linkUpKbps !== null &&
-      row.linkRttMs !== null
-        ? {
-            downKbps: row.linkDownKbps,
-            upKbps: row.linkUpKbps,
-            rttMs: row.linkRttMs,
-            measuredAt: row.linkMeasuredAt.toISOString(),
-          }
-        : null,
+    link: toLink(row),
+    device: toDevice(row),
+  };
+}
+
+export function toDevice(row: {
+  deviceBatteryPercent: number | null;
+  deviceCharging: boolean | null;
+  deviceHasCamera: boolean | null;
+  deviceHasMicrophone: boolean | null;
+  deviceBrowser: string | null;
+}): StationDevice | null {
+  if (row.deviceHasCamera === null || row.deviceHasMicrophone === null) return null;
+  return {
+    batteryPercent: row.deviceBatteryPercent,
+    charging: row.deviceCharging,
+    hasCamera: row.deviceHasCamera,
+    hasMicrophone: row.deviceHasMicrophone,
+    browser: row.deviceBrowser,
+  };
+}
+
+export function toLink(row: {
+  linkMeasuredAt: Date | null;
+  linkDownKbps: number | null;
+  linkUpKbps: number | null;
+  linkRttMs: number | null;
+}): StationLink | null {
+  if (!row.linkMeasuredAt || row.linkDownKbps === null) return null;
+  if (row.linkUpKbps === null || row.linkRttMs === null) return null;
+  return {
+    downKbps: row.linkDownKbps,
+    upKbps: row.linkUpKbps,
+    rttMs: row.linkRttMs,
+    measuredAt: row.linkMeasuredAt.toISOString(),
   };
 }
 
@@ -547,6 +572,15 @@ export async function recordConnection(
       linkUpKbps: report.upKbps,
       linkRttMs: report.rttMs,
       linkMeasuredAt: clock.now(),
+      ...(report.device
+        ? {
+            deviceBatteryPercent: report.device.batteryPercent,
+            deviceCharging: report.device.charging,
+            deviceHasCamera: report.device.hasCamera,
+            deviceHasMicrophone: report.device.hasMicrophone,
+            deviceBrowser: report.device.browser,
+          }
+        : {}),
     },
   });
 }

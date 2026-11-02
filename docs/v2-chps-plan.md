@@ -176,8 +176,10 @@ into super and operations administrators.
 Slice 5a is built (D91): Busy, declining a CHPS request, priority and doctor history.
 Slice 5b is built (D92): the in-app notification feed, which answers Q4.
 Slice 5c is built (D93): a triage protocol table that ships empty, awaiting Q5.
+Slice 5d is built (D94): the remaining dashboard figures, station device status, and an empty
+reporting adapter where DHIMS2 would connect. No integration exists.
 
-Still proposed: device monitoring, SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
+Still proposed: SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 
 ---
 

@@ -2927,6 +2927,13 @@ model FacilityStation {
   linkUpKbps       Int?
   linkRttMs        Int?
   linkMeasuredAt   DateTime?
+  /// What the station's browser reports of its device (slice 5d, D94). Battery
+  /// is null where the browser will not say.
+  deviceBatteryPercent Int?
+  deviceCharging       Boolean?
+  deviceHasCamera      Boolean?
+  deviceHasMicrophone  Boolean?
+  deviceBrowser        String? @db.VarChar(40)
 
   /// The consultation the station is showing, set by a CHO. Cleared when that
   /// consultation ends, so the next patient sees nothing of the last.

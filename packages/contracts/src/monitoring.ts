@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { UserRole } from './enums.ts';
+import type { StationDevice, StationLink } from './station.ts';
 
 /**
  * System monitoring for Neem operations (slice 3d, D87).
@@ -21,6 +22,18 @@ export const monitoringQuerySchema = z.object({
     })
     .default(24),
 });
+
+/** A paired station as it last reported itself (D94). */
+export interface MonitoredStation {
+  publicId: string;
+  label: string;
+  facilityName: string;
+  facilityPublicId: string;
+  online: boolean;
+  lastSeenAt: string | null;
+  link: StationLink | null;
+  device: StationDevice | null;
+}
 
 export interface OfflineStation {
   publicId: string;
@@ -54,7 +67,15 @@ export interface SystemMonitoring {
   doctors: { online: number; staleHeartbeat: number };
 
   /** Paired stations, and the ones not seen in the last minute, longest silent first. */
-  stations: { paired: number; online: number; offline: OfflineStation[] };
+  stations: {
+    paired: number;
+    online: number;
+    offline: OfflineStation[];
+    /** Every paired station, with its connection and device (D94). */
+    all: MonitoredStation[];
+  };
+  /** Rooms open right now, whoever is in them (D94). */
+  activeVideoSessions: number;
 
   calls: {
     /** Video or audio rooms opened in the window. */

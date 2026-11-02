@@ -796,6 +796,33 @@ export async function facilityDay(
 
   const today = visits.filter((visit) => visit.arrivedAt >= dayStart);
 
+  const [consultationsCompletedToday, accepted, awaitingReferral] = await Promise.all([
+    db.consultation.count({
+      where: { facilityId: ctx.facilityId, completedAt: { gte: dayStart } },
+    }),
+    db.consultationAssignment.findMany({
+      where: {
+        acceptedAt: { not: null },
+        consultation: { facilityId: ctx.facilityId, createdAt: { gte: dayStart } },
+      },
+      select: { acceptedAt: true, consultation: { select: { createdAt: true } } },
+    }),
+    db.chpsReferral.count({
+      where: { facilityId: ctx.facilityId, status: { in: ['ISSUED', 'ACKNOWLEDGED'] } },
+    }),
+  ]);
+  const averageWaitMinutes =
+    accepted.length === 0
+      ? null
+      : Math.round(
+          accepted.reduce(
+            (sum, row) => sum + (row.acceptedAt!.getTime() - row.consultation.createdAt.getTime()),
+            0,
+          ) /
+            accepted.length /
+            60_000,
+        );
+
   return {
     date: dateOnly(dayStart),
     seenToday: today.length,
@@ -812,6 +839,9 @@ export async function facilityDay(
       ),
     ).length,
     followUpsDue,
+    consultationsCompletedToday,
+    averageWaitMinutes,
+    awaitingReferral,
     withDoctor: visits.filter((visit) =>
       ['DOCTOR_ACCEPTED', 'IN_PROGRESS', 'INTERRUPTED', 'COMPLETING'].includes(
         visit.consultations[0]?.state ?? '',

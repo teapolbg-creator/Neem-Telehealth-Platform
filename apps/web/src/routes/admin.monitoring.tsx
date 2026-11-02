@@ -7,6 +7,7 @@ import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import { useSystemHealth } from "@/features/analytics/api";
 import { Section } from "@/features/facility/ReportView";
+import { linkLabel } from "@/features/facility/stations";
 import { sinceLabel, useSystemMonitoring } from "@/features/operations/api";
 
 export const Route = createFileRoute("/admin/monitoring")({
@@ -128,6 +129,7 @@ function Figures({ data }: { data: SystemMonitoring }) {
               ["Doctors online", data.doctors.online],
               ["Declared online, heartbeat stale", data.doctors.staleHeartbeat],
               ["Stations online", `${data.stations.online} of ${data.stations.paired} paired`],
+              ["Video rooms open", data.activeVideoSessions],
             ]}
           />
         </Section>
@@ -195,6 +197,60 @@ function Figures({ data }: { data: SystemMonitoring }) {
             </table>
           </div>
         ) : null}
+      </Section>
+
+      <Section title="Station devices">
+        {data.stations.all.length === 0 ? (
+          <p className="text-sm text-slate-500">No station is paired.</p>
+        ) : (
+          <>
+            <div className="-mx-5 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border text-left text-xs text-slate-500">
+                  <tr>
+                    <th className="px-5 py-2 font-semibold">Station</th>
+                    <th className="px-3 py-2 font-semibold">Line to Neem</th>
+                    <th className="px-3 py-2 font-semibold">Battery</th>
+                    <th className="px-3 py-2 font-semibold">Camera and mic</th>
+                    <th className="px-3 py-2 font-semibold">Browser</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {data.stations.all.map((station) => (
+                    <tr key={station.publicId}>
+                      <td className="px-5 py-2">
+                        <span className="font-semibold">{station.facilityName}</span> ·{" "}
+                        {station.label}
+                        <span className="block text-xs text-slate-500">
+                          {station.online
+                            ? "On"
+                            : `Seen ${sinceLabel(station.lastSeenAt).toLowerCase()}`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {station.link ? linkLabel(station.link) : "Not measured"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {station.device?.batteryPercent === null || !station.device
+                          ? "Not reported"
+                          : `${station.device.batteryPercent}%${station.device.charging ? ", charging" : ""}`}
+                      </td>
+                      <td className="px-3 py-2">
+                        {!station.device
+                          ? "Not reported"
+                          : `Camera ${station.device.hasCamera ? "found" : "missing"}, mic ${station.device.hasMicrophone ? "found" : "missing"}`}
+                      </td>
+                      <td className="px-3 py-2">{station.device?.browser ?? "Not reported"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              As each station last reported while idle, every ten minutes.
+            </p>
+          </>
+        )}
       </Section>
 
       <Section title="Stations not seen in the last minute">

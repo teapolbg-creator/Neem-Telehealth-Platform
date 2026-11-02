@@ -449,6 +449,23 @@ async function clearTheQueue(): Promise<void> {
       where: { state: { in: ['WAITING', 'OFFERING'] } },
       select: { consultationId: true },
     });
+    /*
+     * Open refunds too, keeping the oldest, which is the seeded example. The admin
+     * screen lists the longest-waiting 100, so enough left behind by earlier runs
+     * hides the one a test has just asked for.
+     */
+    const oldest = await db.refund.findFirst({
+      where: { state: 'REQUESTED' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (oldest) {
+      await db.refund.updateMany({
+        where: { state: 'REQUESTED', id: { not: oldest.id } },
+        data: { state: 'REJECTED' },
+      });
+    }
+
     const ids = entries.map((entry) => entry.consultationId);
     if (ids.length === 0) return;
     await db.$transaction([

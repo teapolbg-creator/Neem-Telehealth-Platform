@@ -3382,3 +3382,32 @@ the plan's open question 5, and it is not Neem's to answer.
 
 **What was not done.** Rules across several readings, or by age or pregnancy, which
 should wait for what the approved protocol actually needs.
+
+---
+
+### D94 — The remaining dashboard figures, device status, and a place for DHIMS2 · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5d, going through the brief's dashboards line by line (§A1, §D1,
+§D5, §E).
+
+**Decision.**
+
+- **Figures the brief lists are now shown.** The CHO's day adds consultations
+  completed (distinct from visits closed), the average wait and referrals awaiting
+  news. The operations overview adds all-time totals. Monitoring adds video rooms
+  open. The district dashboard already had referral destinations and follow-ups.
+- **Devices report what a browser can honestly say.** With each idle connection
+  check: battery where the browser reveals it, whether a camera and microphone
+  exist, and which browser. Where it will not say, the screen says "Not reported",
+  never a guess. No alarm is attached to any figure (D87).
+- **Common presenting complaints stay uncounted at district level.** They are free
+  text about patients (D79, D85). Counting them needs the category list the operator
+  has not supplied.
+- **A place for DHIMS2, and no integration.** A reporting adapter that does nothing,
+  and report figures as named indicators with Neem's own ids. Nothing calls it and
+  nothing leaves Neem. It waits on Ghana Health Service's approval and data elements.
+  No screen or document may claim an integration exists.
+
+**What was not done.** System error rates, which belong to the hosting provider's
+metrics, and any management of the device itself, which is the kiosk's job
+(`docs/station-setup.md`).

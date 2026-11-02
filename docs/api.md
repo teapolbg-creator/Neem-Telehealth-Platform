@@ -1068,3 +1068,16 @@ The administrator routes are for the super administrator only (`settings:manage`
 There are no rules until someone enters them. A rule that crosses is stored
 encrypted on the triage record as it stood then, and returned as
 `protocolFlags` on `TriageView`; it never changes the category or the visit.
+
+## 30. Dashboard figures and station devices (slice 5d, D94)
+
+`GET /facility/today` adds `consultationsCompletedToday`, `averageWaitMinutes` and
+`awaitingReferral`. `GET /admin/chps/overview` adds all-time totals: active doctors,
+patients registered, CHPS consultations, those completed and interrupted, and
+referrals issued. `GET /admin/monitoring` adds `activeVideoSessions` and
+`stations.all`, each with its line to Neem and device.
+
+`POST /station/connection-check` takes an optional `device`: battery percent and
+charging (null where the browser will not say), whether a camera and microphone
+exist, and the browser. Device kinds only, never names. It is also returned on
+`GET /facility/stations`.

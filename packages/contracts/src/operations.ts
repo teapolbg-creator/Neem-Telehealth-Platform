@@ -84,6 +84,14 @@ export interface ChpsOperationsOverview {
     waitingForDoctor: number;
     withDoctor: number;
     doctorsOnline: number;
+    /** All time, across CHPS (D94). */
+    doctorsActive: number;
+    patientsRegistered: number;
+    consultations: number;
+    consultationsCompleted: number;
+    /** Calls that broke at least once. */
+    consultationsInterrupted: number;
+    referralsIssued: number;
   };
   /** Open emergencies first, then the longest wait for a doctor, then by name. */
   facilities: ChpsFacilityLive[];

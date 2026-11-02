@@ -3,7 +3,7 @@ import type { SecurityEvent, SystemMonitoring } from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { AUDIT_ACTIONS } from '../audit/audit.service.ts';
-import { STATION_ONLINE_WINDOW_MS } from '../facility/station.service.ts';
+import { STATION_ONLINE_WINDOW_MS, toDevice, toLink } from '../facility/station.service.ts';
 import { HEARTBEAT_STALE_SECONDS } from '../queue/presence.service.ts';
 
 /**
@@ -50,6 +50,7 @@ export async function systemMonitoring(
     presences,
     stations,
     roomsOpened,
+    activeVideoSessions,
     interruptions,
     roomsReplaced,
     failedNotifications,
@@ -76,10 +77,20 @@ export async function systemMonitoring(
         publicId: true,
         label: true,
         lastSeenAt: true,
+        linkMeasuredAt: true,
+        linkDownKbps: true,
+        linkUpKbps: true,
+        linkRttMs: true,
+        deviceBatteryPercent: true,
+        deviceCharging: true,
+        deviceHasCamera: true,
+        deviceHasMicrophone: true,
+        deviceBrowser: true,
         facility: { select: { name: true, publicId: true } },
       },
     }),
     db.mediaSession.count({ where: { startedAt: { gte: since } } }),
+    db.mediaSession.count({ where: { endedAt: null } }),
     db.consultationStateEvent.count({
       where: { toState: 'INTERRUPTED', accepted: true, occurredAt: { gte: since } },
     }),
@@ -172,7 +183,18 @@ export async function systemMonitoring(
       paired: stations.length,
       online: stations.length - offline.length,
       offline,
+      all: stations.map((station) => ({
+        publicId: station.publicId,
+        label: station.label,
+        facilityName: station.facility.name,
+        facilityPublicId: station.facility.publicId,
+        online: isOnline(station.lastSeenAt),
+        lastSeenAt: station.lastSeenAt?.toISOString() ?? null,
+        link: toLink(station),
+        device: toDevice(station),
+      })),
     },
+    activeVideoSessions,
     calls: { roomsOpened, interruptions, roomsReplaced },
     notifications: {
       failed: failedNotifications.reduce((sum, row) => sum + row._count._all, 0),

@@ -170,6 +170,13 @@ function StationRow({
               {station.link
                 ? `Line to Neem ${linkLabel(station.link)}, measured ${sinceLabel(station.link.measuredAt).toLowerCase()}`
                 : "Line to Neem not measured yet"}
+              {station.device?.batteryPercent !== null &&
+              station.device?.batteryPercent !== undefined
+                ? ` · battery ${station.device.batteryPercent}%`
+                : ""}
+              {station.device && (!station.device.hasCamera || !station.device.hasMicrophone)
+                ? " · camera or microphone missing"
+                : ""}
             </p>
           ) : null}
         </div>
