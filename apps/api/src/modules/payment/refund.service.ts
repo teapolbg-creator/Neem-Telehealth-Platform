@@ -454,7 +454,7 @@ export interface RefundListItem {
   pharmacyName: string;
 }
 
-/** The administrator's queue. Open requests first, oldest first. */
+/** The administrator's queue, and everything that has been through it. */
 export async function listRefunds(
   filter: { openOnly?: boolean; limit?: number },
   db: Db = getPrisma(),
@@ -466,7 +466,9 @@ export async function listRefunds(
         select: { publicId: true, state: true, pharmacy: { select: { name: true } } },
       },
     },
-    orderBy: [{ state: 'asc' }, { createdAt: 'asc' }],
+    // Awaiting a decision: longest wait first. Everything: newest first, or past
+    // the limit the latest decisions never appear (D97).
+    orderBy: filter.openOnly ? [{ state: 'asc' }, { createdAt: 'asc' }] : [{ createdAt: 'desc' }],
     take: filter.limit ?? 100,
   });
 

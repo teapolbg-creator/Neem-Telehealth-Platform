@@ -9,6 +9,7 @@ import {
   setPaymentProviderForTesting,
 } from '../../src/adapters/payment/index.ts';
 import { transition } from '../../src/modules/consultation/consultation.service.ts';
+import { listRefunds } from '../../src/modules/payment/refund.service.ts';
 
 /**
  * Refunds end to end (spec §41, §80 scenario 16, docs/payment-flow.md §7).
@@ -319,5 +320,47 @@ describe('deciding a refund (scenario 16)', () => {
     const { cookies } = await setUpPharmacy();
 
     expect((await request('/admin/refunds', { cookies })).status).toBe(403);
+  });
+});
+
+describe('the administrator’s refund list (D97)', () => {
+  /** Three refunds a day apart. The newest has been decided; the others are open. */
+  async function threeRefunds() {
+    const prisma = getPrisma();
+    const { cookies } = await setUpPharmacy();
+    const refs: string[] = [];
+
+    for (const daysAgo of [3, 2, 1]) {
+      const { publicId } = await paidConsultation(cookies);
+      const requested = await request<{ publicId: string }>(
+        `/pharmacy/consultations/${publicId}/refund-request`,
+        { method: 'POST', cookies, payload: { reason: 'No doctor was available.' } },
+      );
+      const ref = requested.body.data!.publicId;
+      await prisma.refund.update({
+        where: { publicId: ref },
+        data: { createdAt: new Date(Date.now() - daysAgo * 86_400_000) },
+      });
+      refs.push(ref);
+    }
+
+    await prisma.refund.update({ where: { publicId: refs[2]! }, data: { state: 'REJECTED' } });
+    return { oldest: refs[0]!, middle: refs[1]!, newest: refs[2]! };
+  }
+
+  it('shows everything newest first, so the limit never hides the latest decisions', async () => {
+    const { middle, newest } = await threeRefunds();
+
+    const all = await listRefunds({ limit: 2 });
+
+    expect(all.map((refund) => refund.publicId)).toEqual([newest, middle]);
+  });
+
+  it('shows what is awaiting a decision longest wait first', async () => {
+    const { oldest, middle } = await threeRefunds();
+
+    const open = await listRefunds({ openOnly: true });
+
+    expect(open.map((refund) => refund.publicId)).toEqual([oldest, middle]);
   });
 });
