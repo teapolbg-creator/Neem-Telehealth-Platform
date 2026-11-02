@@ -1,7 +1,36 @@
-import { TRIAGE_CATEGORIES, TRIAGE_CATEGORY_INFO } from "@neem/contracts";
+import { useMemo } from "react";
+import { AlertTriangle } from "lucide-react";
+import {
+  TRIAGE_CATEGORIES,
+  TRIAGE_CATEGORY_INFO,
+  protocolFlags,
+  type ProtocolFlag,
+  type VitalSigns,
+} from "@neem/contracts";
 import { inputClass } from "./form";
 import { TRIAGE_STYLE } from "./patients";
-import { VITAL_FIELDS, type TriageDraft } from "./triage";
+import { VITAL_FIELDS, useTriageProtocol, type TriageDraft } from "./triage";
+
+/** What an approved protocol raises (D93). A prompt, and the decision stays the CHO's. */
+export function ProtocolFlags({ flags }: { flags: ProtocolFlag[] }) {
+  if (flags.length === 0) return null;
+  return (
+    <ul className="space-y-1.5 rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm">
+      {flags.map((flag) => (
+        <li key={flag.ruleId} className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <span>
+            {flag.message}
+            {flag.suggestedCategory
+              ? ` Suggests ${TRIAGE_CATEGORY_INFO[flag.suggestedCategory].label}.`
+              : ""}
+            <span className="block text-xs text-slate-600">From {flag.source}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * Vital signs, symptoms, observations and the category: the triage form's
@@ -16,6 +45,15 @@ export function TriageFields({
   onChange: (draft: TriageDraft) => void;
   errors: Record<string, string>;
 }) {
+  const protocol = useTriageProtocol();
+  const flags = useMemo(() => {
+    const readings: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(draft.values)) {
+      if (raw.trim() !== "" && Number.isFinite(Number(raw))) readings[key] = Number(raw);
+    }
+    return protocolFlags(protocol.data ?? [], readings as VitalSigns);
+  }, [draft.values, protocol.data]);
+
   return (
     <>
       <div>
@@ -81,6 +119,9 @@ export function TriageFields({
         <p className="mb-2 text-xs text-slate-500">
           Your clinical judgement, following your triage protocol. Neem does not calculate it.
         </p>
+        <div className="mb-2 empty:hidden">
+          <ProtocolFlags flags={flags} />
+        </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TRIAGE_CATEGORIES.map((value) => (
             <button

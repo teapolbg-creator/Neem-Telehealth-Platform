@@ -19,6 +19,7 @@ import {
 } from "@neem/contracts";
 import { ApiError } from "@/lib/api-client";
 import { TriageBadge } from "@/features/facility/TriageBadge";
+import { ProtocolFlags } from "@/features/facility/TriageFields";
 import { SEX_LABEL, ageLabel } from "@/features/facility/patients";
 import { useSaveEncounter } from "@/features/chps/doctor";
 import { doctorAttachmentUrl } from "@/features/facility/records";
@@ -74,6 +75,7 @@ function TriageBlock({ triage }: { triage: TriageView }) {
         </span>
       </div>
       <Vitals vitals={triage.vitals} />
+      <ProtocolFlags flags={triage.protocolFlags} />
       {triage.symptoms ? <p className="text-sm">Symptoms: {triage.symptoms}</p> : null}
       {triage.observations ? (
         <p className="text-sm">CHO observations: {triage.observations}</p>

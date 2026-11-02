@@ -34,6 +34,7 @@ import { refundRoutes } from './modules/payment/refund.routes.ts';
 import { payoutRoutes } from './modules/payment/payout.routes.ts';
 import { promotionRoutes } from './modules/payment/promotion.routes.ts';
 import { notificationRoutes } from './modules/notification/notification.routes.ts';
+import { triageProtocolRoutes } from './modules/facility/triage-protocol.routes.ts';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
 import { qualityRoutes } from './modules/quality/quality.routes.ts';
 import { serviceRoutes } from './modules/service/service.routes.ts';
@@ -173,6 +174,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(payoutRoutes);
       await api.register(promotionRoutes);
       await api.register(notificationRoutes);
+      await api.register(triageProtocolRoutes);
       await api.register(analyticsRoutes);
       await api.register(qualityRoutes);
       await api.register(serviceRoutes);

@@ -10,6 +10,7 @@ import {
   type PatientRegistration,
   type PatientSummary,
   type PatientUpdate,
+  type ProtocolFlag,
   type TriageCreate,
   type TriageView,
   type VisitPrescription,
@@ -31,6 +32,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.ts';
 import type { AuthenticatedPrincipal } from '../auth/session.service.ts';
 import { toEncounterSummary } from '../clinical/chps-encounter.service.ts';
 import { toAttachmentView } from './attachment.service.ts';
+import { flagsFor } from './triage-protocol.service.ts';
 import { toVisitPrescription, visitPrescriptionInclude } from './chps-prescription.service.ts';
 import {
   countFollowUpsDue,
@@ -222,6 +224,7 @@ export function toTriageView(
     id: row.id,
     category: row.category,
     vitals: JSON.parse(decryptField(row.vitalsEnc)) as VitalSigns,
+    protocolFlags: parseJson<ProtocolFlag[]>(row.protocolFlagsEnc) ?? [],
     symptoms: decryptNullable(row.symptomsEnc),
     observations: decryptNullable(row.observationsEnc),
     recordedBy: names.get(row.recordedByUserId) ?? 'Former staff member',
@@ -659,10 +662,14 @@ export async function recordTriage(
   const status: VisitStatus =
     input.category === 'RED' || visit.status === 'ESCALATED' ? 'ESCALATED' : 'TRIAGED';
 
+  // Raised on the server too, so a walk-in sent later is checked by the same rules.
+  const flags = await flagsFor(input.vitals ?? {}, db);
+
   await db.triageRecord.create({
     data: {
       visitId: visit.id,
       category: input.category,
+      protocolFlagsEnc: flags.length > 0 ? encryptField(JSON.stringify(flags)) : null,
       vitalsEnc: encryptField(JSON.stringify(input.vitals ?? {})),
       symptomsEnc: encryptNullable(input.symptoms),
       observationsEnc: encryptNullable(input.observations),

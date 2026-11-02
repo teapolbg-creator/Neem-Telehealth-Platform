@@ -16,6 +16,7 @@ export * from './monitoring.ts';
 export * from './offline.ts';
 export * from './doctor-history.ts';
 export * from './feed.ts';
+export * from './triage-protocol.ts';
 export * from './pilot.ts';
 export * from './consultation.ts';
 export * from './media.ts';

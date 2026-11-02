@@ -23,7 +23,7 @@ import {
   useRecordTriage,
 } from "@/features/facility/patients";
 import { TriageBadge } from "@/features/facility/TriageBadge";
-import { TriageFields } from "@/features/facility/TriageFields";
+import { ProtocolFlags, TriageFields } from "@/features/facility/TriageFields";
 import { EMPTY_TRIAGE, formatVitals, toTriage, type TriageDraft } from "@/features/facility/triage";
 import { DoctorRequest } from "@/features/facility/DoctorRequest";
 import { DoctorAdvice } from "@/features/facility/DoctorAdvice";
@@ -268,6 +268,9 @@ function TriageSummary({ triage }: { triage: TriageView }) {
         {new Date(triage.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </p>
       {vitals.length > 0 ? <p className="mt-1 font-medium">{vitals.join(" · ")}</p> : null}
+      <div className="mt-2 empty:hidden">
+        <ProtocolFlags flags={triage.protocolFlags} />
+      </div>
       {triage.symptoms ? <p className="mt-1">Symptoms: {triage.symptoms}</p> : null}
       {triage.observations ? <p className="mt-1">Observations: {triage.observations}</p> : null}
     </div>

@@ -582,3 +582,52 @@ async function storedWalkIns(page: Page): Promise<string[]> {
     return all.map((row) => JSON.stringify(row) + new TextDecoder('latin1').decode(row.ciphertext));
   });
 }
+
+test.describe('CHPS triage protocol (D93)', () => {
+  test('a rule entered from a named protocol prompts the CHO, who still decides', async ({
+    page,
+    request,
+    run,
+  }) => {
+    const { csrf } = await signInAdmin(request);
+    // Above any real reading, so this rule cannot affect another test's walk-ins.
+    const added = await request.post(`${API}/admin/triage-protocol`, {
+      headers: csrfHeaders(csrf),
+      data: {
+        reading: 'glucoseMmolL',
+        comparison: 'ABOVE',
+        threshold: 49.5,
+        suggestedCategory: 'ORANGE',
+        message: `End-to-end test rule ${run}.`,
+        source: 'A test, not an approved document',
+        approvedBy: 'Automated test',
+      },
+    });
+    expect(added.status(), await added.text()).toBe(201);
+    const rule = ((await added.json()).data as Array<{ id: string; message: string }>).find(
+      (entry) => entry.message.includes(run),
+    )!;
+
+    try {
+      const compound = await createCompound(request, run);
+      await signInThroughUi(page, compound.cho);
+      await registerWalkIn(page, { fullName: `Efua Flagged ${run}` });
+
+      await fillField(page, /blood glucose/i, '49.8');
+      await expect(page.getByText(`End-to-end test rule ${run}.`)).toBeVisible();
+      await expect(page.getByText('From A test, not an approved document')).toBeVisible();
+
+      // It suggested Orange. Green is chosen, and Green is what is recorded.
+      await page.getByRole('button', { name: /^Green/ }).click();
+      await page.getByRole('button', { name: 'Save assessment' }).click();
+      await expect(page.getByText(/Last assessed by/)).toBeVisible();
+      await expect(page.getByText('Green', { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(`End-to-end test rule ${run}.`)).toBeVisible();
+    } finally {
+      const again = await signInAdmin(request);
+      await request.post(`${API}/admin/triage-protocol/${rule.id}/retire`, {
+        headers: csrfHeaders(again.csrf),
+      });
+    }
+  });
+});

@@ -1054,3 +1054,17 @@ A facility hears of a doctor accepting, a consultation completing, being
 interrupted or expiring, referrals and referral news, and follow-ups. A doctor
 hears of requests offered to them and news of their referrals. Administrators hear
 of interruptions and doctors' availability.
+
+## 29. Approved triage protocol (slice 5c, D93)
+
+```
+GET    /facility/triage-protocol                      the rules in use, for the CHO's screen
+GET    /admin/triage-protocol                         every rule, retired ones too
+POST   /admin/triage-protocol                         add a rule, naming its source and approver
+POST   /admin/triage-protocol/:id/retire              stop using a rule
+```
+
+The administrator routes are for the super administrator only (`settings:manage`).
+There are no rules until someone enters them. A rule that crosses is stored
+encrypted on the triage record as it stood then, and returned as
+`protocolFlags` on `TriageView`; it never changes the category or the visit.

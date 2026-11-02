@@ -92,6 +92,11 @@ const NAV: Record<
     { label: "Notifications", to: "/admin/notifications" },
     { label: "Monitoring", to: "/admin/monitoring", permission: PERMISSIONS.SYSTEM_HEALTH_READ },
     { label: "Staff accounts", to: "/admin/staff", permission: PERMISSIONS.STAFF_ACCOUNT_MANAGE },
+    {
+      label: "Triage protocol",
+      to: "/admin/triage-protocol",
+      permission: PERMISSIONS.SETTINGS_MANAGE,
+    },
     { label: "Settings", to: "/admin/settings", permission: PERMISSIONS.SETTINGS_MANAGE },
   ],
 };

@@ -1,3 +1,4 @@
+import type { ProtocolFlag } from './triage-protocol.ts';
 import { z } from 'zod';
 import { ghanaPhoneSchema } from './onboarding.ts';
 import type { VisitEncounterSummary } from './encounter.ts';
@@ -328,6 +329,8 @@ export interface TriageView {
   observations: string | null;
   recordedBy: string;
   recordedAt: string;
+  /** Flags an approved protocol raised on this assessment (D93). */
+  protocolFlags: ProtocolFlag[];
 }
 
 export interface VisitView {

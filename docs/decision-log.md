@@ -3356,3 +3356,29 @@ clinical and personal data. This answers the plan's open question Q4.
 **What was not done.** SMS or email from these events, which the existing
 notification service can add once a provider is chosen; per-entry read state, which
 nobody has asked for.
+
+---
+
+### D93 — Triage flags come only from an approved protocol, and ship empty · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5c. The brief (§A3) wants a triage section based on approved
+protocols, and forbids invented thresholds. Which protocol, and who enters it, is
+the plan's open question 5, and it is not Neem's to answer.
+
+**Decision.**
+
+- **The table ships empty.** No seed, no default and no clinical number anywhere in
+  the code or the demo data. With no rules, the form behaves as it always did.
+- **A rule names its source and approver,** both required, and is entered by the
+  super administrator. It is never edited, only retired and replaced, and adding
+  and retiring are audited.
+- **A flag is a prompt.** It may suggest a category. It never sets one, never starts
+  an emergency and never stops the CHO doing anything else, because the judgement
+  is theirs (D74).
+- **What was shown is kept.** Flags are stored, encrypted, on the triage record as
+  they stood, so retiring a rule does not rewrite history. The doctor sees them too.
+- **Checked on the server as well as on screen,** so a walk-in triaged offline is
+  held to the same rules when it arrives.
+
+**What was not done.** Rules across several readings, or by age or pregnancy, which
+should wait for what the approved protocol actually needs.

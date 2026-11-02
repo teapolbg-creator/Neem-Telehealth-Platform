@@ -30,6 +30,7 @@ import { Route as AdminSchedulingRouteImport } from './routes/admin.scheduling'
 import { Route as AdminServicesRouteImport } from './routes/admin.services'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminStaffRouteImport } from './routes/admin.staff'
+import { Route as AdminTriageProtocolRouteImport } from './routes/admin.triage-protocol'
 import { Route as AdminVerificationRouteImport } from './routes/admin.verification'
 import { Route as AuthForgotRouteImport } from './routes/auth.forgot'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
@@ -171,6 +172,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
 const AdminStaffRoute = AdminStaffRouteImport.update({
   id: '/admin/staff',
   path: '/admin/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTriageProtocolRoute = AdminTriageProtocolRouteImport.update({
+  id: '/admin/triage-protocol',
+  path: '/admin/triage-protocol',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminVerificationRoute = AdminVerificationRouteImport.update({
@@ -377,6 +383,7 @@ export interface FileRoutesByFullPath {
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
+  '/admin/triage-protocol': typeof AdminTriageProtocolRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -436,6 +443,7 @@ export interface FileRoutesByTo {
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
+  '/admin/triage-protocol': typeof AdminTriageProtocolRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -496,6 +504,7 @@ export interface FileRoutesById {
   '/admin/services': typeof AdminServicesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
+  '/admin/triage-protocol': typeof AdminTriageProtocolRoute
   '/admin/verification': typeof AdminVerificationRoute
   '/auth/forgot': typeof AuthForgotRoute
   '/auth/login': typeof AuthLoginRoute
@@ -557,6 +566,7 @@ export interface FileRouteTypes {
     | '/admin/services'
     | '/admin/settings'
     | '/admin/staff'
+    | '/admin/triage-protocol'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -616,6 +626,7 @@ export interface FileRouteTypes {
     | '/admin/services'
     | '/admin/settings'
     | '/admin/staff'
+    | '/admin/triage-protocol'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -675,6 +686,7 @@ export interface FileRouteTypes {
     | '/admin/services'
     | '/admin/settings'
     | '/admin/staff'
+    | '/admin/triage-protocol'
     | '/admin/verification'
     | '/auth/forgot'
     | '/auth/login'
@@ -735,6 +747,7 @@ export interface RootRouteChildren {
   AdminServicesRoute: typeof AdminServicesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminStaffRoute: typeof AdminStaffRoute
+  AdminTriageProtocolRoute: typeof AdminTriageProtocolRoute
   AdminVerificationRoute: typeof AdminVerificationRoute
   AuthForgotRoute: typeof AuthForgotRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -922,6 +935,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/staff'
       fullPath: '/admin/staff'
       preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/triage-protocol': {
+      id: '/admin/triage-protocol'
+      path: '/admin/triage-protocol'
+      fullPath: '/admin/triage-protocol'
+      preLoaderRoute: typeof AdminTriageProtocolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/verification': {
@@ -1199,6 +1219,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminServicesRoute: AdminServicesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminStaffRoute: AdminStaffRoute,
+  AdminTriageProtocolRoute: AdminTriageProtocolRoute,
   AdminVerificationRoute: AdminVerificationRoute,
   AuthForgotRoute: AuthForgotRoute,
   AuthLoginRoute: AuthLoginRoute,

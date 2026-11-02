@@ -2834,8 +2834,34 @@ model PatientVisit {
 
 /// A triage assessment. Never edited: a re-triage is a new row, so who
 /// assessed what, and when, is kept whole. The latest row is the current one.
+/// A flag from a clinically approved protocol (slice 5c, brief §A3, D93). The
+/// table ships EMPTY: Neem invents no thresholds. A rule is never edited, only
+/// retired and replaced, so what a CHO was shown can always be traced to it.
+model TriageProtocolRule {
+  id                String          @id @default(uuid(7))
+  /// A key of VitalSigns, such as spo2Percent.
+  reading           String          @db.VarChar(40)
+  comparison        String          @db.VarChar(8)
+  threshold         Float
+  /// A suggestion the CHO sees. Nothing is ever set from it.
+  suggestedCategory TriageCategory?
+  message           String          @db.VarChar(300)
+  /// The approved document this comes from, and who approved entering it.
+  source            String          @db.VarChar(200)
+  approvedBy        String          @db.VarChar(160)
+  createdByUserId   String
+  createdAt         DateTime        @default(now())
+  retiredAt         DateTime?
+  retiredByUserId   String?
+
+  @@index([retiredAt])
+  @@map("triage_protocol_rules")
+}
+
 model TriageRecord {
   id              String         @id @default(uuid(7))
+  /// The flags an approved protocol raised on this assessment, encrypted (D93).
+  protocolFlagsEnc String?       @db.Text
   visitId         String
   category        TriageCategory
   /// { bpSystolic, bpDiastolic, temperatureC, pulseBpm, respiratoryRate,

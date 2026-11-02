@@ -1,6 +1,7 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { CloudOff, Loader2, RefreshCw } from "lucide-react";
+import { useTriageProtocol } from "@/features/facility/triage";
 import { syncNow, useOfflineQueue } from "./queue";
 
 /**
@@ -16,6 +17,7 @@ export function OfflineBar({ userId }: { userId: string }) {
    * load, and the CHO was left looking at a blank screen. So every facility
    * screen is fetched while the line is up.
    */
+  useTriageProtocol();
   const router = useRouter();
   useEffect(() => {
     const screens = [

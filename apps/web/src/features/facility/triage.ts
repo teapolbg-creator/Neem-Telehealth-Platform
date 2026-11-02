@@ -1,4 +1,19 @@
-import type { TriageCategory, TriageCreate, VitalSigns } from "@neem/contracts";
+import { useQuery } from "@tanstack/react-query";
+import type { TriageCategory, TriageCreate, TriageRule, VitalSigns } from "@neem/contracts";
+import { api } from "@/lib/api-client";
+
+/**
+ * The approved protocol's rules, if any have been entered (D93). Kept once
+ * fetched, so flags still appear on a walk-in triaged with no connection.
+ */
+export function useTriageProtocol() {
+  return useQuery({
+    queryKey: ["facility", "triage-protocol"],
+    queryFn: ({ signal }) => api.get<TriageRule[]>("/facility/triage-protocol", signal),
+    gcTime: Infinity,
+    retry: false,
+  });
+}
 
 /** The readings a CHO may record, in the order they are taken (D75). */
 export const VITAL_FIELDS: { key: keyof VitalSigns; label: string; unit: string; step?: string }[] =
