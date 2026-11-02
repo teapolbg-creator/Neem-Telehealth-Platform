@@ -12,6 +12,7 @@ import {
   signInAdmin,
   signInThroughUi,
   type ActiveDoctor,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 import type { APIRequestContext, Page } from '@playwright/test';
 
@@ -78,7 +79,13 @@ async function queueAConsultation(
   expect(exchange.status()).toBe(200);
 
   await contexts.patient.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Kojo Asare', age: 29, sex: 'MALE', phone: PATIENT_PHONE },
+    data: {
+      fullName: 'Kojo Asare',
+      age: 29,
+      sex: 'MALE',
+      phone: PATIENT_PHONE,
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await contexts.patient.post(`${API}/patient/session/language`, { data: { languageCode } });
   await contexts.patient.post(`${API}/patient/session/mode`, { data: { type } });
@@ -181,7 +188,10 @@ async function offerAndAccept(
   // longer waiting.
   // Whether it went to ours is answered by trying to accept — see the longer
   // note on the same guard in `clinical.spec.ts`.
-  if (!offer?.offered && !['ALREADY_ASSIGNED', 'NOT_WAITING'].includes(offer?.reason ?? '')) {
+  if (
+    !offer?.offered &&
+    !['ALREADY_ASSIGNED', 'NOT_WAITING', 'NO_ELIGIBLE_DOCTOR'].includes(offer?.reason ?? '')
+  ) {
     return { ok: false, reason: `Offered to nobody: ${offer?.reason ?? offered.status()}` };
   }
 

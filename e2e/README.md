@@ -29,6 +29,14 @@ the stack itself.
 | `npm run test:e2e:ui`     | Interactive runner        |
 | `npm run test:e2e:report` | Open the last HTML report |
 
+## The queue
+
+A doctor holds one open offer at a time and the queue serves the oldest first, so
+a patient left waiting by an earlier test would go to the next test's doctor.
+Every test therefore starts by cancelling whatever is waiting, and rejecting all
+but the oldest open refund, directly in the database. It refuses to do so unless
+that database is local.
+
 ## Isolation
 
 Runs are **non-destructive**. Rather than truncating the database, each run
@@ -73,6 +81,4 @@ and marks each `fixme` until the phase that makes it possible has landed. A
 missing test looks like coverage nobody considered; a pending one is a visible,
 countable gap. Running the suite reports exactly how many remain.
 
-**Currently 0 of 16 implemented** — they exercise consultation, queue,
-telemedicine, clinical and payment flows built in Phases 3–7. As each lands,
-the placeholder is replaced by a real test in its own spec file.
+A test that skips is reporting a gap: read the reason before trusting a green run.

@@ -13,6 +13,7 @@ import {
   signIn,
   signInAdmin,
   type ActiveDoctor,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 import type { APIRequestContext } from '@playwright/test';
 
@@ -104,7 +105,13 @@ async function liveConsultation(
   const patientApi = await playwright.request.newContext();
   await patientApi.post(`${API}/s/exchange`, { data: { token } });
   await patientApi.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Adwoa Mensah', age: 34, sex: 'FEMALE', phone: '0245551234' },
+    data: {
+      fullName: 'Adwoa Mensah',
+      age: 34,
+      sex: 'FEMALE',
+      phone: '0245551234',
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await patientApi.post(`${API}/patient/session/language`, { data: { languageCode: 'en' } });
   await patientApi.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });
@@ -199,11 +206,15 @@ async function liveConsultation(
    * has already offered the consultation leaves it ASSIGNED, and the engine
    * then correctly refuses to offer a consultation that is not waiting.
    *
+   * `NO_ELIGIBLE_DOCTOR` is the third form: a doctor holds one open offer at a time
+   * (D97), so if the sweep has just offered this consultation to our only candidate,
+   * the reallocation finds nobody else free to ask.
+   *
    * Whether the offer went to our doctor is answerable rather than guessable:
    * try to accept it. If our doctor holds it, the test proceeds exactly as if
    * the reallocation had made the offer.
    */
-  const RACE_WITH_THE_SWEEP = ['ALREADY_ASSIGNED', 'NOT_WAITING'];
+  const RACE_WITH_THE_SWEEP = ['ALREADY_ASSIGNED', 'NOT_WAITING', 'NO_ELIGIBLE_DOCTOR'];
 
   if (!offer?.offered && !RACE_WITH_THE_SWEEP.includes(offer?.reason ?? '')) {
     const presence = await doctorApi.get(`${API}/doctor/presence`);

@@ -149,6 +149,8 @@ test.describe('required scenarios (spec §80)', () => {
     // accessible name is what a patient using a screen reader would hear.
     await patient.getByRole('button', { name: 'Female', exact: true }).click();
     await fillField(patient, 'Your phone number', '0245551234');
+    await fillField(patient, 'Your address', 'Adenta, Accra');
+    await patient.getByRole('checkbox', { name: /agree|accept/i }).check();
     await patient.getByRole('button', { name: /^continue$/i }).click();
 
     await expect(patient.getByRole('heading', { name: /choose your language/i })).toBeVisible({
@@ -179,7 +181,7 @@ test.describe('required scenarios (spec §80)', () => {
     // answers "no" simply because React has not painted — and the doctor then
     // stays offline while the test waits for an offer that can never come.
     // Wait for the toggle, read it, and assert the state actually flipped.
-    const presenceToggle = doctorPage.getByRole('button', { name: /go online|go offline/i });
+    const presenceToggle = doctorPage.getByRole('button', { name: /i'm available|take a break/i });
     await presenceToggle.waitFor({ state: 'visible', timeout: 20_000 });
 
     /**
@@ -194,11 +196,11 @@ test.describe('required scenarios (spec §80)', () => {
      */
     await takeOtherDoctorsOffline(playwright, doctor);
 
-    if (/go online/i.test((await presenceToggle.textContent()) ?? '')) {
+    if (/i'm available/i.test((await presenceToggle.textContent()) ?? '')) {
       await presenceToggle.click();
     }
     rememberOnline(doctor);
-    await expect(doctorPage.getByRole('button', { name: /go offline/i })).toBeVisible({
+    await expect(doctorPage.getByRole('button', { name: /take a break/i })).toBeVisible({
       timeout: 20_000,
     });
 
@@ -265,7 +267,7 @@ test.describe('required scenarios (spec §80)', () => {
     await expect(doctorPage.getByRole('button', { name: /complete consultation/i })).toBeVisible({
       timeout: 30_000,
     });
-    await doctorPage.getByRole('button', { name: /^other$/i }).click();
+    await doctorPage.getByRole('checkbox', { name: /^other/i }).check();
     await doctorPage.getByRole('button', { name: /complete consultation/i }).click();
 
     // The patient's own phone is where the consultation reference reaches

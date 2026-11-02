@@ -9,6 +9,7 @@ import {
   signIn,
   signInAdminOnPage,
   signInThroughUi,
+  PATIENT_STATUTORY_DETAILS,
 } from './support/fixtures.ts';
 
 /**
@@ -69,7 +70,13 @@ async function queueAConsultation(
   expect(exchange.status(), 'the patient should be able to open the consultation').toBe(200);
 
   await contexts.patient.post(`${API}/patient/session/identity`, {
-    data: { fullName: 'Efua Mensah', age: 34, sex: 'FEMALE', phone: '0240000000' },
+    data: {
+      fullName: 'Efua Mensah',
+      age: 34,
+      sex: 'FEMALE',
+      phone: '0240000000',
+      ...PATIENT_STATUTORY_DETAILS,
+    },
   });
   await contexts.patient.post(`${API}/patient/session/language`, { data: { languageCode } });
   await contexts.patient.post(`${API}/patient/session/mode`, { data: { type: 'VIDEO' } });
@@ -224,7 +231,12 @@ test.describe('what each role may see', () => {
     expect(JSON.stringify(await queue.json())).not.toMatch(/score|rating|quality|breakdown/i);
   });
 
-  test('an admin does see the routing score — the fairness audit trail', async ({ page }) => {
+  test('an admin does see the routing score — the fairness audit trail', async ({
+    page,
+    request,
+  }) => {
+    // Its own patient in the queue: the field is on each entry.
+    await queueAConsultation({ pharmacy: request, patient: request }, 'en');
     await signInAdminOnPage(page);
 
     const queue = await page.request.get(`${API}/admin/queue`);

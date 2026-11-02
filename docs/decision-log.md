@@ -2621,3 +2621,39 @@ rather than around it.
 there having been a payment. A free consultation that reassures the patient
 about a second charge raises a cost they were never asked for. Said when true,
 and nothing said in its place.
+
+---
+
+### D97 — Faults found while building V2, fixed for the pilot · 2026-11-02 · **DECIDED**
+
+**Context.** Work on the unmerged `v2-chps` branch found faults in code the pharmacy
+pilot also runs. That branch will not merge soon, so these are fixed here on their
+own. Each was first reproduced on this branch by a failing test. The number skips
+D73 to D96, which `v2-chps` has used for its own decisions.
+
+**Decision.**
+
+- **An open offer counts toward capacity.** A doctor's load rises only on accepting,
+  so a free doctor could hold several offers. The screen showed the newest, and the
+  rest lapsed unseen and were recorded as missed responses against them. A second
+  patient now waits until the first offer is answered or lapses.
+- **An offer on a consultation that has been cancelled asks nothing of anyone.** It
+  no longer blocks the doctor or appears on their screen. When its window passes it
+  is marked WITHDRAWN, with no performance event, no audit of a miss and no message.
+  Expiry while on offer is treated the same way.
+- **The refunds "All" view is newest first.** It sorted oldest first and stopped at
+  100, so past that the newest decisions never appeared. "Awaiting a decision" stays
+  oldest first, since the longest wait should be seen first.
+- **A new database can be seeded.** The demo history is dated before anyone was on
+  the rota, so D50 refused it, and demo doctors lacked what D60 requires. The rule is
+  lifted while the history is written and put back afterwards. Seeding forces every
+  message and payment provider to mock, because it drives services that notify people
+  and `.env` may name a real provider.
+- **The end-to-end tests match the product again.** They sent patient identity without
+  the address and consent D60 requires and ignored the reply, so tests skipped
+  themselves without saying why. Test doctors now hold prescriber details. Because a
+  doctor now holds one offer, each test first clears what earlier tests left waiting,
+  in a local database only.
+
+**What was not done.** Nothing else from `v2-chps`: no Busy status, declining, priority
+or CHPS demo data. No schema change: WITHDRAWN already existed.
