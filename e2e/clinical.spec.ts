@@ -206,11 +206,15 @@ async function liveConsultation(
    * has already offered the consultation leaves it ASSIGNED, and the engine
    * then correctly refuses to offer a consultation that is not waiting.
    *
+   * `NO_ELIGIBLE_DOCTOR` is the third form: a doctor holds one open offer at a time
+   * (D91), so if the sweep has just offered this consultation to our only candidate,
+   * the reallocation finds nobody else free to ask.
+   *
    * Whether the offer went to our doctor is answerable rather than guessable:
    * try to accept it. If our doctor holds it, the test proceeds exactly as if
    * the reallocation had made the offer.
    */
-  const RACE_WITH_THE_SWEEP = ['ALREADY_ASSIGNED', 'NOT_WAITING'];
+  const RACE_WITH_THE_SWEEP = ['ALREADY_ASSIGNED', 'NOT_WAITING', 'NO_ELIGIBLE_DOCTOR'];
 
   if (!offer?.offered && !RACE_WITH_THE_SWEEP.includes(offer?.reason ?? '')) {
     const presence = await doctorApi.get(`${API}/doctor/presence`);

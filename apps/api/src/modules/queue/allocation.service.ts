@@ -143,7 +143,13 @@ export async function collectCandidates(
         qualityScores: { orderBy: { computedAt: 'desc' }, take: 1 },
         assignments: {
           where: { offeredAt: { gte: dayAgo } },
-          select: { offeredAt: true, acceptedAt: true, result: true, respondByAt: true },
+          select: {
+            offeredAt: true,
+            acceptedAt: true,
+            result: true,
+            respondByAt: true,
+            consultation: { select: { state: true } },
+          },
         },
         consultations: {
           where: { completedAt: { gte: dayAgo } },
@@ -199,7 +205,11 @@ export async function collectCandidates(
       busy: Boolean(doctor.presence?.busySince),
       currentLoad: doctor.presence?.currentLoad ?? 0,
       openOffers: doctor.assignments.filter(
-        (assignment) => assignment.result === 'PENDING' && assignment.respondByAt > now,
+        // A consultation withdrawn or cancelled meanwhile no longer asks anything of them.
+        (assignment) =>
+          assignment.result === 'PENDING' &&
+          assignment.respondByAt > now &&
+          assignment.consultation.state === 'ASSIGNED',
       ).length,
       maxLoad: doctor.presence?.maxLoad ?? 1,
       servedThisShift: accepted.length,
@@ -731,6 +741,18 @@ export async function enforceResponseWindow(
   let reoffered = 0;
 
   for (const assignment of lapsed) {
+    /*
+     * Withdrawn or cancelled while it was on offer. Nobody was left waiting, so it
+     * is not a missed response, and goes on no doctor's quality record (D91).
+     */
+    if (assignment.consultation.state !== 'ASSIGNED') {
+      await db.consultationAssignment.updateMany({
+        where: { id: assignment.id, result: 'PENDING' },
+        data: { result: 'WITHDRAWN' },
+      });
+      continue;
+    }
+
     try {
       await db.$transaction(async (tx) => {
         const claimed = await tx.consultationAssignment.updateMany({

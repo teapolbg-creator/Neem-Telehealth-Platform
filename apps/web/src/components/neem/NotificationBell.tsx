@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import { useFeed, useMarkFeedRead } from "@/features/notifications/api";
 import { sinceLabel } from "@/features/operations/api";
@@ -13,9 +13,27 @@ export function NotificationBell() {
   const markRead = useMarkFeedRead();
   const [open, setOpen] = useState(false);
   const unread = feed.data?.unread ?? 0;
+  const root = useRef<HTMLDivElement>(null);
+
+  // Closes as any menu does: Escape, or a click anywhere else.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const onClick = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClick);
+    };
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={root} className="relative">
       <button
         type="button"
         aria-label={unread > 0 ? `Notifications, ${unread} new` : "Notifications"}

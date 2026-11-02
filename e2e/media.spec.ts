@@ -188,7 +188,10 @@ async function offerAndAccept(
   // longer waiting.
   // Whether it went to ours is answered by trying to accept — see the longer
   // note on the same guard in `clinical.spec.ts`.
-  if (!offer?.offered && !['ALREADY_ASSIGNED', 'NOT_WAITING'].includes(offer?.reason ?? '')) {
+  if (
+    !offer?.offered &&
+    !['ALREADY_ASSIGNED', 'NOT_WAITING', 'NO_ELIGIBLE_DOCTOR'].includes(offer?.reason ?? '')
+  ) {
     return { ok: false, reason: `Offered to nobody: ${offer?.reason ?? offered.status()}` };
   }
 

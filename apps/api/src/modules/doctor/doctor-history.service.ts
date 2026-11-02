@@ -67,7 +67,12 @@ export async function doctorHistory(
       select: { publicId: true, name: true },
     }),
     db.consultationAssignment.count({
-      where: { doctorId, result: 'PENDING', respondByAt: { gt: now } },
+      where: {
+        doctorId,
+        result: 'PENDING',
+        respondByAt: { gt: now },
+        consultation: { state: 'ASSIGNED' },
+      },
     }),
     db.consultation.count({
       where: { doctorId, state: { in: [...OCCUPYING_CONSULTATION_STATES], not: 'ASSIGNED' } },

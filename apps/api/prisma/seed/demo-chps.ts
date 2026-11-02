@@ -15,7 +15,7 @@ import {
   createReferral,
   recordReferralOutcome,
 } from '../../src/modules/facility/referral.service.ts';
-import { createFollowUp } from '../../src/modules/facility/followup.service.ts';
+import { completeFollowUp, createFollowUp } from '../../src/modules/facility/followup.service.ts';
 import { acceptOffer, offerNextDoctor } from '../../src/modules/queue/allocation.service.ts';
 import { goOffline, goOnline } from '../../src/modules/queue/presence.service.ts';
 import { transition } from '../../src/modules/consultation/consultation.service.ts';
@@ -94,6 +94,48 @@ export interface ChpsDemoResult {
   referrals: number;
   followUps: number;
   accounts: Array<{ role: string; email: string; password: string; note: string }>;
+}
+
+/**
+ * Demo doctors on duty all day today, each time the seed runs, so a presentation
+ * works whatever the hour and however long ago the data was first seeded (D95).
+ */
+export async function rosterDemoDoctorsToday(
+  prisma: PrismaClient,
+  doctorIds: string[],
+): Promise<void> {
+  const allDay = await prisma.shiftDefinition.upsert({
+    where: { code: 'DEMO_ALL_DAY' },
+    update: { isActive: true },
+    create: {
+      code: 'DEMO_ALL_DAY',
+      label: 'All day (demo)',
+      startsAt: '00:00',
+      endsAt: '23:59',
+      isActive: true,
+    },
+  });
+  const now = new Date();
+  const serviceDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  for (const doctorId of doctorIds) {
+    await prisma.doctorShiftAssignment.upsert({
+      where: {
+        doctorId_serviceDate_shiftDefinitionId: {
+          doctorId,
+          serviceDate,
+          shiftDefinitionId: allDay.id,
+        },
+      },
+      update: { status: 'CONFIRMED' },
+      create: {
+        doctorId,
+        serviceDate,
+        shiftDefinitionId: allDay.id,
+        status: 'CONFIRMED',
+        minutesPlanned: 1439,
+      },
+    });
+  }
 }
 
 export async function seedChpsDemo(
@@ -477,7 +519,7 @@ export async function seedChpsDemo(
     }
 
     if (index % 4 === 1) {
-      await createFollowUp(
+      const followUp = await createFollowUp(
         ctx,
         visit,
         {
@@ -490,6 +532,15 @@ export async function seedChpsDemo(
         at(40),
       );
       result.followUps += 1;
+      // Older ones have been resolved, as they would be by now; recent ones are still due.
+      if (daysAgo > 7) {
+        await completeFollowUp(
+          ctx,
+          followUp.publicId,
+          { note: 'Demo note: came back as asked.' },
+          prisma,
+        );
+      }
     }
 
     await closeVisit(

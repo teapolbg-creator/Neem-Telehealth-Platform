@@ -5,7 +5,11 @@ import { closeTestApp, request, signIn } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/database.ts';
 import { generatePublicId } from '../../src/lib/crypto.ts';
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
-import { processWaitingQueue } from '../../src/modules/queue/allocation.service.ts';
+import {
+  enforceResponseWindow,
+  processWaitingQueue,
+} from '../../src/modules/queue/allocation.service.ts';
+import { fixedClock } from '../../src/lib/clock.ts';
 
 /** Busy, declining, priority and history (CHPS slice 5a, D91). */
 
@@ -240,6 +244,42 @@ describe('declining a CHPS offer (D91)', () => {
     const consultation = record.body.data!.visits[0]!.consultation!;
     expect(consultation.doctorName).toBeNull();
     expect(['REASSIGNING', 'WAITING_FOR_DOCTOR']).toContain(consultation.state);
+  });
+});
+
+describe('a request withdrawn while on offer (D91)', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('frees the doctor at once, and is never recorded as a missed response', async () => {
+    const cho = await facilityWithCho();
+    const doctor = await doctorOnDuty('Dr. Offered');
+    const { visitPublicId, publicId } = await requested(cho.cookies, 'Efua Asante');
+    expect((await offerFor(doctor.cookies))!.consultationPublicId).toBe(publicId);
+
+    const withdrawn = await request(`/facility/visits/${visitPublicId}/consultation/cancel`, {
+      method: 'POST',
+      cookies: cho.cookies,
+      payload: { reason: 'Patient went home' },
+    });
+    expect(withdrawn.status).toBe(200);
+    expect(await offerFor(doctor.cookies)).toBeNull();
+
+    // The next patient reaches them now, not when the old window runs out.
+    const next = await requested(cho.cookies, 'Akua Mensah');
+    expect((await offerFor(doctor.cookies))!.consultationPublicId).toBe(next.publicId);
+
+    await enforceResponseWindow(getPrisma(), fixedClock(Date.now() + 120_000));
+    const prisma = getPrisma();
+    const old = await prisma.consultationAssignment.findFirstOrThrow({
+      where: { consultation: { publicId } },
+    });
+    expect(old.result).toBe('WITHDRAWN');
+    // Only the next patient's offer, which really did go unanswered, counts against them.
+    expect(
+      await prisma.doctorPerformanceEvent.count({ where: { consultationId: old.consultationId } }),
+    ).toBe(0);
   });
 });
 

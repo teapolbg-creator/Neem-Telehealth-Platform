@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { hashPassword, generatePublicId, encryptField } from '../../src/lib/crypto.ts';
 import { POINT_OF_CARE_TESTS, VITAL_EQUIPMENT } from './reference-data.ts';
 import { seedDemoConsultations, type DemoConsultationSummary } from './demo-consultations.ts';
-import { seedChpsDemo, type ChpsDemoResult } from './demo-chps.ts';
+import { rosterDemoDoctorsToday, seedChpsDemo, type ChpsDemoResult } from './demo-chps.ts';
 import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
 import { SETTING_KEYS } from '../../src/modules/settings/settings.defaults.ts';
 
@@ -378,6 +378,11 @@ export async function seedDemoData(
       doctorIds: activeDoctors.map((doctor) => doctor.id),
     }),
   }));
+
+  await rosterDemoDoctorsToday(
+    prisma,
+    activeDoctors.map((doctor) => doctor.id),
+  );
 
   // The pharmacy history assigns its doctors directly, past the queue, so its entries
   // would otherwise sit on the admin queue as waiting for consultations long finished.

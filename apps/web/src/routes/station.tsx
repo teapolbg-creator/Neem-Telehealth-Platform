@@ -182,7 +182,8 @@ function InCall({ doctorName }: { doctorName: string }) {
   }
 
   return (
-    <div className="w-full max-w-5xl">
+    // A height of its own: the call fills the space, and a video has room to be seen.
+    <div className="flex h-[calc(100dvh-9rem)] min-h-[28rem] w-full max-w-5xl flex-col">
       <CallStage
         session={join.data ?? null}
         timer={null}
