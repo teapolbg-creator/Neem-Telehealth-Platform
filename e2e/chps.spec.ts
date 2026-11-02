@@ -6,6 +6,7 @@ import {
   expect,
   fillField,
   gotoHydrated,
+  openSecondPage,
   signInAdmin,
   signInThroughUi,
   signOutThroughUi,
@@ -315,6 +316,73 @@ test.describe('CHPS scenarios', () => {
     await anonymous.close();
     await doctorPage.context().close();
     await station.context().close();
+    await adminApi.dispose();
+  });
+});
+
+test.describe('CHPS doctor (D91)', () => {
+  test('a doctor sees priority and vitals, can decline or be busy, and can look back', async ({
+    page,
+    request,
+    playwright,
+    run,
+  }) => {
+    const compound = await createCompound(request, run);
+    const adminApi = await playwright.request.newContext();
+    const doctor = await doctorOnline(playwright, request, adminApi, run);
+
+    await signInThroughUi(page, compound.cho);
+    const declinedName = `Mansa Declined ${run}`;
+    await registerWalkIn(page, { fullName: declinedName });
+    await triage(page, 'Yellow');
+    await page.getByRole('button', { name: 'Urgent', exact: true }).click();
+    await requestDoctor(page);
+    await expect(page.getByText(/urgent, requested at/)).toBeVisible();
+
+    const doctorPage = await openSecondPage(page);
+    await signInThroughUi(doctorPage, doctor);
+    await gotoHydrated(doctorPage, '/doctor/queue');
+
+    // Enough to decide on, before accepting.
+    await expect(doctorPage.getByText('Urgent', { exact: true })).toBeVisible();
+    await expect(doctorPage.getByText(/Temperature 38\.4/)).toBeVisible();
+    await doctorPage.getByRole('button', { name: /^Decline/ }).click();
+    await expect(doctorPage.getByRole('button', { name: 'Accept consultation' })).toHaveCount(0);
+
+    // The CHO is still told, truthfully, that nobody has accepted.
+    await page.reload();
+    await expect(page.getByText(/No doctor has accepted yet/)).toBeVisible();
+    await withdrawOpenRequests(page);
+
+    // Busy holds offers back; available lets them through.
+    await doctorPage.getByRole('button', { name: "I'm busy" }).click();
+    await expect(doctorPage.getByRole('heading', { name: 'You are busy' }).first()).toBeVisible();
+
+    const name = `Nana Accepted ${run}`;
+    await registerWalkIn(page, { fullName: name });
+    await triage(page, 'Green');
+    await requestDoctor(page);
+    await doctorPage.waitForTimeout(4_000);
+    await expect(doctorPage.getByRole('button', { name: 'Accept consultation' })).toHaveCount(0);
+
+    await doctorPage.getByRole('button', { name: "I'm available" }).click();
+    await doctorPage
+      .getByRole('button', { name: 'Accept consultation' })
+      .click({ timeout: 30_000 });
+    await doctorPage.waitForURL(/\/doctor\/consultations\//);
+
+    // Their own history, by patient and with the sealed rule untouched.
+    await gotoHydrated(doctorPage, '/doctor/history');
+    await expect(doctorPage.getByText(name)).toBeVisible();
+    await expect(doctorPage.getByText(declinedName)).toHaveCount(0);
+    await doctorPage.getByPlaceholder(/whole word of the name/).fill('Nobody');
+    await doctorPage.getByRole('button', { name: 'Search' }).click();
+    await expect(doctorPage.getByText('No consultations match.')).toBeVisible();
+    await doctorPage.getByPlaceholder(/whole word of the name/).fill('Nana');
+    await doctorPage.getByRole('button', { name: 'Search' }).click();
+    await expect(doctorPage.getByText(name)).toBeVisible();
+
+    await doctorPage.context().close();
     await adminApi.dispose();
   });
 });

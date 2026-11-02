@@ -1,15 +1,20 @@
 import { decryptField } from '../../lib/crypto.ts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { ADMIN_ROLES, PERMISSIONS } from '@neem/contracts';
+import { ADMIN_ROLES, PERMISSIONS, type VitalSigns } from '@neem/contracts';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { systemClock } from '../../lib/clock.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { getIntSetting } from '../settings/settings.service.ts';
 import { SETTING_KEYS } from '../settings/settings.defaults.ts';
-import { acceptOffer, offerNextDoctor, processWaitingQueue } from './allocation.service.ts';
-import { getPresence, goOffline, goOnline, heartbeat } from './presence.service.ts';
+import {
+  acceptOffer,
+  declineOffer,
+  offerNextDoctor,
+  processWaitingQueue,
+} from './allocation.service.ts';
+import { getPresence, goBusy, goOffline, goOnline, heartbeat } from './presence.service.ts';
 import { readPatientPanel } from '../consultation/patient-session.service.ts';
 import { isSealed, readClinicalRecord } from '../retention/clinical-record.service.ts';
 import { originName } from '../../domain/consultation-origin.ts';
@@ -78,6 +83,13 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ data: { ok: true }, meta: { requestId: request.correlationId } });
   });
 
+  app.post('/doctor/presence/busy', { preHandler: doctorOnly }, async (request, reply) => {
+    const { doctorId } = requireDoctor(request);
+    await goBusy(doctorId);
+
+    return reply.send({ data: { busy: true }, meta: { requestId: request.correlationId } });
+  });
+
   app.post('/doctor/presence/offline', { preHandler: doctorOnly }, async (request, reply) => {
     const { doctorId } = requireDoctor(request);
     await goOffline(doctorId);
@@ -112,7 +124,11 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
             visit: {
               select: {
                 presentingComplaintEnc: true,
-                triages: { orderBy: { recordedAt: 'desc' }, take: 1, select: { category: true } },
+                triages: {
+                  orderBy: { recordedAt: 'desc' },
+                  take: 1,
+                  select: { category: true, vitalsEnc: true },
+                },
               },
             },
           },
@@ -158,6 +174,12 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
                   ? decryptField(offer.consultation.visit.presentingComplaintEnc)
                   : null,
                 triageCategory: offer.consultation.visit?.triages[0]?.category ?? null,
+                vitals: offer.consultation.visit?.triages[0]
+                  ? (JSON.parse(
+                      decryptField(offer.consultation.visit.triages[0].vitalsEnc),
+                    ) as VitalSigns)
+                  : null,
+                priority: offer.consultation.priority,
               }
             : null,
           offeredAt: offer.offeredAt.toISOString(),
@@ -189,6 +211,22 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
 
       return reply.send({
         data: { accepted: true, consultationPublicId: publicId },
+        meta: { requestId: request.correlationId },
+      });
+    },
+  );
+
+  app.post(
+    '/doctor/consultations/:publicId/decline',
+    { preHandler: guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_CONDUCT] }) },
+    async (request, reply) => {
+      const { doctorId } = requireDoctor(request);
+      const { publicId } = z.object({ publicId: z.string().min(1) }).parse(request.params);
+
+      await declineOffer(publicId, doctorId);
+
+      return reply.send({
+        data: { declined: true },
         meta: { requestId: request.correlationId },
       });
     },
@@ -365,6 +403,7 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
         data: entries.map((entry) => ({
           consultationPublicId: entry.consultation.publicId,
           state: entry.consultation.state,
+          priority: entry.consultation.priority,
           queueState: entry.state,
           language: entry.language,
           pharmacyName: originName(entry.consultation.pharmacy, entry.consultation.facility),

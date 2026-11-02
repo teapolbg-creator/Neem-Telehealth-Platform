@@ -173,6 +173,8 @@ into super and operations administrators.
 | 4a    | **Built (D88).** Walk-ins and their triage recorded with no connection, encrypted on the device under a key held by the API, sent by themselves when the connection returns; possible duplicates decided by the CHO; device times corrected | —          |
 | 4b    | **Built (D89).** Stations measure their connection to Neem when idle and the CHO sees it; the CHO can turn on lower video quality (Whereby low-data mode) for the facility's calls; an unstable call offers to turn the camera off          | —          |
 
+Slice 5a is built (D91): Busy, declining a CHPS request, priority and doctor history.
+
 Still proposed: device monitoring, SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 
 ---

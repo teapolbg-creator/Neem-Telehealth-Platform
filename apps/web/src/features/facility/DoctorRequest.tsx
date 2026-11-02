@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Loader2, Mic, Monitor, Stethoscope, Video } from "lucide-react";
-import { CHPS_CONSULTATION_PROGRESS, type VisitView } from "@neem/contracts";
+import {
+  CHPS_CONSULTATION_PROGRESS,
+  CONSULTATION_PRIORITIES,
+  CONSULTATION_PRIORITY_LABELS,
+  type ConsultationPriority,
+  type VisitView,
+} from "@neem/contracts";
 import { Chip } from "@/components/neem/Chip";
 import { ApiError } from "@/lib/api-client";
 import { useLanguages } from "@/features/onboarding/api";
@@ -57,6 +63,7 @@ function RequestForm({ visit }: { visit: VisitView }) {
   const requestDoctor = useRequestDoctor(visit.publicId);
   const [languageCode, setLanguageCode] = useState("");
   const [type, setType] = useState<"VIDEO" | "AUDIO">("VIDEO");
+  const [priority, setPriority] = useState<ConsultationPriority>("ROUTINE");
   const [note, setNote] = useState("");
   // What the stations last measured, beside the choice it informs (D89).
   const link = latestLink(useStations().data);
@@ -66,7 +73,7 @@ function RequestForm({ visit }: { visit: VisitView }) {
       className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
-        requestDoctor.mutate({ languageCode, type, note: note.trim() || undefined });
+        requestDoctor.mutate({ languageCode, type, priority, note: note.trim() || undefined });
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
@@ -113,6 +120,28 @@ function RequestForm({ visit }: { visit: VisitView }) {
             </p>
           ) : null}
         </div>
+      </div>
+      <div className="text-sm">
+        <span className="mb-1 block text-xs font-semibold text-slate-500">
+          How soon should they be seen?
+        </span>
+        <div className="flex gap-2">
+          {CONSULTATION_PRIORITIES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              data-on={priority === value}
+              onClick={() => setPriority(value)}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-slate-600 data-[on=true]:border-brand data-[on=true]:bg-brand-soft data-[on=true]:text-brand"
+            >
+              {CONSULTATION_PRIORITY_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          Your judgement. An urgent request is offered first when doctors are scarce. An emergency
+          does not wait for a doctor: escalate it instead.
+        </p>
       </div>
       <label className="block text-sm">
         <span className="mb-1 block text-xs font-semibold text-slate-500">
@@ -171,7 +200,8 @@ function RequestProgress({ visit }: { visit: VisitView }) {
           </>
         ) : null}
         {consultation.type === "AUDIO" ? "Audio" : "Video"}
-        {consultation.language ? `, ${consultation.language}` : ""}, requested at {requestedAt}.
+        {consultation.language ? `, ${consultation.language}` : ""}
+        {consultation.priority === "URGENT" ? ", urgent" : ""}, requested at {requestedAt}.
       </p>
       {waiting ? (
         <>

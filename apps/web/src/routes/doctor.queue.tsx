@@ -1,16 +1,28 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { AlertCircle, Loader2, Phone, PhoneOutgoing, Video, Wifi, WifiOff } from "lucide-react";
+import {
+  AlertCircle,
+  Hourglass,
+  Loader2,
+  Phone,
+  PhoneOutgoing,
+  Video,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { useProfessionalRole } from "@/features/auth/use-role";
 import { AppShell } from "@/components/neem/AppShell";
 import { Chip } from "@/components/neem/Chip";
 import { TriageBadge } from "@/features/facility/TriageBadge";
+import { formatVitals } from "@/features/facility/triage";
 import { ApiError } from "@/lib/api-client";
 import {
   channelLabel,
   consultationOrigin,
   useAcceptOffer,
   useCountdown,
+  useDeclineOffer,
+  useGoBusy,
   useGoOffline,
   useGoOnline,
   usePresence,
@@ -34,9 +46,11 @@ export const Route = createFileRoute("/doctor/queue")({
  *
  * Two things this screen deliberately does not have:
  *
- *  - **A decline button.** Doctors cannot reject an assigned consultation
- *    (spec §30). The only actions are to accept or to let the window lapse,
- *    which records a missed response and reassigns.
+ *  - **A decline button, except for a CHPS request.** A patient at a pharmacy
+ *    or online has paid, and a doctor cannot reject that consultation (spec
+ *    §30): the only actions are to accept or to let the window lapse, which
+ *    records a missed response and reassigns. A CHPS request can be declined
+ *    (brief §B2, D91).
  *  - **Any score or rating.** The routing score and patient ratings are
  *    admin-facing; a doctor never sees either (spec §24, §52), and the API
  *    does not return them to a doctor principal.
@@ -46,8 +60,11 @@ function DoctorQueue() {
   const { data: presence, isLoading } = usePresence();
   const goOnline = useGoOnline();
   const goOffline = useGoOffline();
+  const goBusy = useGoBusy();
 
   const online = presence?.online ?? false;
+  const busy = presence?.busy ?? false;
+  const changing = goOnline.isPending || goOffline.isPending || goBusy.isPending;
 
   const { data: queue } = useQueue(online);
   const shouldPrompt = useShouldPromptForNotifications();
@@ -84,24 +101,41 @@ function DoctorQueue() {
         <div>
           <p className="mb-1 text-sm font-semibold text-brand">Consultation queue</p>
           <h1 className="text-3xl font-bold tracking-tight">
-            {online ? "You are available" : "You are on a break"}
+            {busy ? "You are busy" : online ? "You are available" : "You are on a break"}
           </h1>
         </div>
 
-        <button
-          type="button"
-          disabled={goOnline.isPending || goOffline.isPending}
-          onClick={() => (online ? goOffline.mutate() : goOnline.mutate())}
-          className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
-            online
-              ? "border border-border bg-white hover:bg-slate-50"
-              : "bg-brand text-white hover:brightness-110",
+        <div className="flex flex-wrap gap-2">
+          {online && !busy ? (
+            <button
+              type="button"
+              disabled={changing}
+              onClick={() => goBusy.mutate()}
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-5 py-3 text-sm font-semibold transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Hourglass className="size-4" /> I'm busy
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={changing}
+              onClick={() => goOnline.mutate()}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:opacity-50"
+            >
+              <Wifi className="size-4" /> I'm available
+            </button>
           )}
-        >
-          {online ? <WifiOff className="size-4" /> : <Wifi className="size-4" />}
-          {online ? "Take a break" : "I'm available"}
-        </button>
+          {online ? (
+            <button
+              type="button"
+              disabled={changing}
+              onClick={() => goOffline.mutate()}
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-5 py-3 text-sm font-semibold transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              <WifiOff className="size-4" /> Take a break
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {goOnline.error && (
@@ -172,7 +206,7 @@ function DoctorQueue() {
       {queue?.offer ? (
         <OfferCard offer={queue.offer} windowSeconds={queue.windowSeconds} />
       ) : (
-        <IdleCard online={online} currentLoad={presence?.currentLoad ?? 0} />
+        <IdleCard online={online} busy={busy} currentLoad={presence?.currentLoad ?? 0} />
       )}
 
       <section className="card-soft p-6">
@@ -186,7 +220,10 @@ function DoctorQueue() {
             You have {queue?.windowSeconds ?? 90} seconds to accept. If you do not respond, the
             consultation goes to another {role.noun} and the missed response is recorded.
           </li>
-          <li>Assigned consultations cannot be declined.</li>
+          <li>
+            A consultation from a pharmacy or an online patient cannot be declined. A request from a
+            CHPS compound can, and goes to another {role.noun}.
+          </li>
         </ul>
       </section>
     </AppShell>
@@ -196,6 +233,7 @@ function DoctorQueue() {
 function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds: number }) {
   const remaining = useCountdown(offer.respondByAt);
   const accept = useAcceptOffer();
+  const decline = useDeclineOffer();
   const role = useProfessionalRole();
   const navigate = useNavigate();
 
@@ -225,6 +263,7 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
               {channelLabel(offer.pharmacy, offer.chps ? { name: offer.chps.facilityName } : null)}
             </Chip>
             {offer.chps ? <TriageBadge category={offer.chps.triageCategory} /> : null}
+            {offer.chps?.priority === "URGENT" ? <Chip tone="warning">Urgent</Chip> : null}
           </div>
           <h2 className="mt-3 text-2xl font-bold">
             {offer.language?.label ?? "Consultation"} ·{" "}
@@ -246,6 +285,11 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
                 .filter(Boolean)
                 .join(", ")}
               {offer.chps.presentingComplaint ? ` — ${offer.chps.presentingComplaint}` : ""}
+            </p>
+          ) : null}
+          {offer.chps?.vitals && formatVitals(offer.chps.vitals).length > 0 ? (
+            <p className="mt-1 text-sm text-slate-600">
+              {formatVitals(offer.chps.vitals).join(" · ")}
             </p>
           ) : null}
         </div>
@@ -284,8 +328,9 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
       </div>
 
       {/*
-        One action. There is no decline — spec §30 is explicit that doctors
-        cannot reject an assigned consultation.
+        One action for a patient who has paid: spec §30 is explicit that doctors
+        cannot reject that consultation. A CHPS request can also be declined,
+        below (brief §B2, D91).
       */}
       <button
         type="button"
@@ -305,6 +350,22 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
         {lapsed ? "This offer has expired" : "Accept consultation"}
       </button>
 
+      {offer.chps && !lapsed ? (
+        <button
+          type="button"
+          disabled={decline.isPending || accept.isPending}
+          onClick={() => decline.mutate(offer.consultationPublicId)}
+          className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+        >
+          Decline, offer it to another {role.noun}
+        </button>
+      ) : null}
+      {decline.error ? (
+        <p className="mt-3 text-center text-sm text-red-600">
+          {decline.error instanceof ApiError ? decline.error.message : "Could not decline."}
+        </p>
+      ) : null}
+
       {accept.error && (
         <p className="mt-3 text-center text-sm text-red-600">
           {accept.error instanceof ApiError ? accept.error.message : "Could not accept."}
@@ -320,10 +381,26 @@ function OfferCard({ offer, windowSeconds }: { offer: QueueOffer; windowSeconds:
   );
 }
 
-function IdleCard({ online, currentLoad }: { online: boolean; currentLoad: number }) {
+function IdleCard({
+  online,
+  busy,
+  currentLoad,
+}: {
+  online: boolean;
+  busy: boolean;
+  currentLoad: number;
+}) {
   return (
     <section className="card-soft grid place-items-center p-16 text-center">
-      {online ? (
+      {busy ? (
+        <>
+          <Hourglass className="size-10 text-slate-300" />
+          <h2 className="mt-4 text-xl font-bold">You are busy</h2>
+          <p className="mt-2 max-w-sm text-sm text-slate-500">
+            No new consultations will be offered to you until you say you are available.
+          </p>
+        </>
+      ) : online ? (
         <>
           <div className="grid size-16 place-items-center rounded-full bg-brand/10">
             <Loader2 className="size-7 animate-spin text-brand" />

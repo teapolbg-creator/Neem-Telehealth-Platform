@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  ConsultationPriority,
   FacilityDaySummary,
   PatientRecord,
   PatientRegistration,
@@ -120,8 +121,12 @@ export function useCloseVisit(visitPublicId: string) {
 export function useRequestDoctor(visitPublicId: string) {
   const invalidate = useInvalidateFacility();
   return useMutation({
-    mutationFn: (input: { languageCode: string; type: "VIDEO" | "AUDIO"; note?: string }) =>
-      api.post<VisitConsultation>(`/facility/visits/${visitPublicId}/consultation`, input),
+    mutationFn: (input: {
+      languageCode: string;
+      type: "VIDEO" | "AUDIO";
+      priority: ConsultationPriority;
+      note?: string;
+    }) => api.post<VisitConsultation>(`/facility/visits/${visitPublicId}/consultation`, input),
     onSuccess: invalidate,
   });
 }

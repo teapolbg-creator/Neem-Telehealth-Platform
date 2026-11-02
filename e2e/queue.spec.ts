@@ -231,7 +231,12 @@ test.describe('what each role may see', () => {
     expect(JSON.stringify(await queue.json())).not.toMatch(/score|rating|quality|breakdown/i);
   });
 
-  test('an admin does see the routing score — the fairness audit trail', async ({ page }) => {
+  test('an admin does see the routing score — the fairness audit trail', async ({
+    page,
+    request,
+  }) => {
+    // Its own patient in the queue: the field is on each entry.
+    await queueAConsultation({ pharmacy: request, patient: request }, 'en');
     await signInAdminOnPage(page);
 
     const queue = await page.request.get(`${API}/admin/queue`);

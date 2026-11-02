@@ -151,6 +151,7 @@ export const AUDIT_ACTIONS = {
 
   DOCTOR_ASSIGNED: 'queue.doctor.assigned',
   DOCTOR_MISSED_RESPONSE: 'queue.doctor.missed-response',
+  DOCTOR_DECLINED_OFFER: 'queue.doctor.declined-offer',
 
   PRESCRIPTION_ISSUED: 'prescription.issued',
   PRESCRIPTION_REVOKED: 'prescription.revoked',

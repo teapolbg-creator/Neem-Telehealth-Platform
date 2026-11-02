@@ -3291,3 +3291,42 @@ No product code changed for this.
 the milestone and needs a person, a device and a live Whereby room. Also Scenario
 2's outright refusal when no doctor is on shift: the suite always has one on
 shift, so that path stays covered by the API tests.
+
+---
+
+### D91 — Doctors can be busy, decline a CHPS request, and look back · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5a, the first of the steps to a complete local V2. The brief
+(§A4, §B1, §B2, §B5) asks for a Busy status, declining, a consultation priority
+and a filtered history; none existed.
+
+**Decision.**
+
+- **Busy is the doctor's word.** Present, and offered nothing, until they say
+  they are available. Distinct from a break (away) and from being at capacity
+  (worked out by the system). It applies to every channel.
+- **Declining is for CHPS only.** The brief asks for it; spec §30 forbids it for a
+  patient who has paid, and that stays. A declined request goes straight back
+  into allocation and never returns to that doctor. It is audited but not held
+  against them: quality data is for offers nobody answered.
+- **Priority is the CHO's judgement,** routine or urgent, never calculated. Urgent
+  requests are offered first when doctors are scarce. There is no emergency level,
+  because an emergency does not enter the queue (D74).
+- **History is a doctor's own consultations,** filtered by patient, facility and
+  date, with their workload above. CHPS patients are named (D74); a pharmacy or
+  direct patient's identity stays sealed (D23).
+- **The offer shows the vital signs.** Medical history stays behind accepting
+  (D78), although the brief lists it, so a doctor who declines has not read it.
+
+**A fault this exposed, fixed.** A doctor's load rises only on accepting, so a
+free doctor could hold several open offers. The screen showed the newest, and the
+rest lapsed unseen and were recorded as missed responses against them. An open
+offer now counts toward capacity. This is shared queue code, so it also affects
+the pharmacy channel.
+
+**A second fault, found the same way, fixed.** The refunds "All" view sorted oldest
+first and stopped at 100, so past that the newest decisions never appeared. It now
+shows newest first; "Awaiting a decision" stays oldest first.
+
+**What was not done.** A reason for declining: nobody has said what would be done
+with one, and free text here invites patient detail in an audit trail.

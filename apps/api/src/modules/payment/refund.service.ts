@@ -466,7 +466,9 @@ export async function listRefunds(
         select: { publicId: true, state: true, pharmacy: { select: { name: true } } },
       },
     },
-    orderBy: [{ state: 'asc' }, { createdAt: 'asc' }],
+    // Awaiting a decision: longest wait first. Everything: newest first, or past
+    // the limit the latest decisions never appear (D91).
+    orderBy: filter.openOnly ? [{ state: 'asc' }, { createdAt: 'asc' }] : [{ createdAt: 'desc' }],
     take: filter.limit ?? 100,
   });
 

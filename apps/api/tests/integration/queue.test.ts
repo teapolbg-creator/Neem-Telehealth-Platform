@@ -487,21 +487,24 @@ describe('accepting an offer', () => {
     expect(response.status).toBe(409);
   });
 
-  it('offers no way to decline (spec §30)', async () => {
+  it('offers no way to decline a patient who has paid (spec §30)', async () => {
     const doctor = await createEligibleDoctor({ name: 'Dr. Reluctant', languageCodes: ['en'] });
     const consultation = await queuedConsultation('en');
     await offerNextDoctor(consultation.id);
 
     const cookies = await signIn(doctor.email, doctor.password);
 
-    // Doctors cannot reject an assigned consultation. No such route exists.
-    for (const path of [
-      `/doctor/consultations/${consultation.publicId}/decline`,
-      `/doctor/consultations/${consultation.publicId}/reject`,
-    ]) {
-      const response = await request(path, { method: 'POST', cookies });
-      expect(response.status, path).toBe(404);
-    }
+    // Declining exists for a CHPS request only (D91).
+    const declined = await request(`/doctor/consultations/${consultation.publicId}/decline`, {
+      method: 'POST',
+      cookies,
+    });
+    expect(declined.status).toBe(422);
+    const rejected = await request(`/doctor/consultations/${consultation.publicId}/reject`, {
+      method: 'POST',
+      cookies,
+    });
+    expect(rejected.status).toBe(404);
   });
 });
 

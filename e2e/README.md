@@ -39,6 +39,13 @@ configuration in `.claude/launch.json` does this).
 
 A real call on a real tablet is not covered here, and has to be done by hand.
 
+## The queue
+
+A doctor holds one open offer at a time and the queue serves the oldest first, so
+a patient left waiting by an earlier test would go to the next test's doctor.
+Every test therefore starts by cancelling whatever is waiting, directly in the
+database, and refuses to do so unless that database is local.
+
 ## Isolation
 
 Runs are **non-destructive**. Rather than truncating the database, each run

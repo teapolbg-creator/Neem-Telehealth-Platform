@@ -142,7 +142,7 @@ export async function collectCandidates(
         qualityScores: { orderBy: { computedAt: 'desc' }, take: 1 },
         assignments: {
           where: { offeredAt: { gte: dayAgo } },
-          select: { offeredAt: true, acceptedAt: true, result: true },
+          select: { offeredAt: true, acceptedAt: true, result: true, respondByAt: true },
         },
         consultations: {
           where: { completedAt: { gte: dayAgo } },
@@ -195,7 +195,11 @@ export async function collectCandidates(
       present: Boolean(
         doctor.presence?.lastHeartbeatAt && doctor.presence.lastHeartbeatAt >= heartbeatCutoff,
       ),
+      busy: Boolean(doctor.presence?.busySince),
       currentLoad: doctor.presence?.currentLoad ?? 0,
+      openOffers: doctor.assignments.filter(
+        (assignment) => assignment.result === 'PENDING' && assignment.respondByAt > now,
+      ).length,
       maxLoad: doctor.presence?.maxLoad ?? 1,
       servedThisShift: accepted.length,
       completedLast24h: doctor.consultations.length,
@@ -630,6 +634,69 @@ export interface TimeoutSweepResult {
  * Runs server-side on a timer. The doctor's countdown is presentation only —
  * a client that never ticks, or one deliberately paused, changes nothing.
  */
+/**
+ * A doctor says no to a CHPS offer (brief §B2, D91).
+ *
+ * The patient goes straight back into allocation and this doctor is not asked
+ * again for them. Not recorded against their quality data, which is for offers
+ * nobody answered. Counter and direct patients have paid for a consultation and
+ * keep the older rule that an offer cannot be refused (spec §30).
+ */
+export async function declineOffer(
+  consultationPublicId: string,
+  doctorId: string,
+  db: PrismaClient = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<void> {
+  const consultation = await db.consultation.findUnique({
+    where: { publicId: consultationPublicId },
+    include: {
+      assignments: { where: { doctorId, result: 'PENDING' }, take: 1 },
+    },
+  });
+  const assignment = consultation?.assignments[0];
+  if (!consultation || !assignment) {
+    throw errors.notFound('You do not have an open offer for this consultation.');
+  }
+  if (consultation.channel !== 'CHPS') {
+    throw errors.businessRule('Only a request from a CHPS compound can be declined.');
+  }
+
+  await db.$transaction(async (tx) => {
+    const claimed = await tx.consultationAssignment.updateMany({
+      where: { id: assignment.id, result: 'PENDING' },
+      data: { result: 'DECLINED' },
+    });
+    if (claimed.count === 0) {
+      throw errors.conflict('That offer is no longer open.');
+    }
+    if (consultation.state === 'ASSIGNED') {
+      await tx.consultation.update({ where: { id: consultation.id }, data: { doctorId: null } });
+      await transition(
+        consultation.id,
+        'REASSIGNING',
+        { actorType: 'DOCTOR', actorId: doctorId, reason: 'doctor_declined' },
+        tx,
+        clock,
+      );
+    }
+  });
+
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.DOCTOR_DECLINED_OFFER,
+      actorType: 'DOCTOR',
+      actorId: doctorId,
+      entityType: 'consultation',
+      entityId: consultation.id,
+      metadata: { attemptNumber: assignment.attemptNumber },
+    },
+    db,
+  );
+
+  await offerNextDoctor(consultation.id, db, clock);
+}
+
 export async function enforceResponseWindow(
   db: PrismaClient = getPrisma(),
   clock: Clock = systemClock,
@@ -754,7 +821,9 @@ export async function processWaitingQueue(
   const waiting = await db.consultationQueueEntry.findMany({
     where: { state: { in: ['WAITING'] } },
     include: { consultation: { select: { id: true, state: true } } },
-    orderBy: { enqueuedAt: 'asc' },
+    // The CHO's urgent patients first when doctors are scarce (D91), then in
+    // the order they arrived. ROUTINE sorts below URGENT in the enum.
+    orderBy: [{ consultation: { priority: 'desc' } }, { enqueuedAt: 'asc' }],
     take: 50,
   });
 

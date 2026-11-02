@@ -1,5 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ADMIN_ROLES, doctorSignatureSchema, documentTypesFor, PERMISSIONS } from '@neem/contracts';
+import {
+  ADMIN_ROLES,
+  doctorHistoryQuerySchema,
+  doctorSignatureSchema,
+  documentTypesFor,
+  PERMISSIONS,
+} from '@neem/contracts';
 import { z } from 'zod';
 import { getPrisma } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
@@ -9,6 +15,7 @@ import { systemClock } from '../../lib/clock.ts';
 import { requestContext } from '../../middleware/context.ts';
 import { guard, requireAuth } from '../../middleware/auth.ts';
 import { captureSignature, getDoctorByPublicId } from './doctor.service.ts';
+import { doctorHistory } from './doctor-history.service.ts';
 import {
   initiateMembershipPayment,
   membershipView,
@@ -474,6 +481,16 @@ export async function doctorRoutes(app: FastifyInstance): Promise<void> {
    * verifies, and letting a professional rewrite those would undo the
    * verification they passed.
    */
+  app.get(
+    '/doctor/consultations/history',
+    { preHandler: guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_READ] }) },
+    async (request, reply) => {
+      const { doctorId } = requireDoctor(request);
+      const data = await doctorHistory(doctorId, doctorHistoryQuerySchema.parse(request.query));
+      return reply.send({ data, meta: { requestId: request.correlationId } });
+    },
+  );
+
   app.patch(
     '/doctor/profile/prescriber-details',
     { preHandler: guard({ roles: ['DOCTOR'], permissions: [PERMISSIONS.CONSULTATION_READ] }) },

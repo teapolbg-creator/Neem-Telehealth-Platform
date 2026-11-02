@@ -250,9 +250,19 @@ export const visitEscalateSchema = z.object({
 });
 
 /** Asking for a Neem doctor for a triaged visit (slice 1c, D76). */
+export const CONSULTATION_PRIORITIES = ['ROUTINE', 'URGENT'] as const;
+export type ConsultationPriority = (typeof CONSULTATION_PRIORITIES)[number];
+
+export const CONSULTATION_PRIORITY_LABELS: Record<ConsultationPriority, string> = {
+  ROUTINE: 'Routine',
+  URGENT: 'Urgent',
+};
+
 export const chpsConsultationRequestSchema = z.object({
   languageCode: z.string().trim().min(2).max(8),
   type: z.enum(['VIDEO', 'AUDIO']).default('VIDEO'),
+  /** The CHO's judgement, offered first when doctors are scarce (D91). */
+  priority: z.enum(CONSULTATION_PRIORITIES).default('ROUTINE'),
   note: z.string().trim().max(1000).optional(),
 });
 export type ChpsConsultationRequest = z.infer<typeof chpsConsultationRequestSchema>;
@@ -283,6 +293,7 @@ export interface VisitConsultation {
   reference: string;
   state: string;
   type: 'VIDEO' | 'AUDIO';
+  priority: ConsultationPriority;
   requestedAt: string;
   /** Only once a doctor has accepted; an offer can still be declined. */
   doctorName: string | null;

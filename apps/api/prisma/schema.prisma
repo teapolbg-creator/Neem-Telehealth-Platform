@@ -292,6 +292,15 @@ enum AssignmentResult {
   MISSED
   WITHDRAWN
   REASSIGNED
+  /// The doctor said no to a CHPS offer (D91). Not held against them.
+  DECLINED
+}
+
+/// How soon the CHO judges a CHPS patient should be seen (D91). Emergencies
+/// never reach the queue, so there is no third value.
+enum ConsultationPriority {
+  ROUTINE
+  URGENT
 }
 
 enum PerformanceEventType {
@@ -954,6 +963,8 @@ model DoctorPresence {
   doctorId        String    @id
   onlineSince     DateTime?
   lastHeartbeatAt DateTime?
+  /// Declared busy (D91): present, but offered nothing until they say otherwise.
+  busySince       DateTime?
   currentLoad     Int       @default(0)
   maxLoad         Int       @default(1)
 
@@ -995,6 +1006,8 @@ model Consultation {
   pharmacyId       String?
   /// Which service started it. COUNTER is every consultation that existed before v2.
   channel          ConsultationChannel @default(COUNTER)
+  /// The CHO's judgement on a CHPS request (D91). Other channels stay ROUTINE.
+  priority         ConsultationPriority @default(ROUTINE)
   /// What the patient booked, and the price they were shown (v2). Null for a
   /// counter consultation, which is priced from settings.
   serviceId        String?

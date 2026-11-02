@@ -322,9 +322,7 @@ POST   /doctor/prescriptions/:publicId/revoke        blocked once DISPENSED
 GET    /doctor/substitutions | POST /doctor/substitutions/:id/decide   { APPROVE | REJECT, note }
 GET    /doctor/earnings
 GET    /doctor/membership | POST /doctor/membership/payment | GET .../payment/status
-
-NOT BUILT
-GET    /doctor/consultations/history                 a doctor has no list of past consultations
+GET    /doctor/consultations/history                 §27
 ```
 
 No route returns a doctor's own ratings or quality score (spec §24, §52).
@@ -1019,3 +1017,23 @@ conclusion from it.
 `lowData` is on, both participants of a call from that facility join with the
 video service's low-data mode (Whereby `lowData=on`), from the next join. The
 change is audited as `facility.video-quality-set`.
+
+## 27. Doctor availability, declining and history (slice 5a, D91)
+
+```
+POST   /doctor/presence/busy                          present, but offered nothing; POST /doctor/presence/online ends it
+POST   /doctor/consultations/:publicId/decline        say no to an open offer from a CHPS compound
+GET    /doctor/consultations/history?patient=&facility=&from=&to=&cursor=   this doctor's own consultations, and their workload
+```
+
+`GET /doctor/presence` now carries `busy`. Declining is refused (422) for any
+other channel, returns the consultation to allocation, never asks that doctor
+again for it, and is audited as `queue.doctor.declined-offer` but not recorded
+against their quality data. `POST /facility/visits/:publicId/consultation` takes
+`priority` (`ROUTINE` or `URGENT`, default `ROUTINE`), the CHO's judgement: when
+doctors are scarce, urgent requests are offered first. An offer's `chps` block
+also carries `vitals` and `priority`.
+
+History lists only consultations this doctor accepted, 30 at a time. `patient`
+is a whole word of the name or a card number, and matches CHPS patients only:
+a pharmacy or direct patient's identity is sealed (D23), so `patientName` is null.

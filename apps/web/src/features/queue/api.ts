@@ -1,3 +1,4 @@
+import type { ConsultationPriority, VitalSigns } from "@neem/contracts";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -22,6 +23,8 @@ export interface PresenceView {
   currentLoad: number;
   maxLoad: number;
   /** Why this doctor is not receiving consultations right now. */
+  /** Declared busy: here, and offered nothing (D91). */
+  busy: boolean;
   blockedBy: string | null;
   /** The consultations holding this doctor's slot, when they are at capacity (D66). */
   occupying: OccupyingConsultation[];
@@ -43,6 +46,15 @@ export function useGoOnline() {
 
   return useMutation({
     mutationFn: () => api.post("/doctor/presence/online"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
+  });
+}
+
+export function useGoBusy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.post("/doctor/presence/busy"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 }
@@ -156,6 +168,8 @@ export interface QueueOffer {
     ageYears: number | null;
     presentingComplaint: string | null;
     triageCategory: "RED" | "ORANGE" | "YELLOW" | "GREEN" | null;
+    vitals: VitalSigns | null;
+    priority: ConsultationPriority;
   } | null;
   offeredAt: string;
   respondByAt: string;
@@ -207,6 +221,19 @@ export function useAcceptOffer() {
 
   return useMutation({
     mutationFn: (publicId: string) => api.post(`/doctor/consultations/${publicId}/accept`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queueKey });
+      void queryClient.invalidateQueries({ queryKey: presenceKey });
+    },
+  });
+}
+
+/** Says no to a request from a CHPS compound; it goes to another doctor (D91). */
+export function useDeclineOffer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (publicId: string) => api.post(`/doctor/consultations/${publicId}/decline`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queueKey });
       void queryClient.invalidateQueries({ queryKey: presenceKey });

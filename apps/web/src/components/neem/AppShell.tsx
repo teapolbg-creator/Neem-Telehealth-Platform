@@ -42,6 +42,7 @@ const NAV: Record<
   doctor: [
     { label: "Queue", to: "/doctor/queue" },
     { label: "Dashboard", to: "/doctor" },
+    { label: "History", to: "/doctor/history" },
     {
       label: "Substitutions",
       to: "/doctor/substitutions",

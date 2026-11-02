@@ -1,5 +1,9 @@
 import type { ConsultationState, PrismaClient } from '@prisma/client';
-import type { ChpsConsultationRequest, VisitConsultation } from '@neem/contracts';
+import type {
+  ChpsConsultationRequest,
+  ConsultationPriority,
+  VisitConsultation,
+} from '@neem/contracts';
 import { getPrisma, type Db } from '../../db/prisma.ts';
 import { errors } from '../../lib/errors.ts';
 import { getLogger } from '../../lib/logger.ts';
@@ -122,6 +126,7 @@ export async function requestConsultation(
       data: {
         publicId: generateConsultationReference(),
         channel: 'CHPS',
+        priority: input.priority,
         facilityId: visit.facilityId,
         chpsPatientId: visit.patientId,
         visitId: visit.id,
@@ -334,6 +339,7 @@ export function toConsultationView(row: {
   publicId: string;
   state: ConsultationState;
   type: 'AUDIO' | 'VIDEO' | 'CALL_ME' | null;
+  priority: ConsultationPriority;
   createdAt: Date;
   doctor: { fullName: string } | null;
   language: { label: string } | null;
@@ -342,6 +348,7 @@ export function toConsultationView(row: {
     reference: row.publicId,
     state: row.state,
     type: row.type === 'AUDIO' ? 'AUDIO' : 'VIDEO',
+    priority: row.priority,
     requestedAt: row.createdAt.toISOString(),
     // Named only once they have accepted; an offer may still be declined.
     doctorName: ['ASSIGNED', 'WAITING_FOR_DOCTOR', 'REASSIGNING'].includes(row.state)

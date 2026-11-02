@@ -28,8 +28,16 @@ export interface DoctorCandidate {
   licenceValid: boolean;
   onShift: boolean;
   present: boolean;
+  /** Declared busy (D91): here, and not to be offered anything. */
+  busy: boolean;
 
   currentLoad: number;
+  /**
+   * Offers open to them right now (D91). The load only rises on accepting, so
+   * without counting these a free doctor could hold several offers at once. The
+   * screen shows one; the rest lapsed unseen and were recorded as missed.
+   */
+  openOffers: number;
   maxLoad: number;
 
   /** Consultations served during the current shift, for workload balance. */
@@ -71,6 +79,7 @@ export type IneligibilityReason =
   | 'LICENCE_EXPIRED'
   | 'OFF_SHIFT'
   | 'NOT_PRESENT'
+  | 'BUSY'
   | 'LANGUAGE_MISMATCH'
   | 'AT_CAPACITY'
   | 'ALREADY_OFFERED';
@@ -126,7 +135,11 @@ export function checkEligibility(
     return { eligible: false, reason: 'LANGUAGE_MISMATCH' };
   }
 
-  if (candidate.currentLoad >= candidate.maxLoad) return { eligible: false, reason: 'AT_CAPACITY' };
+  if (candidate.busy) return { eligible: false, reason: 'BUSY' };
+
+  if (candidate.currentLoad + candidate.openOffers >= candidate.maxLoad) {
+    return { eligible: false, reason: 'AT_CAPACITY' };
+  }
 
   return { eligible: true };
 }
@@ -325,7 +338,10 @@ export function isLanguageStarved(excluded: RankingResult['excluded']): boolean 
 
   const languageMismatches = excluded.filter((entry) => entry.reason === 'LANGUAGE_MISMATCH');
   const otherwiseAvailable = excluded.filter(
-    (entry) => entry.reason === 'LANGUAGE_MISMATCH' || entry.reason === 'AT_CAPACITY',
+    (entry) =>
+      entry.reason === 'LANGUAGE_MISMATCH' ||
+      entry.reason === 'AT_CAPACITY' ||
+      entry.reason === 'BUSY',
   );
 
   return languageMismatches.length > 0 && otherwiseAvailable.length === excluded.length;

@@ -1,4 +1,6 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
+import { config as loadDotenv } from 'dotenv';
 import { PRIVACY_NOTICE_VERSION } from '../../packages/contracts/src/privacy.ts';
 import { authenticator } from 'otplib';
 import { randomBytes } from 'node:crypto';
@@ -426,10 +428,63 @@ export async function signInAdminOnPage(page: Page): Promise<void> {
   await page.waitForURL((url) => url.pathname.startsWith('/admin'), { timeout: 20_000 });
 }
 
-export const test = base.extend<{ run: string }, { doctorOnDuty: ActiveDoctor | null }>({
+/**
+ * Takes earlier tests' patients out of the queue, directly in the database.
+ *
+ * A doctor holds one open offer at a time and the queue serves the oldest first
+ * (D91), so a patient an earlier test left waiting goes to this test's doctor,
+ * and this test's own patient waits behind them. There is no route for an
+ * administrator to cancel someone else's consultation, deliberately, so this
+ * reaches past the API. It refuses anything but a local database.
+ */
+async function clearTheQueue(): Promise<void> {
+  loadDotenv({ path: path.join(process.cwd(), '.env') });
+  const url = process.env.DATABASE_URL ?? '';
+  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(url)) {
+    throw new Error('The end-to-end suite only clears a local database.');
+  }
+  const db = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const entries = await db.consultationQueueEntry.findMany({
+      where: { state: { in: ['WAITING', 'OFFERING'] } },
+      select: { consultationId: true },
+    });
+    const ids = entries.map((entry) => entry.consultationId);
+    if (ids.length === 0) return;
+    await db.$transaction([
+      db.consultationAssignment.updateMany({
+        where: { consultationId: { in: ids }, result: 'PENDING' },
+        data: { result: 'WITHDRAWN' },
+      }),
+      db.consultation.updateMany({
+        where: { id: { in: ids } },
+        data: { state: 'CANCELLED', doctorId: null },
+      }),
+      db.consultationQueueEntry.updateMany({
+        where: { consultationId: { in: ids } },
+        data: { state: 'ABANDONED' },
+      }),
+    ]);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+export const test = base.extend<
+  { run: string; emptyQueue: void },
+  { doctorOnDuty: ActiveDoctor | null }
+>({
   run: async ({}, use) => {
     await use(runId());
   },
+
+  emptyQueue: [
+    async ({}, use) => {
+      await clearTheQueue();
+      await use();
+    },
+    { auto: true },
+  ],
 
   /**
    * A doctor on today's shift, for every worker (decision D50).

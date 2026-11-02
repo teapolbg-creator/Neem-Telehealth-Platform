@@ -41,6 +41,7 @@ import { Route as DistrictIndexRouteImport } from './routes/district.index'
 import { Route as DoctorIndexRouteImport } from './routes/doctor.index'
 import { Route as DoctorAvailabilityRouteImport } from './routes/doctor.availability'
 import { Route as DoctorEarningsRouteImport } from './routes/doctor.earnings'
+import { Route as DoctorHistoryRouteImport } from './routes/doctor.history'
 import { Route as DoctorMembershipRouteImport } from './routes/doctor.membership'
 import { Route as DoctorOnboardingRouteImport } from './routes/doctor.onboarding'
 import { Route as DoctorQueueRouteImport } from './routes/doctor.queue'
@@ -227,6 +228,11 @@ const DoctorEarningsRoute = DoctorEarningsRouteImport.update({
   path: '/doctor/earnings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DoctorHistoryRoute = DoctorHistoryRouteImport.update({
+  id: '/doctor/history',
+  path: '/doctor/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DoctorMembershipRoute = DoctorMembershipRouteImport.update({
   id: '/doctor/membership',
   path: '/doctor/membership',
@@ -379,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/book/paid': typeof BookPaidRoute
   '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/history': typeof DoctorHistoryRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
@@ -437,6 +444,7 @@ export interface FileRoutesByTo {
   '/book/paid': typeof BookPaidRoute
   '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/history': typeof DoctorHistoryRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
@@ -496,6 +504,7 @@ export interface FileRoutesById {
   '/book/paid': typeof BookPaidRoute
   '/doctor/availability': typeof DoctorAvailabilityRoute
   '/doctor/earnings': typeof DoctorEarningsRoute
+  '/doctor/history': typeof DoctorHistoryRoute
   '/doctor/membership': typeof DoctorMembershipRoute
   '/doctor/onboarding': typeof DoctorOnboardingRoute
   '/doctor/queue': typeof DoctorQueueRoute
@@ -556,6 +565,7 @@ export interface FileRouteTypes {
     | '/book/paid'
     | '/doctor/availability'
     | '/doctor/earnings'
+    | '/doctor/history'
     | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
@@ -614,6 +624,7 @@ export interface FileRouteTypes {
     | '/book/paid'
     | '/doctor/availability'
     | '/doctor/earnings'
+    | '/doctor/history'
     | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
@@ -672,6 +683,7 @@ export interface FileRouteTypes {
     | '/book/paid'
     | '/doctor/availability'
     | '/doctor/earnings'
+    | '/doctor/history'
     | '/doctor/membership'
     | '/doctor/onboarding'
     | '/doctor/queue'
@@ -731,6 +743,7 @@ export interface RootRouteChildren {
   BookPaidRoute: typeof BookPaidRoute
   DoctorAvailabilityRoute: typeof DoctorAvailabilityRoute
   DoctorEarningsRoute: typeof DoctorEarningsRoute
+  DoctorHistoryRoute: typeof DoctorHistoryRoute
   DoctorMembershipRoute: typeof DoctorMembershipRoute
   DoctorOnboardingRoute: typeof DoctorOnboardingRoute
   DoctorQueueRoute: typeof DoctorQueueRoute
@@ -988,6 +1001,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DoctorEarningsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/doctor/history': {
+      id: '/doctor/history'
+      path: '/doctor/history'
+      fullPath: '/doctor/history'
+      preLoaderRoute: typeof DoctorHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/doctor/membership': {
       id: '/doctor/membership'
       path: '/doctor/membership'
@@ -1187,6 +1207,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookPaidRoute: BookPaidRoute,
   DoctorAvailabilityRoute: DoctorAvailabilityRoute,
   DoctorEarningsRoute: DoctorEarningsRoute,
+  DoctorHistoryRoute: DoctorHistoryRoute,
   DoctorMembershipRoute: DoctorMembershipRoute,
   DoctorOnboardingRoute: DoctorOnboardingRoute,
   DoctorQueueRoute: DoctorQueueRoute,

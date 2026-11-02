@@ -65,7 +65,7 @@ export async function goOnline(
 
   const presence = await db.doctorPresence.upsert({
     where: { doctorId },
-    update: { onlineSince: now, lastHeartbeatAt: now, maxLoad },
+    update: { onlineSince: now, lastHeartbeatAt: now, busySince: null, maxLoad },
     create: { doctorId, onlineSince: now, lastHeartbeatAt: now, currentLoad: 0, maxLoad },
   });
 
@@ -147,12 +147,35 @@ export async function heartbeat(
 export async function goOffline(doctorId: string, db: Db = getPrisma()): Promise<void> {
   await db.doctorPresence.updateMany({
     where: { doctorId },
-    data: { onlineSince: null, lastHeartbeatAt: null },
+    data: { onlineSince: null, lastHeartbeatAt: null, busySince: null },
   });
+}
+
+/**
+ * Present, but offered nothing (brief §B1, D91).
+ *
+ * Distinct from a break, which means away, and from being at capacity, which
+ * the system works out by itself: this is the doctor saying they are occupied
+ * with something Neem cannot see. An offer already open stays open.
+ */
+export async function goBusy(
+  doctorId: string,
+  db: Db = getPrisma(),
+  clock: Clock = systemClock,
+): Promise<void> {
+  const presence = await db.doctorPresence.findUnique({
+    where: { doctorId },
+    select: { lastHeartbeatAt: true },
+  });
+  if (!presence?.lastHeartbeatAt) {
+    throw errors.businessRule('Say you are available first. You are on a break.');
+  }
+  await db.doctorPresence.update({ where: { doctorId }, data: { busySince: clock.now() } });
 }
 
 export interface PresenceView {
   online: boolean;
+  busy: boolean;
   onlineSince: string | null;
   currentLoad: number;
   maxLoad: number;
@@ -216,23 +239,25 @@ export async function getPresence(
           ? 'You have no confirmed shift today.'
           : !online
             ? 'You are offline.'
-            : /*
-               * Being full is the last reason, and it was missing (D59).
-               *
-               * A doctor at capacity is skipped by every allocation, and until
-               * now their dashboard said nothing at all — it reported them
-               * online, on shift and ready while the queue silently passed them
-               * over. That is how a drifted count went unnoticed: there was no
-               * screen anywhere that would have shown it.
-               *
-               * It names the number, because "you are already with 1 of 1
-               * patients" is checkable against what the doctor knows they are
-               * doing. If it says they are with a patient and they are not, that
-               * is the bug, visible at last.
-               */
-              presence && presence.currentLoad >= presence.maxLoad
-              ? `You are already with ${presence.currentLoad} of ${presence.maxLoad} patients, so no new consultation will be offered until one is finished.`
-              : null;
+            : presence?.busySince
+              ? 'You said you are busy. Say you are available when you can take a patient.'
+              : /*
+                 * Being full is the last reason, and it was missing (D59).
+                 *
+                 * A doctor at capacity is skipped by every allocation, and until
+                 * now their dashboard said nothing at all — it reported them
+                 * online, on shift and ready while the queue silently passed them
+                 * over. That is how a drifted count went unnoticed: there was no
+                 * screen anywhere that would have shown it.
+                 *
+                 * It names the number, because "you are already with 1 of 1
+                 * patients" is checkable against what the doctor knows they are
+                 * doing. If it says they are with a patient and they are not, that
+                 * is the bug, visible at last.
+                 */
+                presence && presence.currentLoad >= presence.maxLoad
+                ? `You are already with ${presence.currentLoad} of ${presence.maxLoad} patients, so no new consultation will be offered until one is finished.`
+                : null;
 
   /*
    * Looked up only when the doctor is at capacity, which is the only moment it
@@ -251,6 +276,7 @@ export async function getPresence(
 
   return {
     online,
+    busy: online && Boolean(presence?.busySince),
     onlineSince: presence?.onlineSince?.toISOString() ?? null,
     currentLoad: presence?.currentLoad ?? 0,
     maxLoad: presence?.maxLoad ?? 1,

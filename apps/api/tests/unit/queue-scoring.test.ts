@@ -36,6 +36,8 @@ function candidate(overrides: Partial<DoctorCandidate> = {}): DoctorCandidate {
     qualityScore: 0.8,
     lastOfferedAt: null,
     alreadyOffered: false,
+    busy: false,
+    openOffers: 0,
     ...overrides,
   };
 }
@@ -98,6 +100,16 @@ describe('eligibility — the hard gate', () => {
 
   it('never re-offers the same consultation to a doctor who already had it', () => {
     // What makes reassignment progress instead of looping (spec §30).
+    expect(
+      checkEligibility(candidate({ currentLoad: 0, maxLoad: 1, openOffers: 1 }), 'en'),
+    ).toEqual({
+      eligible: false,
+      reason: 'AT_CAPACITY',
+    });
+    expect(checkEligibility(candidate({ busy: true }), 'en')).toEqual({
+      eligible: false,
+      reason: 'BUSY',
+    });
     expect(checkEligibility(candidate({ alreadyOffered: true }), 'en').reason).toBe(
       'ALREADY_OFFERED',
     );
