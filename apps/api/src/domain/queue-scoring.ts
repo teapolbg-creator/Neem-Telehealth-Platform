@@ -30,6 +30,12 @@ export interface DoctorCandidate {
   present: boolean;
 
   currentLoad: number;
+  /**
+   * Offers open to them right now (D97). The load only rises on accepting, so
+   * without counting these a free doctor could hold several offers at once. The
+   * screen shows one; the rest lapsed unseen and were recorded as missed.
+   */
+  openOffers: number;
   maxLoad: number;
 
   /** Consultations served during the current shift, for workload balance. */
@@ -126,7 +132,9 @@ export function checkEligibility(
     return { eligible: false, reason: 'LANGUAGE_MISMATCH' };
   }
 
-  if (candidate.currentLoad >= candidate.maxLoad) return { eligible: false, reason: 'AT_CAPACITY' };
+  if (candidate.currentLoad + candidate.openOffers >= candidate.maxLoad) {
+    return { eligible: false, reason: 'AT_CAPACITY' };
+  }
 
   return { eligible: true };
 }

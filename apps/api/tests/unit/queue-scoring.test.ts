@@ -29,6 +29,7 @@ function candidate(overrides: Partial<DoctorCandidate> = {}): DoctorCandidate {
     onShift: true,
     present: true,
     currentLoad: 0,
+    openOffers: 0,
     maxLoad: 1,
     servedThisShift: 0,
     completedLast24h: 0,
@@ -94,6 +95,18 @@ describe('eligibility — the hard gate', () => {
     expect(checkEligibility(candidate({ currentLoad: 1, maxLoad: 1 }), 'en').reason).toBe(
       'AT_CAPACITY',
     );
+  });
+
+  it('counts an open offer toward capacity (D97)', () => {
+    // The load only rises on accepting; without this a free doctor collects offers.
+    expect(checkEligibility(candidate({ openOffers: 1 }), 'en')).toEqual({
+      eligible: false,
+      reason: 'AT_CAPACITY',
+    });
+    expect(checkEligibility(candidate({ openOffers: 1, maxLoad: 2 }), 'en').eligible).toBe(true);
+    expect(
+      checkEligibility(candidate({ currentLoad: 1, openOffers: 1, maxLoad: 2 }), 'en').reason,
+    ).toBe('AT_CAPACITY');
   });
 
   it('never re-offers the same consultation to a doctor who already had it', () => {

@@ -44,7 +44,7 @@ const REMEDIES: Record<string, string> = {
   LANGUAGE_MISMATCH:
     'The doctor does not consult in this language. Language is a rule, never a score — no amount of availability compensates.',
   AT_CAPACITY:
-    'Already at maxLoad. Finish or reassign the current consultation, or raise the doctor’s capacity.',
+    'Consultations plus open offers have reached maxLoad. Answer the offer, finish or reassign the current consultation, or raise the doctor’s capacity.',
 };
 
 function arg(flag: string): string | undefined {
@@ -115,8 +115,8 @@ async function main(): Promise<void> {
       ['present (heartbeat < 90s)', candidate.present, 'NOT_PRESENT'],
       [`speaks "${language}"`, candidate.languageCodes.includes(language), 'LANGUAGE_MISMATCH'],
       [
-        `has capacity (${candidate.currentLoad}/${candidate.maxLoad})`,
-        candidate.currentLoad < candidate.maxLoad,
+        `has capacity (${candidate.currentLoad} + ${candidate.openOffers} open offers / ${candidate.maxLoad})`,
+        candidate.currentLoad + candidate.openOffers < candidate.maxLoad,
         'AT_CAPACITY',
       ],
     ];

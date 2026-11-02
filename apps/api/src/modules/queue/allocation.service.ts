@@ -142,7 +142,13 @@ export async function collectCandidates(
         qualityScores: { orderBy: { computedAt: 'desc' }, take: 1 },
         assignments: {
           where: { offeredAt: { gte: dayAgo } },
-          select: { offeredAt: true, acceptedAt: true, result: true },
+          select: {
+            offeredAt: true,
+            acceptedAt: true,
+            result: true,
+            respondByAt: true,
+            consultation: { select: { state: true } },
+          },
         },
         consultations: {
           where: { completedAt: { gte: dayAgo } },
@@ -196,6 +202,13 @@ export async function collectCandidates(
         doctor.presence?.lastHeartbeatAt && doctor.presence.lastHeartbeatAt >= heartbeatCutoff,
       ),
       currentLoad: doctor.presence?.currentLoad ?? 0,
+      openOffers: doctor.assignments.filter(
+        // A consultation cancelled meanwhile no longer asks anything of them.
+        (assignment) =>
+          assignment.result === 'PENDING' &&
+          assignment.respondByAt > now &&
+          assignment.consultation.state === 'ASSIGNED',
+      ).length,
       maxLoad: doctor.presence?.maxLoad ?? 1,
       servedThisShift: accepted.length,
       completedLast24h: doctor.consultations.length,
@@ -651,6 +664,19 @@ export async function enforceResponseWindow(
 
   for (const assignment of lapsed) {
     try {
+      /*
+       * Cancelled or expired while it was on offer. Nobody is left waiting on
+       * this doctor, so it is not a missed response, and goes on no doctor's
+       * quality record (D97).
+       */
+      if (assignment.consultation.state !== 'ASSIGNED') {
+        await db.consultationAssignment.updateMany({
+          where: { id: assignment.id, result: 'PENDING' },
+          data: { result: 'WITHDRAWN' },
+        });
+        continue;
+      }
+
       await db.$transaction(async (tx) => {
         const claimed = await tx.consultationAssignment.updateMany({
           where: { id: assignment.id, result: 'PENDING' },
@@ -669,19 +695,17 @@ export async function enforceResponseWindow(
           },
         });
 
-        if (assignment.consultation.state === 'ASSIGNED') {
-          await tx.consultation.update({
-            where: { id: assignment.consultationId },
-            data: { doctorId: null },
-          });
-          await transition(
-            assignment.consultationId,
-            'REASSIGNING',
-            { actorType: 'SYSTEM', reason: 'doctor_missed_response_window' },
-            tx,
-            clock,
-          );
-        }
+        await tx.consultation.update({
+          where: { id: assignment.consultationId },
+          data: { doctorId: null },
+        });
+        await transition(
+          assignment.consultationId,
+          'REASSIGNING',
+          { actorType: 'SYSTEM', reason: 'doctor_missed_response_window' },
+          tx,
+          clock,
+        );
       });
 
       missed += 1;

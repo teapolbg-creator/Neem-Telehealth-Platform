@@ -100,7 +100,13 @@ export async function queueRoutes(app: FastifyInstance): Promise<void> {
     const now = systemClock.now();
 
     const offer = await prisma.consultationAssignment.findFirst({
-      where: { doctorId, result: 'PENDING', respondByAt: { gt: now } },
+      // Not one cancelled since it was made.
+      where: {
+        doctorId,
+        result: 'PENDING',
+        respondByAt: { gt: now },
+        consultation: { state: 'ASSIGNED' },
+      },
       include: {
         consultation: {
           include: {

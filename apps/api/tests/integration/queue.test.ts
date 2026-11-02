@@ -14,7 +14,10 @@ import {
   processWaitingQueue,
 } from '../../src/modules/queue/allocation.service.ts';
 import { goOnline } from '../../src/modules/queue/presence.service.ts';
-import { transition } from '../../src/modules/consultation/consultation.service.ts';
+import {
+  cancelConsultation,
+  transition,
+} from '../../src/modules/consultation/consultation.service.ts';
 import { fixedClock } from '../../src/lib/clock.ts';
 import { generatePublicId, hashPassword } from '../../src/lib/crypto.ts';
 
@@ -425,6 +428,116 @@ describe('scenario 4 — missed response window', () => {
     );
 
     expect(swept.missed).toBe(0);
+  });
+});
+
+describe('one open offer at a time (D97)', () => {
+  it('keeps a second patient waiting rather than offering a doctor two', async () => {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Single', languageCodes: ['en'] });
+    const first = await queuedConsultation('en');
+    const second = await queuedConsultation('en');
+
+    expect((await offerNextDoctor(first.id)).doctorId).toBe(doctor.doctorId);
+    const refused = await offerNextDoctor(second.id);
+
+    expect(refused).toMatchObject({ offered: false, reason: 'NO_ELIGIBLE_DOCTOR' });
+    expect(await getPrisma().consultationAssignment.count()).toBe(1);
+    const waiting = await getPrisma().consultation.findUniqueOrThrow({ where: { id: second.id } });
+    expect(waiting.state).toBe('WAITING_FOR_DOCTOR');
+  });
+
+  it('records one missed response when a doctor lets an offer lapse, not one per patient', async () => {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Away', languageCodes: ['en'] });
+    const first = await queuedConsultation('en');
+    const second = await queuedConsultation('en');
+    await offerNextDoctor(first.id);
+    await offerNextDoctor(second.id);
+
+    const swept = await enforceResponseWindow(
+      getPrisma(),
+      fixedClock(new Date(Date.now() + 91_000)),
+    );
+
+    expect(swept.missed).toBe(1);
+    expect(
+      await getPrisma().doctorPerformanceEvent.count({
+        where: { doctorId: doctor.doctorId, type: 'MISSED_RESPONSE' },
+      }),
+    ).toBe(1);
+  });
+
+  it('no longer counts an offer whose window has passed', async () => {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Next', languageCodes: ['en'] });
+    const first = await queuedConsultation('en');
+    const second = await queuedConsultation('en');
+    await offerNextDoctor(first.id);
+
+    // The sweep has not reached the first offer yet, but it asks nothing of them now.
+    const later = fixedClock(new Date(Date.now() + 91_000));
+    await goOnline(doctor.doctorId, getPrisma(), later);
+
+    expect((await offerNextDoctor(second.id, getPrisma(), later)).doctorId).toBe(doctor.doctorId);
+  });
+});
+
+describe('a consultation cancelled while on offer (D97)', () => {
+  async function offeredThenCancelled() {
+    const doctor = await createEligibleDoctor({ name: 'Dr. Offered', languageCodes: ['en'] });
+    const consultation = await queuedConsultation('en');
+    await offerNextDoctor(consultation.id);
+    await cancelConsultation(consultation.publicId, 'Patient went home', {
+      actorType: 'SYSTEM',
+    });
+    return { doctor, consultation };
+  }
+
+  it('stops showing the offer to the doctor at once', async () => {
+    const { doctor } = await offeredThenCancelled();
+
+    const cookies = await signIn(doctor.email, doctor.password);
+    const queue = await request<{ offer: unknown }>('/doctor/queue', { cookies });
+
+    expect(queue.body.data?.offer).toBeNull();
+  });
+
+  it('leaves the doctor free for the next patient straight away', async () => {
+    const { doctor } = await offeredThenCancelled();
+    const next = await queuedConsultation('en');
+
+    expect((await offerNextDoctor(next.id)).doctorId).toBe(doctor.doctorId);
+  });
+
+  it('is marked withdrawn when it lapses, and held against nobody', async () => {
+    const { doctor, consultation } = await offeredThenCancelled();
+
+    const swept = await enforceResponseWindow(
+      getPrisma(),
+      fixedClock(new Date(Date.now() + 91_000)),
+    );
+
+    expect(swept).toEqual({ missed: 0, reoffered: 0 });
+    const assignment = await getPrisma().consultationAssignment.findFirstOrThrow({
+      where: { consultationId: consultation.id },
+    });
+    expect(assignment.result).toBe('WITHDRAWN');
+    expect(assignment.missedAt).toBeNull();
+    expect(
+      await getPrisma().doctorPerformanceEvent.count({ where: { doctorId: doctor.doctorId } }),
+    ).toBe(0);
+  });
+
+  it('does not let a cancelled offer hide a live one on the doctor’s screen', async () => {
+    const { doctor } = await offeredThenCancelled();
+    const next = await queuedConsultation('en');
+    await offerNextDoctor(next.id);
+
+    const cookies = await signIn(doctor.email, doctor.password);
+    const queue = await request<{ offer: { consultationPublicId: string } | null }>(
+      '/doctor/queue',
+      { cookies },
+    );
+
+    expect(queue.body.data?.offer?.consultationPublicId).toBe(next.publicId);
   });
 });
 
