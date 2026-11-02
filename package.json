@@ -44,6 +44,7 @@
     "smtp:check": "node scripts/smtp-check.mjs",
     "hubtel:check": "node scripts/hubtel-check.mjs",
     "db:studio": "npm run db:studio --workspace @neem/api",
+    "demo": "node scripts/demo.mjs",
     "setup": "npm install && npm run docker:up && npm run db:migrate && npm run db:migrate:test && npm run db:grants && npm run db:seed",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",

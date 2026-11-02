@@ -2,6 +2,9 @@ import type { PrismaClient } from '@prisma/client';
 import { hashPassword, generatePublicId, encryptField } from '../../src/lib/crypto.ts';
 import { POINT_OF_CARE_TESTS, VITAL_EQUIPMENT } from './reference-data.ts';
 import { seedDemoConsultations, type DemoConsultationSummary } from './demo-consultations.ts';
+import { seedChpsDemo, type ChpsDemoResult } from './demo-chps.ts';
+import { invalidateSettingsCache } from '../../src/modules/settings/settings.service.ts';
+import { SETTING_KEYS } from '../../src/modules/settings/settings.defaults.ts';
 
 /**
  * Demo data.
@@ -30,6 +33,21 @@ export interface DemoSeedResult {
   accounts: Array<{ role: string; email: string; password: string; note: string }>;
   /** Null when a history already existed and this run left it alone. */
   history: DemoConsultationSummary | null;
+  /** Null when the CHPS demo was already there. */
+  chps: ChpsDemoResult | null;
+}
+
+async function withoutDutyRule<T>(prisma: PrismaClient, work: () => Promise<T>): Promise<T> {
+  const key = SETTING_KEYS.REQUIRE_DOCTOR_ON_DUTY;
+  const before = await prisma.systemSetting.findUniqueOrThrow({ where: { key } });
+  await prisma.systemSetting.update({ where: { key }, data: { value: false } });
+  invalidateSettingsCache(key);
+  try {
+    return await work();
+  } finally {
+    await prisma.systemSetting.update({ where: { key }, data: { value: before.value as never } });
+    invalidateSettingsCache(key);
+  }
 }
 
 export async function seedDemoData(
@@ -264,6 +282,9 @@ export async function seedDemoData(
         fullName: spec.name,
         mdcNumber: spec.mdc,
         mdcExpiresAt: licenceExpiry,
+        // A prescription is refused without these (D60).
+        qualification: 'MB ChB',
+        practiceAddress: 'Demo Clinic, Accra',
         yearsExperience: spec.years,
         specialty: spec.specialty,
         status: spec.status,
@@ -336,14 +357,36 @@ export async function seedDemoData(
     where: { status: 'ACTIVE', isDemo: true, discipline: 'DOCTOR' },
     select: { id: true },
   });
-  const history = await seedDemoConsultations(prisma, {
-    adminUserId: adminUser.id,
-    pharmacyId: activePharmacy.id,
-    pharmacyUserId: activePharmacy.users[0]!.userId,
-    secondPharmacyId: secondPharmacy.id,
-    secondPharmacyUserId: secondPharmacy.users[0]!.userId,
-    doctorIds: activeDoctors.map((doctor) => doctor.id),
-    englishId: english.id,
+  /*
+   * The history is in the past, when nobody was on the rota, so the rule that
+   * refuses a consultation with no doctor on duty (D50) would stop it. Without
+   * this a brand-new database could not be seeded at all (D95).
+   */
+  const { history, chps } = await withoutDutyRule(prisma, async () => ({
+    history: await seedDemoConsultations(prisma, {
+      adminUserId: adminUser.id,
+      pharmacyId: activePharmacy.id,
+      pharmacyUserId: activePharmacy.users[0]!.userId,
+      secondPharmacyId: secondPharmacy.id,
+      secondPharmacyUserId: secondPharmacy.users[0]!.userId,
+      doctorIds: activeDoctors.map((doctor) => doctor.id),
+      englishId: english.id,
+    }),
+    chps: await seedChpsDemo(prisma, {
+      password: DEMO_PASSWORD,
+      adminUserId: adminUser.id,
+      doctorIds: activeDoctors.map((doctor) => doctor.id),
+    }),
+  }));
+
+  // The pharmacy history assigns its doctors directly, past the queue, so its entries
+  // would otherwise sit on the admin queue as waiting for consultations long finished.
+  await prisma.consultationQueueEntry.updateMany({
+    where: {
+      state: { in: ['WAITING', 'OFFERING'] },
+      consultation: { state: { notIn: ['WAITING_FOR_DOCTOR', 'ASSIGNED', 'REASSIGNING'] } },
+    },
+    data: { state: 'RESOLVED' },
   });
 
   // --- Pilot applications -------------------------------------------------
@@ -426,6 +469,7 @@ export async function seedDemoData(
   return {
     adminEmail: options.adminEmail,
     history,
+    chps,
     accounts: [
       {
         role: 'ADMIN',

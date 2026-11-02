@@ -631,3 +631,25 @@ test.describe('CHPS triage protocol (D93)', () => {
     }
   });
 });
+
+test.describe('the presentation build (D95)', () => {
+  test('asks nothing of the outside world while a CHO works', async ({ page, request, run }) => {
+    const outside: string[] = [];
+    page.on('request', (sent) => {
+      const { hostname, protocol } = new URL(sent.url());
+      if (['http:', 'https:', 'ws:', 'wss:'].includes(protocol) && hostname !== 'localhost') {
+        outside.push(sent.url());
+      }
+    });
+
+    const compound = await createCompound(request, run);
+    await signInThroughUi(page, compound.cho);
+    await registerWalkIn(page, { fullName: `Efua Local ${run}` });
+    await triage(page, 'Green');
+    for (const path of ['/facility', '/facility/referrals', '/facility/reports']) {
+      await gotoHydrated(page, path);
+    }
+
+    expect(outside).toEqual([]);
+  });
+});

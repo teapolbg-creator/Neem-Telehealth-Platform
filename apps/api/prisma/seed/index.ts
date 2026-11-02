@@ -1,3 +1,4 @@
+import './mock-messages.ts';
 import '../../src/config/load-dotenv.ts';
 import { PrismaClient } from '@prisma/client';
 import { getEnv } from '../../src/config/env.ts';
@@ -83,10 +84,20 @@ async function main(): Promise<void> {
       console.log('  · consultation history already present — left alone');
     }
 
+    if (result.chps) {
+      const c = result.chps;
+      console.log(
+        `  ✓ CHPS: ${c.visits} visits, ${c.consultationsCompleted} consultations completed, ` +
+          `${c.referrals} referrals, ${c.followUps} follow-ups`,
+      );
+    } else {
+      console.log('  · CHPS demo already present — left alone');
+    }
+
     console.log('');
     console.log('  DEMO ACCOUNTS');
     console.log('  ' + '─'.repeat(94));
-    for (const account of result.accounts) {
+    for (const account of [...result.accounts, ...(result.chps?.accounts ?? [])]) {
       console.log(
         `  ${account.role.padEnd(9)} ${account.email.padEnd(30)} ${account.password.padEnd(20)} ${account.note}`,
       );

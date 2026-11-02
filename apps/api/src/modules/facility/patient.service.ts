@@ -403,6 +403,9 @@ export async function registerPatient(
             consentRecordedByUserId: ctx.userId,
             registeredByUserId: ctx.userId,
             clientRequestId: input.clientRequestId ?? null,
+            // The time on the clock given, so a walk-in sent later from offline
+            // is dated when it happened rather than when it arrived (D88).
+            createdAt: now,
           },
         });
         const visit = await tx.patientVisit.create({
@@ -413,6 +416,7 @@ export async function registerPatient(
             presentingComplaintEnc: encryptField(input.presentingComplaint),
             arrivedAt: now,
             createdByUserId: ctx.userId,
+            createdAt: now,
           },
         });
         return { patient, visit };
@@ -816,7 +820,8 @@ export async function facilityDay(
       ? null
       : Math.round(
           accepted.reduce(
-            (sum, row) => sum + (row.acceptedAt!.getTime() - row.consultation.createdAt.getTime()),
+            (sum, row) =>
+              sum + Math.max(0, row.acceptedAt!.getTime() - row.consultation.createdAt.getTime()),
             0,
           ) /
             accepted.length /

@@ -178,6 +178,7 @@ Slice 5b is built (D92): the in-app notification feed, which answers Q4.
 Slice 5c is built (D93): a triage protocol table that ships empty, awaiting Q5.
 Slice 5d is built (D94): the remaining dashboard figures, station device status, and an empty
 reporting adapter where DHIMS2 would connect. No integration exists.
+Slice 5e is built (D95): CHPS demo data and `npm run demo`.
 
 Still proposed: SMS once D46 is lifted, DHIMS2 through an approved interface, multi-region.
 

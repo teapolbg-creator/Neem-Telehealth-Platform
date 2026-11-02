@@ -126,6 +126,7 @@ export async function requestConsultation(
       data: {
         publicId: generateConsultationReference(),
         channel: 'CHPS',
+        createdAt: now,
         priority: input.priority,
         facilityId: visit.facilityId,
         chpsPatientId: visit.patientId,

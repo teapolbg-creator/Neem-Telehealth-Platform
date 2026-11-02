@@ -3411,3 +3411,30 @@ should wait for what the approved protocol actually needs.
 **What was not done.** System error rates, which belong to the hosting provider's
 metrics, and any management of the device itself, which is the kiosk's job
 (`docs/station-setup.md`).
+
+---
+
+### D95 — One command for the presentation build, with fictional CHPS data · 2026-11-04 · **DECIDED**
+
+**Context.** Slice 5e. V2 is to be presented from a local build with no paid services
+connected, then handed to an engineer. The demo data had no CHPS compounds, so its
+screens would have been empty.
+
+**Decision.**
+
+- **`npm run demo`** starts the databases, brings them up to date, adds demo data and
+  runs the app with every outside service mocked, whatever `.env` says.
+- **CHPS history is walked through the real services,** as the pharmacy demo is, over
+  the past four weeks: visits, triage, consultations, referrals, follow-ups and
+  emergencies, so every dashboard counts something that happened.
+- **Everything is fictional and says so.** Facility names end "(demo)", notes begin
+  "Demo note", addresses use a `.demo` domain, and rows carry `isDemo`. Real regions
+  and districts are used because they are public, but no real compound, officer or
+  patient is implied. Demo data is refused anywhere but a local database (D52).
+- **No triage protocol rules are seeded,** and no clinical guidance is written (D93).
+- **Seeding sends nothing.** It forces messages to mock before anything loads, since
+  it drives services that notify doctors and `.env` may name a real provider.
+- **The suite checks the build makes no outside requests** while a CHO works.
+
+**What was not done.** Opening the app with no connection on a device that has never
+loaded it. The presentation machine runs the server itself, so it does not need this.
