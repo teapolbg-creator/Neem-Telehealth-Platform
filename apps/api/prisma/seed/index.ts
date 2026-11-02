@@ -1,3 +1,4 @@
+import './mock-messages.ts';
 import '../../src/config/load-dotenv.ts';
 import { PrismaClient } from '@prisma/client';
 import { getEnv } from '../../src/config/env.ts';
