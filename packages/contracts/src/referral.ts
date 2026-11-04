@@ -145,4 +145,5 @@ export interface ReferralDestination {
   name: string;
   type: string;
   district: string;
+  region: string;
 }

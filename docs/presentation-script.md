@@ -107,8 +107,8 @@ Write an assessment and a plan, tick an outcome, and **Complete consultation**.
 - The CHO's bell rings and leads to her record, with the doctor's advice on it.
 - The station thanks her, then clears itself. **Show this**: nothing of her is left for
   the next person.
-- On her record, **Refer the patient** to the demo hospital. The status says "Sent, not yet confirmed"
-  until someone records otherwise: Neem never assumes a patient arrived.
+- On her record, **Refer the patient** to Demo District Hospital, under Volta in the list. The status
+  says "Sent, not yet confirmed" until someone records otherwise: Neem never assumes a patient arrived.
 
 ### 7. An emergency (brief)
 

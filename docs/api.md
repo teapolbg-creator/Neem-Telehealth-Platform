@@ -815,7 +815,7 @@ decide before accepting (brief §B2).
 ## 17. Tracked referrals (slice 2a, D79, D80)
 
 ```
-GET    /facility/referral-destinations           active facilities other than this one
+GET    /facility/referral-destinations           active facilities other than this one, with district and region (D98)
 GET    /facility/referrals                       the register: ?status | open=true | from | to (dates)
 POST   /facility/visits/:publicId/referrals       issue: destination, urgency, reason, summary, transport
 POST   /facility/referrals/:publicId/acknowledge  { via, contact? }: the receiving facility expects them

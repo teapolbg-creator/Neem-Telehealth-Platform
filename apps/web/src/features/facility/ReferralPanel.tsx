@@ -9,6 +9,7 @@ import {
   REFERRAL_URGENCY_LABELS,
   type FacilityType,
   type ReferralContactMethod,
+  type ReferralDestination,
   type ReferralUrgency,
   type ReferralView,
   type VisitView,
@@ -33,6 +34,15 @@ import {
  */
 
 const OTHER = "__other__";
+
+/** The list runs to hundreds of facilities, so a CHO finds one by region first. */
+function destinationsByRegion(entries: ReferralDestination[]) {
+  const regions = new Map<string, ReferralDestination[]>();
+  for (const entry of entries) {
+    regions.set(entry.region, [...(regions.get(entry.region) ?? []), entry]);
+  }
+  return [...regions.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
 
 export function ReferralForm({ visit, onDone }: { visit: VisitView; onDone: () => void }) {
   const destinations = useReferralDestinations();
@@ -90,14 +100,23 @@ export function ReferralForm({ visit, onDone }: { visit: VisitView; onDone: () =
             className={inputClass}
           >
             <option value="">Choose a facility</option>
-            {destinations.data?.map((entry) => (
-              <option key={entry.publicId} value={entry.publicId}>
-                {entry.name} · {FACILITY_TYPE_LABELS[entry.type as FacilityType] ?? entry.type},{" "}
-                {entry.district}
-              </option>
+            {destinationsByRegion(destinations.data ?? []).map(([region, entries]) => (
+              <optgroup key={region} label={region}>
+                {entries.map((entry) => (
+                  <option key={entry.publicId} value={entry.publicId}>
+                    {entry.name} · {FACILITY_TYPE_LABELS[entry.type as FacilityType] ?? entry.type},{" "}
+                    {entry.district}
+                  </option>
+                ))}
+              </optgroup>
             ))}
             <option value={OTHER}>Somewhere not on the list…</option>
           </select>
+          {destinations.isError ? (
+            <span className="mt-1 block text-xs text-red-600">
+              The list of facilities did not load. Check the connection and open this page again.
+            </span>
+          ) : null}
           {errors.destinationName || errors.destinationFacilityPublicId ? (
             <span className="mt-1 block text-xs text-red-600">
               {errors.destinationName ?? errors.destinationFacilityPublicId}

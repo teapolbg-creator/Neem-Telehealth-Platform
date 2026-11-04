@@ -171,15 +171,21 @@ export async function listDestinations(
 ): Promise<ReferralDestination[]> {
   const rows = await db.facility.findMany({
     where: { status: 'ACTIVE', NOT: { id: ctx.facilityId } },
-    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    orderBy: [{ name: 'asc' }],
     take: 500,
-    select: { publicId: true, name: true, type: true, district: { select: { name: true } } },
+    select: {
+      publicId: true,
+      name: true,
+      type: true,
+      district: { select: { name: true, region: { select: { name: true } } } },
+    },
   });
   return rows.map((row) => ({
     publicId: row.publicId,
     name: row.name,
     type: row.type,
     district: row.district.name,
+    region: row.district.region.name,
   }));
 }
 

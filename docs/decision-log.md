@@ -3460,3 +3460,30 @@ local build, with V1 showing live functionality, and an engineer doing the final
 
 **What was not done.** A CHPS retention period, which needs counsel, so nothing destroys a CHPS
 record yet. It is recorded in `data-retention.md` as open.
+
+---
+
+### D98 — A compound can refer to 189 hospitals from HeFRA's licence list · 2026-11-04 · **DECIDED**
+
+**Context.** The referral form's list held only facilities added by hand, so outside the
+demo a CHO had nothing to choose but "Somewhere not on the list". The operator supplied a
+document filtering HeFRA's "Facilities with Valid Licence" list to 189 hospitals.
+
+**Decision.**
+
+- **All 189 are facilities, inserted by a migration,** because production runs migrations
+  and not seeds. `ghana-hospitals.json` holds the list and its source, and a unit test
+  keeps the two in agreement and checks every hospital lands in a real district.
+- **Names are as HeFRA lists them,** spelling included. Sixty-four district names in the
+  document differ from Neem's list: forty only in punctuation or suffix, and twenty-four
+  in spelling or because they use another name, such as an Accra sub-metro. They were
+  mapped by hand, and the data file keeps each as `listedDistrict`.
+- **Types follow the document's sections.** CHAG primary hospitals are `OTHER`, because
+  the document says to confirm which are district-designated.
+- **The list is grouped by region,** because nobody can scan 190 lines. Its response gains
+  `region`, and the form says so when the list fails to load, rather than looking empty.
+
+**What was not done.** Licence dates are in the data file but not checked by the app: 63 of
+the 189 had expired by their listed date. Komfo Anokye, Cape Coast and Tamale Teaching
+Hospitals and 37 Military Hospital are not on HeFRA's list, so are not here. The list stops
+at 500 facilities, which national scale will pass once other compounds are counted.

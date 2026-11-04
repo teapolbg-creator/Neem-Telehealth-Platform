@@ -135,6 +135,24 @@ describe('tracked referrals', () => {
     await resetDatabase();
   });
 
+  it('lists active facilities elsewhere, each with its district and region', async () => {
+    const cho = await facilityWithCho('Listing');
+    const hospital = await facility('Listed Hospital', 'DISTRICT_HOSPITAL');
+    await facility('Closed Hospital', 'DISTRICT_HOSPITAL', 'INACTIVE');
+
+    const response = await request('/facility/referral-destinations', { cookies: cho.cookies });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([
+      expect.objectContaining({
+        publicId: hospital.publicId,
+        name: 'Listed Hospital',
+        type: 'DISTRICT_HOSPITAL',
+        region: 'Volta',
+      }),
+    ]);
+  });
+
   it('runs a doctor’s referral from advice to the hospital’s feedback (Scenario 5)', async () => {
     const cho = await facilityWithCho('Alpha');
     const hospital = await facility('Ho Teaching Hospital', 'DISTRICT_HOSPITAL');
