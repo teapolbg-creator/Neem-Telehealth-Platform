@@ -88,6 +88,20 @@ test.describe('required scenarios (spec §80)', () => {
 
     const doctor = await createActiveDoctor(doctorApi, { run: `${run}s1` });
     const onShift = await putDoctorOnShiftNow(doctorApi, adminApi, doctor);
+
+    /**
+     * The only candidate, before the patient reaches the queue.
+     *
+     * This scenario goes online through the screen deliberately — the toggle
+     * is part of what it covers — so it cannot use `goOnlineExclusively`,
+     * which does it over the API. It still has to be the only doctor the
+     * queue can choose. A sweep runs every ten seconds, so clearing the others
+     * any later leaves a gap where the patient goes to a doctor an earlier test
+     * left online. The reallocation below then answers NOT_WAITING, and this
+     * scenario's own accept is refused with "you do not have an open offer".
+     */
+    await takeOtherDoctorsOffline(playwright, doctor);
+
     // Printed as well as annotated: a skip whose reason is only in the JSON
     // report is a skip nobody reads, and this scenario silently not running
     // is exactly the failure worth being loud about.
@@ -183,18 +197,6 @@ test.describe('required scenarios (spec §80)', () => {
     // Wait for the toggle, read it, and assert the state actually flipped.
     const presenceToggle = doctorPage.getByRole('button', { name: /i'm available|take a break/i });
     await presenceToggle.waitFor({ state: 'visible', timeout: 20_000 });
-
-    /**
-     * The only candidate, before coming online.
-     *
-     * This scenario goes online through the screen deliberately — the toggle
-     * is part of what it covers — so it cannot use `goOnlineExclusively`,
-     * which does it over the API. It still has to be the only doctor the
-     * queue can choose: without this, the reallocation below goes to a doctor
-     * an earlier test left online, and this scenario's own accept is refused
-     * with "you do not have an open offer". Which is what happened.
-     */
-    await takeOtherDoctorsOffline(playwright, doctor);
 
     if (/i'm available/i.test((await presenceToggle.textContent()) ?? '')) {
       await presenceToggle.click();
